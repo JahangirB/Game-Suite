@@ -428,6 +428,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun shuffleFleet() = _state.update { it.copy(fleetDraft = Fleet.random()) }
 
+    /** Ship Battle: the fleet as arranged by hand. */
+    fun setFleet(fleet: List<Ship>) = _state.update { if (it.room?.me?.ready == true) it else it.copy(fleetDraft = fleet) }
+
     /** Ship Battle: ready with the drafted fleet, or not ready any more. */
     fun readyShips() {
         val room = _state.value.room ?: return

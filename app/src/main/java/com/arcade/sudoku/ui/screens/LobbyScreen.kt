@@ -142,6 +142,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     busy = state.busy,
                     onShuffle = vm::shuffleFleet,
                     onReady = vm::readyShips,
+                    onMove = vm::setFleet,
                 )
             } else if (room.game.readyOnly) {
                 if (room.game == GameKind.DOMINOES) DominoOptionsCard(room, state.busy, vm::setDominoOptions)

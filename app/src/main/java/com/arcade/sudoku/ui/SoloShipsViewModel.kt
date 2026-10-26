@@ -29,6 +29,9 @@ class SoloShipsViewModel : ViewModel() {
 
     fun shuffle() = _state.update { it.copy(draft = Fleet.random()) }
 
+    /** The fleet as arranged by hand. */
+    fun setDraft(fleet: List<Ship>) = _state.update { it.copy(draft = fleet) }
+
     fun start() {
         val game = SoloShips.new(_state.value.draft)
         _state.update { it.copy(game = game) }

@@ -68,4 +68,29 @@ class ShipsTest {
         assertEquals("me", game.winner)
         assertEquals(100, game.myProgress)
     }
+
+    private val spread = listOf(Ship(0, 0, 5, true), Ship(0, 2, 4, true), Ship(0, 4, 3, true), Ship(0, 6, 3, true), Ship(0, 8, 2, true))
+
+    @Test
+    fun movedShipsStayInTheSeaAndApart() {
+        assertTrue(Fleet.canPlace(spread, 4, Ship(7, 9, 2, true)))
+        // Off the edge, on another ship, or touching one (even corner to corner) is refused.
+        assertFalse(Fleet.canPlace(spread, 4, Ship(9, 9, 2, true)))
+        assertFalse(Fleet.canPlace(spread, 4, Ship(0, 6, 2, true)))
+        assertFalse(Fleet.canPlace(spread, 4, Ship(3, 7, 2, true)))
+        assertFalse(Fleet.canPlace(spread, 4, Ship(5, 1, 2, false)))
+    }
+
+    @Test
+    fun turningSlidesBackIntoTheSeaOrRefuses() {
+        // The 2-ship turns upright in place.
+        assertEquals(Ship(0, 8, 2, false), Fleet.rotate(spread, 4)!![4])
+        // In the bottom row it would stick out, so it slides up one square.
+        val corner = spread.toMutableList().also { it[4] = Ship(8, 9, 2, true) }
+        val turned = Fleet.rotate(corner, 4)!!
+        assertEquals(Ship(8, 8, 2, false), turned[4])
+        Fleet.validate(turned)
+        // The 5-ship at the top would hit the 4-ship below whichever way it slides.
+        assertEquals(null, Fleet.rotate(spread, 0))
+    }
 }

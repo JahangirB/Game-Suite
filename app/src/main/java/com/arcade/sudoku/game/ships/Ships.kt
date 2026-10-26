@@ -57,6 +57,30 @@ object Fleet {
         require(cells.size == cells.toSet().size) { "Ships cannot overlap." }
     }
 
+    /**
+     * Whether ship [index] of [fleet] can be [moved] there: inside the sea, and not on or next to
+     * another ship (fleets don't touch, as when shuffled).
+     */
+    fun canPlace(fleet: List<Ship>, index: Int, moved: Ship): Boolean {
+        if (!moved.fits()) return false
+        val blocked = fleet.filterIndexed { i, _ -> i != index }.flatMap { s -> s.cells.flatMap { neighbours(it) + it } }.toSet()
+        return moved.cells.none { it in blocked }
+    }
+
+    /**
+     * [fleet] with ship [index] turned a quarter round its first square, slid back along its new
+     * line if it would stick out of the sea; null when it has no room to turn.
+     */
+    fun rotate(fleet: List<Ship>, index: Int): List<Ship>? {
+        val ship = fleet[index]
+        val turned = ship.copy(horizontal = !ship.horizontal)
+        val tries = (0 until ship.len).map { back ->
+            if (turned.horizontal) turned.copy(x = turned.x - back) else turned.copy(y = turned.y - back)
+        }
+        val fit = tries.firstOrNull { canPlace(fleet, index, it) } ?: return null
+        return fleet.toMutableList().also { it[index] = fit }
+    }
+
     fun isSunk(ship: Ship, shots: List<Shot>) = ship.cells.all { c -> shots.any { it.hit && it.cell == c } }
 
     private fun neighbours(cell: Int): List<Int> {

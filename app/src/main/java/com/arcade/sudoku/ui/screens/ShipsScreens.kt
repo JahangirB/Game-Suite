@@ -2,6 +2,8 @@ package com.arcade.sudoku.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,7 +117,7 @@ fun ShipsSea(
     }
 }
 
-/** Your fleet before a battle: shuffle until you like it, then get ready. */
+/** Your fleet before a battle: arrange it (or shuffle) until you like it, then get ready. */
 @Composable
 fun FleetCard(
     fleet: List<Ship>,
@@ -121,10 +126,11 @@ fun FleetCard(
     busy: Boolean,
     onShuffle: () -> Unit,
     onReady: () -> Unit,
+    onMove: (List<Ship>) -> Unit = {},
 ) {
     val p = AppTheme.palette
     AppCard("Your fleet") {
-        ShipsSea(ships = fleet, shots = emptyList())
+        FleetEditor(fleet, if (ready || busy) null else onMove)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SecondaryButton("Shuffle", onShuffle, Modifier.weight(1f), enabled = !ready && !busy)
             PrimaryButton(if (ready) "Not ready" else "Ready", onReady, Modifier.weight(1f), enabled = opponent != null, loading = busy)
@@ -135,7 +141,7 @@ fun FleetCard(
                 ready && opponent.ready -> "Both fleets are in. Starting…"
                 ready -> "Your fleet is ready. Waiting for ${opponent.name}…"
                 opponent.ready -> "${opponent.name} is ready. Place your fleet and tap Ready."
-                else -> "Shuffle until you like your fleet, then tap Ready. The battle starts when both are ready."
+                else -> "Drag ships to move them, tap one to turn it, or shuffle. Tap Ready when you like your fleet."
             },
             color = if (opponent?.ready == true && !ready) p.good else p.muted,
             fontSize = 14.sp,
@@ -192,7 +198,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 // The fleet for the next round, ready to shuffle before tapping Rematch.
                 if (opponent != null && !opponent.left) {
                     Text("Your next fleet", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    ShipsSea(ships = if (room.me.ready) ships.myFleet else state.fleetDraft, shots = emptyList(), modifier = Modifier.fillMaxWidth(0.5f))
+                    FleetEditor(if (room.me.ready) ships.myFleet else state.fleetDraft, if (room.me.ready) null else vm::setFleet, Modifier.fillMaxWidth(0.6f))
                     if (!room.me.ready) SecondaryButton("Shuffle", vm::shuffleFleet)
                 }
             }
@@ -291,11 +297,12 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         if (game == null) {
             AppCard("Your fleet") {
                 Text(
-                    "Sink the computer's five ships before it sinks yours. A hit lets you fire again.",
+                    "Sink the computer's five ships before it sinks yours. A hit lets you fire again. " +
+                        "Drag your ships to move them, tap one to turn it.",
                     color = p.muted,
                     fontSize = 14.sp,
                 )
-                ShipsSea(ships = state.draft, shots = emptyList())
+                FleetEditor(state.draft, vm::setDraft)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SecondaryButton("Shuffle", vm::shuffle, Modifier.weight(1f))
                     PrimaryButton("Start battle", vm::start, Modifier.weight(1f))
@@ -331,4 +338,64 @@ private fun ColumnScope.SoloShipsBattle(game: com.arcade.sudoku.game.ships.SoloS
             )
         },
     )
+}
+
+/**
+ * Your fleet, to arrange by hand: drag a ship to move it (it shows green where it can go, red
+ * where it can't, and snaps back if let go there), tap a ship to turn it. Ships can't touch.
+ * With [onChange] null the fleet only shows.
+ */
+@Composable
+fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    // The ship being dragged: its index, where it would land, and whether it may.
+    var drag by remember { mutableStateOf<Triple<Int, Ship, Boolean>?>(null) }
+    val current by rememberUpdatedState(fleet)
+    val report by rememberUpdatedState(onChange)
+    val shown = drag?.let { (i, ship, _) -> fleet.toMutableList().also { it[i] = ship } } ?: fleet
+    val gestures = if (onChange == null) Modifier else Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val cell = size.width / Sea.SIZE.toFloat()
+            fun cellAt(o: Offset) = (o.x / cell).toInt().coerceIn(0, Sea.SIZE - 1) to (o.y / cell).toInt().coerceIn(0, Sea.SIZE - 1)
+            val (gx, gy) = cellAt(down.position)
+            val fleetNow = current
+            val index = fleetNow.indexOfFirst { Sea.cell(gx, gy) in it.cells }
+            if (index < 0) return@awaitEachGesture
+            down.consume()
+            val ship = fleetNow[index]
+            var moved = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!pointer.pressed) break
+                if (!moved && (pointer.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                if (moved) {
+                    pointer.consume()
+                    val (cx, cy) = cellAt(pointer.position)
+                    val target = ship.copy(x = ship.x + cx - gx, y = ship.y + cy - gy)
+                    drag = Triple(index, target, Fleet.canPlace(fleetNow, index, target))
+                }
+            }
+            val landed = drag
+            drag = null
+            if (moved) {
+                if (landed != null && landed.third) report?.invoke(fleetNow.toMutableList().also { it[index] = landed.second })
+            } else {
+                Fleet.rotate(fleetNow, index)?.let { report?.invoke(it) }
+            }
+        }
+    }
+    Box(modifier.fillMaxWidth().aspectRatio(1f).then(gestures)) {
+        ShipsSea(ships = shown, shots = emptyList())
+        drag?.let { (_, ship, ok) ->
+            Canvas(Modifier.fillMaxSize()) {
+                val cell = size.width / Sea.SIZE
+                val tint = if (ok) p.good else Color(0xFFE8505B)
+                for (c in ship.cells.filter { it in 0 until Sea.SIZE * Sea.SIZE }) {
+                    drawRect(tint.copy(alpha = 0.35f), Offset((c % Sea.SIZE) * cell, (c / Sea.SIZE) * cell), Size(cell, cell))
+                }
+            }
+        }
+    }
 }

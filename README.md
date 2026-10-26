@@ -28,7 +28,7 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
 - **Ship Battle:** each player hides five ships (5, 4, 3, 3 and 2 squares) on a 10×10 sea and
   you take turns firing at each other's sea. A hit lets you fire again; the first to sink the
   whole fleet wins. Play against the computer, online with your partner (Cloudflare server)
-  or nearby. Tap **Shuffle** until you like your fleet, then **Ready**. The server keeps both
+  or nearby. Drag your ships to arrange them (tap one to turn it) or tap **Shuffle**, then **Ready**. The server keeps both
   fleets, so neither phone can peek; enemy ships are revealed as they sink. Pick the look of
   the ships in *Profile → Appearance*: **Toy Harbor** or **Pirate Wood**.
 - **Connect Four:** take turns dropping discs into seven columns; four in a row across, down
