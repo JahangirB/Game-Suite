@@ -1,5 +1,6 @@
 // Memory Pairs: 16 face-down cards, 8 pairs of avatar pictures. On your turn flip two cards;
-// a pair is yours and you go again, otherwise they stay up until the next flip and the turn
+// a pair is yours and you go again, otherwise they stay up until the next flip (phones turn
+// them back after a look) and the turn
 // passes to the next player. When every pair is found, the most pairs wins (a tie is a draw). The server keeps
 // the faces: players only see cards that are face up or already matched.
 

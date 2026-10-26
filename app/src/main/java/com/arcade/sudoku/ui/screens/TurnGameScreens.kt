@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -359,17 +360,30 @@ fun DotsBoard(
  */
 @Composable
 fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
+    // Two face-up cards nobody owns are a missed pair: the rules leave them up until the next
+    // flip, but after a look they turn back here, so nobody waits on the next player.
+    val missed = faces.indices.filter { faces[it] != null && owners.getOrNull(it) == '.' }.takeIf { it.size == 2 }
+    var hidden by remember { mutableStateOf<List<Int>?>(null) }
+    LaunchedEffect(missed) {
+        if (missed == null) return@LaunchedEffect
+        delay(MISSED_LOOK_MS)
+        hidden = missed
+    }
+    val shownFaces = if (missed != null && missed == hidden) faces.mapIndexed { i, f -> if (i in missed) null else f } else faces
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         for (row in 0 until 4) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (col in 0 until 4) {
                     val i = row * 4 + col
-                    MemoryCard(faces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending)
+                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending)
                 }
             }
         }
     }
 }
+
+/** How long a missed pair stays face up for everyone to see. */
+private const val MISSED_LOOK_MS = 1400L
 
 @Composable
 private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false) {
