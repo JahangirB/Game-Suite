@@ -39,14 +39,14 @@ test('scoring marks greens first and counts repeated letters once per letter in 
   assert.equal(score('llama', 'hello'), 'yy...');
 });
 
-test('guesses wait for the countdown and must be real words', () => {
+test('guesses wait for the countdown and take any five letters', () => {
   const room = race();
   assert.throws(() => guessWord(room, 'host', 'slate', T0), /countdown/);
-  assert.throws(() => guessWord(room, 'host', 'zzzzz', GO), /word list/);
   assert.throws(() => guessWord(room, 'host', 'abc', GO), /five-letter/);
   guessWord(room, 'host', 'slate', GO);
+  guessWord(room, 'host', 'zzzzz', GO);
   const guest = view(room, 'guest', GO).words;
-  assert.deepEqual(guest.theirs, [{ score: score('slate', 'crane') }]);
+  assert.deepEqual(guest.theirs, [{ score: score('slate', 'crane') }, { score: '.....' }]);
   assert.equal(guest.answer, null);
   assert.equal(view(room, 'host', GO).words.mine[0].word, 'slate');
 });

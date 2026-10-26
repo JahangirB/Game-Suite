@@ -197,8 +197,10 @@ export class Room extends DurableObject {
           break;
         case 'stroke': {
           // Strokes go straight to the guesser as their own small message, not as a new room
-          // state, and are kept in memory only (they matter for one turn) to spare storage writes.
+          // state. They are stored too: the object may sleep during a pause in the drawing, and
+          // anything kept only in memory would be lost.
           const added = addStroke(this.room, role, msg.stroke, now);
+          await this.ctx.storage.put('room', this.room);
           ws.send(JSON.stringify({ type: 'ack', re: msg.id }));
           for (const other of this.ctx.getWebSockets()) {
             if (other !== ws && roleOf(other)) {

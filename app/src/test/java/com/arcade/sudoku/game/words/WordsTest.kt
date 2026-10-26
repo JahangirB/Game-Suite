@@ -48,7 +48,9 @@ class WordsTest {
         room.setWordsReady(LocalRoom.GUEST, true, 0)
         assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "slate", 0) }
         val go = LocalRoom.COUNTDOWN_MS
-        assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "zzzzz", go) }
+        assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "abc", go) }
+        // Any five letters count, word or not.
+        room.guessWord(LocalRoom.HOST, "zzzzz", go)
         room.guessWord(LocalRoom.GUEST, "slate", go)
         val guest = parseRoom(room.view(LocalRoom.HOST, go)).words!!
         assertEquals(1, guest.theirs.size)

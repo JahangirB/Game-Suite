@@ -55,7 +55,6 @@ class SoloWordsViewModel(app: Application) : AndroidViewModel(app) {
     fun submit() {
         val s = _state.value
         if (s.done || s.input.length < Words.LENGTH) return
-        if (!WordList.isWord(s.input)) return _state.update { it.copy(message = "Not in the word list.") }
         val guesses = s.guesses + WordGuess(s.input, Words.score(s.input, s.answer))
         _state.update { it.copy(guesses = guesses, input = "", message = null) }
         if (s.daily == true) {

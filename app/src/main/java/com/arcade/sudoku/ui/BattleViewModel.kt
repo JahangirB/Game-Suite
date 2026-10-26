@@ -7,11 +7,11 @@ import com.arcade.sudoku.data.ApiException
 import com.arcade.sudoku.data.BattleBackend
 import com.arcade.sudoku.data.Difficulty
 import com.arcade.sudoku.data.DrawStroke
+import com.arcade.sudoku.data.DrawView
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.ttt.Ttt
 import com.arcade.sudoku.game.ttt.TttPosition
-import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
 import com.arcade.sudoku.data.Hello
 import com.arcade.sudoku.data.SavedPartner
@@ -20,6 +20,7 @@ import com.arcade.sudoku.data.ProfileStore
 import com.arcade.sudoku.data.Reaction
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
+import com.arcade.sudoku.data.TurnsView
 import com.arcade.sudoku.data.nearby.FoundHost
 import com.arcade.sudoku.data.nearby.NearbyGuest
 import com.arcade.sudoku.data.nearby.NearbyHost
@@ -74,8 +75,12 @@ data class BattleUiState(
     val myReaction: ShownReaction? = null,
     /** Ship Battle: the fleet you will be ready with (shuffle until you like it). */
     val fleetDraft: List<Ship> = Fleet.random(),
-    /** Ship Battle: a shot is on its way. */
+    /** A move or shot is on its way; it already shows where the rules allow (see [playMove]). */
     val firing: Boolean = false,
+    /** Ship Battle: the cell of the shot on its way, marked until the server says hit or miss. */
+    val pendingShot: Pair<Int, Int>? = null,
+    /** Memory Pairs: the card being turned while the server reveals its picture. */
+    val pendingCard: Int? = null,
     /** Word Race: the letters typed for the next guess, and the round they belong to. */
     val wordInput: String = "",
     val wordRound: Int = -1,
@@ -119,6 +124,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var loadedRound = -1
     /** The Ship Battle round after which the draft fleet was last reshuffled. */
     private var reshuffledRound = -1
+    // Draw & Guess: the round and turn, and the clear count, the shown strokes belong to.
+    private var strokesTurn = -1 to -1
+    private var strokesClears = 0
     private var recordedRound = -1
     private var lastSentBoard: String? = null
     private var bestRoundTripMs = Long.MAX_VALUE
@@ -170,7 +178,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val server = BattleBackend.forUrl(url, store.profile.value.serverPassword)
         try {
             val kind = if (server.ping().optString("kind") == "cloudflare") "Cloudflare" else "Google Script"
-            showMessage("Connected to the $kind battle server.")
+            // Timed on a second call, once the connection is set up: about what each move waits.
+            val start = System.currentTimeMillis()
+            server.ping()
+            showMessage("Connected to the $kind battle server. Round trip: ${System.currentTimeMillis() - start} ms.")
         } finally {
             server.close()
         }
@@ -379,12 +390,11 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
      * Tapping a level marks you ready for it; tapping your chosen level again cancels.
      * The round starts once both players are ready with the same level.
      */
-    fun chooseLevel(level: Difficulty) = runBusy {
-        val room = _state.value.room ?: return@runBusy
-        val id = playerId ?: return@runBusy
+    fun chooseLevel(level: Difficulty) {
+        val room = _state.value.room ?: return
         val cancel = room.me.ready && room.me.difficulty == level
-        val sentAt = System.currentTimeMillis()
-        applyResponse(requireBackend().ready(room.code, id, !cancel, level), sentAt)
+        val me = if (cancel) room.me.copy(ready = false) else room.me.copy(ready = true, difficulty = level)
+        sendReady(room.copy(me = me)) { b, id -> b.ready(room.code, id, !cancel, level) }
     }
 
     /** Sends a quick reaction; it shows next to your name on both phones. */
@@ -408,54 +418,104 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun shuffleFleet() = _state.update { it.copy(fleetDraft = Fleet.random()) }
 
     /** Ship Battle: ready with the drafted fleet, or not ready any more. */
-    fun readyShips() = runBusy {
-        val room = _state.value.room ?: return@runBusy
-        val id = playerId ?: return@runBusy
-        val sentAt = System.currentTimeMillis()
-        applyResponse(requireBackend().readyShips(room.code, id, !room.me.ready, _state.value.fleetDraft), sentAt)
+    fun readyShips() {
+        val room = _state.value.room ?: return
+        val fleet = _state.value.fleetDraft
+        sendReady(room.copy(me = room.me.copy(ready = !room.me.ready))) { b, id -> b.readyShips(room.code, id, !room.me.ready, fleet) }
     }
 
     /** Turn games: ready for the next round, or not ready any more. */
-    fun readyTurns() = runBusy {
-        val room = _state.value.room ?: return@runBusy
-        val id = playerId ?: return@runBusy
-        val sentAt = System.currentTimeMillis()
-        applyResponse(requireBackend().ready(room.code, id, !room.me.ready, null), sentAt)
+    fun readyTurns() {
+        val room = _state.value.room ?: return
+        sendReady(room.copy(me = room.me.copy(ready = !room.me.ready))) { b, id -> b.ready(room.code, id, !room.me.ready, null) }
+    }
+
+    private var readying = false
+
+    /**
+     * Ready buttons: [shown] (the room with your new ready state) appears at once, and the
+     * server's answer replaces it. If the server refuses or can't be reached, it is undone.
+     */
+    private fun sendReady(shown: RoomState, request: suspend (BattleBackend, String) -> JSONObject) {
+        val before = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (readying) return
+        readying = true
+        _state.update { it.copy(room = shown) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(request(b, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                undo(shown, before)
+                if (e.fatal) endSession(e.message) else showMessage(e.message)
+            } catch (e: IOException) {
+                undo(shown, before)
+                showMessage("Network problem, try again.")
+            } finally {
+                readying = false
+            }
+        }
+    }
+
+    /** Puts [before] back if the screen still shows the guess [shown] (no newer state arrived). */
+    private fun undo(shown: RoomState?, before: RoomState) {
+        if (shown != null) _state.update { if (it.room === shown) it.copy(room = before) else it }
     }
 
     /** Connect Four: drop a disc into [col]. */
     fun dropDisc(col: Int) {
-        val board = _state.value.room?.turns?.board ?: return
-        if (ConnectFour.landing(board, col) != null) playMove(JSONObject().put("col", col))
+        val turns = _state.value.room?.turns ?: return
+        val board = turns.board ?: return
+        val cell = ConnectFour.landing(board, col) ?: return
+        val shown = turns.copy(board = board.replaceAt(cell, 'm'), lastCell = cell, lastMoveByMe = true, turn = "opponent")
+        playMove(JSONObject().put("col", col), shown)
     }
 
     /** Dots & Boxes: draw [line]. */
     fun drawLine(line: Int) {
-        val lines = _state.value.room?.turns?.lines ?: return
-        if (lines.getOrNull(line) == '.') playMove(JSONObject().put("line", line))
+        val turns = _state.value.room?.turns ?: return
+        val lines = turns.lines ?: return
+        // Whether it closes a box (and keeps the turn) is the server's call; the line shows now.
+        if (lines.getOrNull(line) == '.') playMove(JSONObject().put("line", line), turns.copy(lines = lines.replaceAt(line, 'm'), lastLine = line, lastMoveByMe = true))
     }
 
     /** Ultimate Tic-Tac-Toe: mark [cell]. */
     fun markCell(cell: Int) {
         val turns = _state.value.room?.turns ?: return
         val pos = TttPosition(turns.board ?: return, turns.smallBoards ?: return, turns.nextBoard ?: -1)
-        if (Ttt.isLegal(pos, cell)) playMove(JSONObject().put("cell", cell))
+        if (!Ttt.isLegal(pos, cell)) return
+        val after = Ttt.play(pos, 'm', cell)
+        val shown = turns.copy(
+            board = after.cells, smallBoards = after.boards, nextBoard = after.next.takeIf { it >= 0 },
+            lastCell = cell, lastMoveByMe = true, turn = "opponent",
+        )
+        playMove(JSONObject().put("cell", cell), shown)
     }
 
     /** Memory Pairs: flip [card]. */
     fun flipCard(card: Int) {
         val turns = _state.value.room?.turns ?: return
-        if (turns.owners?.getOrNull(card) == '.') playMove(JSONObject().put("card", card))
+        // The picture is the server's secret: the card starts turning and finishes when it arrives.
+        if (turns.owners?.getOrNull(card) == '.' && turns.faces.getOrNull(card) == null) playMove(JSONObject().put("card", card), pendingCard = card)
     }
 
-    /** Turn games: send one move when it is this player's turn. */
-    private fun playMove(move: JSONObject) {
+    /**
+     * Turn games: send one move when it is this player's turn. [shown] is the board with the
+     * move already made, so it appears at once instead of after a trip to the server; the
+     * server's answer replaces it, or it is undone if the move fails.
+     */
+    private fun playMove(move: JSONObject, shown: TurnsView? = null, pendingCard: Int? = null) {
         val s = _state.value
         val room = s.room ?: return
         val id = playerId ?: return
         val b = backend ?: return
         if (s.firing || room.turns?.turn != "me") return
-        _state.update { it.copy(firing = true) }
+        val guess = shown?.let { room.copy(turns = it) }
+        _state.update { it.copy(firing = true, room = guess ?: it.room, pendingCard = pendingCard) }
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
@@ -463,14 +523,18 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
+                undo(guess, room)
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
+                undo(guess, room)
                 showMessage("Network problem, try again.")
             } finally {
-                _state.update { it.copy(firing = false) }
+                _state.update { it.copy(firing = false, pendingCard = null) }
             }
         }
     }
+
+    private fun String.replaceAt(i: Int, c: Char) = substring(0, i) + c + substring(i + 1)
 
     /** Word Race: type a letter of the next guess. */
     fun typeLetter(letter: Char) = _state.update {
@@ -487,7 +551,6 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val b = backend ?: return
         val word = s.wordInput
         if (s.firing || word.length < Words.LENGTH) return
-        if (!WordList.isWord(word)) return showMessage("Not in the word list.")
         _state.update { it.copy(firing = true) }
         viewModelScope.launch {
             try {
@@ -506,12 +569,29 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Draw & Guess: the strokes to show when a room state arrives. A new turn or a newer clear
+     * takes the server's list; a state from before your own clear is ignored. Otherwise the longer
+     * list wins: strokes still on their way (yours, or live ones from your partner) are kept.
+     */
+    private fun mergeStrokes(round: Int, draw: DrawView, shown: List<DrawStroke>): List<DrawStroke> = when {
+        (round to draw.turn) != strokesTurn || draw.clears > strokesClears -> {
+            strokesTurn = round to draw.turn
+            strokesClears = draw.clears
+            draw.strokes
+        }
+        draw.clears < strokesClears -> shown
+        draw.strokes.size >= shown.size -> draw.strokes
+        else -> shown
+    }
+
     /** Draw & Guess: a stroke your partner just drew, sent on its own. */
     private fun addLiveStroke(json: JSONObject) {
         val turn = _state.value.room?.draw?.turn ?: return
         if (json.optInt("turn") != turn) return
         val stroke = json.optJSONObject("stroke")?.let(DrawStroke::from) ?: return
-        _state.update { it.copy(drawStrokes = it.drawStrokes + stroke) }
+        // A stroke a room state already brought must not show twice.
+        _state.update { if (json.optInt("index") < it.drawStrokes.size) it else it.copy(drawStrokes = it.drawStrokes + stroke) }
     }
 
     /** Draw & Guess: you drew [stroke]; it shows at once and goes to your partner in the background. */
@@ -521,13 +601,21 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val b = backend ?: return
         if (room.draw?.drawing != true) return
         _state.update { it.copy(drawStrokes = it.drawStrokes + stroke) }
+        val turn = room.draw?.turn ?: return
         viewModelScope.launch {
-            try {
-                b.stroke(room.code, id, stroke.toJson())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // A lost stroke only leaves a gap in the drawing.
+            // While the connection is coming back the send fails; try again for a few seconds.
+            for (wait in STROKE_RETRY_MS) {
+                try {
+                    b.stroke(room.code, id, stroke.toJson())
+                    return@launch
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: ApiException) {
+                    return@launch // The turn is over or the stroke was refused: nothing to retry.
+                } catch (e: IOException) {
+                    delay(wait)
+                    if (_state.value.room?.draw?.turn != turn || backend !== b) return@launch
+                }
             }
         }
     }
@@ -536,6 +624,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         val id = playerId ?: return
         val b = backend ?: return
+        // Older states still hold the old drawing; they are ignored until the server counts this clear.
+        strokesClears = (room.draw?.clears ?: 0) + 1
         _state.update { it.copy(drawStrokes = emptyList()) }
         viewModelScope.launch {
             try {
@@ -544,6 +634,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                strokesClears = room.draw?.clears ?: 0
                 showMessage("Could not clear the drawing, try again.")
             }
         }
@@ -577,7 +668,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val b = backend ?: return
         val ships = room.ships ?: return
         if (s.firing || ships.turn != "me" || ships.myShots.any { it.x == x && it.y == y }) return
-        _state.update { it.copy(firing = true) }
+        _state.update { it.copy(firing = true, pendingShot = x to y) }
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
@@ -589,7 +680,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: IOException) {
                 showMessage("Network problem, try again.")
             } finally {
-                _state.update { it.copy(firing = false) }
+                _state.update { it.copy(firing = false, pendingShot = null) }
             }
         }
     }
@@ -780,7 +871,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             var next = s.copy(room = room, clockOffsetMs = offset)
             if (newReaction != null) next = next.copy(opponentReaction = newReaction)
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
-            room.draw?.let { next = next.copy(drawStrokes = it.strokes) }
+            room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
             val puzzle = room.puzzle
             if (puzzle != null && room.round != loadedRound) {
                 loadedRound = room.round
@@ -878,6 +969,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MOVE_BATCH_MS = 700L
+        val STROKE_RETRY_MS = listOf(500L, 1000L, 2000L, 4000L, 4000L)
         const val ACTIVE_WINDOW_MS = 15_000L
         const val EARLY_BOARD_RETRY_MS = 500L
 

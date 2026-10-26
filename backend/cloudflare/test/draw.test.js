@@ -52,8 +52,10 @@ test('strokes come from the drawer only, are checked, and clear', () => {
   assert.equal(index, 0);
   assert.deepEqual(stroke, LINE);
   assert.equal(view(room, 'guest', GO).draw.strokes.length, 1);
+  assert.equal(view(room, 'guest', GO).draw.clears, 0);
   clearDrawing(room, 'host');
   assert.equal(view(room, 'guest', GO).draw.strokes.length, 0);
+  assert.equal(view(room, 'guest', GO).draw.clears, 1);
   assert.deepEqual(cleanStroke({ points: [[0.12345, 1]], color: 99, width: 7 }, 0), { points: [[0.123, 1]], color: 0, width: 1 });
 });
 

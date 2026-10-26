@@ -75,6 +75,7 @@ class LocalRoom(
     private var drawWord = ""
     private val usedWords = mutableListOf<String>()
     private var strokes = mutableListOf<JSONObject>()
+    private var drawClears = 0
     private var drawGuesses = mutableListOf<Pair<String, String>>()
     private var drawScore = 0
     private var lastDrawTurn: JSONObject? = null
@@ -292,7 +293,6 @@ class LocalRoom(
         if (me.finishedAt != null) throw ApiException("You are done with this word.")
         val word = guess.lowercase()
         if (!Regex("[a-z]{5}").matches(word)) throw ApiException("Guess a five-letter word.")
-        if (!WordList.isWord(word)) throw ApiException("Not in the word list.")
         val colours = Words.score(word, secret)
         me.guesses = me.guesses + (word to colours)
         if (colours == "ggggg") {
@@ -381,6 +381,7 @@ class LocalRoom(
         drawWord = fresh.random(random)
         usedWords += drawWord
         strokes = mutableListOf()
+        drawClears = 0
         drawGuesses = mutableListOf()
         turnEndsAt = now + DRAW_TURN_MS
     }
@@ -412,6 +413,7 @@ class LocalRoom(
     fun clearDrawing(role: String, now: Long) {
         checkDrawing(role, now)
         strokes = mutableListOf()
+        drawClears++
         version++
     }
 
@@ -444,6 +446,7 @@ class LocalRoom(
             .put("hint", if (playing && drawWord.isNotEmpty()) drawWord.map { if (it in 'a'..'z') '_' else it }.joinToString("") else JSONObject.NULL)
             .put("endsAt", if (playing) turnEndsAt else JSONObject.NULL)
             .put("strokes", org.json.JSONArray(if (playing) strokes else emptyList<JSONObject>()))
+            .put("clears", drawClears)
             .put("guesses", org.json.JSONArray(if (playing) drawGuesses.map { (by, w) -> JSONObject().put("by", if (by == role) "me" else "opponent").put("word", w) } else emptyList()))
             .put("score", drawScore)
             .put(

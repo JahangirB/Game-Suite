@@ -74,6 +74,8 @@ fun ShipsSea(
     sunk: List<Ship> = emptyList(),
     lastShot: Shot? = null,
     onTap: ((Int, Int) -> Unit)? = null,
+    /** A shot on its way: marked with a target until the server says hit or miss. */
+    pending: Pair<Int, Int>? = null,
 ) {
     val p = AppTheme.palette
     val style = LocalShipStyle.current
@@ -99,6 +101,11 @@ fun ShipsSea(
                 center = Offset((it.x + 0.5f) * cell, (it.y + 0.5f) * cell),
                 style = Stroke(width = cell * 0.08f),
             )
+        }
+        pending?.let { (x, y) ->
+            val center = Offset((x + 0.5f) * cell, (y + 0.5f) * cell)
+            drawCircle(p.primary, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
+            drawCircle(p.primary, radius = cell * 0.1f, center = center)
         }
     }
 }
@@ -181,6 +188,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             sunk = ships.sunkEnemy,
             lastShot = ships.myShots.lastOrNull()?.takeIf { ships.lastShotByMe == true },
             onTap = if (myTurn && !finished && !state.firing) vm::fire else null,
+            pending = state.pendingShot,
         )
 
         Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold)

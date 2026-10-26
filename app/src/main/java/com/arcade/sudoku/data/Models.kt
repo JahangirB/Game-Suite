@@ -141,6 +141,8 @@ data class DrawView(
     /** When this turn's time runs out (server clock). */
     val endsAt: Long?,
     val strokes: List<DrawStroke>,
+    /** How many times the drawer cleared this turn's drawing. */
+    val clears: Int = 0,
     /** Wrong guesses this turn: (by me, word). */
     val guesses: List<Pair<Boolean, String>>,
     val score: Int,
@@ -249,6 +251,7 @@ private fun parseDraw(json: JSONObject) = DrawView(
     hint = json.stringOrNull("hint"),
     endsAt = json.longOrNull("endsAt"),
     strokes = json.optJSONArray("strokes").objects().map(DrawStroke::from),
+    clears = json.optInt("clears"),
     guesses = json.optJSONArray("guesses").objects().map { (it.optString("by") == "me") to it.optString("word") },
     score = json.optInt("score"),
     lastTurn = json.optJSONObject("lastTurn")?.let {

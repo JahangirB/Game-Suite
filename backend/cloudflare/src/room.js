@@ -365,7 +365,6 @@ export function guessWord(room, role, word, now) {
   if (me.finishedAt) throw new GameError('You are done with this word.');
   word = String(word || '').toLowerCase();
   if (!/^[a-z]{5}$/.test(word)) throw new GameError('Guess a five-letter word.');
-  if (!words.isWord(word)) throw new GameError('Not in the word list.');
   const colours = words.score(word, room.answer);
   me.guesses.push({ word, score: colours });
   if (colours === 'ggggg') {
@@ -433,7 +432,7 @@ function nextDrawTurn(room, now, random = Math.random, first = false) {
   if (!first) room.drawer = otherRole(room.drawer);
   room.drawWord = draw.pickWord(room.usedWords, random);
   room.usedWords.push(room.drawWord);
-  Object.assign(room, { strokes: [], drawGuesses: [], turnEndsAt: now + draw.TURN_MS });
+  Object.assign(room, { strokes: [], drawClears: 0, drawGuesses: [], turnEndsAt: now + draw.TURN_MS });
 }
 
 /** The drawer adds a stroke. Returns its index; it is sent to the guesser on its own, not as a new state. */
@@ -454,6 +453,8 @@ export function clearDrawing(room, role) {
   if (room.game !== 'draw' || room.status !== 'started') throw new GameError('The game is not running.');
   if (room.drawer !== role) throw new GameError("It's not your turn to draw.");
   room.strokes = [];
+  // Counted so a phone can tell a cleared drawing from one that is still arriving.
+  room.drawClears = (room.drawClears || 0) + 1;
   bump(room);
 }
 
@@ -486,6 +487,7 @@ function drawView(room, role, status) {
     hint: playing && room.drawWord ? draw.hint(room.drawWord) : null,
     endsAt: playing ? room.turnEndsAt : null,
     strokes: playing ? room.strokes || [] : [],
+    clears: room.drawClears || 0,
     guesses: playing ? (room.drawGuesses || []).map((g) => ({ by: g.by === role ? 'me' : 'opponent', word: g.word })) : [],
     score: room.score || 0,
     lastTurn: last ? { word: last.word, guessed: last.guessed, points: last.points, drewIt: last.drawer === role } : null,

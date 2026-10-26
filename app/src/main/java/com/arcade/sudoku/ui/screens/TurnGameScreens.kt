@@ -346,13 +346,13 @@ fun DotsBoard(
  * a face-down card flips it.
  */
 @Composable
-fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?) {
+fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (row in 0 until 4) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (col in 0 until 4) {
                     val i = row * 4 + col
-                    MemoryCard(faces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f))
+                    MemoryCard(faces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending)
                 }
             }
         }
@@ -360,12 +360,13 @@ fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?) 
 }
 
 @Composable
-private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier) {
+private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false) {
     val p = AppTheme.palette
     // Remember the last picture so the card still shows it while turning back.
     var shown by remember { mutableStateOf(face) }
     if (face != null) shown = face
-    val turn by animateFloatAsState(if (face != null) 180f else 0f, tween(320), label = "flip")
+    // [turning]: tapped, picture on its way from the server; the card starts turning at once.
+    val turn by animateFloatAsState(if (face != null) 180f else if (turning) 70f else 0f, tween(320), label = "flip")
     val density = LocalDensity.current.density
     val edge = when (owner) {
         'm' -> MyDisc
@@ -542,7 +543,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 room.me.avatar, opponent?.avatar,
                 onLine = if (canMove) vm::drawLine else null,
             )
-            GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null)
+            GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard)
             GameKind.TTT -> TttBoard(
                 board = turns.board ?: ".".repeat(81),
                 boards = turns.smallBoards ?: ".".repeat(9),
