@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -48,6 +52,20 @@ import com.arcade.sudoku.ui.theme.AppTheme
 @Composable
 private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previewOk: Boolean, onTap: ((Int, Int) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    // The piece just placed drops onto the board from above and settles; earlier ones stay put.
+    val land = remember { Animatable(1f) }
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(view.lastCells) {
+        if (!seen) {
+            seen = true
+            return@LaunchedEffect
+        }
+        if (view.lastCells.isEmpty()) return@LaunchedEffect
+        land.snapTo(0f)
+        land.animateTo(1f, tween(Motion.MOVE_MS, easing = FastOutSlowInEasing))
+    }
+    val landing = land.value < 1f
+    val falling = if (landing) view.lastCells.toSet() else emptySet()
     Canvas(
         modifier.then(
             if (onTap == null) Modifier else Modifier.pointerInput(view.size) {
@@ -65,14 +83,32 @@ private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previe
             val mark = view.board[y * n + x]
             val tl = Offset(x * c + c * 0.06f, y * c + c * 0.06f)
             val sz = Size(c * 0.88f, c * 0.88f)
-            if (mark == '.') drawRoundRect(p.accent, tl, sz, CornerRadius(c * 0.18f))
+            if (mark == '.' || (x to y) in falling) drawRoundRect(p.accent, tl, sz, CornerRadius(c * 0.18f))
             else drawRoundRect(markColor(mark), tl, sz, CornerRadius(c * 0.18f))
+        }
+        if (landing) {
+            // Falling from above, a little bigger, its shadow growing as it nears the board.
+            val k = 1f - land.value
+            val grow = 1f + 0.25f * k
+            val color = view.lastWho?.let { markColor(it) } ?: p.primary
+            val cx = view.lastCells.map { it.first + 0.5f }.average().toFloat() * c
+            val cy = view.lastCells.map { it.second + 0.5f }.average().toFloat() * c
+            for ((x, y) in view.lastCells) {
+                val tl = Offset(x * c + c * 0.06f, y * c + c * 0.06f)
+                drawRoundRect(Color.Black.copy(alpha = 0.18f * (1f - k)), tl, Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f))
+            }
+            for ((x, y) in view.lastCells) {
+                val base = Offset((x + 0.5f) * c, (y + 0.5f) * c)
+                val at = Offset(cx + (base.x - cx) * grow, cy + (base.y - cy) * grow - k * c * 2.5f)
+                val half = c * 0.44f * grow
+                drawRoundRect(color, at - Offset(half, half), Size(half * 2, half * 2), CornerRadius(c * 0.18f))
+            }
         }
         // Start squares nobody has covered yet.
         view.starts.forEach { (m, s) ->
             if (view.at(s.first, s.second) == '.') drawCircle(markColor(m), c * 0.3f, Offset((s.first + 0.5f) * c, (s.second + 0.5f) * c), style = Stroke(c * 0.12f))
         }
-        view.lastCells.forEach { (x, y) ->
+        if (!landing) view.lastCells.forEach { (x, y) ->
             drawRoundRect(p.ink, Offset(x * c + c * 0.06f, y * c + c * 0.06f), Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f), style = Stroke(c * 0.1f))
         }
         preview?.forEach { (x, y) ->
