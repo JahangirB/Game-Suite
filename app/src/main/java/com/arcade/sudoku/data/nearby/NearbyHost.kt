@@ -77,6 +77,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 game.turnBased -> setTurnReady(LocalRoom.HOST, ready, now())
                 game == GameKind.WORDS -> setWordsReady(LocalRoom.HOST, ready, now())
                 game == GameKind.DRAW -> setDrawReady(LocalRoom.HOST, ready, now())
+                game == GameKind.HOCKEY -> setHockeyReady(LocalRoom.HOST, ready, now())
                 else -> setReady(LocalRoom.HOST, ready, difficulty, now())
             }
         }
@@ -101,6 +102,14 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
         local { setOptions(LocalRoom.HOST, options) }
+
+    override suspend fun hockeyScore(code: String, playerId: String, score: List<Int>) =
+        local { hockeyScore(LocalRoom.HOST, score, now()) }
+
+    override fun sendLive(data: JSONObject) {
+        val json = JSONObject().put("type", "live").put("data", data)
+        for (endpoint in guests.keys) send(endpoint, json)
+    }
 
     override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?) =
         local { setNumbersReady(LocalRoom.HOST, ready, NumberPuzzle.from(puzzle), now()) }
@@ -217,11 +226,19 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.setWordsReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.DRAW) {
                     r.setDrawReady(role!!, msg.optBoolean("ready", true), now)
+                } else if (r.game == GameKind.HOCKEY) {
+                    r.setHockeyReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.NUMBERS) {
                     r.setNumbersReady(role!!, msg.optBoolean("ready", true), NumberPuzzle.from(msg.optJSONObject("puzzle")), now)
                 } else {
                     r.setReady(role!!, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now)
                 }
+                "live" -> {
+                    // Real-time play: straight to this phone's game, no reply, no new room state.
+                    _pushes.tryEmit(JSONObject().put("type", "live").put("data", msg.optJSONObject("data") ?: JSONObject()))
+                    return
+                }
+                "score" -> r.hockeyScore(role!!, msg.optJSONArray("score")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty(), now)
                 "fire" -> r.fire(role!!, msg.optInt("x", -1), msg.optInt("y", -1), now)
                 "move" -> r.move(role!!, msg.optJSONObject("move") ?: JSONObject(), now)
                 "options" -> r.setOptions(role!!, msg.optJSONObject("options") ?: JSONObject())

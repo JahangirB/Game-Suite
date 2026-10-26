@@ -8,7 +8,7 @@
 //
 // Each room is one Durable Object, so a room's state lives in one place and every
 // change is pushed to both players at once. Messages are JSON:
-//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'sync' | 'leave', ... }
+//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'sync' | 'leave', ... }
 //   server -> app  { type: 'state', re?, serverTime, ...room view }   (re = id it answers)
 //                  { type: 'error', re?, error, fatal }
 //                  { type: 'stroke', turn, index, stroke }   (Draw & Guess, to the guesser)
@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setOptions, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setOptions, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -178,6 +178,22 @@ export class Room extends DurableObject {
     }
     const role = roleOf(ws);
     const now = Date.now();
+    if (msg.type === 'live') {
+      // Real-time play (Air Hockey): passed straight to the other phones, never stored and never
+      // answered, so 20 messages a second stay cheap. The room state isn't even loaded.
+      const out = JSON.stringify({ type: 'live', data: msg.data ?? null });
+      if (!role || out.length > 1000) return;
+      for (const other of this.ctx.getWebSockets()) {
+        if (other !== ws && roleOf(other)) {
+          try {
+            other.send(out);
+          } catch {
+            // That connection is going away.
+          }
+        }
+      }
+      return;
+    }
     try {
       await this.load();
       if (!this.room || !role || this.room.status === 'closed') {
@@ -189,6 +205,7 @@ export class Room extends DurableObject {
           else if (TURN_GAMES.includes(this.room.game)) setTurnReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'words') setWordsReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'draw') setDrawReady(this.room, role, msg.ready !== false, now);
+          else if (this.room.game === 'hockey') setHockeyReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'numbers') setNumbersReady(this.room, role, msg.ready !== false, msg.puzzle, now);
           else setReady(this.room, role, msg.ready !== false, msg.difficulty, now);
           break;
@@ -220,6 +237,9 @@ export class Room extends DurableObject {
           }
           return;
         }
+        case 'score':
+          hockeyScore(this.room, role, msg.score, now);
+          break;
         case 'clear':
           clearDrawing(this.room, role);
           break;

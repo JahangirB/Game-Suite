@@ -19,7 +19,8 @@ enum class GameKind(val key: String, val label: String) {
     DRAW("draw", "Draw & Guess"),
     TTT("ttt", "Ultimate Tic-Tac-Toe"),
     DOMINOES("dominoes", "Dominoes"),
-    NUMBERS("numbers", "Number Cross");
+    NUMBERS("numbers", "Number Cross"),
+    HOCKEY("hockey", "Air Hockey");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES
@@ -28,7 +29,7 @@ enum class GameKind(val key: String, val label: String) {
     val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -110,6 +111,9 @@ data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blan
 
 /** A Number Cross round: the host's level, the board (once playing), your entries and, at the end, the solved grid. */
 data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
+
+/** Air Hockey goals: yours, theirs, and how many win. */
+data class HockeyScore(val mine: Int, val theirs: Int, val target: Int)
 
 /** One Word Race guess: the word (hidden for the opponent until the round is over) and its colours. */
 data class WordGuess(val word: String?, val score: String)
@@ -231,6 +235,8 @@ data class RoomState(
     val words: WordsView? = null,
     val draw: DrawView? = null,
     val numbers: NumbersView? = null,
+    /** Air Hockey: the score as the server last heard it from the host. */
+    val hockey: HockeyScore? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -265,6 +271,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     words = json.optJSONObject("words")?.let(::parseWords),
     draw = json.optJSONObject("draw")?.let(::parseDraw),
     numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
+    hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
     others = json.optJSONArray("others")?.objects()?.map(::parsePlayer) ?: listOfNotNull(json.optJSONObject("opponent")?.let(::parsePlayer)),

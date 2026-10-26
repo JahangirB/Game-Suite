@@ -9,6 +9,7 @@ import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.hockey.Hockey
 import com.arcade.sudoku.game.numbers.NumberCross
 import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.numbers.NumberPuzzle
@@ -404,6 +405,40 @@ class LocalRoom(
     }
 
     /** Draw & Guess: ready (or not) for a match of [DRAW_TURNS] turns; the drawer swaps every turn. */
+    /** Air Hockey: the score [host, guest], kept by the host's phone. */
+    private var hockeyGoals = listOf(0, 0)
+
+    /** Air Hockey: ready (or not); the match starts when both are ready. */
+    fun setHockeyReady(role: String, ready: Boolean, now: Long) {
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
+            hockeyGoals = listOf(0, 0)
+            beginMatch(now + COUNTDOWN_MS)
+        }
+        version++
+    }
+
+    /** Air Hockey: the host reports the score after a goal; first to [Hockey.GOALS] wins. */
+    fun hockeyScore(role: String, score: List<Int>, now: Long) {
+        val start = startAt
+        if (game != GameKind.HOCKEY || status != "started" || start == null) throw ApiException("The game is not running.")
+        if (role != HOST) throw ApiException("Only the host keeps the score.")
+        if (now < start) throw ApiException("Wait for the countdown.")
+        if (score.size != 2 || score.indices.any { score[it] < hockeyGoals[it] || score[it] > Hockey.GOALS }) throw ApiException("Invalid score.")
+        hockeyGoals = score
+        val winnerRole = when {
+            score[0] >= Hockey.GOALS -> HOST
+            score[1] >= Hockey.GOALS -> GUEST
+            else -> null
+        }
+        if (winnerRole != null) {
+            player(winnerRole).finishedAt = now
+            endMatch(winnerRole, "goals")
+        }
+        version++
+    }
+
     fun setDrawReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
         checkCanReady()
         player(role).ready = ready
@@ -723,6 +758,13 @@ class LocalRoom(
             .put("words", if (game == GameKind.WORDS) wordsView(role, shown) else JSONObject.NULL)
             .put("draw", if (game == GameKind.DRAW) drawView(role, shown) else JSONObject.NULL)
             .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
+            .put(
+                "hockey",
+                if (game != GameKind.HOCKEY) JSONObject.NULL else {
+                    val mine = if (role == HOST) 0 else 1
+                    JSONObject().put("mine", hockeyGoals[mine]).put("theirs", hockeyGoals[1 - mine]).put("target", Hockey.GOALS)
+                },
+            )
     }
 
     private fun turnsView(role: String, shown: String): JSONObject {

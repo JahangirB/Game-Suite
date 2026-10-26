@@ -58,6 +58,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
                     GameKind.NUMBERS -> if (win) a.numbersWin() else a.numbersLose()
+                    GameKind.HOCKEY -> if (win) a.hockeyWin() else a.hockeyLose()
                 }
             }
         }
@@ -568,6 +569,39 @@ private class ResultScene(val d: DrawScope, val t: Float) {
             }
         }
         p.withAlpha(glow(f(1.5f))) { p.text("✗", 150, 135, 26, Red) }
+    }
+
+    // ---- Air Hockey --------------------------------------------------------------------------
+
+    /** A goal mouth across the top of the picture, and a paddle. */
+    fun rinkEnd() {
+        p.rr(95, 10, 110, 16, 8, Ink)
+        p.stroke(White, 3) { moveTo(20, 150); lineTo(280, 150) }
+    }
+
+    fun hockeyWin() {
+        // A paddle swings, the puck flies into the goal, and the goal flashes gold.
+        rinkEnd()
+        val ph = f(2f)
+        val swing = kf(ph, 0f to 0f, .15f to -12f, .25f to 10f, .4f to 0f, 1f to 0f)
+        val fly = kf(ph, 0f to 0f, .2f to 0f, .55f to 1f, 1f to 1f)
+        p.at(150, 125, rad(swing), 1) {
+            p.circle(150, 125, 26, Red); p.circle(150, 125, 14, White.copy(alpha = .4f)); p.ring(150, 125, 26, Ink, 3)
+        }
+        if (fly < 1f) p.circle(150 + fly * 10, 92 - fly * 74, 11, Ink)
+        if (ph > .55f) p.withAlpha(kf(ph, .55f to 1f, 1f to 0f)) { p.rr(95, 10, 110, 16, 8, Gold) }
+        spark(60, 40, 6, Gold, 2f, .5f); spark(240, 50, 5, White, 2f, 1.1f)
+    }
+
+    fun hockeyLose() {
+        // The puck slips past a paddle that swings too late.
+        p.rr(95, 144, 110, 16, 8, Ink)
+        val ph = f(2f)
+        val slip = kf(ph, 0f to 0f, .6f to 1f, 1f to 1f)
+        val late = kf(ph, 0f to 0f, .45f to 0f, .7f to 40f, 1f to 40f)
+        p.circle(120 + late, 110, 24, Red); p.ring(120 + late, 110, 24, Ink, 3)
+        if (slip < 1f) p.circle(190 - slip * 40, 40 + slip * 110, 11, Ink)
+        p.withAlpha(glow(f(1.5f))) { p.text("!", 240, 70, 40, White) }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

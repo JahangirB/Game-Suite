@@ -132,6 +132,13 @@ class CloudflareBattle(serverUrl: String, private val password: String) : Battle
     override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("puzzle", puzzle ?: JSONObject.NULL))
 
+    override suspend fun hockeyScore(code: String, playerId: String, score: List<Int>) =
+        request(JSONObject().put("type", "score").put("score", org.json.JSONArray(score)))
+
+    override fun sendLive(data: JSONObject) {
+        socket?.send(JSONObject().put("type", "live").put("data", data).toString())
+    }
+
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
         request(JSONObject().put("type", "options").put("options", options))
 

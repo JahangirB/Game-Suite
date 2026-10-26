@@ -12,6 +12,13 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
+import com.arcade.sudoku.game.hockey.Body
+import com.arcade.sudoku.game.hockey.Hockey
+import com.arcade.sudoku.game.hockey.HockeyFrame
+import com.arcade.sudoku.game.hockey.HockeyTable
+import com.arcade.sudoku.game.hockey.Side
+import com.arcade.sudoku.game.hockey.ahead
+import com.arcade.sudoku.game.hockey.flip
 import com.arcade.sudoku.game.numbers.NumberCrossGenerator
 import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.ttt.Ttt
@@ -50,6 +57,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
@@ -745,6 +753,145 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun erase() = enterDigit(0)
 
+    // ---- Air Hockey: real time ----------------------------------------------------------------
+    //
+    // The host's phone runs the table (it is the bottom player) and sends where everything is
+    // 20 times a second; the guest sends where its paddle is. Each phone sees itself at the
+    // bottom: the guest's view is the table turned round. Goals go to the server as the score.
+
+    private val _hockey = MutableStateFlow<HockeyFrame?>(null)
+    /** The table as this phone sees it (you at the bottom), many times a second. */
+    val hockey: StateFlow<HockeyFrame?> = _hockey.asStateFlow()
+    private var hockeyJob: Job? = null
+    private var hockeyRound = -1
+    private var hockeyTable: HockeyTable? = null
+    // The guest: the last table from the host (host's view) and when it came; its own paddle.
+    private var hockeySnapshot: HockeyFrame? = null
+    private var hockeySnapshotAt = 0L
+    private var myPaddle = HockeyFrame.start().bottom
+
+    /** Air Hockey: your finger at (x, y), in your own view of the table. */
+    fun moveHockeyPaddle(x: Float, y: Float) {
+        val table = hockeyTable
+        if (table != null) table.moveBottom(x, y) else myPaddle = HockeyTable.clampPaddle(Side.BOTTOM, x, y)
+    }
+
+    private fun stopHockey() {
+        hockeyJob?.cancel()
+        hockeyJob = null
+        hockeyTable = null
+    }
+
+    /** Starts the table for a new round, and stops it when the round is over. */
+    private fun syncHockey(room: RoomState) {
+        val live = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
+        if (!live) {
+            stopHockey()
+            return
+        }
+        if (room.round == hockeyRound && hockeyJob != null) return
+        stopHockey()
+        hockeyRound = room.round
+        hockeySnapshot = null
+        myPaddle = HockeyFrame.start().bottom
+        _hockey.value = HockeyFrame.start()
+        hockeyJob = viewModelScope.launch { if (room.isHost) hostHockey(room.code) else guestHockey() }
+    }
+
+    private fun playingNow(): Boolean {
+        val s = _state.value
+        return s.phase(s.serverNow()) == RoomStatus.PLAYING
+    }
+
+    private suspend fun hostHockey(code: String) {
+        val table = HockeyTable().also { hockeyTable = it }
+        var last = System.nanoTime()
+        var lastSent = 0L
+        var reported = 0 to 0
+        while (true) {
+            delay(HOCKEY_FRAME_MS)
+            val now = System.nanoTime()
+            val dt = (now - last) / 1e9f
+            last = now
+            if (!playingNow()) continue
+            val scorer = table.step(dt)
+            val f = table.frame
+            _hockey.value = f
+            if (scorer != null && (f.bottomScore to f.topScore) != reported) {
+                reported = f.bottomScore to f.topScore
+                val score = listOf(f.bottomScore, f.topScore)
+                viewModelScope.launch {
+                    val id = playerId ?: return@launch
+                    try {
+                        applyResponse(backend?.hockeyScore(code, id, score) ?: return@launch, null)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        showMessage("Couldn't send the score; it goes with the next goal.")
+                        reported = -1 to -1
+                    }
+                }
+                if (f.bottomScore >= Hockey.GOALS || f.topScore >= Hockey.GOALS) break
+            }
+            val ms = System.currentTimeMillis()
+            if (ms - lastSent >= HOCKEY_SEND_MS) {
+                lastSent = ms
+                backend?.sendLive(f.toLive())
+            }
+        }
+    }
+
+    private suspend fun guestHockey() {
+        var lastSent = 0L
+        var sentPaddle: Body? = null
+        while (true) {
+            delay(HOCKEY_FRAME_MS)
+            val snap = hockeySnapshot
+            if (snap != null) {
+                // Your view is the host's table turned round; the puck moves on from where it was last seen.
+                val age = (System.currentTimeMillis() - hockeySnapshotAt) / 1000f
+                val mine = snap.flipped()
+                _hockey.value = mine.copy(puck = mine.puck.ahead(age), bottom = myPaddle)
+            } else {
+                _hockey.value = _hockey.value?.copy(bottom = myPaddle)
+            }
+            val ms = System.currentTimeMillis()
+            if (playingNow() && ms - lastSent >= HOCKEY_SEND_MS && myPaddle != sentPaddle) {
+                lastSent = ms
+                sentPaddle = myPaddle
+                val onTable = myPaddle.flip()
+                backend?.sendLive(JSONObject().put("g", JSONArray().put(onTable.x.toDouble()).put(onTable.y.toDouble())))
+            }
+        }
+    }
+
+    /** A live message from the other phone: the host's table, or the guest's paddle. */
+    private fun onLive(data: JSONObject) {
+        val table = hockeyTable
+        if (table != null) {
+            data.optJSONArray("g")?.let { table.moveTop(it.optDouble(0).toFloat(), it.optDouble(1).toFloat()) }
+        } else {
+            hockeyFrameFrom(data)?.let {
+                hockeySnapshot = it
+                hockeySnapshotAt = System.currentTimeMillis()
+            }
+        }
+    }
+
+    private fun HockeyFrame.toLive(): JSONObject {
+        fun body(b: Body) = JSONArray().put(b.x.toDouble()).put(b.y.toDouble()).put(b.vx.toDouble()).put(b.vy.toDouble())
+        return JSONObject().put("p", body(puck)).put("b", body(bottom)).put("t", body(top))
+            .put("s", JSONArray().put(bottomScore).put(topScore))
+    }
+
+    private fun hockeyFrameFrom(data: JSONObject): HockeyFrame? {
+        fun body(key: String): Body? = data.optJSONArray(key)?.let {
+            Body(it.optDouble(0).toFloat(), it.optDouble(1).toFloat(), it.optDouble(2).toFloat(), it.optDouble(3).toFloat())
+        }
+        val score = data.optJSONArray("s")
+        return HockeyFrame(body("p") ?: return null, body("b") ?: return null, body("t") ?: return null, score?.optInt(0) ?: 0, score?.optInt(1) ?: 0)
+    }
+
     /** Number Cross: ready (or not). The host's phone builds the next puzzle and sends it with its Ready. */
     fun readyNumbers() {
         val room = _state.value.room ?: return
@@ -833,6 +980,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 b.pushes?.collect { json ->
                     if (json.optString("type") == "error") {
                         if (json.optBoolean("fatal")) endSession(json.optString("error")) else showMessage(json.optString("error"))
+                    } else if (json.optString("type") == "live") {
+                        onLive(json.optJSONObject("data") ?: return@collect)
                     } else if (json.optString("type") == "stroke") {
                         addLiveStroke(json)
                     } else if (json.has("me")) {
@@ -972,6 +1121,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             next
         }
         rememberPartner(room)
+        if (room.game == GameKind.HOCKEY) syncHockey(room)
         if (record && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round
             store.recordBattle(won = room.winner == "me")
@@ -1003,6 +1153,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun endSession(message: String?, closeBackend: Boolean = true) {
+        stopHockey()
+        _hockey.value = null
         sessionJob?.cancel()
         sessionJob = null
         if (closeBackend) backend?.close()
@@ -1060,6 +1212,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MOVE_BATCH_MS = 700L
+        // Air Hockey: the table steps about 60 times a second and goes to the other phone 20 times a second.
+        const val HOCKEY_FRAME_MS = 16L
+        const val HOCKEY_SEND_MS = 50L
         val STROKE_RETRY_MS = listOf(500L, 1000L, 2000L, 4000L, 4000L)
         const val ACTIVE_WINDOW_MS = 15_000L
         const val EARLY_BOARD_RETRY_MS = 500L

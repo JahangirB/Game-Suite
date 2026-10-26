@@ -179,4 +179,15 @@ test('a full battle over WebSockets', { skip: !enabled, timeout: 90_000 }, async
   const seen = await other.next((m) => m.type === 'state' && m.ships?.theirShots?.length === 1);
   assert.equal(seen.ships.theirShots[0].hit, true);
   for (const c of [captain, rival]) c.ws.close();
+
+  // Air Hockey: live messages go straight to the other phone, unanswered and unstored.
+  const rink = `H${Date.now().toString(36).toUpperCase()}`.slice(0, 12);
+  const puckA = connect({ code: rink, action: 'create', name: 'Ann', game: 'hockey' });
+  await puckA.next((m) => m.re === 'open');
+  const puckB = connect({ code: rink, action: 'join', name: 'Ben', games: 'hockey' });
+  await puckB.next((m) => m.re === 'open');
+  puckA.ws.send(JSON.stringify({ type: 'live', data: { p: [0.5, 0.8, 0, 0] } }));
+  const live = await puckB.next((m) => m.type === 'live');
+  assert.deepEqual(live.data.p, [0.5, 0.8, 0, 0]);
+  for (const c of [puckA, puckB]) c.ws.close();
 });

@@ -39,6 +39,15 @@ interface BattleBackend {
     /** Number Cross: ready (or not); the host's Ready carries the next [puzzle], built on their phone. */
     suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?): JSONObject
 
+    /** Air Hockey: the host reports the score [host, guest] after a goal. */
+    suspend fun hockeyScore(code: String, playerId: String, score: List<Int>): JSONObject
+
+    /**
+     * Real-time play (Air Hockey): sends [data] straight to the other phones, unanswered and
+     * unstored. Anything sent to this phone arrives in [pushes] as {"type": "live", "data": …}.
+     */
+    fun sendLive(data: JSONObject) {}
+
     /** Dominoes: the host sets the next match's rules (teams, drawing, target). */
     suspend fun setOptions(code: String, playerId: String, options: JSONObject): JSONObject
 

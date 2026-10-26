@@ -31,7 +31,7 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
@@ -403,6 +403,46 @@ export function setWordsReady(room, role, ready, now, random = Math.random) {
     beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random) }, { guesses: [], solved: false });
   }
   bump(room);
+}
+
+/** Air Hockey: goals to win a match. */
+export const HOCKEY_GOALS = 7;
+
+/** Air Hockey: ready (or not). The match starts when both are ready. */
+export function setHockeyReady(room, role, ready, now) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  if (allReady(room)) beginMatch(room, { startAt: now + COUNTDOWN_MS, hockey: { score: [0, 0] } });
+  bump(room);
+}
+
+/**
+ * Air Hockey: the host's phone runs the table and reports the score [host, guest] after each
+ * goal. The puck itself never comes through here as room state: it goes phone to phone as
+ * small "live" messages. First to HOCKEY_GOALS wins.
+ */
+export function hockeyScore(room, role, score, now) {
+  if (room.game !== 'hockey' || room.status !== 'started' || !room.hockey) throw new GameError('The game is not running.');
+  if (role !== 'host') throw new GameError('Only the host keeps the score.');
+  if (now < room.startAt) throw new GameError('Wait for the countdown.');
+  const next = Array.isArray(score) ? score.map(Number) : [];
+  const old = room.hockey.score;
+  if (next.length !== 2 || next.some((n, i) => !Number.isInteger(n) || n < old[i] || n > HOCKEY_GOALS)) {
+    throw new GameError('Invalid score.');
+  }
+  room.hockey.score = next;
+  const winner = next[0] >= HOCKEY_GOALS ? 'host' : next[1] >= HOCKEY_GOALS ? 'guest' : null;
+  if (winner) {
+    room.players[winner].finishedAt = now;
+    endMatch(room, winner, 'goals');
+  }
+  bump(room);
+}
+
+function hockeyView(room, role) {
+  const score = room.hockey?.score || [0, 0];
+  const mine = role === 'host' ? 0 : 1;
+  return { mine: score[mine], theirs: score[1 - mine], target: HOCKEY_GOALS };
 }
 
 /** One guess at the secret word. */
@@ -857,6 +897,7 @@ export function view(room, role, now) {
     words: room.game === 'words' ? wordsView(room, role, status) : null,
     draw: room.game === 'draw' ? drawView(room, role, status) : null,
     numbers: room.game === 'numbers' ? numbersView(room, role, status) : null,
+    hockey: room.game === 'hockey' ? hockeyView(room, role) : null,
   };
 }
 

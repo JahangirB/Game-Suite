@@ -22,6 +22,7 @@ val GameKind.color: Color
         GameKind.TTT -> Color(0xFF4F46E5)
         GameKind.DOMINOES -> Color(0xFF8B5E34)
         GameKind.NUMBERS -> Color(0xFF0E9AA7)
+        GameKind.HOCKEY -> Color(0xFF1E88E5)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -37,6 +38,7 @@ val GameKind.tagline: String
         GameKind.TTT -> "Nine boards, one big game"
         GameKind.DOMINOES -> "Match the ends, play out your hand"
         GameKind.NUMBERS -> "A crossword made of sums"
+        GameKind.HOCKEY -> "Fast paddles, one puck"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -72,6 +74,9 @@ val GameKind.rules: String
             "missing: tap a blank, then tap a number from the bank below. Every sum, across and down, must work, and " +
             "each bank number is used once. A sum turns green when it's right. In a race everyone gets the same new " +
             "puzzle, built on the host's phone; the first to solve it wins."
+        GameKind.HOCKEY -> "Drag your paddle (it stays in your half) to knock the puck into the goal at the far end. " +
+            "The puck bounces off the sides and takes the speed of your paddle, so swing through it to shoot hard. " +
+            "First to 7 goals wins. Against your partner it's live: best nearby, where the phones talk directly."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -133,6 +138,13 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.rr(3, 3, 18, 18, 4, null, tint, 1.8)
             p.stroke(tint, 2) { moveTo(7, 9); lineTo(13, 9); moveTo(10, 6); lineTo(10, 12) }
             p.stroke(tint, 2) { moveTo(11, 15); lineTo(17, 15); moveTo(11, 18); lineTo(17, 18) }
+        }
+        GameKind.HOCKEY -> {
+            // A paddle about to strike the puck.
+            p.ring(9, 15, 5.5, tint, 2)
+            p.circle(9, 15, 2, tint)
+            p.circle(17, 7, 3, tint)
+            p.stroke(tint, 1.6) { moveTo(13.5, 10.5); lineTo(15, 9) }
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.
