@@ -77,7 +77,12 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
                         modifier = Modifier.size(cell).padding(3.dp).clickable(enabled = enabled && !free) { onTap(i) },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            if (dabbed) Box(Modifier.fillMaxSize().padding(cell * 0.12f).clip(CircleShape).background(ColumnColours[c].copy(alpha = 0.75f)))
+                            // A dab pops onto the square (the free star is always dabbed, without the pop).
+                            if (dabbed) Box(
+                                Modifier.fillMaxSize().padding(cell * 0.12f)
+                                    .enterFrom(Unit, scaleFrom = 0.2f, durationMs = 220, onAppear = !free)
+                                    .clip(CircleShape).background(ColumnColours[c].copy(alpha = 0.75f)),
+                            )
                             Text(
                                 if (free) "★" else n.toString(),
                                 color = if (dabbed) Color.White else p.text,
@@ -114,7 +119,8 @@ private fun CallStrip(calls: List<Int>, called: Int) {
         if (called == 0) {
             Text("Get ready…", color = p.muted, fontSize = 16.sp)
         } else {
-            Ball(calls[called - 1], 76.dp)
+            // Each new call rolls in from the side, turning as it rolls.
+            Box(Modifier.enterFrom(called, dx = 260.dp, rotation = 360f, durationMs = 600)) { Ball(calls[called - 1], 76.dp) }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Call $called of ${Bingo.NUMBERS}", color = p.muted, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
