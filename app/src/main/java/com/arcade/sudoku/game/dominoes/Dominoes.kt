@@ -70,9 +70,9 @@ class DominoMatch(
     var boneyard: MutableList<Tile> = mutableListOf()
         private set
     var line: MutableList<Tile> = mutableListOf()
+        private set
     /** Where the round's first tile sits in [line]. */
     var start = 0
-        private set
         private set
     private var passes = 0
     private var last: JSONObject? = null
