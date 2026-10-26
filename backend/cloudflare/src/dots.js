@@ -1,6 +1,6 @@
-// Dots & Boxes on a 5 × 5 grid of dots (4 × 4 boxes). Players take turns drawing a line
-// between two neighbouring dots; closing a box claims it and draws again. When every box is
-// claimed, the most boxes wins (8 each is a draw).
+// Dots & Boxes on a 5 × 5 grid of dots (4 × 4 boxes). Two to four players take turns drawing
+// a line between two neighbouring dots; closing a box claims it and draws again. When every box
+// is claimed, the most boxes wins (a tie for the most is a draw).
 //
 // Lines are numbered: horizontal ones 0-19 (row r 0-4, column c 0-3: r * 4 + c), vertical
 // ones 20-39 (row r 0-3, column c 0-4: 20 + r * 5 + c). Boxes are r * 4 + c.
@@ -49,20 +49,25 @@ export function play(state, mark, move) {
   return { again: false, over: true, ...winnerOf(state.boxes), reason: 'most' };
 }
 
-/** The mark with more claimed cells, or null on a tie. */
+/** The mark with the most claimed cells, or null when two or more tie for the most. */
 export function winnerOf(owners) {
   const counts = {};
-  for (const m of owners) counts[m] = (counts[m] || 0) + 1;
-  const [a, b] = ['h', 'g'].map((m) => counts[m] || 0);
-  return { winner: a === b ? null : a > b ? 'h' : 'g' };
+  for (const m of owners) if (m !== '.') counts[m] = (counts[m] || 0) + 1;
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || (ranked[1] && ranked[1][1] === ranked[0][1])) return { winner: null };
+  return { winner: ranked[0][0] };
 }
 
-const side = (s, mark) => [...s].map((c) => (c === '.' ? '.' : c === mark ? 'm' : 'o')).join('');
+/**
+ * Owners as one player sees them: 'm' theirs, and for the others the letter [seats] gives
+ * their mark ('o', 'p', 'q' in seat order), 'o' when there is no map (two players).
+ */
+export const side = (s, mark, seats = {}) => [...s].map((c) => (c === '.' ? '.' : c === mark ? 'm' : seats[c] || 'o')).join('');
 
-export function view(state, mark) {
+export function view(state, mark, seats = {}) {
   return {
-    lines: side(state.lines, mark),
-    boxes: side(state.boxes, mark),
+    lines: side(state.lines, mark, seats),
+    boxes: side(state.boxes, mark, seats),
     lastMove: state.last ? { by: state.last.mark === mark ? 'me' : 'opponent', line: state.last.line } : null,
   };
 }

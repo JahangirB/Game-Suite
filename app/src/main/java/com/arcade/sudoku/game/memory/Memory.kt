@@ -41,12 +41,12 @@ class MemoryMatch(random: Random = Random.Default) : TurnMatch {
         owners = owners.substring(0, first) + mark + owners.substring(first + 1)
         owners = owners.substring(0, card) + mark + owners.substring(card + 1)
         if ('.' in owners) return TurnResult(again = true)
-        return TurnResult(again = false, over = true, winner = TurnMatch.winnerOf(owners, mark), reason = "most")
+        return TurnResult(again = false, over = true, winner = TurnMatch.winnerOf(owners), reason = "most")
     }
 
-    override fun view(mark: Char): JSONObject = JSONObject()
+    override fun view(mark: Char, seats: Map<Char, Char>): JSONObject = JSONObject()
         .put("faces", JSONArray(deck.mapIndexed { i, a -> if (owners[i] != '.' || i in up) a.key else JSONObject.NULL }))
-        .put("owners", TurnMatch.side(owners, mark))
+        .put("owners", TurnMatch.side(owners, mark, seats))
         .put("lastMove", last?.let { (by, card) -> TurnMatch.lastMove(by, mark, "card", card) } ?: JSONObject.NULL)
 
     companion object {

@@ -65,9 +65,11 @@ class TurnGamesTest {
 
     @Test
     fun winnerOfCountsOwnedCells() {
-        assertEquals('h', TurnMatch.winnerOf("hhg.", 'g'))
-        assertNull(TurnMatch.winnerOf("hg", 'h'))
-        assertEquals('m', TurnMatch.winnerOf("mmmm", 'm'))
+        assertEquals('h', TurnMatch.winnerOf("hhg."))
+        assertNull(TurnMatch.winnerOf("hg"))
+        assertEquals('m', TurnMatch.winnerOf("mmmm"))
+        assertEquals('3', TurnMatch.winnerOf("h3g33.4"))
+        assertNull(TurnMatch.winnerOf("hh33g"))
     }
 
     @Test
@@ -85,5 +87,28 @@ class TurnGamesTest {
         val after = parseRoom(room.view(LocalRoom.other(mover), 0)).turns!!
         assertEquals(1, after.faces.count { it != null })
         assertEquals(5, after.faces.indexOfFirst { it != null })
+    }
+
+    @Test
+    fun threePlayersTakeTurnsRoundTheTable() {
+        val room = LocalRoom("DOT3", "Alice", null, GameKind.DOTS)
+        room.join("Bob", null, null, GameKind.entries.map { it.key })
+        room.join("Cat", null, null, GameKind.entries.map { it.key })
+        for (role in listOf(LocalRoom.HOST, LocalRoom.GUEST, LocalRoom.P3)) room.setTurnReady(role, true, 0, Random(0))
+        val first = parseRoom(room.view(LocalRoom.HOST, 0)).turns!!
+        val starter = listOf(LocalRoom.HOST, LocalRoom.GUEST, LocalRoom.P3).first { parseRoom(room.view(it, 0)).turns!!.turn == "me" }
+        assertEquals(3, parseRoom(room.view(LocalRoom.HOST, 0)).others.size + 1)
+        // Three moves without a box: every seat gets one turn and it comes back round.
+        var role = starter
+        for (line in 0 until 3) {
+            room.move(role, JSONObject().put("line", line), 0)
+            role = listOf(LocalRoom.HOST, LocalRoom.GUEST, LocalRoom.P3).first { parseRoom(room.view(it, 0)).turns!!.turn == "me" }
+        }
+        assertEquals(starter, role)
+        // Everyone sees their own line as 'm' and the others as 'o' and 'p'.
+        val lines = parseRoom(room.view(starter, 0)).turns!!.lines!!.take(3)
+        assertEquals(1, lines.count { it == 'm' })
+        assertEquals(setOf('m', 'o', 'p'), lines.toSet())
+        assertEquals(null, first.lines?.firstOrNull { it != '.' })
     }
 }

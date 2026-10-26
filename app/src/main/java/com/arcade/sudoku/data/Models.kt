@@ -19,8 +19,8 @@ enum class GameKind(val key: String, val label: String) {
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT
 
-    /** How many can play: up to four in the race games and Draw & Guess, two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW) 4 else 2
+    /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW
@@ -88,6 +88,8 @@ data class TurnsView(
     /** Memory Pairs: each card's picture when face up or matched, and who found it. */
     val faces: List<Avatar?> = emptyList(),
     val owners: String? = null,
+    /** Whose turn it is, by name (with more than two players "opponent" doesn't say who). */
+    val turnName: String? = null,
     /** Ultimate Tic-Tac-Toe: who won each small board ('d' drawn), and the board to play in next (null: any). */
     val smallBoards: String? = null,
     val nextBoard: Int? = null,
@@ -326,6 +328,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         lastLine = last?.takeIf { it.has("line") }?.optInt("line"),
         faces = json.optJSONArray("faces")?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else Avatar.from(a.optString(it)) } }.orEmpty(),
         owners = json.stringOrNull("owners"),
+        turnName = json.stringOrNull("turnName"),
         smallBoards = json.stringOrNull("boards"),
         nextBoard = json.optInt("next", -1).takeIf { it >= 0 },
     )

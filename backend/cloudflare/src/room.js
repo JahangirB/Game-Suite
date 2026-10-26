@@ -33,7 +33,10 @@ export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4 };
+// Each seat's one-letter mark on a turn game's board.
+export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
+const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
 export const maxPlayers = (game) => MAX_PLAYERS[game] || 2;
 // What apps from before the version check could play; they don't say which games they know.
 const OLD_APP_GAMES = ['sudoku', 'ships'];
@@ -305,10 +308,10 @@ function shipsView(room, role, status) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Turn games (Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe): both players
-// get ready, then take turns making moves. Each game's own rules live in its module (start,
-// play, view); the player who starts alternates from round to round. A player may close the app between
-// moves: turn games are never forfeited for being away, the room just waits.
+// Turn games (Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe): everyone gets
+// ready, then players take turns round the table. Each game's own rules live in its module
+// (start, play, view); the player who starts moves one seat on each round. A player may close
+// the app between moves: turn games are never forfeited for being away, the room just waits.
 
 const TURN_RULES = { connect4, dots, memory, ttt };
 export const TURN_GAMES = Object.keys(TURN_RULES);
@@ -318,10 +321,22 @@ export function setTurnReady(room, role, ready, now, random = Math.random) {
   checkCanReady(room);
   room.players[role].ready = ready !== false;
   if (allReady(room)) {
-    const first = room.firstTurn ? otherRole(room.firstTurn) : (random() < 0.5 ? 'host' : 'guest');
+    const roles = present(room);
+    const first = room.firstTurn ? nextOf(roles, room.firstTurn, roles) : roles[Math.floor(random() * roles.length)];
     beginMatch(room, { startAt: now, firstTurn: first, turn: first, turnState: TURN_RULES[room.game].start(random) });
   }
   bump(room);
+}
+
+/** The seat after [role] in [order] (round the table) that is in [allowed]. */
+function nextOf(order, role, allowed) {
+  const all = ROLES.filter((r) => order.includes(r) || r === role);
+  let i = all.indexOf(role);
+  for (let n = 0; n < all.length; n++) {
+    i = (i + 1) % all.length;
+    if (allowed.includes(all[i])) return all[i];
+  }
+  return allowed[0];
 }
 
 /** Plays `move` for `role`: { col } in Connect Four, { line } in Dots & Boxes, { card } in Memory Pairs, { cell } in Ultimate Tic-Tac-Toe. */
@@ -330,24 +345,28 @@ export function makeMove(room, role, move, now) {
   if (room.turn !== role) throw new GameError("It's not your turn.");
   let result;
   try {
-    result = TURN_RULES[room.game].play(room.turnState, role[0], move);
+    result = TURN_RULES[room.game].play(room.turnState, MARKS[role], move);
   } catch (err) {
     throw new GameError(err.message);
   }
   if (result.over) {
-    const winner = result.winner === 'h' ? 'host' : result.winner === 'g' ? 'guest' : null;
+    const winner = roleOfMark(result.winner);
     if (winner) room.players[winner].finishedAt = now;
     endMatch(room, winner, winner ? result.reason : 'draw');
   } else if (!result.again) {
-    room.turn = otherRole(role);
+    room.turn = nextOf(room.inMatch || present(room), role, playing(room));
   }
   bump(room);
 }
 
 function turnView(room, role, status) {
+  // Everyone else's mark shows as 'o', 'p', 'q', in the order of the view's `others`.
+  const seats = {};
+  others(room, role).forEach((r, i) => { seats[MARKS[r]] = 'opq'[i]; });
   return {
     turn: status === 'playing' ? (room.turn === role ? 'me' : 'opponent') : null,
-    ...(room.turnState ? TURN_RULES[room.game].view(room.turnState, role[0]) : {}),
+    turnName: status === 'playing' ? room.players[room.turn]?.name || null : null,
+    ...(room.turnState ? TURN_RULES[room.game].view(room.turnState, MARKS[role], seats) : {}),
   };
 }
 
@@ -583,6 +602,7 @@ function dropOut(room, role, reason, now) {
   if (rest.length < 2) return endMatch(room, rest[0] || null, reason);
   room.players[role].out = true;
   if (room.game === 'words') decideWords(room);
+  if (TURN_GAMES.includes(room.game) && room.turn === role) room.turn = nextOf(room.inMatch, role, playing(room));
   if (room.game === 'draw' && room.drawer === role) {
     room.lastTurn = { word: room.drawWord, guessed: false, points: 0, drawer: role };
     nextDrawTurn(room, now);

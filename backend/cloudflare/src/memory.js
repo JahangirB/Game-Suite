@@ -1,9 +1,9 @@
 // Memory Pairs: 16 face-down cards, 8 pairs of avatar pictures. On your turn flip two cards;
 // a pair is yours and you go again, otherwise they stay up until the next flip and the turn
-// passes. When every pair is found, the most pairs wins (4 each is a draw). The server keeps
+// passes to the next player. When every pair is found, the most pairs wins (a tie is a draw). The server keeps
 // the faces: players only see cards that are face up or already matched.
 
-import { winnerOf } from './dots.js';
+import { side, winnerOf } from './dots.js';
 
 export const CARDS = 16;
 const FACES = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'unicorn', 'robot', 'alien', 'lion', 'penguin'];
@@ -42,11 +42,11 @@ export function play(state, mark, move) {
   return { again: false, over: true, ...winnerOf(state.owners), reason: 'most' };
 }
 
-export function view(state, mark) {
+export function view(state, mark, seats = {}) {
   return {
     // A card's picture when it is face up or matched, else null.
     faces: state.deck.map((face, i) => (state.owners[i] !== '.' || state.up.includes(i) ? face : null)),
-    owners: [...state.owners].map((c) => (c === '.' ? '.' : c === mark ? 'm' : 'o')).join(''),
+    owners: side(state.owners, mark, seats),
     lastMove: state.last ? { by: state.last.mark === mark ? 'me' : 'opponent', card: state.last.card } : null,
   };
 }

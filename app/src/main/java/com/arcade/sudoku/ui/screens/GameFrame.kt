@@ -190,6 +190,7 @@ fun battleChips(
     myColor: Color,
     detail: (PlayerInfo, Boolean) -> String?,
     active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
+    otherColor: (Int) -> Color = { SeatColors[it % SeatColors.size] },
 ): List<ChipPlayer> = listOf(
     ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true)),
 ) + room.others.mapIndexed { i, other ->
@@ -199,7 +200,7 @@ fun battleChips(
         else -> ""
     }
     ChipPlayer(
-        other.name + status, other.avatar, SeatColors[i % SeatColors.size], detail(other, false),
+        other.name + status, other.avatar, otherColor(i), detail(other, false),
         visibleReaction(state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }, now),
         active(other, false),
     )

@@ -57,12 +57,12 @@ class DotsMatch : TurnMatch {
             }
         }
         if ('.' in boxes) return TurnResult(again = closed > 0)
-        return TurnResult(again = false, over = true, winner = TurnMatch.winnerOf(boxes, mark), reason = "most")
+        return TurnResult(again = false, over = true, winner = TurnMatch.winnerOf(boxes), reason = "most")
     }
 
-    override fun view(mark: Char): JSONObject = JSONObject()
-        .put("lines", TurnMatch.side(lines, mark))
-        .put("boxes", TurnMatch.side(boxes, mark))
+    override fun view(mark: Char, seats: Map<Char, Char>): JSONObject = JSONObject()
+        .put("lines", TurnMatch.side(lines, mark, seats))
+        .put("boxes", TurnMatch.side(boxes, mark, seats))
         .put("lastMove", last?.let { (by, line) -> TurnMatch.lastMove(by, mark, "line", line) } ?: JSONObject.NULL)
 }
 

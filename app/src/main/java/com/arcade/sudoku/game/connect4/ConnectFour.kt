@@ -157,7 +157,7 @@ class C4Match : TurnMatch {
         return TurnResult(again = false, over = ConnectFour.isFull(board), reason = "draw")
     }
 
-    override fun view(mark: Char): JSONObject = JSONObject()
+    override fun view(mark: Char, seats: Map<Char, Char>): JSONObject = JSONObject()
         .put("board", TurnMatch.side(board, mark))
         .put("winLine", winLine?.let { JSONArray(it) } ?: JSONObject.NULL)
         .put("lastMove", last?.let { (by, cell) -> TurnMatch.lastMove(by, mark, "cell", cell) } ?: JSONObject.NULL)

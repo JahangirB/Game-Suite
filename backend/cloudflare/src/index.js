@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, otherRole, seated, setDrawReady, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -139,12 +139,12 @@ export class Room extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** In a turn game, tells a player who has closed the app that it is their move now. */
-  async notifyTurn() {
+  /** In a turn game, tells a player who has closed the app that it is their move now ([moverRole] just moved). */
+  async notifyTurn(moverRole) {
     const room = this.room;
     if (room.status !== 'started' || !this.env.DIRECTORY) return;
     const next = room.players[room.turn];
-    const mover = room.players[otherRole(room.turn)];
+    const mover = room.players[moverRole];
     if (next.connected || !next.deviceId || !mover?.deviceId) return;
     try {
       await this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName('directory'))
@@ -245,7 +245,7 @@ export class Room extends DurableObject {
       await this.save();
       this.send(ws, role, { re: msg.id });
       this.broadcast(ws);
-      if (msg.type === 'move') await this.notifyTurn();
+      if (msg.type === 'move') await this.notifyTurn(role);
     } catch (err) {
       ws.send(JSON.stringify({ type: 'error', re: msg.id, error: err.message, fatal: !!err.fatal, reason: err.reason || null }));
     }

@@ -238,12 +238,13 @@ class LocalRoom(
         version++
     }
 
-    /** Turn games: ready (or not) for the next round; the starting player alternates. */
+    /** Turn games: ready (or not) for the next round; the starting player moves one seat on. */
     fun setTurnReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
         checkCanReady()
         player(role).ready = ready
         if (allReady()) {
-            val first = firstTurn?.let { other(it) } ?: if (random.nextBoolean()) HOST else GUEST
+            val roles = present()
+            val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
             firstTurn = first
             turn = first
             turnMatch = TurnMatch.start(game, random)
@@ -258,22 +259,28 @@ class LocalRoom(
         if (!game.turnBased || status != "started" || match == null) throw ApiException("The game is not running.")
         if (turn != role) throw ApiException("It's not your turn.")
         val result = try {
-            match.play(role[0], move)
+            match.play(MARKS.getValue(role), move)
         } catch (e: IllegalArgumentException) {
             throw ApiException(e.message ?: "That move isn't allowed.")
         }
         if (result.over) {
-            val winnerRole = when (result.winner) {
-                'h' -> HOST
-                'g' -> GUEST
-                else -> null
-            }
+            val winnerRole = MARKS.entries.firstOrNull { it.value == result.winner }?.key
             winnerRole?.let { players.getValue(it)!!.finishedAt = now }
             endMatch(winnerRole, if (winnerRole != null) result.reason ?: "won" else "draw")
         } else if (!result.again) {
-            turn = other(role)
+            turn = nextOf(role, playing())
         }
         version++
+    }
+
+    /** The seat after [role], round the table, that is in [allowed]. */
+    private fun nextOf(role: String, allowed: List<String>): String {
+        var i = ROLES.indexOf(role)
+        repeat(ROLES.size) {
+            i = (i + 1) % ROLES.size
+            if (ROLES[i] in allowed) return ROLES[i]
+        }
+        return allowed.first()
     }
 
     /** Word Race: ready (or not) for the next round; it starts with a countdown when both are. */
@@ -507,6 +514,7 @@ class LocalRoom(
         if (rest.size < 2) return endMatch(rest.firstOrNull(), reason)
         player(role).out = true
         if (game == GameKind.WORDS) decideWords()
+        if (game.turnBased && turn == role) turn = nextOf(role, playing())
         if (game == GameKind.DRAW && drawer == role) {
             lastDrawTurn = drawResult(guessed = false, points = 0)
             nextDrawTurn(now, Random.Default)
@@ -601,8 +609,12 @@ class LocalRoom(
     }
 
     private fun turnsView(role: String, shown: String): JSONObject {
-        val json = turnMatch?.view(role[0]) ?: JSONObject()
-        return json.put("turn", if (shown == "playing") (if (turn == role) "me" else "opponent") else JSONObject.NULL)
+        // Everyone else's mark shows as 'o', 'p', 'q', in the order of the view's "others".
+        val seats = others(role).mapIndexed { i, r -> MARKS.getValue(r) to "opq"[i] }.toMap()
+        val json = turnMatch?.view(MARKS.getValue(role), seats) ?: JSONObject()
+        val playing = shown == "playing"
+        return json.put("turn", if (playing) (if (turn == role) "me" else "opponent") else JSONObject.NULL)
+            .put("turnName", if (playing) turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)
     }
 
     private fun shipsView(role: String, shown: String): JSONObject {
@@ -651,6 +663,8 @@ class LocalRoom(
         const val P4 = "p4"
         /** Seats in a room, in order. Two-player games use the first two. */
         val ROLES = listOf(HOST, GUEST, P3, P4)
+        /** Each seat's one-letter mark on a turn game's board (as on the server). */
+        val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
         const val EMOJI_INTERVAL_MS = 1500L

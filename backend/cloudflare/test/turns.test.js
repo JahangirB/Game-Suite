@@ -5,7 +5,7 @@ import * as memory from '../src/memory.js';
 import { prepareMessage } from '../src/directory.js';
 import {
   INACTIVE_FORFEIT_MS, LOBBY_ABANDON_MS, checkTimers, createRoom, joinRoom, makeMove, nextDeadline,
-  setConnected, setTurnReady, view,
+  leave, setConnected, setTurnReady, view,
 } from '../src/room.js';
 
 let ids = 0;
@@ -126,4 +126,38 @@ test('a "your turn" push names the game and the room', async () => {
   assert.equal(msg.data.game, 'dots');
   assert.equal(msg.data.code, 'TURN1');
   assert.equal(msg.data.fromName, 'Alice');
+});
+
+test('three players: turns go round the table and each sees the others as o, p', () => {
+  const room = createRoom('DOTS3', 'Alice', T0, uuid, null, null, 'dots');
+  setConnected(room, 'host', true, T0);
+  for (const name of ['Bob', 'Cat']) setConnected(room, joinRoom(room, name, null, T0, uuid, null, null, ALL), true, T0);
+  for (const role of ['host', 'guest', 'p3']) setTurnReady(room, role, true, T0, () => 0);
+  assert.equal(room.turn, 'host');
+  makeMove(room, 'host', { line: 0 }, T0);
+  assert.equal(room.turn, 'guest');
+  makeMove(room, 'guest', { line: 1 }, T0);
+  assert.equal(room.turn, 'p3');
+  makeMove(room, 'p3', { line: 2 }, T0);
+  assert.equal(room.turn, 'host');
+  // Bob sees Cat's line as 'o' (next seat) and Alice's as 'p'.
+  const bob = view(room, 'guest', T0).turns;
+  assert.equal(bob.lines.slice(0, 3), 'pmo');
+  assert.equal(bob.turnName, 'Alice');
+  // Whoever leaves on their turn passes it on; the game goes on.
+  leave(room, 'host', T0);
+  assert.equal(room.status, 'closed');
+});
+
+test('three players: a leaver hands on the turn and the rest play on', () => {
+  const room = createRoom('MEM3', 'Alice', T0, uuid, null, null, 'memory');
+  setConnected(room, 'host', true, T0);
+  for (const name of ['Bob', 'Cat']) setConnected(room, joinRoom(room, name, null, T0, uuid, null, null, ALL), true, T0);
+  for (const role of ['host', 'guest', 'p3']) setTurnReady(room, role, true, T0, () => 0.5);
+  // With three seats and random 0.5, Bob starts.
+  assert.equal(room.turn, 'guest');
+  leave(room, 'guest', T0);
+  assert.equal(room.status, 'started');
+  assert.equal(room.turn, 'p3');
+  assert.ok(view(room, 'host', T0).others[0].left);
 });

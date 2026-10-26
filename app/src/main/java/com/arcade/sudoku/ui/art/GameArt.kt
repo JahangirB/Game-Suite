@@ -48,7 +48,7 @@ val GameKind.rules: String
         GameKind.DOTS -> "Take turns drawing a line between two neighbouring dots. Draw the fourth side of a box " +
             "to claim it, then draw again. When all 16 boxes are taken, the most boxes wins."
         GameKind.MEMORY -> "16 cards lie face down: 8 pairs of pictures. Flip two cards on your turn. A pair is yours " +
-            "and you go again; otherwise they turn back and your partner plays. Most pairs wins."
+            "and you go again; otherwise they turn back and the next player goes. Most pairs wins."
         GameKind.WORDS -> "Find the secret five-letter word in six tries. After each guess the letters turn green " +
             "(right letter, right place), yellow (in the word, elsewhere) or grey (not in the word). In a race you both " +
             "get the same word and see each other's colours, never the letters. Fewest tries wins; on a tie, the faster."

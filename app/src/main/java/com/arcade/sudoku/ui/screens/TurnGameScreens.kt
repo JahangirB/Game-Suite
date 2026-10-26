@@ -56,10 +56,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.GameKind
+import com.arcade.sudoku.data.PlayerInfo
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.game.connect4.C4Level
@@ -85,6 +87,15 @@ import com.arcade.sudoku.ui.theme.DisplayFont
 /** Your discs and lines are red and your opponent's yellow, on both phones. */
 val MyDisc = Color(0xFFE8505B)
 val TheirDisc = Color(0xFFFFC93C)
+
+/** A board mark's colour: yours red, then the others yellow, green and blue in seat order. */
+fun markColor(mark: Char): Color = when (mark) {
+    'm' -> MyDisc
+    'o' -> TheirDisc
+    'p' -> Color(0xFF20A47B)
+    'q' -> Color(0xFF3D7BF7)
+    else -> Color.Gray
+}
 private val BoardBlue = Color(0xFF2F6FD1)
 private val TheirLine = Color(0xFFE0A21C)
 
@@ -259,8 +270,8 @@ fun DotsBoard(
     lines: String,
     boxes: String,
     lastLine: Int?,
-    myAvatar: Avatar?,
-    theirAvatar: Avatar?,
+    /** Each owner mark's picture, shown in the boxes they claim. */
+    avatars: Map<Char, Avatar?>,
     onLine: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -305,10 +316,10 @@ fun DotsBoard(
             if (owner == '.') continue
             val corner = dot(box / Dots.BOXES, box % Dots.BOXES)
             drawRoundRect(
-                (if (owner == 'm') MyDisc else TheirDisc).copy(alpha = 0.35f),
+                markColor(owner).copy(alpha = 0.35f),
                 corner + Offset(step * 0.08f, step * 0.08f), Size(step * 0.84f, step * 0.84f), CornerRadius(step * 0.14f),
             )
-            val avatar = if (owner == 'm') myAvatar else theirAvatar
+            val avatar = avatars[owner]
             if (avatar != null) {
                 // The owner's picture in the middle of the box.
                 val pic = step * 0.56f
@@ -322,7 +333,7 @@ fun DotsBoard(
             when (lines[line]) {
                 '.' -> drawLine(p.lineThin, a, b, step * 0.035f, cap = StrokeCap.Round)
                 else -> drawLine(
-                    if (lines[line] == 'm') MyDisc else TheirLine, a, b,
+                    if (lines[line] == 'o') TheirLine else markColor(lines[line]), a, b,
                     step * if (line == lastLine) 0.12f else 0.08f,
                     cap = StrokeCap.Round,
                 )
@@ -369,11 +380,7 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
     // [turning]: tapped, picture on its way from the server; the card starts turning at once.
     val turn by animateFloatAsState(if (face != null) 180f else if (turning) 70f else 0f, tween(320), label = "flip")
     val density = LocalDensity.current.density
-    val edge = when (owner) {
-        'm' -> MyDisc
-        'o' -> TheirDisc
-        else -> p.ink
-    }
+    val edge = if (owner == '.') p.ink else markColor(owner)
     Box(
         modifier
             .aspectRatio(0.78f)
@@ -404,20 +411,19 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
 
 /** The pairs each player has found, as small pictures under the chips. */
 @Composable
-private fun FoundPairs(faces: List<Avatar?>, owners: String) {
+private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<String, Char>>) {
     val p = AppTheme.palette
     @Composable
     fun line(label: String, mark: Char, color: Color) {
         val found = faces.indices.filter { owners.getOrNull(it) == mark }.mapNotNull { faces[it] }.distinct()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(64.dp))
+            Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
             if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = 12.sp)
             found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        line("You", 'm', MyDisc)
-        line("Them", 'o', TheirLine)
+        players.forEach { (name, mark) -> line(name, mark, if (mark == 'o') TheirLine else markColor(mark)) }
     }
 }
 
@@ -500,14 +506,15 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     fun score(mark: Char): String? = owned?.let { o -> o.count { it == mark }.let { if (game == GameKind.MEMORY) it / 2 else it } }
         ?.let { if (game == GameKind.MEMORY) "$it pairs" else "$it boxes" }
     val (myLabel, theirLabel) = if (game == GameKind.TTT) "X" to "O" else "Red" to "Yellow"
-    val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, MyDisc, score('m') ?: myLabel, visibleReaction(state.myReaction, now), active = myTurn && !finished),
-        opponent?.let {
-            ChipPlayer(
-                it.name + if (it.online == false) " (away)" else "", it.avatar, TheirDisc, score('o') ?: theirLabel,
-                visibleReaction(state.opponentReaction, now), active = turns.turn == "opponent",
-            )
-        },
+    // Each other player's mark on the board: 'o', 'p', 'q' in seat order.
+    fun markOf(player: PlayerInfo, isMe: Boolean) = if (isMe) 'm' else "opq"[room.others.indexOf(player).coerceAtLeast(0)]
+    // Whose turn: with two players "opponent" is enough; with more the server names them.
+    val turnName = turns.turnName ?: opponent?.name
+    val players = battleChips(
+        room, state, now, MyDisc,
+        detail = { player, isMe -> score(markOf(player, isMe)) ?: if (isMe) myLabel else theirLabel },
+        active = { player, isMe -> !finished && if (isMe) myTurn else turns.turn == "opponent" && player.name == turnName },
+        otherColor = { i -> markColor("opq"[i]) },
     )
 
     GameFrame(
@@ -524,18 +531,19 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 room, game, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 turnResultDetail(game, room.winner, room.endReason, name),
                 onRematch = vm::readyTurns, onFinish = onLeave,
-                scores = if (owned == null) emptyList() else listOf("You ${score('m')}", "$name ${score('o')}"),
+                scores = if (owned == null) emptyList() else listOf("You ${score('m')}") + room.others.mapIndexed { i, o -> "${o.name} ${score("opq"[i])}" },
             )
         },
     ) {
-        if (game == GameKind.MEMORY) FoundPairs(turns.faces, turns.owners ?: "")
+        if (game == GameKind.MEMORY) FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
         if (!finished) {
-            val name = opponent?.name ?: "Your opponent"
+            val name = turnName ?: "Your opponent"
+            val waitingOn = room.others.firstOrNull { it.name == turnName } ?: opponent
             // In Dots & Boxes and Memory, a move that scores keeps the turn: say so.
             val again = myTurn && turns.lastMoveByMe == true && (game == GameKind.DOTS || game == GameKind.MEMORY)
             TurnLine(
                 when {
-                    !myTurn && opponent?.online == false -> "$name is away. They'll get a notification that it's their turn."
+                    !myTurn && waitingOn?.online == false -> "$name is away. They'll get a notification that it's their turn."
                     !myTurn -> "$name is thinking…"
                     again && game == GameKind.DOTS -> "Box! Go again"
                     again && game == GameKind.MEMORY && turns.faces.count { it != null } % 2 == 0 -> "A pair! Go again"
@@ -553,7 +561,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             when (game) {
                 GameKind.DOTS -> DotsBoard(
                     turns.lines ?: ".".repeat(Dots.LINES), turns.boxes ?: ".".repeat(16), turns.lastLine,
-                    room.me.avatar, opponent?.avatar,
+                    mapOf('m' to room.me.avatar) + room.others.mapIndexed { i, o -> "opq"[i] to o.avatar },
                     onLine = if (canMove) vm::drawLine else null,
                     modifier = size,
                 )
@@ -710,7 +718,7 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             if (again && playing) p.good else GameKind.DOTS.color,
         )
         BoardArea(1f) { size ->
-            DotsBoard(state.lines, state.boxes, state.lastLine, null, null, onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size)
+            DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size)
         }
     }
 }

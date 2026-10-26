@@ -19,8 +19,11 @@ interface TurnMatch {
     /** Plays [move] for [mark]; throws IllegalArgumentException for a move that isn't allowed. */
     fun play(mark: Char, move: JSONObject): TurnResult
 
-    /** The round as [mark] sees it: the same JSON the server sends under "turns". */
-    fun view(mark: Char): JSONObject
+    /**
+     * The round as [mark] sees it: the same JSON the server sends under "turns". [seats] maps
+     * each other player's mark to the letter they show as ('o', 'p', 'q'); empty means 'o'.
+     */
+    fun view(mark: Char, seats: Map<Char, Char> = emptyMap()): JSONObject
 
     companion object {
         fun start(game: GameKind, random: Random = Random.Default): TurnMatch = when (game) {
@@ -30,21 +33,18 @@ interface TurnMatch {
             else -> C4Match()
         }
 
-        /** [owners] seen from [mark]: 'm' theirs, 'o' the other player's. */
-        fun side(owners: String, mark: Char) = owners.map { if (it == '.') '.' else if (it == mark) 'm' else 'o' }.joinToString("")
+        /** [owners] seen from [mark]: 'm' theirs, others as [seats] says ('o' without one). */
+        fun side(owners: String, mark: Char, seats: Map<Char, Char> = emptyMap()) =
+            owners.map { if (it == '.') '.' else if (it == mark) 'm' else seats[it] ?: 'o' }.joinToString("")
 
         fun lastMove(by: Char, mark: Char, key: String, value: Int): JSONObject =
             JSONObject().put("by", if (by == mark) "me" else "opponent").put(key, value)
 
-        /** Who owns more cells in [owners]: [mark], the other player, or null on a tie. */
-        fun winnerOf(owners: String, mark: Char): Char? {
-            val mine = owners.count { it == mark }
-            val theirs = owners.count { it != mark && it != '.' }
-            return when {
-                mine > theirs -> mark
-                theirs > mine -> owners.first { it != mark && it != '.' }
-                else -> null
-            }
+        /** Whoever owns the most cells in [owners], or null when two or more tie for the most. */
+        fun winnerOf(owners: String): Char? {
+            val ranked = owners.filter { it != '.' }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            if (ranked.isEmpty() || (ranked.size > 1 && ranked[1].value == ranked[0].value)) return null
+            return ranked[0].key
         }
     }
 }

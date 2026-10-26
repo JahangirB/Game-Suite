@@ -76,7 +76,7 @@ class TttMatch : TurnMatch {
         return TurnResult(again = false, over = '.' !in position.boards, reason = "draw")
     }
 
-    override fun view(mark: Char): JSONObject = JSONObject()
+    override fun view(mark: Char, seats: Map<Char, Char>): JSONObject = JSONObject()
         .put("board", TurnMatch.side(position.cells, mark))
         .put("boards", position.boards.map { if (it == '.' || it == 'd') it else if (it == mark) 'm' else 'o' }.joinToString(""))
         .put("next", position.next)
