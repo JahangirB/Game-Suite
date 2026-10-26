@@ -44,13 +44,12 @@ class ClashTest {
             val w = winner
             assertNotNull("game $seed ends", w)
             assertTrue(m.hands.getValue(w!!).isEmpty())
-            // Every card is still somewhere: hands, deck and pile.
-            val view = ClashView.from(m.view('h'))
-            assertEquals(108, view.counts.values.sum() + view.deck + pileSize(m))
+            // The view counts every hand, each under its own letter.
+            val view = ClashView.from(m.view('h', mapOf('g' to 'o', '3' to 'p', '4' to 'q')))
+            assertEquals(m.hands.values.sumOf { it.size }, view.counts.values.sum())
+            assertEquals(m.deck.size, view.deck)
         }
     }
-
-    private fun pileSize(m: ClashMatch) = 108 - m.hands.values.sumOf { it.size } - m.deck.size
 
     @Test
     fun aWildNeedsAColour() {
