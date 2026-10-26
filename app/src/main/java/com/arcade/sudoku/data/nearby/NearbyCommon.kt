@@ -12,8 +12,9 @@ import kotlin.coroutines.resumeWithException
 /** Identifies Arcade Sudoku battles among everything else using Nearby Connections. */
 internal const val SERVICE_ID = "com.arcade.sudoku.battle"
 
-/** Exactly two phones, connected directly over Bluetooth / Wi-Fi without internet. */
-internal val STRATEGY: Strategy = Strategy.P2P_POINT_TO_POINT
+/** Phones connected directly over Bluetooth / Wi-Fi without internet. */
+// A star: the host's phone in the middle, up to three guests connected to it.
+internal val STRATEGY: Strategy = Strategy.P2P_STAR
 
 /** A phone hosting a nearby battle, as seen by a player looking for one. */
 data class FoundHost(val endpointId: String, val code: String, val name: String, val avatar: Avatar?)

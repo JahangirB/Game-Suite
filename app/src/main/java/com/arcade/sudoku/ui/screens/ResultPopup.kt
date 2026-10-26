@@ -165,8 +165,8 @@ fun resultTitle(winner: String?, opponentName: String) = when (winner) {
 }
 
 /**
- * The result popup of a match against your partner: Rematch marks you ready (or takes it
- * back), Finish leaves, and the status line says what your partner wants.
+ * The result popup of a match against your partner (or partners): Rematch marks you ready
+ * (or takes it back), Finish leaves, and the status line says who wants another round.
  */
 @Composable
 fun BoxScope.MatchPopup(
@@ -180,14 +180,15 @@ fun BoxScope.MatchPopup(
     scores: List<String> = emptyList(),
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val opponent = room.opponent
-    val name = opponent?.name ?: "Your opponent"
-    val gone = opponent == null || opponent.left
+    // Everyone else still in the room, and who of them wants another round.
+    val present = room.present
+    val gone = present.isEmpty()
+    val keen = present.filter { it.ready }
     val (status, good) = when {
-        gone -> "$name has left the game." to false
-        room.me.ready && opponent!!.ready -> "Starting…" to true
-        room.me.ready -> "Waiting for $name…" to false
-        opponent!!.ready -> "$name wants a rematch" to true
+        gone -> (if (room.others.size == 1) "${room.others[0].name} has left the game." else "Everyone else has left.") to false
+        room.me.ready && keen.size == present.size -> "Starting…" to true
+        room.me.ready -> (if (present.size == 1) "Waiting for ${present[0].name}…" else "Waiting for ${present.size - keen.size} more…") to false
+        keen.isNotEmpty() -> (keen.joinToString(" and ") { it.name } + if (keen.size == 1) " wants a rematch" else " want a rematch") to true
         else -> null to false
     }
     ResultPopup(

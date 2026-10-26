@@ -63,14 +63,14 @@ test('a right guess scores the seconds left and swaps the drawer', () => {
   const room = match();
   const word = room.drawWord;
   drawGuess(room, 'guest', 'nope', GO + 1000);
-  assert.deepEqual(view(room, 'host', GO).draw.guesses, [{ by: 'opponent', word: 'nope' }]);
+  assert.deepEqual(view(room, 'host', GO).draw.guesses, [{ by: 'opponent', name: 'Bob', word: 'nope' }]);
   assert.throws(() => drawGuess(room, 'host', word, GO), /drawing/);
   drawGuess(room, 'guest', word.toUpperCase(), GO + 30_000);
   assert.equal(room.score, 50);
   assert.equal(room.drawer, 'guest');
   assert.equal(room.drawTurn, 2);
   const last = view(room, 'host', GO + 30_000).draw.lastTurn;
-  assert.deepEqual(last, { word, guessed: true, points: 50, drewIt: true });
+  assert.deepEqual(last, { word, guessed: true, points: 50, drewIt: true, drawerName: 'Alice', guesserName: 'Bob', guessedIt: false });
   assert.notEqual(room.drawWord, word);
   assert.equal(view(room, 'host', GO + 30_000).draw.strokes.length, 0);
 });
@@ -88,4 +88,19 @@ test('a turn that runs out moves on, and the match ends after the last turn', ()
   assert.equal(room.winner, null);
   assert.equal(view(room, 'host', now).draw.score, 0);
   assert.equal(TURN_MS, 80_000);
+});
+
+test('with three players the drawer goes round the table and everyone else guesses', () => {
+  const room = createRoom('DRAW3', 'Alice', T0, uuid, null, null, 'draw');
+  setConnected(room, 'host', true, T0);
+  for (const name of ['Bob', 'Cat']) setConnected(room, joinRoom(room, name, null, T0, uuid, null, null, ['draw']), true, T0);
+  for (const role of ['host', 'guest', 'p3']) setDrawReady(room, role, true, T0, () => 0);
+  assert.equal(room.drawTurns, 6);
+  assert.equal(room.drawer, 'host');
+  drawGuess(room, 'p3', room.drawWord, GO + 1000);
+  assert.equal(room.drawer, 'guest');
+  assert.equal(view(room, 'host', GO + 1000).draw.lastTurn.guesserName, 'Cat');
+  drawGuess(room, 'host', room.drawWord, GO + 2000);
+  assert.equal(room.drawer, 'p3');
+  assert.equal(view(room, 'guest', GO + 2000).draw.drawerName, 'Cat');
 });

@@ -19,6 +19,9 @@ enum class GameKind(val key: String, val label: String) {
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT
 
+    /** How many can play: up to four in the race games and Draw & Guess, two in the rest. */
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW) 4 else 2
+
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW
 
@@ -102,7 +105,12 @@ data class WordsView(
     val theyDone: Boolean,
     /** The secret word, once the round is over. */
     val answer: String?,
+    /** Everyone else's guesses (colours only until the end) and whether they are done, in the order of [RoomState.others]. */
+    val others: List<OtherWords> = emptyList(),
 )
+
+/** Another player's Word Race round. */
+data class OtherWords(val guesses: List<WordGuess>, val done: Boolean)
 
 /** A Draw & Guess stroke: a polyline in 0-1 coordinates (x, y pairs), one of six colours, thin (1) or thick (2). */
 class DrawStroke(val points: FloatArray, val color: Int, val width: Int) {
@@ -126,7 +134,15 @@ class DrawStroke(val points: FloatArray, val color: Int, val width: Int) {
 }
 
 /** How a Draw & Guess turn ended. */
-data class DrawTurnResult(val word: String, val guessed: Boolean, val points: Int, val drewIt: Boolean)
+data class DrawTurnResult(
+    val word: String,
+    val guessed: Boolean,
+    val points: Int,
+    val drewIt: Boolean,
+    val drawerName: String? = null,
+    val guesserName: String? = null,
+    val guessedIt: Boolean = false,
+)
 
 /** A Draw & Guess match as one player sees it. */
 data class DrawView(
@@ -143,10 +159,12 @@ data class DrawView(
     val strokes: List<DrawStroke>,
     /** How many times the drawer cleared this turn's drawing. */
     val clears: Int = 0,
-    /** Wrong guesses this turn: (by me, word). */
+    /** Wrong guesses this turn: (by me, word), and who made each. */
     val guesses: List<Pair<Boolean, String>>,
     val score: Int,
     val lastTurn: DrawTurnResult?,
+    val drawerName: String? = null,
+    val guessers: List<String?> = emptyList(),
 )
 
 /** A player's latest reaction; [seq] goes up with every new one. */
@@ -168,6 +186,8 @@ data class PlayerInfo(
     val idleMs: Long,
     /** Whether a live connection is up; null for the polling (Apps Script) server. */
     val online: Boolean?,
+    /** Left or lost their connection during the match being played, which goes on without them. */
+    val out: Boolean = false,
 )
 
 data class RoomState(
@@ -186,14 +206,23 @@ data class RoomState(
     /** "solved", "sunk", "four", "draw", "forfeit" or "timeout". */
     val endReason: String?,
     val me: PlayerInfo,
+    /** The first of [others]: the opponent in a two-player game. */
     val opponent: PlayerInfo?,
     val ships: ShipsView?,
     val turns: TurnsView?,
     val words: WordsView? = null,
     val draw: DrawView? = null,
     val serverTime: Long,
+    /** Everyone else in the room, in seat order (up to three). */
+    val others: List<PlayerInfo> = listOfNotNull(opponent),
+    /** The winner's name, whoever it is. */
+    val winnerName: String? = null,
+    val maxPlayers: Int = 2,
 ) {
     val isHost get() = role == "host"
+
+    /** Others still in the room. */
+    val present get() = others.filter { !it.left }
 }
 
 fun parseRoom(json: JSONObject) = RoomState(
@@ -215,6 +244,10 @@ fun parseRoom(json: JSONObject) = RoomState(
     words = json.optJSONObject("words")?.let(::parseWords),
     draw = json.optJSONObject("draw")?.let(::parseDraw),
     serverTime = json.getLong("serverTime"),
+    // Servers from before rooms of four send only "opponent".
+    others = json.optJSONArray("others")?.objects()?.map(::parsePlayer) ?: listOfNotNull(json.optJSONObject("opponent")?.let(::parsePlayer)),
+    winnerName = json.stringOrNull("winnerName"),
+    maxPlayers = json.optInt("maxPlayers", 2),
 )
 
 private fun parsePlayer(json: JSONObject) = PlayerInfo(
@@ -231,6 +264,7 @@ private fun parsePlayer(json: JSONObject) = PlayerInfo(
     left = json.optBoolean("left"),
     idleMs = json.optLong("idleMs"),
     online = if (json.has("online")) json.optBoolean("online") else null,
+    out = json.optBoolean("out"),
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(
@@ -255,8 +289,13 @@ private fun parseDraw(json: JSONObject) = DrawView(
     guesses = json.optJSONArray("guesses").objects().map { (it.optString("by") == "me") to it.optString("word") },
     score = json.optInt("score"),
     lastTurn = json.optJSONObject("lastTurn")?.let {
-        DrawTurnResult(it.optString("word"), it.optBoolean("guessed"), it.optInt("points"), it.optBoolean("drewIt"))
+        DrawTurnResult(
+            it.optString("word"), it.optBoolean("guessed"), it.optInt("points"), it.optBoolean("drewIt"),
+            it.stringOrNull("drawerName"), it.stringOrNull("guesserName"), it.optBoolean("guessedIt"),
+        )
     },
+    drawerName = json.stringOrNull("drawerName"),
+    guessers = json.optJSONArray("guesses").objects().map { it.stringOrNull("name") },
 )
 
 private fun parseWords(json: JSONObject): WordsView {
@@ -268,6 +307,9 @@ private fun parseWords(json: JSONObject): WordsView {
         meDone = json.optBoolean("meDone"),
         theyDone = json.optBoolean("theyDone"),
         answer = json.stringOrNull("answer"),
+        others = json.optJSONArray("others").objects().map { o ->
+            OtherWords(o.optJSONArray("guesses").objects().map { WordGuess(it.stringOrNull("word"), it.optString("score")) }, o.optBoolean("done"))
+        },
     )
 }
 

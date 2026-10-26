@@ -80,3 +80,23 @@ test('nobody solving is a draw', () => {
   assert.equal(room.winner, null);
   assert.equal(room.endReason, 'draw');
 });
+
+test('three-way race: the round ends once nobody can beat the best solver', () => {
+  const room = createRoom('WORD3', 'Alice', T0, uuid, null, null, 'words');
+  setConnected(room, 'host', true, T0);
+  for (const name of ['Bob', 'Cat']) setConnected(room, joinRoom(room, name, null, T0, uuid, null, null, ['words']), true, T0);
+  for (const role of ['host', 'guest', 'p3']) setWordsReady(room, role, true, T0);
+  room.answer = 'crane';
+  guessWord(room, 'guest', 'slate', GO);
+  guessWord(room, 'guest', 'crane', GO + 1);
+  // Alice and Cat (no guesses yet) could each still solve in one try.
+  assert.equal(room.status, 'started');
+  guessWord(room, 'p3', 'slate', GO + 2);
+  assert.equal(room.status, 'started');
+  guessWord(room, 'host', 'react', GO + 3);
+  assert.equal(room.status, 'finished');
+  assert.equal(room.winner, 'guest');
+  const v = view(room, 'host', GO + 3).words;
+  assert.equal(v.others.length, 2);
+  assert.equal(v.others[0].guesses[1].word, 'crane');
+});

@@ -48,6 +48,8 @@ class LocalRoom(
         // Word Race: (word, colours) per guess
         var guesses: List<Pair<String, String>> = emptyList()
         var solved = false
+        /** Left or lost their connection during the match being played, which goes on without them. */
+        var out = false
     }
 
     var status = "waiting"
@@ -80,9 +82,30 @@ class LocalRoom(
     private var drawScore = 0
     private var lastDrawTurn: JSONObject? = null
     private var turnEndsAt = 0L
-    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar), GUEST to null)
+    private var drawTurns = DRAW_TURNS
+    /** The players a match started with, in seat order. */
+    private var inMatch: List<String> = listOf(HOST, GUEST)
+    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar), GUEST to null, P3 to null, P4 to null)
 
     fun playerId(role: String) = players.getValue(role)!!.id
+
+    /** Roles with a player in them (gone ones included until the lobby clears them). */
+    fun seated() = ROLES.filter { players[it] != null }
+
+    /** Players still in the room. */
+    private fun present() = seated().filter { !players.getValue(it)!!.left }
+
+    /** Players still playing this match. */
+    private fun playing() = inMatch.filter { r -> players[r]?.let { !it.left && !it.out } == true }
+
+    /** The other players as [role] sees them: seat order starting after their own seat. */
+    fun others(role: String): List<String> {
+        val roles = seated()
+        val i = roles.indexOf(role)
+        return roles.drop(i + 1) + roles.take(maxOf(i, 0))
+    }
+
+    private fun player(role: String) = players.getValue(role)!!
 
     /**
      * Joins as guest, or reconnects when [playerId] belongs to the room. Returns the role.
@@ -95,25 +118,51 @@ class LocalRoom(
         }
         players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { return it.key }
         if (playerId != null) throw ApiException("You are not part of this battle.", fatal = true, reason = "not_member")
-        val guest = players[GUEST]
-        if (guest != null && !guest.left) {
-            throw ApiException("This battle already has two players.", fatal = true, reason = "full")
-        }
-        players[GUEST] = newPlayer(name, avatar)
-        host.ready = false
-        host.difficulty = null
-        status = "lobby"
+        val max = game.maxPlayers
+        val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
+            ?: throw ApiException(if (max == 2) "This battle already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
+        if (status == "started") throw ApiException("A match is being played. Join when it ends.", fatal = true, reason = "busy")
+        players[seat] = newPlayer(name, avatar)
+        // Everyone gets ready again, so the newcomer is part of the next round.
+        for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
+        if (status == "waiting") status = "lobby"
         version++
-        return GUEST
+        return seat
     }
 
-    fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long) {
+    /** Throws unless there is someone to play with; used by every "ready". */
+    private fun checkCanReady() {
         if (status != "lobby" && status != "finished") {
             throw ApiException("You can only get ready in the lobby or after a match.")
         }
-        val guest = players[GUEST] ?: throw ApiException("Waiting for an opponent to join.")
-        if (players.getValue(other(role))!!.left) throw ApiException("Your opponent has left the battle.")
-        val me = players.getValue(role)!!
+        if (present().size < 2) {
+            throw ApiException(if (seated().size > 1) "Your opponent has left the battle." else "Waiting for an opponent to join.")
+        }
+    }
+
+    /** Whether every player in the room is ready (and there are at least two). */
+    private fun allReady() = present().let { roles -> roles.size >= 2 && roles.all { player(it).ready } }
+
+    /** Starts a match with everyone in the room; [reset] runs on each of them. */
+    private fun beginMatch(startTime: Long, reset: (Player) -> Unit = {}) {
+        inMatch = present()
+        round++
+        status = "started"
+        startAt = startTime
+        winner = null
+        endReason = null
+        for (r in inMatch) player(r).apply {
+            ready = false
+            difficulty = null
+            finishedAt = null
+            out = false
+            reset(this)
+        }
+    }
+
+    fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long) {
+        checkCanReady()
+        val me = player(role)
         if (!ready) {
             me.ready = false
             me.difficulty = null
@@ -121,7 +170,7 @@ class LocalRoom(
             me.ready = true
             me.difficulty = level ?: throw ApiException("Choose a difficulty level.")
         }
-        if (host.ready && guest.ready && host.difficulty == guest.difficulty) startRound(now)
+        if (allReady() && present().map { player(it).difficulty }.toSet().size == 1) startRound(now)
         version++
     }
 
@@ -131,28 +180,16 @@ class LocalRoom(
         difficulty = level
         puzzle = generated.puzzle
         solution = generated.solution
-        round++
-        startAt = now + COUNTDOWN_MS
-        status = "started"
-        winner = null
-        endReason = null
-        for (p in players.values.filterNotNull()) {
-            p.ready = false
-            p.difficulty = null
-            p.board = puzzle
-            p.progress = 0
-            p.finishedAt = null
+        beginMatch(now + COUNTDOWN_MS) {
+            it.board = generated.puzzle
+            it.progress = 0
         }
     }
 
     /** Ship Battle: ready with a fleet. The battle starts when both fleets are in. */
     fun setShipsReady(role: String, ready: Boolean, fleet: List<Ship>, now: Long, random: Random = Random.Default) {
-        if (status != "lobby" && status != "finished") {
-            throw ApiException("You can only get ready in the lobby or after a match.")
-        }
-        val guest = players[GUEST] ?: throw ApiException("Waiting for an opponent to join.")
-        if (players.getValue(other(role))!!.left) throw ApiException("Your opponent has left the battle.")
-        val me = players.getValue(role)!!
+        checkCanReady()
+        val me = player(role)
         if (!ready) {
             me.ready = false
             me.pendingFleet = null
@@ -165,21 +202,14 @@ class LocalRoom(
             me.pendingFleet = fleet
             me.ready = true
         }
-        if (host.ready && guest.ready) {
-            round++
-            status = "started"
-            startAt = now
-            winner = null
-            endReason = null
+        if (allReady()) {
             turn = if (random.nextBoolean()) HOST else GUEST
             lastShot = null
-            for (p in listOf(host, guest)) {
+            beginMatch(now) { p ->
                 p.fleet = p.pendingFleet!!
                 p.pendingFleet = null
                 p.shots = emptyList()
                 p.progress = 0
-                p.ready = false
-                p.finishedAt = null
             }
         }
         version++
@@ -210,26 +240,14 @@ class LocalRoom(
 
     /** Turn games: ready (or not) for the next round; the starting player alternates. */
     fun setTurnReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
-        if (status != "lobby" && status != "finished") {
-            throw ApiException("You can only get ready in the lobby or after a match.")
-        }
-        val guest = players[GUEST] ?: throw ApiException("Waiting for an opponent to join.")
-        if (players.getValue(other(role))!!.left) throw ApiException("Your opponent has left the battle.")
-        players.getValue(role)!!.ready = ready
-        if (host.ready && guest.ready) {
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
             val first = firstTurn?.let { other(it) } ?: if (random.nextBoolean()) HOST else GUEST
-            round++
-            status = "started"
-            startAt = now
-            winner = null
-            endReason = null
             firstTurn = first
             turn = first
             turnMatch = TurnMatch.start(game, random)
-            for (p in listOf(host, guest)) {
-                p.ready = false
-                p.finishedAt = null
-            }
+            beginMatch(now)
         }
         version++
     }
@@ -260,24 +278,13 @@ class LocalRoom(
 
     /** Word Race: ready (or not) for the next round; it starts with a countdown when both are. */
     fun setWordsReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
-        if (status != "lobby" && status != "finished") {
-            throw ApiException("You can only get ready in the lobby or after a match.")
-        }
-        val guest = players[GUEST] ?: throw ApiException("Waiting for an opponent to join.")
-        if (players.getValue(other(role))!!.left) throw ApiException("Your opponent has left the battle.")
-        players.getValue(role)!!.ready = ready
-        if (host.ready && guest.ready) {
-            round++
-            status = "started"
-            startAt = now + COUNTDOWN_MS
-            winner = null
-            endReason = null
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
             answer = WordList.random(random)
-            for (p in listOf(host, guest)) {
-                p.ready = false
-                p.finishedAt = null
-                p.guesses = emptyList()
-                p.solved = false
+            beginMatch(now + COUNTDOWN_MS) {
+                it.guesses = emptyList()
+                it.solved = false
             }
         }
         version++
@@ -289,7 +296,8 @@ class LocalRoom(
         val start = startAt
         if (game != GameKind.WORDS || status != "started" || secret == null || start == null) throw ApiException("The game is not running.")
         if (now < start) throw ApiException("Wait for the countdown.")
-        val me = players.getValue(role)!!
+        val me = player(role)
+        if (role !in playing()) throw ApiException("You are not in this round.")
         if (me.finishedAt != null) throw ApiException("You are done with this word.")
         val word = guess.lowercase()
         if (!Regex("[a-z]{5}").matches(word)) throw ApiException("Guess a five-letter word.")
@@ -307,29 +315,22 @@ class LocalRoom(
 
     /** Ends the round once nobody can change the result any more (as on the server). */
     private fun decideWords() {
-        val h = host
-        val g = players.getValue(GUEST)!!
-        val hDone = h.finishedAt
-        val gDone = g.finishedAt
-        if (hDone != null && gDone != null) {
-            if (!h.solved && !g.solved) return endMatch(null, "draw")
-            val hostWins = when {
-                h.solved != g.solved -> h.solved
-                h.guesses.size != g.guesses.size -> h.guesses.size < g.guesses.size
-                else -> hDone < gDone
-            }
-            return endMatch(if (hostWins) HOST else GUEST, "solved")
+        val roles = playing()
+        // The best solver so far: fewest tries, then the fastest.
+        val best = roles.filter { player(it).solved }
+            .minWithOrNull(compareBy<String>({ player(it).guesses.size }, { player(it).finishedAt ?: Long.MAX_VALUE }))
+        val open = roles.filter { player(it).finishedAt == null }
+        if (best == null) {
+            if (open.isEmpty()) endMatch(null, "draw")
+            return
         }
-        for ((solver, otherRole) in listOf(HOST to GUEST, GUEST to HOST)) {
-            val s = players.getValue(solver)!!
-            val o = players.getValue(otherRole)!!
-            if (s.solved && o.finishedAt == null && o.guesses.size + 1 >= s.guesses.size) return endMatch(solver, "solved")
-        }
+        // Someone still guessing could only win by solving in fewer tries than the best.
+        if (open.all { player(it).guesses.size + 1 >= player(best).guesses.size }) endMatch(best, "solved")
     }
 
     private fun wordsView(role: String, shown: String): JSONObject {
-        val me = players.getValue(role)!!
-        val opponent = players[other(role)]
+        val me = player(role)
+        val opponent = others(role).firstOrNull()?.let { player(it) }
         val over = shown == "finished"
         val showWords = shown == "playing" || over
         fun rows(p: Player?, withWords: Boolean) = org.json.JSONArray(
@@ -343,40 +344,42 @@ class LocalRoom(
             .put("meDone", me.finishedAt != null)
             .put("theyDone", opponent?.finishedAt != null)
             .put("answer", if (over) answer ?: JSONObject.NULL else JSONObject.NULL)
+            .put(
+                "others",
+                org.json.JSONArray(others(role).map { r -> JSONObject().put("guesses", rows(player(r), over)).put("done", player(r).finishedAt != null) }),
+            )
     }
 
     /** Draw & Guess: ready (or not) for a match of [DRAW_TURNS] turns; the drawer swaps every turn. */
     fun setDrawReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
-        if (status != "lobby" && status != "finished") {
-            throw ApiException("You can only get ready in the lobby or after a match.")
-        }
-        val guest = players[GUEST] ?: throw ApiException("Waiting for an opponent to join.")
-        if (players.getValue(other(role))!!.left) throw ApiException("Your opponent has left the battle.")
-        players.getValue(role)!!.ready = ready
-        if (host.ready && guest.ready) {
-            round++
-            status = "started"
-            startAt = now + COUNTDOWN_MS
-            winner = null
-            endReason = null
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
+            val roles = present()
             drawTurn = 0
-            drawer = if (random.nextBoolean()) HOST else GUEST
+            drawTurns = turnsFor(roles.size)
+            drawer = roles[random.nextInt(roles.size)]
             drawScore = 0
             usedWords.clear()
             lastDrawTurn = null
-            for (p in listOf(host, guest)) {
-                p.ready = false
-                p.finishedAt = null
-            }
+            beginMatch(now + COUNTDOWN_MS)
             nextDrawTurn(now + COUNTDOWN_MS, random, first = true)
         }
         version++
     }
 
+    /** The next turn: the next player round the table draws. Ends the match after the last one. */
     private fun nextDrawTurn(now: Long, random: Random, first: Boolean = false) {
-        if (drawTurn >= DRAW_TURNS) return endMatch(null, "done")
+        val roles = playing()
+        if (drawTurn >= drawTurns || roles.size < 2) return endMatch(null, "done")
         drawTurn++
-        if (!first) drawer = other(drawer)
+        if (!first || drawer !in roles) {
+            var i = inMatch.indexOf(drawer)
+            do {
+                i = (i + 1) % inMatch.size
+            } while (inMatch[i] !in roles)
+            drawer = inMatch[i]
+        }
         val fresh = WordList.drawWords.filter { it !in usedWords }.ifEmpty { WordList.drawWords }
         drawWord = fresh.random(random)
         usedWords += drawWord
@@ -386,8 +389,8 @@ class LocalRoom(
         turnEndsAt = now + DRAW_TURN_MS
     }
 
-    private fun drawResult(guessed: Boolean, points: Int) = JSONObject()
-        .put("word", drawWord).put("guessed", guessed).put("points", points).put("drawer", drawer)
+    private fun drawResult(guessed: Boolean, points: Int, guesser: String? = null) = JSONObject()
+        .put("word", drawWord).put("guessed", guessed).put("points", points).put("drawer", drawer).put("guesser", guesser ?: JSONObject.NULL)
 
     private fun checkDrawing(role: String, now: Long) {
         val start = startAt
@@ -422,12 +425,13 @@ class LocalRoom(
         val start = startAt
         if (game != GameKind.DRAW || status != "started" || start == null || now < start) throw ApiException("The game is not running.")
         if (drawer == role) throw ApiException("You are drawing this turn.")
+        if (role !in playing()) throw ApiException("You are not in this round.")
         val text = guess.trim().take(30)
         if (text.isEmpty()) throw ApiException("Type a guess.")
         if (text.lowercase().filter { it in 'a'..'z' } == drawWord) {
             val points = maxOf(1, ((turnEndsAt - now + 999) / 1000).toInt())
             drawScore += points
-            lastDrawTurn = drawResult(guessed = true, points = points)
+            lastDrawTurn = drawResult(guessed = true, points = points, guesser = role)
             nextDrawTurn(now, random)
         } else {
             drawGuesses += role to text.lowercase()
@@ -438,22 +442,26 @@ class LocalRoom(
     private fun drawView(role: String, shown: String): JSONObject {
         val playing = shown == "playing" || shown == "countdown"
         val mine = drawer == role
+        fun nameOf(r: String?) = r?.let { players[it]?.name } ?: JSONObject.NULL
         return JSONObject()
             .put("turn", drawTurn)
-            .put("turns", DRAW_TURNS)
+            .put("turns", drawTurns)
             .put("drawer", if (playing) (if (mine) "me" else "opponent") else JSONObject.NULL)
+            .put("drawerName", if (playing) nameOf(drawer) else JSONObject.NULL)
             .put("word", if (playing && mine) drawWord else JSONObject.NULL)
             .put("hint", if (playing && drawWord.isNotEmpty()) drawWord.map { if (it in 'a'..'z') '_' else it }.joinToString("") else JSONObject.NULL)
             .put("endsAt", if (playing) turnEndsAt else JSONObject.NULL)
             .put("strokes", org.json.JSONArray(if (playing) strokes else emptyList<JSONObject>()))
             .put("clears", drawClears)
-            .put("guesses", org.json.JSONArray(if (playing) drawGuesses.map { (by, w) -> JSONObject().put("by", if (by == role) "me" else "opponent").put("word", w) } else emptyList()))
+            .put("guesses", org.json.JSONArray(if (playing) drawGuesses.map { (by, w) -> JSONObject().put("by", if (by == role) "me" else "opponent").put("name", nameOf(by)).put("word", w) } else emptyList()))
             .put("score", drawScore)
             .put(
                 "lastTurn",
                 lastDrawTurn?.let {
+                    val guesser = it.optString("guesser").takeIf { g -> !it.isNull("guesser") && g.isNotEmpty() }
                     JSONObject().put("word", it.getString("word")).put("guessed", it.getBoolean("guessed"))
                         .put("points", it.getInt("points")).put("drewIt", it.getString("drawer") == role)
+                        .put("drawerName", nameOf(it.getString("drawer"))).put("guesserName", nameOf(guesser)).put("guessedIt", guesser == role)
                 } ?: JSONObject.NULL,
             )
     }
@@ -480,7 +488,7 @@ class LocalRoom(
     }
 
     fun sendEmoji(role: String, reaction: Reaction, now: Long) {
-        if (players[other(role)] == null) throw ApiException("Nobody to send it to yet.")
+        if (present().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
         if (now - player.emojiAt < EMOJI_INTERVAL_MS) throw ApiException("Slow down a little.")
         emojiSeq++
@@ -489,18 +497,33 @@ class LocalRoom(
         version++
     }
 
-    fun leave(role: String) {
-        if (status == "started") endMatch(other(role), "forfeit")
+    /**
+     * Takes [role] out of the match being played (they left or lost their connection). With one
+     * player left, that player wins; with more, the match goes on without them.
+     */
+    private fun dropOut(role: String, reason: String, now: Long) {
+        if (status != "started" || role !in playing()) return
+        val rest = playing() - role
+        if (rest.size < 2) return endMatch(rest.firstOrNull(), reason)
+        player(role).out = true
+        if (game == GameKind.WORDS) decideWords()
+        if (game == GameKind.DRAW && drawer == role) {
+            lastDrawTurn = drawResult(guessed = false, points = 0)
+            nextDrawTurn(now, Random.Default)
+        }
+    }
+
+    fun leave(role: String, now: Long = System.currentTimeMillis()) {
+        dropOut(role, "forfeit", now)
         if (role == HOST) {
             status = "closed"
             host.left = true
-        } else if (status == "finished") {
-            players[GUEST]?.left = true
+        } else if (status == "finished" || status == "started") {
+            players[role]?.left = true
         } else {
-            players[GUEST] = null
-            status = "waiting"
-            host.ready = false
-            host.difficulty = null
+            players[role] = null
+            if (present().size < 2) status = "waiting"
+            for (r in seated()) player(r).apply { ready = false; difficulty = null }
         }
         version++
     }
@@ -522,11 +545,11 @@ class LocalRoom(
             version++
             return true
         }
-        val gone = players.entries
-            .filter { (_, p) -> p != null && !p.connected && now - maxOf(p.awaySince ?: now, start) >= FORFEIT_MS }
-            .minByOrNull { it.value!!.awaySince ?: now }
+        val gone = playing()
+            .filter { r -> player(r).let { !it.connected && now - maxOf(it.awaySince ?: now, start) >= FORFEIT_MS } }
+            .minByOrNull { player(it).awaySince ?: now }
             ?: return false
-        endMatch(other(gone.key), "timeout")
+        dropOut(gone, "timeout", now)
         version++
         return true
     }
@@ -546,7 +569,8 @@ class LocalRoom(
         val start = startAt
         val shown = if (status == "started") (if (start != null && now < start) "countdown" else "playing") else status
         val showPuzzle = shown == "countdown" || shown == "playing" || (shown == "finished" && round > 0)
-        val opponent = players[other(role)]
+        val otherRoles = others(role)
+        val opponent = otherRoles.firstOrNull()?.let { player(it) }
         return JSONObject()
             .put("ok", true)
             .put("type", "state")
@@ -562,10 +586,14 @@ class LocalRoom(
             .put("puzzle", if (showPuzzle) puzzle else JSONObject.NULL)
             .put("solution", if (shown == "finished") solution else JSONObject.NULL)
             .put("winner", winner?.let { if (it == role) "me" else "opponent" } ?: JSONObject.NULL)
+            .put("winnerName", winner?.let { players[it]?.name } ?: JSONObject.NULL)
             .put("endReason", endReason ?: JSONObject.NULL)
+            .put("maxPlayers", game.maxPlayers)
             // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
             .put("me", playerView(players.getValue(role)!!, shown == "finished" || game == GameKind.SHIPS, now))
             .put("opponent", opponent?.let { playerView(it, true, now) } ?: JSONObject.NULL)
+            // Everyone else in seat order; "opponent" is the first of them, for two-player games.
+            .put("others", org.json.JSONArray(otherRoles.map { playerView(player(it), true, now) }))
             .put("ships", if (game == GameKind.SHIPS) shipsView(role, shown) else JSONObject.NULL)
             .put("turns", if (game.turnBased) turnsView(role, shown) else JSONObject.NULL)
             .put("words", if (game == GameKind.WORDS) wordsView(role, shown) else JSONObject.NULL)
@@ -604,6 +632,7 @@ class LocalRoom(
         .put("progress", if (includeProgress) p.progress else JSONObject.NULL)
         .put("finishMs", p.finishedAt?.let { it - (startAt ?: it) } ?: JSONObject.NULL)
         .put("left", p.left)
+        .put("out", p.out)
         .put("idleMs", p.awaySince?.let { maxOf(0, now - it) } ?: 0)
         .put("online", p.connected)
 
@@ -618,6 +647,10 @@ class LocalRoom(
     companion object {
         const val HOST = "host"
         const val GUEST = "guest"
+        const val P3 = "p3"
+        const val P4 = "p4"
+        /** Seats in a room, in order. Two-player games use the first two. */
+        val ROLES = listOf(HOST, GUEST, P3, P4)
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
         const val EMOJI_INTERVAL_MS = 1500L
@@ -626,7 +659,11 @@ class LocalRoom(
         // What apps from before the version check could play; they don't say which games they know.
         val OLD_APP_GAMES = listOf("sudoku", "ships")
 
+        /** The other player of a two-player game. */
         fun other(role: String) = if (role == HOST) GUEST else HOST
+
+        /** Draw & Guess turns in a match: everyone draws twice (at least four turns). */
+        fun turnsFor(players: Int) = maxOf(DRAW_TURNS, players * 2)
 
         fun progressOf(board: String, puzzle: String, solution: String): Int {
             var empty = 0

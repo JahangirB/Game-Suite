@@ -71,7 +71,10 @@ data class BattleUiState(
     /** Server clock minus local clock, so both phones count down to the same instant. */
     val clockOffsetMs: Long = 0,
     val reconnecting: Boolean = false,
+    /** The newest reaction from anyone else (it plays large over the game). */
     val opponentReaction: ShownReaction? = null,
+    /** Each other player's latest reaction, by name, for their chip. */
+    val otherReactions: Map<String, ShownReaction> = emptyMap(),
     val myReaction: ShownReaction? = null,
     /** Ship Battle: the fleet you will be ready with (shuffle until you like it). */
     val fleetDraft: List<Ship> = Fleet.random(),
@@ -851,25 +854,24 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = parseRoom(json)
         val offset = sentAt?.let { clockOffset(room.serverTime, it) } ?: _state.value.clockOffsetMs
         lastVersion = json.optInt("version", -1)
-        if (room.opponent?.progress != _state.value.room?.opponent?.progress) {
+        if (room.others.map { it.progress } != _state.value.room?.others?.map { it.progress }) {
             opponentActiveAt = System.currentTimeMillis()
         }
-        // Show the opponent's reaction when a new one arrives (not old ones on first load).
-        val emoji = room.opponent?.emoji
         // A new Ship Battle round needs a fresh fleet.
         if (room.game == GameKind.SHIPS && room.status == RoomStatus.FINISHED && room.round != reshuffledRound) {
             reshuffledRound = room.round
             _state.update { it.copy(fleetDraft = Fleet.random()) }
         }
-        val newReaction = if (emoji != null && lastOpponentEmojiSeq >= 0 && emoji.seq > lastOpponentEmojiSeq) {
-            ShownReaction(emoji.reaction, System.currentTimeMillis())
-        } else {
-            null
+        // Show other players' reactions when new ones arrive (not old ones on first load).
+        val now = System.currentTimeMillis()
+        val fresh = room.others.mapNotNull { other ->
+            other.emoji?.takeIf { lastOpponentEmojiSeq >= 0 && it.seq > lastOpponentEmojiSeq }?.let { other.name to it }
         }
-        lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, emoji?.seq ?: 0)
+        lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
-            if (newReaction != null) next = next.copy(opponentReaction = newReaction)
+            fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now)) }
+            if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
             val puzzle = room.puzzle
@@ -923,7 +925,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(
                 room = null, board = null, selected = null, notesMode = false, reconnecting = false,
-                message = message, opponentReaction = null, myReaction = null,
+                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null,
                 hostCode = store.profile.value.partner?.code ?: Invite.randomCode(),
             )
         }

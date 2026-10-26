@@ -108,7 +108,13 @@ test('players away from the lobby are removed and empty rooms expire', () => {
 test('joining rules: full room, reconnect, strangers', () => {
   const room = lobby();
   const guestId = room.players.guest.id;
-  assert.throws(() => joinRoom(room, 'Eve', null, T0, uuid), /two players/);
+  // Sudoku takes four; a two-player game takes two.
+  assert.equal(joinRoom(room, 'Cat', null, T0, uuid), 'p3');
+  assert.equal(joinRoom(room, 'Dan', null, T0, uuid), 'p4');
+  assert.throws(() => joinRoom(room, 'Eve', null, T0, uuid), /full: 4 players/);
+  const two = createRoom('C4C4', 'Alice', T0, uuid, null, null, 'connect4');
+  joinRoom(two, 'Bob', null, T0, uuid, null, null, ['connect4']);
+  assert.throws(() => joinRoom(two, 'Eve', null, T0, uuid, null, null, ['connect4']), /two players/);
   assert.equal(joinRoom(room, 'Bob', guestId, T0, uuid), 'guest');
   assert.throws(() => joinRoom(room, 'Eve', 'forged-id', T0, uuid), (e) => e.fatal);
 });
@@ -138,4 +144,40 @@ test('avatars and reactions', async () => {
   sendEmoji(room, 'guest', 'fire', T0 + EMOJI_INTERVAL_MS);
   assert.equal(view(room, 'host', T0).opponent.emoji.seq, 2);
   assert.throws(() => sendEmoji(room, 'guest', 'bomb', T0 + 10_000), /Unknown/);
+});
+
+test('four players: everyone must be ready, others come in seat order, leavers drop out', () => {
+  const room = lobby();
+  for (const name of ['Cat', 'Dan']) setConnected(room, joinRoom(room, name, null, T0, uuid), true, T0);
+  setReady(room, 'host', true, 'easy', T0);
+  setReady(room, 'guest', true, 'easy', T0);
+  setReady(room, 'p3', true, 'easy', T0);
+  assert.equal(room.status, 'lobby');
+  setReady(room, 'p4', true, 'hard', T0);
+  assert.equal(room.status, 'lobby');
+  setReady(room, 'p4', true, 'easy', T0);
+  assert.equal(room.status, 'started');
+  assert.deepEqual(room.inMatch, ['host', 'guest', 'p3', 'p4']);
+  const v = view(room, 'p3', T0);
+  assert.deepEqual(v.others.map((o) => o.name), ['Dan', 'Alice', 'Bob']);
+  assert.equal(v.opponent.name, 'Dan');
+  assert.equal(v.maxPlayers, 4);
+  // One leaves: the match goes on without them; when only one is left, they win.
+  leave(room, 'p4', T0);
+  assert.equal(room.status, 'started');
+  assert.ok(view(room, 'host', T0).others[2].left);
+  leave(room, 'guest', T0);
+  leave(room, 'p3', T0);
+  assert.equal(room.status, 'finished');
+  assert.equal(room.winner, 'host');
+  assert.equal(view(room, 'p3', T0).winnerName, 'Alice');
+});
+
+test('a newcomer joins between matches and everyone gets ready again', () => {
+  const room = started();
+  assert.throws(() => joinRoom(room, 'Cat', null, T0, uuid), /being played/);
+  room.status = 'finished';
+  setReady(room, 'host', true, 'easy', T0);
+  assert.equal(joinRoom(room, 'Cat', null, T0, uuid), 'p3');
+  assert.equal(room.players.host.ready, false);
 });

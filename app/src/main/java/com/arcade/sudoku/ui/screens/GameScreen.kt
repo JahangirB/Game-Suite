@@ -68,18 +68,14 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
     var showRules by remember { mutableStateOf(false) }
     val finished = phase == RoomStatus.FINISHED
     val myPercent = room.me.progress?.takeIf { finished } ?: Sudoku.filledPercent(board.cells, board.givens)
-    val players = listOfNotNull(
-        // During a match only the filled share is known locally; the server reveals the solved share once it is over.
-        ChipPlayer("You", room.me.avatar, p.primary, if (finished) "$myPercent% solved" else "$myPercent% filled", visibleReaction(state.myReaction, localNow)),
-        opponent?.let {
-            val lagging = playing && (it.online == false || it.idleMs > OPPONENT_LAG_WARNING_MS)
-            ChipPlayer(
-                it.name, it.avatar, OpponentColor,
-                if (lagging) "connection lost?" else "${it.progress ?: 0}% solved",
-                visibleReaction(state.opponentReaction, localNow),
-            )
-        },
-    )
+    // During a match only the filled share is known locally; the server reveals the solved share once it is over.
+    val players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+        when {
+            isMe -> if (finished) "$myPercent% solved" else "$myPercent% filled"
+            playing && (player.online == false || player.idleMs > OPPONENT_LAG_WARNING_MS) -> "connection lost?"
+            else -> "${player.progress ?: 0}% solved"
+        }
+    })
     if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
 
     GameFrame(
@@ -173,7 +169,7 @@ private fun BoxScope.SudokuPopup(
         "timeout" -> if (won) "$opponentName lost connection." else "You were disconnected for too long."
         else -> ""
     }
-    MatchPopup(room, GameKind.SUDOKU, outcomeOf(room.winner), resultTitle(room.winner, opponentName), detail, onRematch = null, onFinish = onLeave) {
+    MatchPopup(room, GameKind.SUDOKU, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: opponentName), detail, onRematch = null, onFinish = onLeave) {
         if (!won && room.solution != null) {
             TextButton(onClick = onToggleSolution) {
                 Text(if (showSolution) "Hide solution" else "Show solution on the board", color = p.primary)

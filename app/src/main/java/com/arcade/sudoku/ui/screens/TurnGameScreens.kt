@@ -446,21 +446,23 @@ private fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.p
 @Composable
 fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
     val p = AppTheme.palette
-    val opponent = room.opponent
+    val others = room.present
+    val waiting = others.filter { !it.ready }
     AppCard(if (room.round == 0) "Ready to play?" else "Rematch") {
-        PrimaryButton(if (room.me.ready) "Not ready" else "Ready", onReady, enabled = opponent != null && !opponent.left, loading = busy)
+        PrimaryButton(if (room.me.ready) "Not ready" else "Ready", onReady, enabled = others.isNotEmpty(), loading = busy)
         Text(
             when {
-                opponent == null -> "Waiting for an opponent to join."
-                opponent.left -> "${opponent.name} has left. Exit to start a new game."
-                room.me.ready && opponent.ready -> "Starting…"
-                room.me.ready -> "Waiting for ${opponent.name}…"
-                opponent.ready -> "${opponent.name} is ready. Tap Ready to start."
-                room.game == GameKind.WORDS -> "The race starts when you are both ready: same word, same moment."
-                room.game == GameKind.DRAW -> "The match starts when you are both ready. You take turns drawing."
+                others.isEmpty() && room.others.isNotEmpty() -> "${room.others[0].name} has left. Exit to start a new game."
+                others.isEmpty() -> "Waiting for an opponent to join."
+                room.me.ready && waiting.isEmpty() -> "Starting…"
+                room.me.ready -> "Waiting for " + waiting.joinToString(" and ") { it.name } + "…"
+                waiting.size < others.size -> others.filter { it.ready }.joinToString(" and ") { it.name } +
+                    (if (others.size - waiting.size == 1) " is" else " are") + " ready. Tap Ready to start."
+                room.game == GameKind.WORDS -> "The race starts when everyone is ready: same word, same moment."
+                room.game == GameKind.DRAW -> "The match starts when everyone is ready. You take turns drawing."
                 else -> "The game starts when you are both ready. Starting player swaps every round."
             },
-            color = if (opponent?.ready == true && !room.me.ready) p.good else p.muted,
+            color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
@@ -519,7 +521,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "Your opponent"
             MatchPopup(
-                room, game, outcomeOf(room.winner), resultTitle(room.winner, name),
+                room, game, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 turnResultDetail(game, room.winner, room.endReason, name),
                 onRematch = vm::readyTurns, onFinish = onLeave,
                 scores = if (owned == null) emptyList() else listOf("You ${score('m')}", "$name ${score('o')}"),

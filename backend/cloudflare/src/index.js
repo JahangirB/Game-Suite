@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, otherRole, setDrawReady, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, otherRole, seated, setDrawReady, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -154,15 +154,18 @@ export class Room extends DurableObject {
     }
   }
 
-  /** Tells the directory that these two phones played together, so they may invite each other. */
+  /** Tells the directory that the host and each guest played together, so they may invite each other. */
   async rememberPartners() {
     const host = this.room.players.host?.deviceId;
-    const guest = this.room.players.guest?.deviceId;
-    if (!host || !guest || !this.env.DIRECTORY) return;
-    try {
-      await this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName('directory')).pair(host, guest);
-    } catch {
-      // Invitations are a convenience; never let them break a battle.
+    if (!host || !this.env.DIRECTORY) return;
+    for (const role of seated(this.room)) {
+      const guest = this.room.players[role].deviceId;
+      if (role === 'host' || !guest) continue;
+      try {
+        await this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName('directory')).pair(host, guest);
+      } catch {
+        // Invitations are a convenience; never let them break a battle.
+      }
     }
   }
 

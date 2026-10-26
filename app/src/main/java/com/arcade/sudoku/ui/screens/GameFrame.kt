@@ -45,6 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.GameKind
+import com.arcade.sudoku.data.PlayerInfo
+import com.arcade.sudoku.data.RoomState
+import com.arcade.sudoku.ui.BattleUiState
+import com.arcade.sudoku.ui.theme.OpponentColor
 import com.arcade.sudoku.ui.ShownReaction
 import com.arcade.sudoku.ui.art.ReactionImage
 import com.arcade.sudoku.ui.art.rules
@@ -103,8 +107,10 @@ fun GameFrame(
                     trailing()
                 }
                 if (players.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f)) }
+                    // Three or four players share the row as smaller chips.
+                    val compact = players.size > 2
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth()) {
+                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f), compact) }
                     }
                 }
                 content()
@@ -133,7 +139,7 @@ fun ColumnScope.BoardArea(aspect: Float, weight: Float = 1f, content: @Composabl
 }
 
 @Composable
-private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier) {
+private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, compact: Boolean = false) {
     val p = AppTheme.palette
     val edge = if (player.active) glow else p.ink
     Surface(
@@ -142,6 +148,20 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier) {
         border = BorderStroke(if (player.active) 3.dp else 2.dp, edge),
         modifier = modifier.pressedEdge(edge, 18.dp),
     ) {
+        if (compact) {
+            // Avatar over name and detail, so four fit across a phone.
+            Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(contentAlignment = Alignment.TopEnd) {
+                    PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar)
+                    if (player.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
+                }
+                Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (player.detail != null) {
+                    Text(player.detail, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            return@Surface
+        }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar)
             Spacer(Modifier.width(8.dp))
@@ -154,6 +174,35 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier) {
             if (player.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
         }
     }
+}
+
+/** Colours for the other players, in seat order: the first is the classic opponent orange. */
+val SeatColors = listOf(OpponentColor, Color(0xFF7B6CF0), Color(0xFF20A47B))
+
+/**
+ * Chips for you and everyone else in a battle. [detail] gives the line under each name;
+ * [active] marks whoever is playing now.
+ */
+fun battleChips(
+    room: RoomState,
+    state: BattleUiState,
+    now: Long,
+    myColor: Color,
+    detail: (PlayerInfo, Boolean) -> String?,
+    active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
+): List<ChipPlayer> = listOf(
+    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true)),
+) + room.others.mapIndexed { i, other ->
+    val status = when {
+        other.left -> " (left)"
+        other.online == false -> " (away)"
+        else -> ""
+    }
+    ChipPlayer(
+        other.name + status, other.avatar, SeatColors[i % SeatColors.size], detail(other, false),
+        visibleReaction(state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }, now),
+        active(other, false),
+    )
 }
 
 @Composable

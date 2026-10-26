@@ -30,6 +30,11 @@ export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
 export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt'];
+// Seats in a room, in order. Two-player games use the first two.
+export const ROLES = ['host', 'guest', 'p3', 'p4'];
+// How many can play each game; anything not listed is for two.
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4 };
+export const maxPlayers = (game) => MAX_PLAYERS[game] || 2;
 // What apps from before the version check could play; they don't say which games they know.
 const OLD_APP_GAMES = ['sudoku', 'ships'];
 
@@ -81,13 +86,29 @@ export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = 
   };
 }
 
+/** The other player of a two-player game. */
 export function otherRole(role) {
   return role === 'host' ? 'guest' : 'host';
 }
 
+/** Roles with a player in them (gone ones included until the lobby clears them). */
+export function seated(room) {
+  return ROLES.filter((r) => room.players[r]);
+}
+
+/** Players still in the room. */
+export function present(room) {
+  return seated(room).filter((r) => !room.players[r].left);
+}
+
+/** Players still playing this match: those it started with, minus any who left or timed out. */
+export function playing(room) {
+  return (room.inMatch || ['host', 'guest']).filter((r) => room.players[r] && !room.players[r].left && !room.players[r].out);
+}
+
 export function findRole(room, playerId) {
   if (!playerId) return null;
-  for (const role of ['host', 'guest']) {
+  for (const role of ROLES) {
     if (room.players[role] && room.players[role].id === playerId) return role;
   }
   return null;
@@ -109,25 +130,47 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     return known;
   }
   if (playerId) throw new GameError('You are not part of this battle.', true, 'not_member');
-  if (room.players.guest && !room.players.guest.left) {
-    throw new GameError('This battle already has two players.', true, 'full');
+  const max = maxPlayers(room.game);
+  const seat = ROLES.slice(1, max).find((r) => !room.players[r] || room.players[r].left);
+  if (!seat) {
+    throw new GameError(max === 2 ? 'This battle already has two players.' : `This game is full: ${max} players.`, true, 'full');
   }
-  room.players.guest = newPlayer(name, avatar, now, uuid, deviceId);
-  room.players.host.ready = false;
-  room.players.host.difficulty = null;
-  room.status = 'lobby';
+  if (room.status === 'started') throw new GameError('A match is being played. Join when it ends.', true, 'busy');
+  room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId);
+  // Everyone gets ready again, so the newcomer is part of the next round.
+  for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
+  if (room.status === 'waiting') room.status = 'lobby';
   bump(room);
-  return 'guest';
+  return seat;
+}
+
+/** Throws unless there is someone to play with; used by every "ready". */
+function checkCanReady(room) {
+  if (room.status !== 'lobby' && room.status !== 'finished') {
+    throw new GameError('You can only get ready in the lobby or after a match.');
+  }
+  if (present(room).length < 2) {
+    throw new GameError(seated(room).length > 1 ? 'Your opponent has left the battle.' : 'Waiting for an opponent to join.');
+  }
+}
+
+/** Whether every player in the room is ready (and there are at least two). */
+function allReady(room) {
+  const roles = present(room);
+  return roles.length >= 2 && roles.every((r) => room.players[r].ready);
+}
+
+/** Starts a match with everyone in the room; [fields] go on the room, [reset] on each player. */
+function beginMatch(room, fields, reset = {}) {
+  const roles = present(room);
+  Object.assign(room, { round: room.round + 1, status: 'started', winner: null, endReason: null, inMatch: roles }, fields);
+  // A copy each, so no two players share a list.
+  for (const r of roles) Object.assign(room.players[r], { ready: false, difficulty: null, finishedAt: null, out: false }, structuredClone(reset));
 }
 
 /** Ready for a level (or not ready). The round starts when both pick the same level. */
 export function setReady(room, role, ready, difficulty, now, generate = generatePuzzle) {
-  if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
-  }
-  if (!room.players.guest) throw new GameError('Waiting for an opponent to join.');
-  if (room.players[otherRole(role)].left) throw new GameError('Your opponent has left the battle.');
-
+  checkCanReady(room);
   const me = room.players[role];
   if (ready === false) {
     me.ready = false;
@@ -138,26 +181,18 @@ export function setReady(room, role, ready, difficulty, now, generate = generate
     me.ready = true;
     me.difficulty = level;
   }
-  const { host, guest } = room.players;
-  if (host.ready && guest.ready && host.difficulty === guest.difficulty) {
-    startRound(room, now, generate);
-  }
+  const levels = new Set(present(room).map((r) => room.players[r].difficulty));
+  if (allReady(room) && levels.size === 1) startRound(room, now, generate);
   bump(room);
 }
 
 function startRound(room, now, generate) {
-  room.difficulty = room.players.host.difficulty;
-  const { puzzle, solution } = generate(DIFFICULTY_HOLES[room.difficulty]);
-  Object.assign(room, {
-    puzzle, solution, round: room.round + 1, startAt: now + COUNTDOWN_MS,
-    status: 'started', winner: null, endReason: null,
-  });
-  for (const role of ['host', 'guest']) {
-    Object.assign(room.players[role], {
-      ready: false, difficulty: null, board: room.puzzle, progress: 0, finishedAt: null,
-    });
-  }
+  // Everyone chose the same level; the host's choice stands for all.
+  const difficulty = room.players.host.difficulty;
+  const { puzzle, solution } = generate(DIFFICULTY_HOLES[difficulty]);
+  beginMatch(room, { difficulty, puzzle, solution, startAt: now + COUNTDOWN_MS }, { board: puzzle, progress: 0 });
 }
+
 
 // ---------------------------------------------------------------------------------------
 // Ship Battle: each player hides a fleet on a 10x10 sea; players take turns firing at the
@@ -201,11 +236,7 @@ export function validateFleet(fleet) {
 
 /** Ready with a fleet (or not ready). The battle starts when both fleets are in. */
 export function setShipsReady(room, role, ready, fleet, now, random = Math.random) {
-  if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
-  }
-  if (!room.players.guest) throw new GameError('Waiting for an opponent to join.');
-  if (room.players[otherRole(role)].left) throw new GameError('Your opponent has left the battle.');
+  checkCanReady(room);
   const me = room.players[role];
   if (ready === false) {
     me.ready = false;
@@ -214,14 +245,10 @@ export function setShipsReady(room, role, ready, fleet, now, random = Math.rando
     me.pendingFleet = validateFleet(fleet);
     me.ready = true;
   }
-  const { host, guest } = room.players;
-  if (host.ready && guest.ready) {
-    Object.assign(room, {
-      round: room.round + 1, status: 'started', startAt: now, winner: null, endReason: null,
-      turn: random() < 0.5 ? 'host' : 'guest', lastShot: null,
-    });
-    for (const p of [host, guest]) {
-      Object.assign(p, { fleet: p.pendingFleet, pendingFleet: null, shots: [], progress: 0, ready: false, finishedAt: null });
+  if (allReady(room)) {
+    beginMatch(room, { startAt: now, turn: random() < 0.5 ? 'host' : 'guest', lastShot: null });
+    for (const p of [room.players.host, room.players.guest]) {
+      Object.assign(p, { fleet: p.pendingFleet, pendingFleet: null, shots: [], progress: 0 });
     }
   }
   bump(room);
@@ -288,20 +315,11 @@ export const TURN_GAMES = Object.keys(TURN_RULES);
 
 /** Ready (or not ready) for the next round of a turn game; it starts when both are ready. */
 export function setTurnReady(room, role, ready, now, random = Math.random) {
-  if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
-  }
-  if (!room.players.guest) throw new GameError('Waiting for an opponent to join.');
-  if (room.players[otherRole(role)].left) throw new GameError('Your opponent has left the battle.');
+  checkCanReady(room);
   room.players[role].ready = ready !== false;
-  const { host, guest } = room.players;
-  if (host.ready && guest.ready) {
+  if (allReady(room)) {
     const first = room.firstTurn ? otherRole(room.firstTurn) : (random() < 0.5 ? 'host' : 'guest');
-    Object.assign(room, {
-      round: room.round + 1, status: 'started', startAt: now, winner: null, endReason: null,
-      firstTurn: first, turn: first, turnState: TURN_RULES[room.game].start(random),
-    });
-    for (const p of [host, guest]) Object.assign(p, { ready: false, finishedAt: null });
+    beginMatch(room, { startAt: now, firstTurn: first, turn: first, turnState: TURN_RULES[room.game].start(random) });
   }
   bump(room);
 }
@@ -340,19 +358,10 @@ function turnView(room, role, status) {
 
 /** Ready (or not ready) for the next Word Race round; it starts when both are ready. */
 export function setWordsReady(room, role, ready, now, random = Math.random) {
-  if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
-  }
-  if (!room.players.guest) throw new GameError('Waiting for an opponent to join.');
-  if (room.players[otherRole(role)].left) throw new GameError('Your opponent has left the battle.');
+  checkCanReady(room);
   room.players[role].ready = ready !== false;
-  const { host, guest } = room.players;
-  if (host.ready && guest.ready) {
-    Object.assign(room, {
-      round: room.round + 1, status: 'started', startAt: now + COUNTDOWN_MS, winner: null, endReason: null,
-      answer: words.randomAnswer(random),
-    });
-    for (const p of [host, guest]) Object.assign(p, { ready: false, finishedAt: null, guesses: [], solved: false });
+  if (allReady(room)) {
+    beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random) }, { guesses: [], solved: false });
   }
   bump(room);
 }
@@ -362,6 +371,7 @@ export function guessWord(room, role, word, now) {
   if (room.game !== 'words' || room.status !== 'started') throw new GameError('The game is not running.');
   if (now < room.startAt) throw new GameError('Wait for the countdown.');
   const me = room.players[role];
+  if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
   if (me.finishedAt) throw new GameError('You are done with this word.');
   word = String(word || '').toLowerCase();
   if (!/^[a-z]{5}$/.test(word)) throw new GameError('Guess a five-letter word.');
@@ -379,23 +389,19 @@ export function guessWord(room, role, word, now) {
 
 /** Ends the round once nobody can change the result any more. */
 function decideWords(room) {
-  const { host, guest } = room.players;
-  const better = (a, b) => {
-    if (a.solved !== b.solved) return a.solved;
-    if (a.guesses.length !== b.guesses.length) return a.guesses.length < b.guesses.length;
-    return a.finishedAt < b.finishedAt;
-  };
-  if (host.finishedAt && guest.finishedAt) {
-    if (!host.solved && !guest.solved) return endMatch(room, null, 'draw');
-    const hostWins = better(host, guest);
-    return endMatch(room, hostWins ? 'host' : 'guest', 'solved');
+  const roles = playing(room);
+  const p = (r) => room.players[r];
+  // The best solver so far: fewest tries, then the fastest.
+  const solvers = roles.filter((r) => p(r).solved)
+    .sort((a, b) => p(a).guesses.length - p(b).guesses.length || p(a).finishedAt - p(b).finishedAt);
+  const best = solvers[0];
+  const open = roles.filter((r) => !p(r).finishedAt);
+  if (!best) {
+    if (!open.length) endMatch(room, null, 'draw');
+    return;
   }
-  // One solved: the other can only still win by solving in fewer tries.
-  for (const [solver, other] of [['host', 'guest'], ['guest', 'host']]) {
-    const s = room.players[solver];
-    const o = room.players[other];
-    if (s.solved && !o.finishedAt && o.guesses.length + 1 >= s.guesses.length) return endMatch(room, solver, 'solved');
-  }
+  // Someone still guessing could only win by solving in fewer tries than the best.
+  if (open.every((r) => p(r).guesses.length + 1 >= p(best).guesses.length)) endMatch(room, best, 'solved');
 }
 
 // ---------------------------------------------------------------------------------------
@@ -404,32 +410,34 @@ function decideWords(room) {
 
 /** Ready (or not ready) for a Draw & Guess match; it starts when both are ready. */
 export function setDrawReady(room, role, ready, now, random = Math.random) {
-  if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
-  }
-  if (!room.players.guest) throw new GameError('Waiting for an opponent to join.');
-  if (room.players[otherRole(role)].left) throw new GameError('Your opponent has left the battle.');
+  checkCanReady(room);
   room.players[role].ready = ready !== false;
-  const { host, guest } = room.players;
-  if (host.ready && guest.ready) {
-    Object.assign(room, {
-      round: room.round + 1, status: 'started', startAt: now + COUNTDOWN_MS, winner: null, endReason: null,
-      drawTurn: 0, drawer: random() < 0.5 ? 'host' : 'guest', score: 0, usedWords: [], lastTurn: null,
+  if (allReady(room)) {
+    const roles = present(room);
+    beginMatch(room, {
+      startAt: now + COUNTDOWN_MS, drawTurn: 0, drawTurns: draw.turnsFor(roles.length),
+      drawer: roles[Math.floor(random() * roles.length)], score: 0, usedWords: [], lastTurn: null,
     });
-    for (const p of [host, guest]) Object.assign(p, { ready: false, finishedAt: null });
     nextDrawTurn(room, room.startAt, random, true);
   }
   bump(room);
 }
 
-/** Starts the next turn (the other player draws), or ends the match after the last one. */
+/** Starts the next turn (the next player draws), or ends the match after the last one. */
 function nextDrawTurn(room, now, random = Math.random, first = false) {
-  if (room.drawTurn >= draw.TURNS) {
+  const roles = playing(room);
+  if (room.drawTurn >= (room.drawTurns || draw.TURNS) || roles.length < 2) {
     endMatch(room, null, 'done');
     return;
   }
   room.drawTurn += 1;
-  if (!first) room.drawer = otherRole(room.drawer);
+  if (!first || !roles.includes(room.drawer)) {
+    // Round the table in seat order, skipping anyone who has gone.
+    const order = room.inMatch || roles;
+    let i = order.indexOf(room.drawer);
+    do i = (i + 1) % order.length; while (!roles.includes(order[i]));
+    room.drawer = order[i];
+  }
   room.drawWord = draw.pickWord(room.usedWords, random);
   room.usedWords.push(room.drawWord);
   Object.assign(room, { strokes: [], drawClears: 0, drawGuesses: [], turnEndsAt: now + draw.TURN_MS });
@@ -462,12 +470,13 @@ export function clearDrawing(room, role) {
 export function drawGuess(room, role, word, now, random = Math.random) {
   if (room.game !== 'draw' || room.status !== 'started' || now < room.startAt) throw new GameError('The game is not running.');
   if (room.drawer === role) throw new GameError('You are drawing this turn.');
+  if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
   const text = String(word || '').trim().slice(0, 30);
   if (!text) throw new GameError('Type a guess.');
   if (draw.isRight(text, room.drawWord)) {
     const points = Math.max(1, Math.ceil((room.turnEndsAt - now) / 1000));
     room.score += points;
-    room.lastTurn = { word: room.drawWord, guessed: true, points, drawer: room.drawer };
+    room.lastTurn = { word: room.drawWord, guessed: true, points, drawer: room.drawer, guesser: role };
     nextDrawTurn(room, now, random);
   } else {
     room.drawGuesses.push({ by: role, word: text.toLowerCase() });
@@ -479,24 +488,29 @@ function drawView(room, role, status) {
   const playing = status === 'playing' || status === 'countdown';
   const mine = room.drawer === role;
   const last = room.lastTurn;
+  const nameOf = (r) => room.players[r]?.name || null;
   return {
     turn: room.drawTurn || 0,
-    turns: draw.TURNS,
+    turns: room.drawTurns || draw.TURNS,
     drawer: playing ? (mine ? 'me' : 'opponent') : null,
+    drawerName: playing ? nameOf(room.drawer) : null,
     word: playing && mine ? room.drawWord : null,
     hint: playing && room.drawWord ? draw.hint(room.drawWord) : null,
     endsAt: playing ? room.turnEndsAt : null,
     strokes: playing ? room.strokes || [] : [],
     clears: room.drawClears || 0,
-    guesses: playing ? (room.drawGuesses || []).map((g) => ({ by: g.by === role ? 'me' : 'opponent', word: g.word })) : [],
+    guesses: playing ? (room.drawGuesses || []).map((g) => ({ by: g.by === role ? 'me' : 'opponent', name: nameOf(g.by), word: g.word })) : [],
     score: room.score || 0,
-    lastTurn: last ? { word: last.word, guessed: last.guessed, points: last.points, drewIt: last.drawer === role } : null,
+    lastTurn: last ? {
+      word: last.word, guessed: last.guessed, points: last.points, drewIt: last.drawer === role,
+      drawerName: nameOf(last.drawer), guesserName: last.guesser ? nameOf(last.guesser) : null, guessedIt: last.guesser === role,
+    } : null,
   };
 }
 
 function wordsView(room, role, status) {
   const me = room.players[role];
-  const opponent = room.players[otherRole(role)];
+  const opponent = room.players[others(room, role)[0]];
   const over = status === 'finished';
   const showWords = status === 'playing' || over;
   return {
@@ -507,6 +521,11 @@ function wordsView(room, role, status) {
     meDone: !!me.finishedAt,
     theyDone: !!opponent?.finishedAt,
     answer: over && room.answer ? room.answer : null,
+    // Everyone else, in the order of the view's `others`.
+    others: others(room, role).map((r) => {
+      const p = room.players[r];
+      return { guesses: showWords ? (p.guesses || []).map((g) => (over ? g : { score: g.score })) : [], done: !!p.finishedAt };
+    }),
   };
 }
 
@@ -548,27 +567,39 @@ function endMatch(room, winnerRole, reason) {
   room.winner = winnerRole;
   room.endReason = reason;
   room.status = 'finished';
-  for (const role of ['host', 'guest']) {
-    if (room.players[role]) {
-      room.players[role].ready = false;
-      room.players[role].difficulty = null;
-    }
+  for (const role of seated(room)) {
+    room.players[role].ready = false;
+    room.players[role].difficulty = null;
   }
 }
 
-export function leave(room, role) {
-  const other = otherRole(role);
-  if (room.status === 'started') endMatch(room, other, 'forfeit');
+/**
+ * Takes [role] out of the match being played (they left or lost their connection). With one
+ * player left, that player wins; with more, the match goes on without them.
+ */
+function dropOut(room, role, reason, now) {
+  if (room.status !== 'started' || !playing(room).includes(role)) return;
+  const rest = playing(room).filter((r) => r !== role);
+  if (rest.length < 2) return endMatch(room, rest[0] || null, reason);
+  room.players[role].out = true;
+  if (room.game === 'words') decideWords(room);
+  if (room.game === 'draw' && room.drawer === role) {
+    room.lastTurn = { word: room.drawWord, guessed: false, points: 0, drawer: role };
+    nextDrawTurn(room, now);
+  }
+}
+
+export function leave(room, role, now = Date.now()) {
+  dropOut(room, role, 'forfeit', now);
   if (role === 'host') {
     room.status = 'closed';
     room.players.host.left = true;
-  } else if (room.status === 'finished') {
-    room.players.guest.left = true;
+  } else if (room.status === 'finished' || room.status === 'started') {
+    room.players[role].left = true;
   } else {
-    room.players.guest = null;
-    room.status = 'waiting';
-    room.players.host.ready = false;
-    room.players.host.difficulty = null;
+    room.players[role] = null;
+    if (present(room).length < 2) room.status = 'waiting';
+    for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   }
   bump(room);
 }
@@ -576,7 +607,7 @@ export function leave(room, role) {
 /** Shows a predefined reaction to the opponent. Throws when it is not allowed. */
 export function sendEmoji(room, role, emoji, now) {
   if (!EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
-  if (!room.players[otherRole(role)]) throw new GameError('Nobody to send it to yet.');
+  if (present(room).length < 2) throw new GameError('Nobody to send it to yet.');
   const player = room.players[role];
   if (now - (player.emojiAt || 0) < EMOJI_INTERVAL_MS) throw new GameError('Slow down a little.');
   room.emojiSeq = (room.emojiSeq || 0) + 1;
@@ -598,7 +629,7 @@ export function setConnected(room, role, connected, now) {
  * players away from a lobby. Returns 'changed', 'expired' (delete the room) or null.
  */
 export function checkTimers(room, now) {
-  const roles = ['host', 'guest'].filter((r) => room.players[r]);
+  const roles = seated(room);
   const away = (r) => room.players[r].connected ? 0 : now - room.players[r].awaySince;
 
   if (roles.every((r) => !room.players[r].connected)) {
@@ -615,11 +646,11 @@ export function checkTimers(room, now) {
   }
   if (room.status === 'started' && now >= room.startAt) {
     // The player away the longest loses; time before the start does not count.
-    const gone = roles
+    const gone = playing(room)
       .filter((r) => !room.players[r].connected && now - Math.max(room.players[r].awaySince, room.startAt) >= INACTIVE_FORFEIT_MS)
       .sort((a, b) => room.players[a].awaySince - room.players[b].awaySince);
     if (gone.length) {
-      endMatch(room, otherRole(gone[0]), 'timeout');
+      dropOut(room, gone[0], 'timeout', now);
       bump(room);
       return 'changed';
     }
@@ -627,12 +658,12 @@ export function checkTimers(room, now) {
   }
   if (room.status !== 'started') {
     if (!room.players.host.connected && away('host') >= LOBBY_ABANDON_MS) {
-      leave(room, 'host');
+      leave(room, 'host', now);
       return 'changed';
     }
-    const guest = room.players.guest;
-    if (guest && !guest.left && !guest.connected && away('guest') >= LOBBY_ABANDON_MS) {
-      leave(room, 'guest');
+    const gone = roles.find((r) => r !== 'host' && !room.players[r].left && !room.players[r].connected && away(r) >= LOBBY_ABANDON_MS);
+    if (gone) {
+      leave(room, gone, now);
       return 'changed';
     }
   }
@@ -641,7 +672,7 @@ export function checkTimers(room, now) {
 
 /** When checkTimers should run next, or null if nothing is pending. */
 export function nextDeadline(room) {
-  const roles = ['host', 'guest'].filter((r) => room.players[r]);
+  const roles = seated(room);
   const deadlines = [];
   if (roles.every((r) => !room.players[r].connected)) {
     const lastAway = Math.max(...roles.map((r) => room.players[r].awaySince));
@@ -653,6 +684,7 @@ export function nextDeadline(room) {
       const player = room.players[role];
       if (player.connected || player.left) continue;
       if (room.status === 'started') {
+        if (!playing(room).includes(role)) continue;
         deadlines.push(Math.max(player.awaySince, room.startAt) + INACTIVE_FORFEIT_MS);
       } else {
         deadlines.push(player.awaySince + LOBBY_ABANDON_MS);
@@ -667,6 +699,13 @@ function idleLimit(room) {
   return TURN_GAMES.includes(room.game) ? TURN_ROOM_IDLE_MS : ROOM_IDLE_MS;
 }
 
+/** The other players as [role] sees them: seat order starting after their own seat. */
+export function others(room, role) {
+  const roles = seated(room);
+  const i = roles.indexOf(role);
+  return [...roles.slice(i + 1), ...roles.slice(0, i)];
+}
+
 function bump(room) {
   room.version = (room.version || 0) + 1;
 }
@@ -676,7 +715,8 @@ export function view(room, role, now) {
   let status = room.status;
   if (status === 'started') status = now < room.startAt ? 'countdown' : 'playing';
   const me = room.players[role];
-  const opponent = room.players[otherRole(role)];
+  const otherRoles = others(room, role);
+  const opponent = room.players[otherRoles[0]];
   const showPuzzle = status === 'countdown' || status === 'playing' || (status === 'finished' && room.round > 0);
   return {
     code: room.code,
@@ -690,10 +730,14 @@ export function view(room, role, now) {
     puzzle: showPuzzle ? room.puzzle : null,
     solution: status === 'finished' ? room.solution : null,
     winner: room.winner ? (room.winner === role ? 'me' : 'opponent') : null,
+    winnerName: room.winner ? room.players[room.winner]?.name || null : null,
     endReason: room.endReason,
+    maxPlayers: maxPlayers(room.game),
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,
+    // Everyone else in seat order; `opponent` is the first of them, for two-player games.
+    others: otherRoles.map((r) => playerView(room.players[r], room, true, now)),
     ships: room.game === 'ships' ? shipsView(room, role, status) : null,
     turns: TURN_GAMES.includes(room.game) ? turnView(room, role, status) : null,
     words: room.game === 'words' ? wordsView(room, role, status) : null,
@@ -714,6 +758,7 @@ function playerView(player, room, includeProgress, now) {
     progress: includeProgress ? player.progress : null,
     finishMs: player.finishedAt ? player.finishedAt - room.startAt : null,
     left: !!player.left,
+    out: !!player.out,
     idleMs: player.connected ? 0 : Math.max(0, now - player.awaySince),
     // Whether the player has a live connection right now.
     online: !!player.connected,

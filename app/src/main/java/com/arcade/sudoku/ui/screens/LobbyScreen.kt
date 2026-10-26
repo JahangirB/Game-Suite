@@ -110,16 +110,27 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 }
             }
 
-            AppCard("Players") {
+            AppCard(if (room.maxPlayers > 2) "Players (up to ${room.maxPlayers})" else "Players") {
                 PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now))
-                if (opponent != null) {
-                    PlayerRow(opponent, isMe = false, color = OpponentColor, reaction = visibleReaction(state.opponentReaction, now))
-                } else {
+                room.others.forEachIndexed { i, other ->
+                    if (!other.left) {
+                        val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
+                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now))
+                    }
+                }
+                val joined = room.present.size
+                if (joined == 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = p.primary)
                         Spacer(Modifier.width(12.dp))
-                        Text("Waiting for your opponent to join…", color = p.muted)
+                        Text(if (room.maxPlayers > 2) "Waiting for others to join…" else "Waiting for your opponent to join…", color = p.muted)
                     }
+                } else if (joined < room.maxPlayers - 1) {
+                    val free = room.maxPlayers - 1 - joined
+                    Text(
+                        "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They pick your name under Nearby." else "Share the code to invite them.",
+                        color = p.muted, fontSize = 13.sp,
+                    )
                 }
             }
 
@@ -174,14 +185,16 @@ private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction:
 fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
     val p = AppTheme.palette
     val opponent = room.opponent?.takeIf { !it.left }
-    val canPick = opponent != null && !busy
+    val canPick = room.present.isNotEmpty() && !busy
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Difficulty.entries.chunked(3).forEach { rowLevels ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 rowLevels.forEach { level ->
                     val mine = room.me.ready && room.me.difficulty == level
-                    val theirs = opponent?.ready == true && opponent.difficulty == level
+                    // Who else has picked this level.
+                    val pickers = room.present.filter { it.ready && it.difficulty == level }
+                    val theirs = pickers.isNotEmpty()
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                         Surface(
                             onClick = { onPick(level) },
@@ -201,7 +214,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                             }
                         }
                         Text(
-                            if (theirs) "${opponent?.name}'s pick" else " ",
+                            if (theirs) pickers.joinToString(", ") { it.name } + if (pickers.size == 1) "'s pick" else "" else " ",
                             color = OpponentColor,
                             fontSize = 11.sp,
                             maxLines = 1,
@@ -212,12 +225,26 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
             }
         }
 
-        val (message, color) = levelStatus(room, opponent)
+        val (message, color) = if (room.present.size > 1) groupLevelStatus(room) else levelStatus(room, opponent)
         Text(message, color = color, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
 
 private val Warning = Color(0xFFE08A00)
+
+/** The level line with three or four players: everyone's choice, and what is still needed. */
+@Composable
+private fun groupLevelStatus(room: RoomState): Pair<String, Color> {
+    val p = AppTheme.palette
+    val everyone = listOf(room.me) + room.present
+    val chosen = everyone.mapNotNull { it.difficulty?.takeIf { _ -> it.ready } }
+    val choices = everyone.joinToString(" · ") { (if (it === room.me) "You" else it.name) + ": " + (it.difficulty?.takeIf { _ -> it.ready }?.label ?: "…") }
+    return when {
+        chosen.size == everyone.size && chosen.toSet().size == 1 -> "Everyone chose ${chosen[0].label}. Starting…" to p.good
+        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to Warning
+        else -> "$choices. The game starts when everyone picks the same level." to p.muted
+    }
+}
 
 @Composable
 private fun levelStatus(room: RoomState, opponent: PlayerInfo?): Pair<String, Color> {

@@ -99,11 +99,12 @@ test('a full battle over WebSockets', { skip: !enabled, timeout: 90_000 }, async
   const pushed = await host.next((m) => m.type === 'state' && !m.re && m.opponent);
   assert.equal(pushed.opponent.name, 'Bob');
 
-  // A third player is refused.
-  const eve = connect({ code, action: 'join', name: 'Eve' });
-  const refused = await eve.next((m) => m.re === 'open');
-  assert.equal(refused.type, 'error');
-  assert.match(refused.error, /two players/);
+  // Sudoku takes up to four: a third player gets a seat, sees both others, then leaves again.
+  const eve = connect({ code, action: 'join', name: 'Eve', games: 'sudoku' });
+  const third = await eve.next((m) => m.re === 'open');
+  assert.equal(third.type, 'state');
+  assert.deepEqual(third.others.map((o) => o.name), ['Alice', 'Bob']);
+  await eve.request('leave');
 
   // Different levels: nothing starts.
   await host.request('ready', { difficulty: 'easy' });

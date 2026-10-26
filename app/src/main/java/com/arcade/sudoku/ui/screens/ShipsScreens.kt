@@ -180,7 +180,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "Your opponent"
             MatchPopup(
-                room, GameKind.SHIPS, outcomeOf(room.winner), resultTitle(room.winner, name),
+                room, GameKind.SHIPS, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 when (room.endReason) {
                     "sunk" -> if (room.winner == "me") "You sank $name's whole fleet." else "$name sank your whole fleet."
                     "forfeit" -> if (room.winner == "me") "$name left the battle." else "You left the battle."

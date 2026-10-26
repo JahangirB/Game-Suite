@@ -5,6 +5,8 @@
 import { DRAW } from './wordlists.js';
 
 export const TURNS = 4;
+/** Turns in a match: everyone draws twice (at least four turns). */
+export const turnsFor = (players) => Math.max(TURNS, players * 2);
 export const TURN_MS = 80_000;
 export const COLORS = 6;
 const MAX_POINTS = 120;

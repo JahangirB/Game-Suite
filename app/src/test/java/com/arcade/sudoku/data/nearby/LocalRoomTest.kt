@@ -97,7 +97,30 @@ class LocalRoomTest {
         val host = parseRoom(room.view(LocalRoom.HOST, t0))
         assertEquals(Reaction.FIRE, host.opponent!!.emoji!!.reaction)
         assertEquals(LocalRoom.GUEST, room.join("Bob", null, guestId))
-        assertThrows(ApiException::class.java) { room.join("Eve", null, null) }
+        // Sudoku takes four.
+        assertEquals(LocalRoom.P3, room.join("Eve", null, null))
+        assertEquals(LocalRoom.P4, room.join("Fay", null, null))
+        assertThrows(ApiException::class.java) { room.join("Gus", null, null) }
+    }
+
+    @Test
+    fun fourPlayersShareARoundAndDropOutOneByOne() {
+        val room = lobby()
+        room.join("Cat", null, null)
+        room.join("Dan", null, null)
+        for (role in LocalRoom.ROLES.take(3)) room.setReady(role, true, Difficulty.EASY, t0)
+        assertEquals("lobby", room.status)
+        room.setReady(LocalRoom.P4, true, Difficulty.EASY, t0)
+        assertEquals("started", room.status)
+        val cat = parseRoom(room.view(LocalRoom.P3, t0))
+        assertEquals(listOf("Dan", "Alice", "Bob"), cat.others.map { it.name })
+        assertEquals(4, cat.maxPlayers)
+        room.leave(LocalRoom.P4, t0)
+        assertEquals("started", room.status)
+        room.leave(LocalRoom.GUEST, t0)
+        room.leave(LocalRoom.P3, t0)
+        assertEquals("finished", room.status)
+        assertEquals("Alice", parseRoom(room.view(LocalRoom.P3, t0)).winnerName)
     }
 
     @Test

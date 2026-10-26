@@ -33,8 +33,8 @@ import org.json.JSONObject
 
 /**
  * Hosts a nearby battle: this phone runs the room ([LocalRoom]) and advertises it, and the
- * guest's phone connects directly. The host's own moves are applied locally; the guest's
- * arrive as messages. All room access happens on the main thread, where Nearby calls back.
+ * guests' phones (up to three) connect directly. The host's own moves are applied locally; the
+ * guests' arrive as messages. All room access happens on the main thread, where Nearby calls back.
  */
 class NearbyHost(context: Context, private val hostName: String, private val hostAvatar: Avatar?) : BattleBackend {
     private val client = Nearby.getConnectionsClient(context.applicationContext)
@@ -45,8 +45,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override val connected: StateFlow<Boolean> = MutableStateFlow(true)
 
     private var room: LocalRoom? = null
-    /** The guest's connection once they have joined. */
-    private var guestEndpoint: String? = null
+    /** Each joined guest's connection, and the seat it plays in. */
+    private val guests = mutableMapOf<String, String>()
     private var advertising = false
     private var timers: Job? = null
 
@@ -101,7 +101,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun stroke(code: String, playerId: String, stroke: JSONObject): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The battle is over.", fatal = true)
         val added = r.addStroke(LocalRoom.HOST, stroke, now())
-        guestEndpoint?.let { send(it, added) }
+        guests.keys.forEach { send(it, added) }
         JSONObject().put("type", "ack")
     }
 
@@ -111,7 +111,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun leave(code: String, playerId: String) {
         withContext(Dispatchers.Main.immediate) {
             room?.leave(LocalRoom.HOST)
-            guestEndpoint?.let { send(it, errorJson(null, "The host closed this battle.", fatal = true)) }
+            guests.keys.forEach { send(it, errorJson(null, "The host closed this battle.", fatal = true)) }
         }
         // Give the message a moment to leave before the connection drops.
         delay(300)
@@ -125,11 +125,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         scope.cancel()
     }
 
-    /** Applies the host's own change and returns the host's view; the guest gets theirs pushed. */
+    /** Applies the host's own change and returns the host's view; the guests get theirs pushed. */
     private suspend fun local(change: LocalRoom.() -> Unit): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The battle is over.", fatal = true)
         r.change()
-        pushToGuest()
+        pushToGuests()
         r.view(LocalRoom.HOST, now())
     }
 
@@ -152,9 +152,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     private val lifecycle = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            // One opponent at a time.
-            if (guestEndpoint != null) client.rejectConnection(endpointId)
-            else client.acceptConnection(endpointId, payloads)
+            // Accept everyone; a phone that finds no free seat is told so when it sends "open".
+            client.acceptConnection(endpointId, payloads)
         }
 
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
@@ -162,12 +161,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         }
 
         override fun onDisconnected(endpointId: String) {
-            if (endpointId != guestEndpoint) return
-            guestEndpoint = null
+            val role = guests.remove(endpointId) ?: return
             val r = room ?: return
             if (r.status == "closed") return
-            r.setConnected(LocalRoom.GUEST, false, now())
-            pushHost()
+            r.setConnected(role, false, now())
+            pushAll()
             // Let the guest find us again to reconnect (or someone new, in the lobby).
             startAdvertising()
         }
@@ -187,63 +185,66 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         val id = if (msg.isNull("id")) null else msg.optString("id")
         val now = now()
         try {
+            val role = guests[endpointId]
+            if (role == null && msg.optString("type") != "open") throw ApiException("Join the battle first.", fatal = true)
             when (msg.optString("type")) {
                 "open" -> {
                     val playerId = if (msg.isNull("playerId")) null else msg.optString("playerId")
                     val games = if (msg.has("games")) msg.optString("games").split(",") else null
-                    r.join(msg.optString("name"), Avatar.from(msg.optString("avatar")), playerId, games)
-                    guestEndpoint = endpointId
-                    r.setConnected(LocalRoom.GUEST, true, now)
-                    stopAdvertising()
-                    send(endpointId, r.view(LocalRoom.GUEST, now).put("re", "open").put("playerId", r.playerId(LocalRoom.GUEST)))
-                    pushHost()
+                    val seat = r.join(msg.optString("name"), Avatar.from(msg.optString("avatar")), playerId, games)
+                    guests[endpointId] = seat
+                    r.setConnected(seat, true, now)
+                    if (r.seated().count { it != LocalRoom.HOST } >= r.game.maxPlayers - 1) stopAdvertising()
+                    send(endpointId, r.view(seat, now).put("re", "open").put("playerId", r.playerId(seat)))
+                    pushAll(except = endpointId)
                     return
                 }
                 "ready" -> if (r.game == GameKind.SHIPS) {
-                    r.setShipsReady(LocalRoom.GUEST, msg.optBoolean("ready", true), parseFleet(msg.optJSONArray("fleet")), now)
+                    r.setShipsReady(role!!, msg.optBoolean("ready", true), parseFleet(msg.optJSONArray("fleet")), now)
                 } else if (r.game.turnBased) {
-                    r.setTurnReady(LocalRoom.GUEST, msg.optBoolean("ready", true), now)
+                    r.setTurnReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.WORDS) {
-                    r.setWordsReady(LocalRoom.GUEST, msg.optBoolean("ready", true), now)
+                    r.setWordsReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.DRAW) {
-                    r.setDrawReady(LocalRoom.GUEST, msg.optBoolean("ready", true), now)
+                    r.setDrawReady(role!!, msg.optBoolean("ready", true), now)
                 } else {
-                    r.setReady(LocalRoom.GUEST, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now)
+                    r.setReady(role!!, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now)
                 }
-                "fire" -> r.fire(LocalRoom.GUEST, msg.optInt("x", -1), msg.optInt("y", -1), now)
-                "move" -> r.move(LocalRoom.GUEST, msg.optJSONObject("move") ?: JSONObject(), now)
+                "fire" -> r.fire(role!!, msg.optInt("x", -1), msg.optInt("y", -1), now)
+                "move" -> r.move(role!!, msg.optJSONObject("move") ?: JSONObject(), now)
                 "guess" -> if (r.game == GameKind.DRAW) {
-                    r.drawGuess(LocalRoom.GUEST, msg.optString("word"), now)
+                    r.drawGuess(role!!, msg.optString("word"), now)
                 } else {
-                    r.guessWord(LocalRoom.GUEST, msg.optString("word"), now)
+                    r.guessWord(role!!, msg.optString("word"), now)
                 }
                 "stroke" -> {
-                    // Straight to the host's screen; the guest gets a plain acknowledgement.
-                    val added = r.addStroke(LocalRoom.GUEST, msg.optJSONObject("stroke") ?: JSONObject(), now)
+                    // Straight to the other screens; the drawer gets a plain acknowledgement.
+                    val added = r.addStroke(role!!, msg.optJSONObject("stroke") ?: JSONObject(), now)
                     send(endpointId, JSONObject().put("type", "ack").put("re", id))
                     _pushes.tryEmit(added)
+                    guests.keys.filter { it != endpointId }.forEach { send(it, added) }
                     return
                 }
-                "clear" -> r.clearDrawing(LocalRoom.GUEST, now)
-                "board" -> r.submitBoard(LocalRoom.GUEST, msg.optString("board"), now)
+                "clear" -> r.clearDrawing(role!!, now)
+                "board" -> r.submitBoard(role!!, msg.optString("board"), now)
                 "emoji" -> r.sendEmoji(
-                    LocalRoom.GUEST,
+                    role!!,
                     Reaction.from(msg.optString("emoji")) ?: throw ApiException("Unknown reaction."),
                     now,
                 )
                 "sync" -> Unit
                 "leave" -> {
-                    r.leave(LocalRoom.GUEST)
+                    r.leave(role!!)
                     send(endpointId, JSONObject().put("type", "left").put("re", id))
-                    guestEndpoint = null
-                    pushHost()
-                    if (r.status == "waiting") startAdvertising()
+                    guests.remove(endpointId)
+                    pushAll()
+                    if (r.status != "started") startAdvertising()
                     return
                 }
                 else -> throw ApiException("Unknown message.")
             }
-            send(endpointId, r.view(LocalRoom.GUEST, now).put("re", id))
-            pushHost()
+            send(endpointId, r.view(role!!, now).put("re", id))
+            pushAll(except = endpointId)
         } catch (e: ApiException) {
             send(endpointId, errorJson(id ?: if (msg.optString("type") == "open") "open" else null, e.message, e.fatal, e.reason))
         }
@@ -262,13 +263,14 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         room?.let { _pushes.tryEmit(it.view(LocalRoom.HOST, now())) }
     }
 
-    private fun pushToGuest() {
+    private fun pushToGuests(except: String? = null) {
         val r = room ?: return
-        guestEndpoint?.let { send(it, r.view(LocalRoom.GUEST, now())) }
+        for ((endpoint, role) in guests) if (endpoint != except) send(endpoint, r.view(role, now()))
     }
 
-    private fun pushAll() {
+    /** Sends the room to the host's screen and every guest but [except] (who gets a reply instead). */
+    private fun pushAll(except: String? = null) {
         pushHost()
-        pushToGuest()
+        pushToGuests(except)
     }
 }

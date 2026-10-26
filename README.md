@@ -55,6 +55,12 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   your partner to the small board in the same spot; three in a row wins a small board, three
   small boards in a row wins the game. Play against the computer, online or nearby.
 
+**Up to four players.** Sudoku, Word Race and Draw & Guess rooms take up to four people, online
+(Cloudflare server) or nearby: share the code, or let the others pick your name under Nearby.
+Everyone taps **Ready** to start. In Draw & Guess the drawer goes round the table and everyone
+else guesses. Someone leaving mid-match drops out and the rest play on. Nearby games need every
+phone on this version or later. The other games are for two.
+
 **Play across time zones.** Connect Four, Dots & Boxes, Memory Pairs and Ultimate Tic-Tac-Toe
 don't need you both online at once: close the app after your move and your partner gets a **"Your turn"**
 notification (Cloudflare server with invitations set up). Tap it to make your move. Turn games

@@ -151,14 +151,13 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     if (showRules) RulesDialog(GameKind.DRAW) { showRules = false }
     val drawing = draw.drawing == true
     val playing = phase == RoomStatus.PLAYING
-    val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, p.primary, if (!playing) null else if (drawing) "Drawing" else "Guessing", visibleReaction(state.myReaction, localNow), active = playing && drawing),
-        opponent?.let {
-            ChipPlayer(
-                it.name, it.avatar, OpponentColor, if (!playing) null else if (drawing) "Guessing" else "Drawing",
-                visibleReaction(state.opponentReaction, localNow), active = playing && !drawing,
-            )
-        },
+    // Who draws: you, or the player the server names (the only other one with two players).
+    fun draws(player: com.arcade.sudoku.data.PlayerInfo, isMe: Boolean) =
+        if (isMe) drawing else !drawing && (draw.drawerName == null || draw.drawerName == player.name)
+    val players = battleChips(
+        room, state, localNow, p.primary,
+        detail = { player, isMe -> if (!playing) null else if (draws(player, isMe)) "Drawing" else "Guessing" },
+        active = { player, isMe -> playing && draws(player, isMe) },
     )
     val secondsLeft = draw.endsAt?.let { ((it - now + 999) / 1000).coerceAtLeast(0) }
 
@@ -194,7 +193,12 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         },
     ) {
         draw.lastTurn?.let { last ->
-            val who = if (last.drewIt) (opponent?.name ?: "Your partner") else "You"
+            val who = when {
+                last.guessedIt -> "You"
+                last.guesserName != null -> last.guesserName
+                last.drewIt -> opponent?.name ?: "Your partner"
+                else -> "You"
+            }
             Text(
                 if (last.guessed) "$who guessed ${last.word.uppercase()}! +${last.points}" else "Time's up: it was ${last.word.uppercase()}",
                 color = if (last.guessed) p.good else p.muted, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
@@ -204,7 +208,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             phase == RoomStatus.COUNTDOWN -> {
                 val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
                 AppCard {
-                    Text(if (drawing) "You draw first" else "${opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     Text(seconds.toString(), color = GameKind.DRAW.color, fontSize = 80.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }
@@ -240,7 +244,7 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
         )
     }
     if (draw.guesses.isNotEmpty()) {
-        Text("Guesses: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
+        Text("Guesses: " + guessList(draw), color = p.muted, fontSize = 14.sp)
     }
 }
 
@@ -270,6 +274,14 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         PrimaryButton("Guess", send, Modifier.weight(0.45f), enabled = guess.isNotBlank())
     }
     if (draw.guesses.isNotEmpty()) {
-        Text("Not it: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
+        Text("Not it: " + guessList(draw), color = p.muted, fontSize = 14.sp)
     }
+}
+
+/** The wrong guesses this turn; with several guessers each says who made it. */
+private fun guessList(draw: DrawView): String {
+    val named = draw.guessers.toSet().size > 1
+    return draw.guesses.mapIndexed { i, (byMe, word) ->
+        if (!named) word else (if (byMe) "you" else draw.guessers.getOrNull(i) ?: "?") + ": " + word
+    }.joinToString(", ")
 }

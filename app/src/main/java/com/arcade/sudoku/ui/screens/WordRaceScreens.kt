@@ -94,17 +94,22 @@ private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, modifi
     }
 }
 
-/** The opponent's colours only: small squares, one row per guess. */
+/** Everyone else's rounds; servers from before rooms of four only send the opponent's. */
+private fun otherRounds(words: com.arcade.sudoku.data.WordsView) =
+    words.others.ifEmpty { listOf(com.arcade.sudoku.data.OtherWords(words.theirs, words.theyDone)) }
+
+/** Another player's colours only: small squares, one row per guess. */
 @Composable
-private fun ColourRows(guesses: List<WordGuess>, tries: Int) {
+private fun ColourRows(guesses: List<WordGuess>, tries: Int, small: Boolean = false) {
     val p = AppTheme.palette
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    val gap = if (small) 2.dp else 3.dp
+    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
         for (row in 0 until tries) {
             val guess = guesses.getOrNull(row)
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (i in 0 until Words.LENGTH) {
                     Box(
-                        Modifier.size(14.dp).clip(RoundedCornerShape(3.dp))
+                        Modifier.size(if (small) 8.dp else 14.dp).clip(RoundedCornerShape(3.dp))
                             .background(guess?.let { tileColor(it.score[i]) } ?: p.accent)
                             .border(1.dp, p.ink.copy(alpha = 0.4f), RoundedCornerShape(3.dp)),
                     )
@@ -195,10 +200,14 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         done -> "Out of tries"
         else -> "${guesses.size}/${words.tries} tries"
     }
-    val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, p.primary, status(words.mine, words.meDone), visibleReaction(state.myReaction, localNow)),
-        opponent?.let { ChipPlayer(it.name, it.avatar, OpponentColor, status(words.theirs, words.theyDone), visibleReaction(state.opponentReaction, localNow)) },
-    )
+    val players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+        if (isMe) {
+            status(words.mine, words.meDone)
+        } else {
+            val i = room.others.indexOf(player)
+            words.others.getOrNull(i)?.let { status(it.guesses, it.done) } ?: status(words.theirs, words.theyDone)
+        }
+    })
 
     GameFrame(
         title = "Word Race",
@@ -211,7 +220,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "Your opponent"
             MatchPopup(
-                room, GameKind.WORDS, outcomeOf(room.winner), resultTitle(room.winner, name),
+                room, GameKind.WORDS, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 when (room.endReason) {
                     "solved" -> if (room.winner == "me") "You found it in fewer tries, or faster." else "$name found it in fewer tries, or faster."
                     "draw" -> "Nobody found the word."
@@ -224,9 +233,12 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 words.answer?.let {
                     Text("The word was ${it.uppercase()}", color = GameKind.WORDS.color, fontWeight = FontWeight.Bold, fontSize = 18.sp, textAlign = TextAlign.Center)
                 }
-                val theirs = words.theirs.mapNotNull { it.word }
-                if (theirs.isNotEmpty()) {
-                    Text("$name guessed: " + theirs.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                otherRounds(words).forEachIndexed { i, other ->
+                    val guessed = other.guesses.mapNotNull { it.word }
+                    val who = room.others.getOrNull(i)?.name ?: name
+                    if (guessed.isNotEmpty()) {
+                        Text("$who guessed: " + guessed.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                    }
                 }
             }
         },
@@ -251,10 +263,17 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
     BoardArea(0.95f) { size ->
         Row(size, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
             WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, Modifier.weight(1f))
-            if (opponent != null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(opponent.name, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    ColourRows(words.theirs, words.tries)
+            // Everyone else's colours, stacked smaller when there are several of them.
+            val rows = otherRounds(words)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                rows.forEachIndexed { i, other ->
+                    val name = room.others.getOrNull(i)?.name ?: opponent?.name
+                    if (name != null) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(name, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            ColourRows(other.guesses, words.tries, small = rows.size > 1)
+                        }
+                    }
                 }
             }
         }
