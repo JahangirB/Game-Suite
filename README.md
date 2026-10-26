@@ -448,3 +448,6 @@ npx wrangler dev                             # run the Cloudflare server locally
 ./gradlew testDebugUnitTest                  # Kotlin unit tests
 ./gradlew assembleDebug                      # build the APK
 ```
+
+Sound effects: the planned sounds for every game, and how to source and wire them, are in
+[docs/SFX.md](docs/SFX.md).
