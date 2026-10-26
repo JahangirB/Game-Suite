@@ -32,6 +32,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -89,24 +96,38 @@ fun GameFrame(
     tray: @Composable () -> Unit = {},
     scrollable: Boolean = false,
     popup: (@Composable BoxScope.() -> Unit)? = null,
+    /** Swiping up hides the title and players to give the board more room; down brings them back. */
+    swipeToFocus: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
+    var focused by remember { mutableStateOf(false) }
+    val swipe = if (!swipeToFocus) Modifier else Modifier.pointerInput(Unit) {
+        var pulled = 0f
+        detectVerticalDragGestures(
+            onDragStart = { pulled = 0f },
+            onDragEnd = { if (pulled < -60f) focused = true else if (pulled > 60f) focused = false },
+        ) { _, dy -> pulled += dy }
+    }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .then(swipe)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (swipeToFocus && focused) {
+                    Text("⌄  swipe down for the players", color = p.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable { focused = false })
+                }
+                if (!(swipeToFocus && focused)) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 26.sp)
                         if (subtitle != null) Text(subtitle, color = p.muted, fontSize = 13.sp)
                     }
                     trailing()
                 }
-                if (players.isNotEmpty()) {
+                if (players.isNotEmpty() && !(swipeToFocus && focused)) {
                     // Three or four players share the row as smaller chips.
                     val compact = players.size > 2
                     Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth()) {

@@ -1,5 +1,18 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.PI
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -86,6 +99,23 @@ fun ShipsSea(
 ) {
     val p = AppTheme.palette
     val style = LocalShipStyle.current
+    // The sea moves: wavelets drift and ships bob. [time] goes round once every few seconds.
+    val time by rememberInfiniteTransition(label = "sea").animateFloat(
+        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4200, easing = LinearEasing)), label = "sea",
+    )
+    // A new shot lands with a blast (hit) or a splash (miss); shots already there when the
+    // screen opened stay still.
+    val blast = remember { Animatable(1f) }
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(lastShot) {
+        if (!seen) {
+            seen = true
+            return@LaunchedEffect
+        }
+        if (lastShot == null) return@LaunchedEffect
+        blast.snapTo(0f)
+        blast.animateTo(1f, tween(BLAST_MS, easing = LinearEasing))
+    }
     val tapModifier = if (onTap == null) Modifier else Modifier.pointerInput(onTap) {
         detectTapGestures { offset ->
             val cell = size.width / Sea.SIZE.toFloat()
@@ -97,10 +127,17 @@ fun ShipsSea(
     Canvas(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).then(tapModifier)) {
         val cell = size.width / Sea.SIZE
         drawSeaArt(style, Sea.SIZE, cell)
+        wavelets(time, cell)
         // Sunk ships the list doesn't already hold (revealed enemy ships) are drawn too.
         val all = ships + sunk.filter { it !in ships }
-        all.zip(shipKinds(all)).forEach { (ship, kind) -> drawShipArt(style, kind, ship, cell, sunk = ship in sunk) }
+        all.zip(shipKinds(all)).forEachIndexed { i, (ship, kind) ->
+            val down = ship in sunk
+            // Afloat, a ship rocks gently on the swell; a sunk one lies still.
+            val bob = if (down) 0f else sin(time + i * 1.3f) * cell * 0.05f
+            translate(0f, bob) { drawShipArt(style, kind, ship, cell, sunk = down) }
+        }
         for (shot in shots) drawShotArt(style, shot.x, shot.y, shot.hit, cell)
+        lastShot?.takeIf { blast.value < 1f }?.let { boom(it, blast.value, cell) }
         lastShot?.let {
             drawCircle(
                 p.primary,
@@ -113,6 +150,58 @@ fun ShipsSea(
             val center = Offset((x + 0.5f) * cell, (y + 0.5f) * cell)
             drawCircle(p.primary, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
             drawCircle(p.primary, radius = cell * 0.1f, center = center)
+        }
+    }
+}
+
+/** How long a shot's blast or splash plays. */
+private const val BLAST_MS = 900
+
+/** Little white wave crests drifting across the sea, a few to a row. */
+private fun DrawScope.wavelets(time: Float, cell: Float) {
+    val w = size.width
+    for (row in 0 until Sea.SIZE) {
+        for (k in 0 until 3) {
+            val drift = ((k / 3f + time / (2 * PI).toFloat() * (if (row % 2 == 0) 1f else -1f) + row * 0.17f) % 1f + 1f) % 1f
+            val x = drift * w
+            val y = (row + 0.5f) * cell + sin(time * 2 + row + k) * cell * 0.12f
+            drawArc(
+                Color.White.copy(alpha = 0.28f), 200f, 140f, false,
+                Offset(x - cell * 0.3f, y - cell * 0.15f), Size(cell * 0.6f, cell * 0.3f), style = Stroke(cell * 0.05f, cap = StrokeCap.Round),
+            )
+        }
+    }
+}
+
+/** A hit: a fireball, sparks and smoke. A miss: a ring of splash and droplets. [t] from 0 to 1. */
+private fun DrawScope.boom(shot: Shot, t: Float, cell: Float) {
+    val c = Offset((shot.x + 0.5f) * cell, (shot.y + 0.5f) * cell)
+    val fade = 1f - t
+    if (shot.hit) {
+        val r = cell * (0.25f + 0.9f * minOf(1f, t * 2.2f))
+        drawCircle(Color(0xFFFF8A3D).copy(alpha = fade), r, c)
+        drawCircle(Color(0xFFFFD23F).copy(alpha = fade), r * 0.6f, c)
+        drawCircle(Color.White.copy(alpha = fade * fade), r * 0.25f, c)
+        for (k in 0 until 10) {
+            val a = k * PI.toFloat() / 5 + 0.3f
+            val d = cell * (0.3f + 1.4f * t)
+            val end = c + Offset(cos(a) * d, sin(a) * d + cell * t * t)
+            drawLine(Color(0xFFFFB13D).copy(alpha = fade), end - Offset(cos(a), sin(a)) * (cell * 0.18f), end, cell * 0.07f, StrokeCap.Round)
+        }
+        // Smoke rising after the flash.
+        if (t > 0.3f) {
+            val k = (t - 0.3f) / 0.7f
+            drawCircle(Color(0xFF6B6B7A).copy(alpha = 0.45f * (1f - k)), cell * (0.3f + 0.4f * k), c - Offset(0f, cell * 0.9f * k))
+        }
+    } else {
+        for (ring in 0..1) {
+            val k = (t - ring * 0.2f).coerceIn(0f, 1f)
+            drawCircle(Color.White.copy(alpha = (1f - k) * 0.9f), cell * (0.2f + 0.8f * k), c, style = Stroke(cell * 0.08f))
+        }
+        for (k in 0 until 6) {
+            val a = k * PI.toFloat() / 3
+            val d = cell * 0.6f * t
+            drawCircle(Color(0xFFBFE6FF).copy(alpha = fade), cell * 0.07f, c + Offset(cos(a) * d, sin(a) * d - cell * 0.8f * t * (1f - t)))
         }
     }
 }
@@ -178,6 +267,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     GameFrame(
         title = "Ship Battle",
         subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        swipeToFocus = true,
         players = players,
         glow = GameKind.SHIPS.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
@@ -272,6 +362,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
     GameFrame(
         title = "Ship Battle",
         subtitle = "Against the computer",
+        swipeToFocus = game != null,
         players = if (game == null) emptyList() else listOf(
             ChipPlayer("You", null, p.primary, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
             ChipPlayer("Computer", null, OpponentColor, "${game.theirProgress}% of fleet hit", active = !game.myTurn && game.winner == null),
