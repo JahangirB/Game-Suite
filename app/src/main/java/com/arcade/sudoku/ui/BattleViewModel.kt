@@ -555,6 +555,21 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playMove(move, turns.copy(clash = shown, lastMoveByMe = true))
     }
 
+    /** Ludo: roll the die (the server rolls it). */
+    fun rollDie() = playMove(JSONObject().put("roll", true))
+
+    /** Ludo: move token [index] by the roll. */
+    fun moveToken(index: Int) {
+        val turns = _state.value.room?.turns ?: return
+        val view = turns.ludo ?: return
+        val roll = view.roll ?: return
+        if (index !in view.movable) return
+        // The token moves at once; captures and who goes next are the server's call.
+        val mine = view.tokens['m'].orEmpty().toMutableList()
+        mine[index] = if (mine[index] == -1) 0 else mine[index] + roll
+        playMove(JSONObject().put("token", index), turns.copy(ludo = view.copy(tokens = view.tokens + ('m' to mine), roll = null, movable = emptyList()), lastMoveByMe = true))
+    }
+
     /** Colour Clash: take a card from the deck. */
     fun drawCard() = playMove(JSONObject().put("draw", true))
 

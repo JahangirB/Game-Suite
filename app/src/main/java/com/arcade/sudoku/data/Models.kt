@@ -1,6 +1,7 @@
 package com.arcade.sudoku.data
 
 import com.arcade.sudoku.game.clash.ClashView
+import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.numbers.NumberLevel
@@ -22,13 +23,14 @@ enum class GameKind(val key: String, val label: String) {
     DOMINOES("dominoes", "Dominoes"),
     NUMBERS("numbers", "Number Cross"),
     HOCKEY("hockey", "Air Hockey"),
-    CLASH("clash", "Colour Clash");
+    CLASH("clash", "Colour Clash"),
+    LUDO("ludo", "Ludo");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY
@@ -105,6 +107,8 @@ data class TurnsView(
     val dominoes: DominoView? = null,
     /** Colour Clash: the pile, your hand and everyone's card counts. */
     val clash: ClashView? = null,
+    /** Ludo: every player's colour and tokens, and your roll. */
+    val ludo: LudoView? = null,
 )
 
 /**
@@ -382,6 +386,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         nextBoard = json.optInt("next", -1).takeIf { it >= 0 },
         dominoes = if (json.has("line")) DominoView.from(json) else null,
         clash = if (json.has("top")) ClashView.from(json) else null,
+        ludo = if (json.has("tokens")) LudoView.from(json) else null,
     )
 }
 

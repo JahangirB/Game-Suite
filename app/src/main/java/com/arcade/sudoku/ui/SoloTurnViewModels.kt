@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.game.clash.ClashComputer
+import com.arcade.sudoku.game.ludo.LudoComputer
+import com.arcade.sudoku.game.ludo.LudoMatch
+import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.clash.ClashMatch
 import com.arcade.sudoku.game.clash.ClashView
 import com.arcade.sudoku.game.dominoes.DominoComputer
@@ -365,4 +368,76 @@ class SoloClashViewModel : ViewModel() {
     }
 
     private fun viewOf(m: ClashMatch) = ClashView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
+}
+
+/** Ludo against one to three computer players. Marks: 'm' you, then 'o', 'p', 'q'. */
+data class SoloLudoUiState(
+    val view: LudoView? = null,
+    val opponents: Int = 1,
+    val turn: Char = 'm',
+    /** "me", "computer" or null while playing. */
+    val result: String? = null,
+)
+
+class SoloLudoViewModel : ViewModel() {
+    private var match: LudoMatch? = null
+    private val computer = LudoComputer()
+    private var thinking: Job? = null
+    private val _state = MutableStateFlow(SoloLudoUiState())
+    val state: StateFlow<SoloLudoUiState> = _state.asStateFlow()
+
+    fun setOpponents(n: Int) = _state.update { it.copy(opponents = n.coerceIn(1, 3)) }
+
+    fun changeSetup() {
+        thinking?.cancel()
+        match = null
+        _state.update { it.copy(view = null, result = null, turn = 'm') }
+    }
+
+    fun start() {
+        thinking?.cancel()
+        val m = LudoMatch("mopq".take(_state.value.opponents + 1).toList())
+        match = m
+        _state.update { it.copy(view = viewOf(m), turn = 'm', result = null) }
+    }
+
+    fun roll() = humanMove(JSONObject().put("roll", true))
+
+    fun moveToken(index: Int) = humanMove(JSONObject().put("token", index))
+
+    private fun humanMove(move: JSONObject) {
+        val s = _state.value
+        if (s.turn != 'm' || s.result != null || match == null) return
+        try {
+            play('m', move)
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+        if (_state.value.result == null && _state.value.turn != 'm') computersMove()
+    }
+
+    private fun play(mark: Char, move: JSONObject) {
+        val m = match ?: return
+        val result = m.play(mark, move)
+        _state.update {
+            it.copy(
+                view = viewOf(m),
+                turn = result.turn ?: mark,
+                result = if (!result.over) null else if (result.winner == 'm') "me" else "computer",
+            )
+        }
+    }
+
+    private fun computersMove() {
+        thinking = viewModelScope.launch {
+            while (_state.value.result == null && _state.value.turn != 'm') {
+                delay(650)
+                val m = match ?: return@launch
+                val mark = _state.value.turn
+                play(mark, computer.move(m, mark))
+            }
+        }
+    }
+
+    private fun viewOf(m: LudoMatch) = LudoView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
 }

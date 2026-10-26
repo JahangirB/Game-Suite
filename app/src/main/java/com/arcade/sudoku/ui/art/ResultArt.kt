@@ -60,6 +60,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.NUMBERS -> if (win) a.numbersWin() else a.numbersLose()
                     GameKind.HOCKEY -> if (win) a.hockeyWin() else a.hockeyLose()
                     GameKind.CLASH -> if (win) a.clashWin() else a.clashLose()
+                    GameKind.LUDO -> if (win) a.ludoWin() else a.ludoLose()
                 }
             }
         }
@@ -633,6 +634,39 @@ private class ResultScene(val d: DrawScope, val t: Float) {
             val drop = kf(ph, 0f to 0f, (.15f + i * .12f) to 0f, (.3f + i * .12f) to 1f, 1f to 1f)
             if (drop > 0f) clashCard(90f + i * 40f, 40f + drop * 95f, (i - 1.5f) * 8f, listOf(Red, Yellow, Green, BoardBlue)[i], "")
         }
+    }
+
+    // ---- Ludo --------------------------------------------------------------------------------
+
+    fun ludoToken(x: Float, y: Float, fill: Color) {
+        p.circle(x, y, 15, Ink)
+        p.circle(x, y, 12, fill)
+        p.circle(x - 4, y - 4, 4, White.copy(alpha = .5f))
+    }
+
+    fun ludoWin() {
+        // Four tokens hop up into the centre, one after another, and a star shines.
+        val ph = f(3f)
+        p.poly(110 to 140, 190 to 140, 150 to 95, color = Gold)
+        listOf(Red, Green, Yellow, BoardBlue).forEachIndexed { i, c ->
+            val start = .05f + i * .12f
+            val hop = kf(ph, 0f to 0f, start to 0f, start + .12f to 1f, .9f to 1f, 1f to 0f)
+            val x = 40f + i * 20f + hop * (110f + i * 6f - i * 20f)
+            val y = 140f - hop * 30f - 30f * kotlin.math.sin(hop * PI.toFloat())
+            ludoToken(x, y, c)
+        }
+        p.translate(0, bob(f(1.5f))) { filled(star(250, 45, 22f, 10f), Gold) }
+    }
+
+    fun ludoLose() {
+        // Your token is knocked off the track and rolls back to its corner.
+        val ph = f(3f)
+        p.rr(20, 110, 260, 30, 6, White, Ink, 3)
+        val knock = kf(ph, 0f to 0f, .3f to 0f, .7f to 1f, 1f to 1f)
+        ludoToken(150f, 125f, Yellow)
+        if (knock < 1f) ludoToken(150f - knock * 110f, 125f - 60f * kotlin.math.sin(knock * PI.toFloat()), Red)
+        else ludoToken(40f, 60f, Red)
+        p.withAlpha(glow(f(1.5f))) { p.text("!", 150, 70, 34, White) }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------
