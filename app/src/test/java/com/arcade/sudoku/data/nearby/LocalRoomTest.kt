@@ -160,9 +160,9 @@ class LocalShipsTest {
         assertEquals(2, parseRoom(room.view(LocalRoom.other(shooter), 0)).ships!!.theirShots.size)
     }
 
-    @Test
     private val T0 = 1_000_000L
 
+    @Test
     fun dominoesTeamsWinTogether() {
         val room = LocalRoom("DOM1", "Ann", null, com.arcade.sudoku.data.GameKind.DOMINOES)
         val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null) }
