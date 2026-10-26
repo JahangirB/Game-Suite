@@ -61,6 +61,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.HOCKEY -> if (win) a.hockeyWin() else a.hockeyLose()
                     GameKind.CLASH -> if (win) a.clashWin() else a.clashLose()
                     GameKind.LUDO -> if (win) a.ludoWin() else a.ludoLose()
+                    GameKind.GRID -> if (win) a.gridWin() else a.gridLose()
                 }
             }
         }
@@ -667,6 +668,31 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         if (knock < 1f) ludoToken(150f - knock * 110f, 125f - 60f * kotlin.math.sin(knock * PI.toFloat()), Red)
         else ludoToken(40f, 60f, Red)
         p.withAlpha(glow(f(1.5f))) { p.text("!", 150, 70, 34, White) }
+    }
+
+    // ---- Letter Grid -------------------------------------------------------------------------
+
+    fun gridTile(x: Float, y: Float, letter: String, lit: Boolean) {
+        p.rr(x - 18, y - 18, 36, 36, 7, if (lit) Gold else White, Ink, 3)
+        p.text(letter, x, y, 20, Ink)
+    }
+
+    fun gridWin() {
+        // W-O-R-D lights up tile by tile along a path, then the word floats up.
+        val ph = f(3f)
+        val tiles = listOf(Triple(90f, 110f, "W"), Triple(130f, 70f, "O"), Triple(170f, 110f, "R"), Triple(210f, 70f, "D"))
+        tiles.forEachIndexed { i, (x, y, l) -> gridTile(x, y, l, ph > .1f + i * .12f && ph < .9f) }
+        if (ph > .6f) p.withAlpha(kf(ph, .6f to 1f, .9f to 1f, 1f to 0f)) { outlinedText("WORD!", 150, 30 - (ph - .6f) * 20, 26, Gold) }
+        spark(260, 130, 6, Gold, 2f, .4f)
+    }
+
+    fun gridLose() {
+        // The clock runs out over a half-traced word.
+        gridTile(110f, 110f, "C", true); gridTile(150f, 110f, "A", true); gridTile(190f, 110f, "?", false)
+        val ph = f(1.5f)
+        p.circle(150, 50, 28, White); p.ring(150, 50, 28, Ink, 3)
+        p.at(150, 50, rad(ph * 360f), 1) { p.stroke(Ink, 3) { moveTo(150, 50); lineTo(150, 30) } }
+        p.withAlpha(glow(f(1.5f))) { p.text("0:00", 240, 50, 18, Red) }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

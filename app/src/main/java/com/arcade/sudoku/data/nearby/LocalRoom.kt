@@ -9,7 +9,9 @@ import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.grid.LetterGrid
 import com.arcade.sudoku.game.hockey.Hockey
+import org.json.JSONArray
 import com.arcade.sudoku.game.numbers.NumberCross
 import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.numbers.NumberPuzzle
@@ -42,6 +44,8 @@ class LocalRoom(
         var board: String? = null
         // Number Cross: one entry per blank
         var entries: List<String> = emptyList()
+        // Letter Grid: the words found this round
+        var found: List<String> = emptyList()
         var progress = 0
         var finishedAt: Long? = null
         var left = false
@@ -405,6 +409,89 @@ class LocalRoom(
     }
 
     /** Draw & Guess: ready (or not) for a match of [DRAW_TURNS] turns; the drawer swaps every turn. */
+    // Letter Grid: the letters being played, the next grid from the host, when time is up, and the results.
+    private var letters: String? = null
+    private var nextGrid: String? = null
+    private var gridEndsAt = 0L
+    private var gridResults: JSONArray? = null
+
+    /** Letter Grid: ready (or not); the host's Ready carries the grid. The round lasts [LetterGrid.ROUND_MS]. */
+    fun setGridReady(role: String, ready: Boolean, grid: String?, now: Long) {
+        checkCanReady()
+        player(role).ready = ready
+        if (role == HOST) {
+            nextGrid = if (!ready) null else grid?.lowercase()?.takeIf { Regex("[a-z]{16}").matches(it) } ?: run {
+                player(role).ready = false
+                throw ApiException("The grid is not valid.")
+            }
+        }
+        val next = nextGrid
+        if (allReady() && next != null) {
+            nextGrid = null
+            letters = next
+            gridResults = null
+            beginMatch(now + COUNTDOWN_MS) { it.found = emptyList() }
+            gridEndsAt = now + COUNTDOWN_MS + LetterGrid.ROUND_MS
+        }
+        version++
+    }
+
+    /** Letter Grid: a word found by [role]. */
+    fun findWord(role: String, word: String, now: Long) {
+        val start = startAt
+        val l = letters
+        if (game != GameKind.GRID || status != "started" || start == null || l == null) throw ApiException("The game is not running.")
+        if (now < start) throw ApiException("Wait for the countdown.")
+        if (now >= gridEndsAt) throw ApiException("Time's up.")
+        if (role !in playing()) throw ApiException("You are not in this round.")
+        val w = word.lowercase()
+        LetterGrid.problem(l, w)?.let { throw ApiException(it) }
+        val me = player(role)
+        if (w in me.found) throw ApiException("You already found that one.")
+        me.found = me.found + w
+        version++
+    }
+
+    /** Letter Grid: time is up; unique words score double; the top score wins (a tie for it is a draw). */
+    private fun finishGrid() {
+        val roles = inMatch.filter { players[it] != null }
+        val seen = roles.flatMap { player(it).found }.groupingBy { it }.eachCount()
+        val scores = roles.associateWith { r -> player(r).found.sumOf { LetterGrid.points(it) * if (seen[it] == 1) 2 else 1 } }
+        gridResults = JSONArray(roles.map { r ->
+            JSONObject().put("role", r).put("score", scores.getValue(r)).put(
+                "words",
+                JSONArray(player(r).found.map { w ->
+                    val unique = seen[w] == 1
+                    JSONObject().put("word", w).put("unique", unique).put("points", LetterGrid.points(w) * if (unique) 2 else 1)
+                }),
+            )
+        })
+        val ranked = roles.sortedByDescending { scores.getValue(it) }
+        val tie = ranked.size > 1 && scores.getValue(ranked[0]) == scores.getValue(ranked[1])
+        endMatch(if (tie) null else ranked.firstOrNull(), if (tie) "draw" else "score")
+    }
+
+    private fun gridView(role: String, shown: String): JSONObject {
+        val show = shown == "playing" || shown == "finished"
+        val results = gridResults
+        return JSONObject()
+            .put("letters", if (show) letters ?: JSONObject.NULL else JSONObject.NULL)
+            .put("endsAt", if (gridEndsAt > 0) gridEndsAt else JSONObject.NULL)
+            .put("mine", JSONArray(player(role).found))
+            .put("counts", JSONArray(others(role).map { player(it).found.size }))
+            .put(
+                "results",
+                if (results == null) JSONObject.NULL else JSONArray(
+                    (listOf(role) + others(role)).mapNotNull { r ->
+                        (0 until results.length()).map { results.getJSONObject(it) }.firstOrNull { it.getString("role") == r }?.let {
+                            JSONObject().put("who", if (r == role) "me" else "other").put("name", player(r).name)
+                                .put("score", it.getInt("score")).put("words", it.getJSONArray("words"))
+                        }
+                    },
+                ),
+            )
+    }
+
     /** Air Hockey: the score [host, guest], kept by the host's phone. */
     private var hockeyGoals = listOf(0, 0)
 
@@ -690,6 +777,11 @@ class LocalRoom(
     fun checkTimers(now: Long): Boolean {
         val start = startAt ?: return false
         if (status != "started" || now < start) return false
+        if (game == GameKind.GRID && now >= gridEndsAt) {
+            finishGrid()
+            version++
+            return true
+        }
         if (game == GameKind.DRAW && now >= turnEndsAt) {
             lastDrawTurn = drawResult(guessed = false, points = 0)
             nextDrawTurn(now, Random.Default)
@@ -758,6 +850,7 @@ class LocalRoom(
             .put("words", if (game == GameKind.WORDS) wordsView(role, shown) else JSONObject.NULL)
             .put("draw", if (game == GameKind.DRAW) drawView(role, shown) else JSONObject.NULL)
             .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
+            .put("grid", if (game == GameKind.GRID) gridView(role, shown) else JSONObject.NULL)
             .put(
                 "hockey",
                 if (game != GameKind.HOCKEY) JSONObject.NULL else {

@@ -12,6 +12,8 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
+import com.arcade.sudoku.game.grid.LetterGrid
+import com.arcade.sudoku.game.grid.LetterGridGenerator
 import com.arcade.sudoku.game.hockey.Body
 import com.arcade.sudoku.game.hockey.Hockey
 import com.arcade.sudoku.game.hockey.HockeyFrame
@@ -930,6 +932,46 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
         val score = data.optJSONArray("s")
         return HockeyFrame(body("p") ?: return null, body("b") ?: return null, body("t") ?: return null, score?.optInt(0) ?: 0, score?.optInt(1) ?: 0)
+    }
+
+    /** Letter Grid: ready (or not). The host's phone rolls the next grid and sends it with its Ready. */
+    fun readyGrid() {
+        val room = _state.value.room ?: return
+        val ready = !room.me.ready
+        val letters = if (ready && room.isHost) LetterGridGenerator().generate() else null
+        sendReady(room.copy(me = room.me.copy(ready = ready))) { b, id -> b.readyGrid(room.code, id, ready, letters) }
+    }
+
+    /**
+     * Letter Grid: a traced word. It is checked here first (on the grid, in the list, not
+     * found already) so a miss is told at once; a good word shows in your list straight away.
+     */
+    fun findGridWord(word: String) {
+        val room = _state.value.room ?: return
+        val grid = room.grid ?: return
+        val letters = grid.letters ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        val w = word.lowercase()
+        if (w.length < 3) return
+        if (w in grid.mine) return showMessage("You already found ${w.uppercase()}.")
+        LetterGrid.problem(letters, w)?.let { return showMessage(it) }
+        val shown = room.copy(grid = grid.copy(mine = grid.mine + w))
+        _state.update { it.copy(room = shown) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.guess(room.code, id, w), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                undo(shown, room)
+                if (e.fatal) endSession(e.message) else showMessage(e.message)
+            } catch (e: IOException) {
+                undo(shown, room)
+                showMessage("Network problem, try again.")
+            }
+        }
     }
 
     /** Number Cross: ready (or not). The host's phone builds the next puzzle and sends it with its Ready. */

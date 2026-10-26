@@ -103,6 +103,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
         local { setOptions(LocalRoom.HOST, options) }
 
+    override suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?) =
+        local { setGridReady(LocalRoom.HOST, ready, letters, now()) }
+
     override suspend fun hockeyScore(code: String, playerId: String, score: List<Int>) =
         local { hockeyScore(LocalRoom.HOST, score, now()) }
 
@@ -115,7 +118,13 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         local { setNumbersReady(LocalRoom.HOST, ready, NumberPuzzle.from(puzzle), now()) }
 
     override suspend fun guess(code: String, playerId: String, word: String) =
-        local { if (game == GameKind.DRAW) drawGuess(LocalRoom.HOST, word, now()) else guessWord(LocalRoom.HOST, word, now()) }
+        local {
+            when (game) {
+                GameKind.DRAW -> drawGuess(LocalRoom.HOST, word, now())
+                GameKind.GRID -> findWord(LocalRoom.HOST, word, now())
+                else -> guessWord(LocalRoom.HOST, word, now())
+            }
+        }
 
     override suspend fun stroke(code: String, playerId: String, stroke: JSONObject): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The battle is over.", fatal = true)
@@ -226,6 +235,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.setWordsReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.DRAW) {
                     r.setDrawReady(role!!, msg.optBoolean("ready", true), now)
+                } else if (r.game == GameKind.GRID) {
+                    r.setGridReady(role!!, msg.optBoolean("ready", true), if (msg.isNull("letters")) null else msg.optString("letters"), now)
                 } else if (r.game == GameKind.HOCKEY) {
                     r.setHockeyReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.NUMBERS) {
@@ -244,6 +255,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 "options" -> r.setOptions(role!!, msg.optJSONObject("options") ?: JSONObject())
                 "guess" -> if (r.game == GameKind.DRAW) {
                     r.drawGuess(role!!, msg.optString("word"), now)
+                } else if (r.game == GameKind.GRID) {
+                    r.findWord(role!!, msg.optString("word"), now)
                 } else {
                     r.guessWord(role!!, msg.optString("word"), now)
                 }

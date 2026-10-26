@@ -24,16 +24,17 @@ enum class GameKind(val key: String, val label: String) {
     NUMBERS("numbers", "Number Cross"),
     HOCKEY("hockey", "Air Hockey"),
     CLASH("clash", "Colour Clash"),
-    LUDO("ludo", "Ludo");
+    LUDO("ludo", "Ludo"),
+    GRID("grid", "Letter Grid");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -119,6 +120,18 @@ data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blan
 
 /** A Number Cross round: the host's level, the board (once playing), your entries and, at the end, the solved grid. */
 data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
+
+/** One word in a Letter Grid result: unique words (found by nobody else) score double. */
+data class GridWord(val word: String, val unique: Boolean, val points: Int)
+
+/** A player's Letter Grid result. */
+data class GridResult(val mine: Boolean, val name: String, val score: Int, val words: List<GridWord>)
+
+/**
+ * A Letter Grid round: the 16 letters (once playing), when time is up, your words, how many
+ * each other player has found (in the order of "others"), and everyone's results at the end.
+ */
+data class GridView(val letters: String?, val endsAt: Long?, val mine: List<String>, val counts: List<Int>, val results: List<GridResult>?)
 
 /** Air Hockey goals: yours, theirs, and how many win. */
 data class HockeyScore(val mine: Int, val theirs: Int, val target: Int)
@@ -245,6 +258,7 @@ data class RoomState(
     val numbers: NumbersView? = null,
     /** Air Hockey: the score as the server last heard it from the host. */
     val hockey: HockeyScore? = null,
+    val grid: GridView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -279,6 +293,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     words = json.optJSONObject("words")?.let(::parseWords),
     draw = json.optJSONObject("draw")?.let(::parseDraw),
     numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
+    grid = json.optJSONObject("grid")?.let(::parseGrid),
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
@@ -350,6 +365,19 @@ private fun parseWords(json: JSONObject): WordsView {
         },
     )
 }
+
+private fun parseGrid(json: JSONObject) = GridView(
+    letters = json.stringOrNull("letters"),
+    endsAt = json.longOrNull("endsAt"),
+    mine = json.optJSONArray("mine")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
+    counts = json.optJSONArray("counts")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty(),
+    results = json.optJSONArray("results")?.objects()?.map { r ->
+        GridResult(
+            r.optString("who") == "me", r.optString("name"), r.optInt("score"),
+            r.optJSONArray("words").objects().map { GridWord(it.optString("word"), it.optBoolean("unique"), it.optInt("points")) },
+        )
+    },
+)
 
 private fun parseNumbers(json: JSONObject): NumbersView {
     fun strings(a: JSONArray?) = a?.let { (0 until it.length()).map { i -> it.optString(i) } }

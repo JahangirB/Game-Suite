@@ -39,6 +39,9 @@ interface BattleBackend {
     /** Number Cross: ready (or not); the host's Ready carries the next [puzzle], built on their phone. */
     suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?): JSONObject
 
+    /** Letter Grid: ready (or not); the host's Ready carries the next grid's 16 [letters]. */
+    suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?): JSONObject
+
     /** Air Hockey: the host reports the score [host, guest] after a goal. */
     suspend fun hockeyScore(code: String, playerId: String, score: List<Int>): JSONObject
 

@@ -14,6 +14,7 @@ import * as dominoes from './dominoes.js';
 import * as numbers from './numbers.js';
 import * as clash from './clash.js';
 import * as ludo from './ludo.js';
+import * as grid from './grid.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -33,11 +34,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -447,6 +448,76 @@ function hockeyView(room, role) {
   return { mine: score[mine], theirs: score[1 - mine], target: HOCKEY_GOALS };
 }
 
+/**
+ * Letter Grid: ready (or not). The host's Ready carries the grid, rolled on their phone; the
+ * round starts when everyone is ready and lasts grid.ROUND_MS.
+ */
+export function setGridReady(room, role, ready, letters, now) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  if (role === 'host') {
+    if (ready === false) room.nextGrid = null;
+    else {
+      try {
+        room.nextGrid = grid.checkLetters(letters);
+      } catch (e) {
+        room.players[role].ready = false;
+        throw new GameError(e.message);
+      }
+    }
+  }
+  if (allReady(room) && room.nextGrid) {
+    const startAt = now + COUNTDOWN_MS;
+    const letters = room.nextGrid;
+    room.nextGrid = null;
+    beginMatch(room, { startAt, letters, gridEndsAt: startAt + grid.ROUND_MS, gridResults: null }, { found: [] });
+  }
+  bump(room);
+}
+
+/** Letter Grid: a word found by [role]. */
+export function findWord(room, role, word, now) {
+  if (room.game !== 'grid' || room.status !== 'started') throw new GameError('The game is not running.');
+  if (now < room.startAt) throw new GameError('Wait for the countdown.');
+  if (now >= room.gridEndsAt) throw new GameError("Time's up.");
+  const me = room.players[role];
+  if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
+  let w;
+  try {
+    w = grid.checkWord(room.letters, word);
+  } catch (e) {
+    throw new GameError(e.message);
+  }
+  if (me.found.includes(w)) throw new GameError('You already found that one.');
+  me.found.push(w);
+  bump(room);
+}
+
+/** Letter Grid: time is up; score everyone and name the winner (none on a tie for the top). */
+function finishGrid(room) {
+  const roles = room.inMatch.filter((r) => room.players[r]);
+  const results = grid.score(Object.fromEntries(roles.map((r) => [r, room.players[r].found || []])));
+  room.gridResults = results;
+  const ranked = roles.slice().sort((a, b) => results[b].score - results[a].score);
+  const top = ranked[0];
+  const tie = ranked.length > 1 && results[ranked[1]].score === results[top].score;
+  endMatch(room, tie ? null : top, tie ? 'draw' : 'score');
+}
+
+function gridView(room, role, status) {
+  const show = status === 'playing' || status === 'finished';
+  const results = room.gridResults;
+  const sideOf = (r) => (r === role ? 'me' : 'other');
+  return {
+    letters: show ? room.letters : null,
+    endsAt: room.gridEndsAt || null,
+    mine: room.players[role].found || [],
+    // Everyone else's count during the round, in the order of the view's `others`.
+    counts: others(room, role).map((r) => (room.players[r].found || []).length),
+    results: results ? [role, ...others(room, role)].filter((r) => results[r]).map((r) => ({ who: sideOf(r), name: room.players[r].name, ...results[r] })) : null,
+  };
+}
+
 /** One guess at the secret word. */
 export function guessWord(room, role, word, now) {
   if (room.game !== 'words' || room.status !== 'started') throw new GameError('The game is not running.');
@@ -781,6 +852,11 @@ export function checkTimers(room, now) {
   }
   if (room.status === 'closed' || TURN_GAMES.includes(room.game)) return null;
 
+  if (room.status === 'started' && room.game === 'grid' && now >= room.gridEndsAt) {
+    finishGrid(room);
+    bump(room);
+    return 'changed';
+  }
   if (room.status === 'started' && room.game === 'draw' && now >= room.turnEndsAt) {
     room.lastTurn = { word: room.drawWord, guessed: false, points: 0, drawer: room.drawer };
     nextDrawTurn(room, now);
@@ -822,6 +898,7 @@ export function nextDeadline(room) {
     deadlines.push(lastAway + idleLimit(room));
   }
   if (room.status === 'started' && room.game === 'draw') deadlines.push(room.turnEndsAt);
+  if (room.status === 'started' && room.game === 'grid') deadlines.push(room.gridEndsAt);
   if (room.status !== 'closed' && !TURN_GAMES.includes(room.game)) {
     for (const role of roles) {
       const player = room.players[role];
@@ -900,6 +977,7 @@ export function view(room, role, now) {
     draw: room.game === 'draw' ? drawView(room, role, status) : null,
     numbers: room.game === 'numbers' ? numbersView(room, role, status) : null,
     hockey: room.game === 'hockey' ? hockeyView(room, role) : null,
+    grid: room.game === 'grid' ? gridView(room, role, status) : null,
   };
 }
 
