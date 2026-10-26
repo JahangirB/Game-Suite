@@ -3,6 +3,7 @@ package com.arcade.sudoku.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -92,52 +93,47 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        popup = if (!finished) null else popupContent {
+            SudokuPopup(room, state.busy, showSolution, onToggleSolution = { showSolution = !showSolution }, vm = vm, onLeave = onLeave)
+        },
     ) {
 
-        Box(contentAlignment = Alignment.Center) {
-            SudokuGrid(
-                board = board,
-                errors = conflicts,
-                selected = state.selected,
-                hidden = phase == RoomStatus.COUNTDOWN,
-                solution = if (showSolution) room.solution?.let(Sudoku::parse) else null,
-                onSelect = vm::select,
-            )
-            if (phase == RoomStatus.COUNTDOWN) {
-                val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Get ready", color = p.muted, fontSize = 18.sp)
-                    Text(seconds.toString(), color = p.primary, fontSize = 96.sp, fontWeight = FontWeight.Bold)
-                    opponent?.let { Text("vs ${it.name}", color = OpponentColor, fontWeight = FontWeight.SemiBold) }
+        BoardArea(1f) { size ->
+            Box(size, contentAlignment = Alignment.Center) {
+                SudokuGrid(
+                    board = board,
+                    errors = conflicts,
+                    selected = state.selected,
+                    hidden = phase == RoomStatus.COUNTDOWN,
+                    solution = if (showSolution) room.solution?.let(Sudoku::parse) else null,
+                    onSelect = vm::select,
+                )
+                if (phase == RoomStatus.COUNTDOWN) {
+                    val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Get ready", color = p.muted, fontSize = 18.sp)
+                        Text(seconds.toString(), color = p.primary, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        opponent?.let { Text("vs ${it.name}", color = OpponentColor, fontWeight = FontWeight.SemiBold) }
+                    }
                 }
             }
         }
 
-        if (phase == RoomStatus.FINISHED) {
-            ResultPanel(
-                room = room,
-                busy = state.busy,
-                showSolution = showSolution,
-                onToggleSolution = { showSolution = !showSolution },
-                vm = vm,
-            )
-        } else {
-            ToolRow(
-                notesMode = state.notesMode,
-                canUndo = board.canUndo,
-                enabled = playing,
-                hintsLeft = null,
-                onUndo = vm::undo,
-                onErase = vm::erase,
-                onNotes = vm::toggleNotes,
-                onHint = {},
-            )
-            NumberPad(
-                remaining = remainingDigits(board, conflicts),
-                enabled = playing && state.selected != null,
-                onDigit = vm::enterDigit,
-            )
-        }
+        ToolRow(
+            notesMode = state.notesMode,
+            canUndo = board.canUndo,
+            enabled = playing,
+            hintsLeft = null,
+            onUndo = vm::undo,
+            onErase = vm::erase,
+            onNotes = vm::toggleNotes,
+            onHint = {},
+        )
+        NumberPad(
+            remaining = remainingDigits(board, conflicts),
+            enabled = playing && state.selected != null,
+            onDigit = vm::enterDigit,
+        )
     }
 }
 
@@ -152,20 +148,20 @@ private fun elapsedMs(room: RoomState, phase: RoomStatus?, now: Long, startAt: L
     else -> 0L
 }
 
+/** The end of a Sudoku battle: a rematch starts once both choose the same level. */
 @Composable
-private fun ResultPanel(
+private fun BoxScope.SudokuPopup(
     room: RoomState,
     busy: Boolean,
     showSolution: Boolean,
     onToggleSolution: () -> Unit,
     vm: BattleViewModel,
+    onLeave: () -> Unit,
 ) {
     val p = AppTheme.palette
     val won = room.winner == "me"
-    val accent = if (won) p.good else p.bad
     val opponent = room.opponent
     val opponentName = opponent?.name ?: "Your opponent"
-
     val detail = when (room.endReason) {
         "solved" -> if (won) {
             "You solved it in ${formatDuration(room.me.finishMs ?: 0L)}!"
@@ -177,32 +173,15 @@ private fun ResultPanel(
         "timeout" -> if (won) "$opponentName lost connection." else "You were disconnected for too long."
         else -> ""
     }
-    val canRematch = opponent != null && !opponent.left
-
-    Surface(
-        color = p.card,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(2.dp, accent),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(if (won) "Victory!" else "Defeat", color = accent, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text(detail, color = p.text, textAlign = TextAlign.Center)
-            if (!won && room.solution != null) {
-                TextButton(onClick = onToggleSolution) {
-                    Text(if (showSolution) "Hide solution" else "Show solution", color = p.primary)
-                }
+    MatchPopup(room, GameKind.SUDOKU, outcomeOf(room.winner), resultTitle(room.winner, opponentName), detail, onRematch = null, onFinish = onLeave) {
+        if (!won && room.solution != null) {
+            TextButton(onClick = onToggleSolution) {
+                Text(if (showSolution) "Hide solution" else "Show solution on the board", color = p.primary)
             }
-            if (canRematch) {
-                Text("Rematch: both players choose the same level", color = p.muted, fontSize = 13.sp)
-                LevelPicker(room, busy, onPick = vm::chooseLevel)
-            } else {
-                Text("$opponentName has left. Exit to start a new battle.", color = p.muted, textAlign = TextAlign.Center)
-            }
+        }
+        if (opponent != null && !opponent.left) {
+            Text("Rematch: both choose the same level", color = p.muted, fontSize = 13.sp)
+            LevelPicker(room, busy, onPick = vm::chooseLevel)
         }
     }
 }

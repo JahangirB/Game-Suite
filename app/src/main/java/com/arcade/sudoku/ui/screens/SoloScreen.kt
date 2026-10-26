@@ -41,6 +41,7 @@ import com.arcade.sudoku.game.SoloGame
 import com.arcade.sudoku.game.SoloStatus
 import com.arcade.sudoku.ui.SoloUiState
 import com.arcade.sudoku.ui.SoloViewModel
+import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.theme.AppTheme
 
 @Composable
@@ -98,8 +99,31 @@ fun SoloScreen(
         trailing = {
             Text(formatDuration(game.elapsedMs), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
+        popup = when (game.status) {
+            SoloStatus.WON -> popupContent {
+                ResultPopup(
+                    game = GameKind.SUDOKU,
+                    outcome = Outcome.WIN,
+                    title = "Well done!",
+                    detail = "Solved in ${formatDuration(game.elapsedMs)} with ${game.mistakes} mistake" + if (game.mistakes == 1) "." else "s.",
+                    finish = PopupAction("Home", onHome),
+                    again = PopupAction("New puzzle", { vm.startNew(game.difficulty) }),
+                )
+            }
+            SoloStatus.LOST -> popupContent {
+                ResultPopup(
+                    game = GameKind.SUDOKU,
+                    outcome = Outcome.LOSE,
+                    title = "Game over",
+                    detail = "Three mistakes. Try the same puzzle again or start a fresh one.",
+                    finish = PopupAction("New puzzle", { vm.startNew(game.difficulty) }),
+                    again = PopupAction("Try again", vm::restart),
+                )
+            }
+            else -> null
+        },
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        BoardArea(1f) { size -> Box(size, contentAlignment = Alignment.Center) {
             SudokuGrid(
                 board = game.board,
                 errors = errors,
@@ -114,74 +138,22 @@ fun SoloScreen(
                     PrimaryButton("Resume", vm::resume, Modifier.padding(horizontal = 48.dp))
                 }
             }
-        }
+        } }
 
-        when (game.status) {
-            SoloStatus.WON -> ResultCard(
-                title = "Well done!",
-                detail = "Solved in ${formatDuration(game.elapsedMs)} with ${game.mistakes} mistake" +
-                    if (game.mistakes == 1) "." else "s.",
-                primaryLabel = "New puzzle",
-                onPrimary = { vm.startNew(game.difficulty) },
-                onHome = onHome,
-            )
-            SoloStatus.LOST -> ResultCard(
-                title = "Game over",
-                detail = "Three mistakes. Try the same puzzle again or start a fresh one.",
-                primaryLabel = "Try again",
-                onPrimary = vm::restart,
-                secondaryLabel = "New puzzle",
-                onSecondary = { vm.startNew(game.difficulty) },
-                onHome = onHome,
-            )
-            else -> {
-                ToolRow(
-                    notesMode = game.notesMode,
-                    canUndo = game.board.canUndo,
-                    enabled = playing,
-                    hintsLeft = game.hintsLeft,
-                    onUndo = vm::undo,
-                    onErase = vm::erase,
-                    onNotes = vm::toggleNotes,
-                    onHint = vm::hint,
-                )
-                NumberPad(
-                    remaining = remainingDigits(game.board, errors),
-                    enabled = playing && game.selected != null,
-                    onDigit = vm::enter,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResultCard(
-    title: String,
-    detail: String,
-    primaryLabel: String,
-    onPrimary: () -> Unit,
-    onHome: () -> Unit,
-    secondaryLabel: String? = null,
-    onSecondary: () -> Unit = {},
-) {
-    val p = AppTheme.palette
-    Surface(
-        color = p.card,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, p.lineThin),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-    ) {
-        Column(
-            Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(title, color = p.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Text(detail, color = p.muted, textAlign = TextAlign.Center)
-            PrimaryButton(primaryLabel, onPrimary)
-            if (secondaryLabel != null) SecondaryButton(secondaryLabel, onSecondary)
-            SecondaryButton("Home", onHome)
-        }
+        ToolRow(
+            notesMode = game.notesMode,
+            canUndo = game.board.canUndo,
+            enabled = playing,
+            hintsLeft = game.hintsLeft,
+            onUndo = vm::undo,
+            onErase = vm::erase,
+            onNotes = vm::toggleNotes,
+            onHint = vm::hint,
+        )
+        NumberPad(
+            remaining = remainingDigits(game.board, errors),
+            enabled = playing && game.selected != null,
+            onDigit = vm::enter,
+        )
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.Icons
 import com.arcade.sudoku.ui.art.color
+import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.data.GameKind
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -175,51 +177,65 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
-    ) {
-
-        if (!finished) {
-            TurnBanner(myTurn, opponent?.name ?: "Your opponent")
-        }
-
-        Text("Enemy sea", color = p.text, fontWeight = FontWeight.SemiBold)
-        ShipsSea(
-            ships = ships.enemyFleet ?: emptyList(),
-            shots = ships.myShots,
-            sunk = ships.sunkEnemy,
-            lastShot = ships.myShots.lastOrNull()?.takeIf { ships.lastShotByMe == true },
-            onTap = if (myTurn && !finished && !state.firing) vm::fire else null,
-            pending = state.pendingShot,
-        )
-
-        Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold)
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ShipsSea(
-                ships = ships.myFleet,
-                shots = ships.theirShots,
-                sunk = ships.myFleet.filter { Fleet.isSunk(it, ships.theirShots) },
-                lastShot = ships.theirShots.lastOrNull()?.takeIf { ships.lastShotByMe == false },
-                modifier = Modifier.fillMaxWidth(0.62f),
-            )
-        }
-
-        if (finished) {
-            ShipsResult(room)
-            if (opponent != null && !opponent.left) {
-                FleetCard(
-                    fleet = if (room.me.ready) ships.myFleet else state.fleetDraft,
-                    ready = room.me.ready,
-                    opponent = opponent,
-                    busy = state.busy,
-                    onShuffle = vm::shuffleFleet,
-                    onReady = vm::readyShips,
-                )
+        popup = if (!finished) null else popupContent {
+            val name = opponent?.name ?: "Your opponent"
+            MatchPopup(
+                room, GameKind.SHIPS, outcomeOf(room.winner), resultTitle(room.winner, name),
+                when (room.endReason) {
+                    "sunk" -> if (room.winner == "me") "You sank $name's whole fleet." else "$name sank your whole fleet."
+                    "forfeit" -> if (room.winner == "me") "$name left the battle." else "You left the battle."
+                    "timeout" -> if (room.winner == "me") "$name lost connection." else "You were disconnected for too long."
+                    else -> ""
+                },
+                onRematch = vm::readyShips, onFinish = onLeave,
+            ) {
+                // The fleet for the next round, ready to shuffle before tapping Rematch.
+                if (opponent != null && !opponent.left) {
+                    Text("Your next fleet", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    ShipsSea(ships = if (room.me.ready) ships.myFleet else state.fleetDraft, shots = emptyList(), modifier = Modifier.fillMaxWidth(0.5f))
+                    if (!room.me.ready) SecondaryButton("Shuffle", vm::shuffleFleet)
+                }
             }
-        }
+        },
+    ) {
+        TurnBanner(myTurn && !finished, opponent?.name ?: "Your opponent", finished)
+        SeaPair(
+            enemy = {
+                ShipsSea(
+                    ships = ships.enemyFleet ?: emptyList(),
+                    shots = ships.myShots,
+                    sunk = ships.sunkEnemy,
+                    lastShot = ships.myShots.lastOrNull()?.takeIf { ships.lastShotByMe == true },
+                    onTap = if (myTurn && !finished && !state.firing) vm::fire else null,
+                    pending = state.pendingShot,
+                    modifier = it,
+                )
+            },
+            mine = {
+                ShipsSea(
+                    ships = ships.myFleet,
+                    shots = ships.theirShots,
+                    sunk = ships.myFleet.filter { s -> Fleet.isSunk(s, ships.theirShots) },
+                    lastShot = ships.theirShots.lastOrNull()?.takeIf { ships.lastShotByMe == false },
+                    modifier = it,
+                )
+            },
+        )
     }
 }
 
+/** The enemy sea (large, to aim at) above your own (smaller), both sized to fit the screen. */
 @Composable
-private fun TurnBanner(myTurn: Boolean, opponentName: String) {
+private fun ColumnScope.SeaPair(enemy: @Composable (Modifier) -> Unit, mine: @Composable (Modifier) -> Unit) {
+    val p = AppTheme.palette
+    Text("Enemy sea", color = p.text, fontWeight = FontWeight.SemiBold)
+    BoardArea(1f, weight = 0.62f, content = enemy)
+    Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold)
+    BoardArea(1f, weight = 0.38f, content = mine)
+}
+
+@Composable
+private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = false) {
     val p = AppTheme.palette
     Surface(
         color = if (myTurn) p.primary else p.accent,
@@ -227,44 +243,16 @@ private fun TurnBanner(myTurn: Boolean, opponentName: String) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
-            if (myTurn) "Your turn: tap the enemy sea to fire" else "$opponentName is aiming…",
+            when {
+                over -> "Battle over"
+                myTurn -> "Your turn: tap the enemy sea to fire"
+                else -> "$opponentName is aiming…"
+            },
             color = if (myTurn) p.onPrimary else p.text,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(12.dp),
         )
-    }
-}
-
-@Composable
-private fun ShipsResult(room: RoomState) {
-    val p = AppTheme.palette
-    val won = room.winner == "me"
-    val name = room.opponent?.name ?: "Your opponent"
-    Surface(
-        color = p.card,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(2.dp, if (won) p.good else p.bad),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (won) "Victory!" else "Defeat", color = if (won) p.good else p.bad, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text(
-                when (room.endReason) {
-                    "sunk" -> if (won) "You sank $name's whole fleet." else "$name sank your whole fleet."
-                    "forfeit" -> if (won) "$name left the battle." else "You left the battle."
-                    "timeout" -> if (won) "$name lost connection." else "You were disconnected for too long."
-                    else -> ""
-                },
-                color = p.text,
-                textAlign = TextAlign.Center,
-            )
-            if (room.opponent?.left == true) {
-                Text("$name has left. Exit to start a new battle.", color = p.muted, textAlign = TextAlign.Center)
-            } else {
-                Text("Rematch: both players get ready with a new fleet.", color = p.muted, fontSize = 13.sp)
-            }
-        }
     }
 }
 
@@ -288,6 +276,17 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
             DockAction("Rules", Icons.Filled.Info) { showRules = true },
             DockAction("New battle", Icons.Filled.Refresh, enabled = game != null, onClick = vm::newBattle),
         ),
+        scrollable = game == null,
+        popup = game?.winner?.let { winner -> popupContent {
+            ResultPopup(
+                game = GameKind.SHIPS,
+                outcome = if (winner == "me") Outcome.WIN else Outcome.LOSE,
+                title = if (winner == "me") "You win!" else "The computer wins",
+                detail = if (winner == "me") "You sank the whole fleet." else "The computer sank your fleet.",
+                finish = PopupAction("Home", onHome),
+                again = PopupAction("New battle", vm::newBattle),
+            )
+        } },
     ) {
         if (game == null) {
             AppCard("Your fleet") {
@@ -303,48 +302,33 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
                 }
             }
         } else {
-            SoloShipsBattle(game, vm, onHome)
+            SoloShipsBattle(game, vm)
         }
     }
 }
 
 @Composable
-private fun SoloShipsBattle(game: com.arcade.sudoku.game.ships.SoloShips, vm: SoloShipsViewModel, onHome: () -> Unit) {
-    val p = AppTheme.palette
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (game.winner == null) TurnBanner(game.myTurn, "The computer")
-
-            Text("Enemy sea", color = p.text, fontWeight = FontWeight.SemiBold)
+private fun ColumnScope.SoloShipsBattle(game: com.arcade.sudoku.game.ships.SoloShips, vm: SoloShipsViewModel) {
+    TurnBanner(game.myTurn && game.winner == null, "The computer", game.winner != null)
+    SeaPair(
+        enemy = {
             ShipsSea(
                 ships = if (game.winner != null) game.enemyFleet else emptyList(),
                 shots = game.myShots,
                 sunk = game.sunkEnemy,
                 lastShot = game.myShots.lastOrNull(),
                 onTap = if (game.myTurn && game.winner == null) vm::fire else null,
+                modifier = it,
             )
-            Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold)
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                ShipsSea(
-                    ships = game.myFleet,
-                    shots = game.theirShots,
-                    sunk = game.sunkMine,
-                    lastShot = game.theirShots.lastOrNull(),
-                    modifier = Modifier.fillMaxWidth(0.62f),
-                )
-            }
-            game.winner?.let { winner ->
-                AppCard {
-                    Text(
-                        if (winner == "me") "Victory! You sank the whole fleet." else "The computer sank your fleet.",
-                        color = if (winner == "me") p.good else p.bad,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    PrimaryButton("New battle", vm::newBattle)
-                    SecondaryButton("Home", onHome)
-                }
-            }
-    }
+        },
+        mine = {
+            ShipsSea(
+                ships = game.myFleet,
+                shots = game.theirShots,
+                sunk = game.sunkMine,
+                lastShot = game.theirShots.lastOrNull(),
+                modifier = it,
+            )
+        },
+    )
 }

@@ -9,8 +9,10 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -51,6 +53,7 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.ui.BattleUiState
 import com.arcade.sudoku.ui.BattleViewModel
+import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
@@ -62,6 +65,9 @@ private val PenColors = listOf(Color(0xFF2B2440), Color(0xFFE8505B), Color(0xFF3
 
 /** Points per stroke message: small enough that the drawing appears on the other phone as it is drawn. */
 private const val CHUNK_POINTS = 12
+
+/** A Draw & Guess team score from here up counts as a good game (about two words guessed). */
+private const val GOOD_TEAM_SCORE = 80
 
 private fun DrawScope.drawStroke(points: FloatArray, color: Int, width: Int) {
     if (points.size < 2) return
@@ -82,7 +88,7 @@ private fun DrawScope.drawStroke(points: FloatArray, color: Int, width: Int) {
  * are drawing is sent in short pieces so your partner sees it appear.
  */
 @Composable
-private fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?) {
+private fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     val current = remember { mutableStateListOf<Float>() }
     val pen = rememberUpdatedState(color to width)
@@ -113,10 +119,10 @@ private fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStro
         }
     }
     Box(
-        Modifier.fillMaxWidth().aspectRatio(1f).pressedEdge(p.ink, 18.dp).clip(RoundedCornerShape(18.dp))
+        modifier.fillMaxWidth().aspectRatio(1f).pressedEdge(p.ink, 18.dp).clip(RoundedCornerShape(18.dp))
             .background(Color.White).border(2.dp, p.ink, RoundedCornerShape(18.dp)),
     ) {
-        Canvas(Modifier.fillMaxWidth().aspectRatio(1f).then(input)) {
+        Canvas(Modifier.fillMaxSize().then(input)) {
             strokes.forEach { drawStroke(it.points, it.color, it.width) }
             if (current.isNotEmpty()) drawStroke(current.toFloatArray(), pen.value.first, pen.value.second)
         }
@@ -170,6 +176,22 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        popup = if (!finished) null else popupContent {
+            val name = opponent?.name ?: "Your partner"
+            // A team game: the score decides the picture, not a winner.
+            val good = draw.score >= GOOD_TEAM_SCORE
+            MatchPopup(
+                room, GameKind.DRAW, if (good) Outcome.WIN else Outcome.LOSE,
+                if (good) "Great teamwork!" else "Better luck next time",
+                when (room.endReason) {
+                    "forfeit" -> if (room.winner == "me") "$name left the game." else "You left the game."
+                    "timeout" -> "The connection was lost."
+                    else -> "Every right guess scored the seconds left. Play again to beat it."
+                },
+                onRematch = vm::readyTurns, onFinish = onLeave,
+                scores = listOf("Team score ${draw.score}"),
+            )
+        },
     ) {
         draw.lastTurn?.let { last ->
             val who = if (last.drewIt) (opponent?.name ?: "Your partner") else "You"
@@ -186,20 +208,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                     Text(seconds.toString(), color = GameKind.DRAW.color, fontSize = 80.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }
-            finished -> {
-                AppCard {
-                    Text("Team score ${draw.score}", color = GameKind.DRAW.color, fontSize = 32.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Text(
-                        when (room.endReason) {
-                            "forfeit" -> if (room.winner == "me") "${opponent?.name ?: "Your partner"} left the game." else "You left the game."
-                            "timeout" -> "The connection was lost."
-                            else -> "Every right guess scored the seconds left. Play again to beat it."
-                        },
-                        color = p.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (opponent != null && !opponent.left) TurnReadyCard(room, state.busy, vm::readyTurns)
-            }
+            finished -> BoardArea(1f) { size -> DrawingPad(state.drawStrokes, 0, 1, null, size) }
             drawing -> DrawerView(draw, state.drawStrokes, vm)
             else -> GuesserView(draw, state.drawStrokes, vm)
         }
@@ -207,64 +216,60 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 }
 
 @Composable
-private fun DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
+private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
     val p = AppTheme.palette
     var color by rememberSaveable { mutableStateOf(0) }
     var width by rememberSaveable { mutableStateOf(1) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        DrawingPad(strokes, color, width, vm::sendStroke)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            PenColors.forEachIndexed { i, c ->
-                Box(
-                    Modifier.size(if (color == i) 34.dp else 28.dp).clip(CircleShape).background(c)
-                        .border(if (color == i) 3.dp else 2.dp, p.ink, CircleShape).clickable { color = i },
-                )
-            }
-            Box(Modifier.weight(1f))
-            Text(
-                if (width == 2) "Thick" else "Thin", color = p.text, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { width = 3 - width }.padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-            Text(
-                "Clear", color = p.bad, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 6.dp),
+    Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    BoardArea(1f) { size -> DrawingPad(strokes, color, width, vm::sendStroke, size) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        PenColors.forEachIndexed { i, c ->
+            Box(
+                Modifier.size(if (color == i) 34.dp else 28.dp).clip(CircleShape).background(c)
+                    .border(if (color == i) 3.dp else 2.dp, p.ink, CircleShape).clickable { color = i },
             )
         }
-        if (draw.guesses.isNotEmpty()) {
-            Text("Guesses: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
-        }
+        Box(Modifier.weight(1f))
+        Text(
+            if (width == 2) "Thick" else "Thin", color = p.text, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { width = 3 - width }.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+        Text(
+            "Clear", color = p.bad, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+    }
+    if (draw.guesses.isNotEmpty()) {
+        Text("Guesses: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
     }
 }
 
 @Composable
-private fun GuesserView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
+private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
     val p = AppTheme.palette
     var guess by rememberSaveable(draw.turn) { mutableStateOf("") }
     val send = {
         vm.guessDrawing(guess)
         guess = ""
     }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            draw.hint.orEmpty().map { it }.joinToString(" "), color = p.text, fontSize = 28.sp, fontFamily = DisplayFont,
-            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+    Text(
+        draw.hint.orEmpty().map { it }.joinToString(" "), color = p.text, fontSize = 28.sp, fontFamily = DisplayFont,
+        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+    )
+    BoardArea(1f) { size -> DrawingPad(strokes, 0, 1, null, size) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = guess,
+            onValueChange = { guess = it.take(30) },
+            placeholder = { Text("What is it?") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { send() }),
+            modifier = Modifier.weight(1f),
         )
-        DrawingPad(strokes, 0, 1, null)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = guess,
-                onValueChange = { guess = it.take(30) },
-                placeholder = { Text("What is it?") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
-                modifier = Modifier.weight(1f),
-            )
-            PrimaryButton("Guess", send, Modifier.weight(0.45f), enabled = guess.isNotBlank())
-        }
-        if (draw.guesses.isNotEmpty()) {
-            Text("Not it: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
-        }
+        PrimaryButton("Guess", send, Modifier.weight(0.45f), enabled = guess.isNotBlank())
+    }
+    if (draw.guesses.isNotEmpty()) {
+        Text("Not it: " + draw.guesses.joinToString(", ") { it.second }, color = p.muted, fontSize = 14.sp)
     }
 }

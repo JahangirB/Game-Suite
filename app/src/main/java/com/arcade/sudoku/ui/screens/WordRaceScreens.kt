@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,6 +43,7 @@ import com.arcade.sudoku.ui.BattleUiState
 import com.arcade.sudoku.ui.BattleViewModel
 import com.arcade.sudoku.ui.SoloWordsUiState
 import com.arcade.sudoku.ui.SoloWordsViewModel
+import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
@@ -206,6 +208,28 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        popup = if (!finished) null else popupContent {
+            val name = opponent?.name ?: "Your opponent"
+            MatchPopup(
+                room, GameKind.WORDS, outcomeOf(room.winner), resultTitle(room.winner, name),
+                when (room.endReason) {
+                    "solved" -> if (room.winner == "me") "You found it in fewer tries, or faster." else "$name found it in fewer tries, or faster."
+                    "draw" -> "Nobody found the word."
+                    "forfeit" -> if (room.winner == "me") "$name left the game." else "You left the game."
+                    "timeout" -> if (room.winner == "me") "$name lost connection." else "You were disconnected for too long."
+                    else -> ""
+                },
+                onRematch = vm::readyTurns, onFinish = onLeave,
+            ) {
+                words.answer?.let {
+                    Text("The word was ${it.uppercase()}", color = GameKind.WORDS.color, fontWeight = FontWeight.Bold, fontSize = 18.sp, textAlign = TextAlign.Center)
+                }
+                val theirs = words.theirs.mapNotNull { it.word }
+                if (theirs.isNotEmpty()) {
+                    Text("$name guessed: " + theirs.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+            }
+        },
     ) {
         if (phase == RoomStatus.COUNTDOWN) {
             val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
@@ -220,12 +244,12 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 }
 
 @Composable
-private fun WordRaceRound(state: BattleUiState, vm: BattleViewModel, words: com.arcade.sudoku.data.WordsView, finished: Boolean) {
+private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel, words: com.arcade.sudoku.data.WordsView, finished: Boolean) {
     val p = AppTheme.palette
     val room = state.room ?: return
     val opponent = room.opponent
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+    BoardArea(0.95f) { size ->
+        Row(size, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
             WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, Modifier.weight(1f))
             if (opponent != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -234,56 +258,17 @@ private fun WordRaceRound(state: BattleUiState, vm: BattleViewModel, words: com.
                 }
             }
         }
-        if (finished) {
-            WordResult(room.winner, room.endReason, words.answer, opponent?.name ?: "Your opponent", words.theirs)
-            if (opponent != null && !opponent.left) TurnReadyCard(room, state.busy, vm::readyTurns)
-        } else if (words.meDone) {
-            AppCard {
-                Text(
-                    if (words.mine.lastOrNull()?.score == "ggggg") "Solved! Waiting for ${opponent?.name ?: "your opponent"}…" else "Out of tries. Waiting for ${opponent?.name ?: "your opponent"}…",
-                    color = p.text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        } else {
-            WordKeyboard(words.mine, vm::typeLetter, vm::deleteLetter, vm::submitWord)
-        }
     }
-}
-
-@Composable
-private fun WordResult(winner: String?, reason: String?, answer: String?, name: String, theirs: List<WordGuess>) {
-    val p = AppTheme.palette
-    AppCard {
-        Text(
-            when (winner) {
-                "me" -> "Victory!"
-                "opponent" -> "Defeat"
-                else -> "Draw"
-            },
-            color = when (winner) {
-                "me" -> p.good
-                "opponent" -> p.bad
-                else -> p.muted
-            },
-            fontSize = 32.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            when (reason) {
-                "solved" -> if (winner == "me") "You found it in fewer tries, or faster." else "$name found it in fewer tries, or faster."
-                "draw" -> "Nobody found the word."
-                "forfeit" -> if (winner == "me") "$name left the game." else "You left the game."
-                "timeout" -> if (winner == "me") "$name lost connection." else "You were disconnected for too long."
-                else -> ""
-            },
-            color = p.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-        )
-        if (answer != null) {
-            Text("The word was ${answer.uppercase()}", color = GameKind.WORDS.color, fontWeight = FontWeight.Bold, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    when {
+        // The keyboard stays after the round, showing what each letter turned out to be.
+        finished -> WordKeyboard(words.mine, {}, {}, {})
+        words.meDone -> AppCard {
+            Text(
+                if (words.mine.lastOrNull()?.score == "ggggg") "Solved! Waiting for ${opponent?.name ?: "your opponent"}…" else "Out of tries. Waiting for ${opponent?.name ?: "your opponent"}…",
+                color = p.text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
         }
-        val words = theirs.mapNotNull { it.word }
-        if (words.isNotEmpty()) {
-            Text("$name guessed: " + words.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
+        else -> WordKeyboard(words.mine, vm::typeLetter, vm::deleteLetter, vm::submitWord)
     }
 }
 
@@ -308,6 +293,17 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
             DockAction("Rules", Icons.Filled.Info) { showRules = true },
             if (daily != null) DockAction("Modes", Icons.Filled.Refresh, onClick = vm::chooseMode) else null,
         ),
+        scrollable = daily == null,
+        popup = if (daily == null || !state.done) null else popupContent {
+            ResultPopup(
+                game = GameKind.WORDS,
+                outcome = if (state.solved) Outcome.WIN else Outcome.LOSE,
+                title = if (state.solved) "Found it in ${state.guesses.size}!" else "Out of tries",
+                detail = "The word was ${state.answer.uppercase()}." + if (daily) " Come back tomorrow for a new word." else "",
+                finish = PopupAction("Home", onHome),
+                again = PopupAction(if (daily) "Practice" else "Next word", vm::playPractice),
+            )
+        },
     ) {
         if (daily == null) {
             AppCard("Pick a word") {
@@ -316,33 +312,16 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
                 SecondaryButton("Practice", vm::playPractice)
             }
         } else {
-            SoloWordsRound(state, vm, daily)
+            SoloWordsRound(state, vm)
         }
     }
 }
 
 @Composable
-private fun SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsViewModel, daily: Boolean) {
+private fun ColumnScope.SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsViewModel) {
     val p = AppTheme.palette
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        WordGrid(state.guesses, state.input, Words.TRIES, Modifier.fillMaxWidth().padding(horizontal = 24.dp))
-        state.message?.let { Text(it, color = p.bad, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-        if (state.done) {
-            AppCard {
-                Text(
-                    if (state.solved) "Found it in ${state.guesses.size}!" else "The word was ${state.answer.uppercase()}",
-                    color = if (state.solved) p.good else p.text,
-                    fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-                )
-                if (daily) {
-                    Text("Come back tomorrow for a new word.", color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    SecondaryButton("Practice", vm::playPractice)
-                } else {
-                    PrimaryButton("Next word", vm::playPractice)
-                }
-            }
-        } else {
-            WordKeyboard(state.guesses, vm::type, vm::delete, vm::submit)
-        }
-    }
+    BoardArea(0.82f) { size -> WordGrid(state.guesses, state.input, Words.TRIES, size) }
+    state.message?.let { Text(it, color = p.bad, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    // After the last guess the keyboard stays, showing what each letter turned out to be.
+    WordKeyboard(state.guesses, if (state.done) ({}) else vm::type, if (state.done) ({}) else vm::delete, if (state.done) ({}) else vm::submit)
 }

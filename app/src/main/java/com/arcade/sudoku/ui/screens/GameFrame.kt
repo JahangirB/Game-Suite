@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -38,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.Avatar
@@ -65,6 +68,10 @@ class ChipPlayer(
  * The layout every game shares: a title, the two players as chips, the game itself, and a
  * dock of round buttons at the bottom, within reach of your thumb. [tray] shows just above
  * the dock while [trayVisible] (the reactions).
+ *
+ * The game fits the screen without scrolling: boards take the room left over through
+ * [BoardArea]. Only [scrollable] screens (a choice of levels or modes before a game) scroll.
+ * [popup] (the result at the end of a match) covers the game but not the dock, which keeps working.
  */
 @Composable
 fun GameFrame(
@@ -76,27 +83,33 @@ fun GameFrame(
     trailing: @Composable () -> Unit = {},
     trayVisible: Boolean = false,
     tray: @Composable () -> Unit = {},
+    scrollable: Boolean = false,
+    popup: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
     Column(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, color = p.text, fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 26.sp)
-                    if (subtitle != null) Text(subtitle, color = p.muted, fontSize = 13.sp)
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxSize().then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(title, color = p.text, fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 26.sp)
+                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = 13.sp)
+                    }
+                    trailing()
                 }
-                trailing()
-            }
-            if (players.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    players.forEach { PlayerChip(it, glow, Modifier.weight(1f)) }
+                if (players.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f)) }
+                    }
                 }
+                content()
             }
-            content()
+            popup?.invoke(this)
         }
         if (trayVisible) {
             Surface(color = p.card, border = BorderStroke(2.dp, p.ink), shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
@@ -104,6 +117,18 @@ fun GameFrame(
             }
         }
         GameDock(dock)
+    }
+}
+
+/**
+ * The room left in a game screen, for a board [aspect] wide per unit of height: the board
+ * gets the largest size that fits, centred. [weight] shares the room when there are two boards.
+ */
+@Composable
+fun ColumnScope.BoardArea(aspect: Float, weight: Float = 1f, content: @Composable (Modifier) -> Unit) {
+    BoxWithConstraints(Modifier.weight(weight).fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val width = if (maxHeight == Dp.Infinity) maxWidth else minOf(maxWidth, maxHeight * aspect)
+        content(Modifier.width(width).height(width / aspect))
     }
 }
 

@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.GameKind
-import com.arcade.sudoku.data.PlayerInfo
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.game.connect4.C4Level
@@ -76,6 +76,7 @@ import com.arcade.sudoku.ui.SoloMemoryViewModel
 import com.arcade.sudoku.ui.SoloTttUiState
 import com.arcade.sudoku.ui.SoloTttViewModel
 import com.arcade.sudoku.ui.art.AvatarImage
+import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.art.drawAvatar
 import com.arcade.sudoku.ui.theme.AppTheme
@@ -346,8 +347,8 @@ fun DotsBoard(
  * a face-down card flips it.
  */
 @Composable
-fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         for (row in 0 until 4) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (col in 0 until 4) {
@@ -515,6 +516,15 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        popup = if (!finished) null else popupContent {
+            val name = opponent?.name ?: "Your opponent"
+            MatchPopup(
+                room, game, outcomeOf(room.winner), resultTitle(room.winner, name),
+                turnResultDetail(game, room.winner, room.endReason, name),
+                onRematch = vm::readyTurns, onFinish = onLeave,
+                scores = if (owned == null) emptyList() else listOf("You ${score('m')}", "$name ${score('o')}"),
+            )
+        },
     ) {
         if (game == GameKind.MEMORY) FoundPairs(turns.faces, turns.owners ?: "")
         if (!finished) {
@@ -537,73 +547,80 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             )
         }
 
-        when (game) {
-            GameKind.DOTS -> DotsBoard(
-                turns.lines ?: ".".repeat(Dots.LINES), turns.boxes ?: ".".repeat(16), turns.lastLine,
-                room.me.avatar, opponent?.avatar,
-                onLine = if (canMove) vm::drawLine else null,
-            )
-            GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard)
-            GameKind.TTT -> TttBoard(
-                board = turns.board ?: ".".repeat(81),
-                boards = turns.smallBoards ?: ".".repeat(9),
-                next = turns.nextBoard,
-                winLine = turns.winLine,
-                lastCell = turns.lastCell,
-                playing = !finished,
-                onMark = if (canMove) vm::markCell else null,
-            )
-            else -> ConnectFourBoard(
-                board = turns.board ?: ConnectFour.EMPTY,
-                winLine = turns.winLine,
-                lastCell = turns.lastCell,
-                onDrop = if (canMove) vm::dropDisc else null,
-            )
-        }
-
-        if (finished) {
-            ResultCard(game, room.winner, room.endReason, opponent)
-            if (opponent != null && !opponent.left) TurnReadyCard(room, state.busy, vm::readyTurns)
+        BoardArea(if (game == GameKind.MEMORY) MEMORY_ASPECT else 1f) { size ->
+            when (game) {
+                GameKind.DOTS -> DotsBoard(
+                    turns.lines ?: ".".repeat(Dots.LINES), turns.boxes ?: ".".repeat(16), turns.lastLine,
+                    room.me.avatar, opponent?.avatar,
+                    onLine = if (canMove) vm::drawLine else null,
+                    modifier = size,
+                )
+                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
+                GameKind.TTT -> TttBoard(
+                    board = turns.board ?: ".".repeat(81),
+                    boards = turns.smallBoards ?: ".".repeat(9),
+                    next = turns.nextBoard,
+                    winLine = turns.winLine,
+                    lastCell = turns.lastCell,
+                    playing = !finished,
+                    onMark = if (canMove) vm::markCell else null,
+                    modifier = size,
+                )
+                else -> ConnectFourBoard(
+                    board = turns.board ?: ConnectFour.EMPTY,
+                    winLine = turns.winLine,
+                    lastCell = turns.lastCell,
+                    onDrop = if (canMove) vm::dropDisc else null,
+                    modifier = size,
+                )
+            }
         }
     }
 }
 
-@Composable
-private fun ResultCard(game: GameKind, winner: String?, endReason: String?, opponent: PlayerInfo?) {
-    val p = AppTheme.palette
-    val name = opponent?.name ?: "Your opponent"
-    val (title, color) = when (winner) {
-        "me" -> "Victory!" to p.good
-        "opponent" -> "Defeat" to p.bad
-        else -> "Draw" to p.muted
+/** One line on how a turn game ended, for the result popup. */
+private fun turnResultDetail(game: GameKind, winner: String?, endReason: String?, name: String) = when (endReason) {
+    "four" -> if (winner == "me") "Four in a row!" else "$name got four in a row."
+    "three" -> if (winner == "me") "Three boards in a row!" else "$name won three boards in a row."
+    "most" -> {
+        val what = if (game == GameKind.MEMORY) "pairs" else "boxes"
+        if (winner == "me") "You found more $what." else "$name found more $what."
     }
-    AppCard {
-        Text(title, color = color, fontSize = 32.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        Text(
-            when (endReason) {
-                "four" -> if (winner == "me") "Four in a row!" else "$name got four in a row."
-                "three" -> if (winner == "me") "Three boards in a row!" else "$name won three boards in a row."
-                "most" -> {
-                    val what = if (game == GameKind.MEMORY) "pairs" else "boxes"
-                    if (winner == "me") "You found more $what." else "$name found more $what."
-                }
-                "draw" -> when (game) {
-                    GameKind.CONNECT4 -> "The board is full and nobody got four."
-                    GameKind.TTT -> "Every board is decided and nobody has three in a row."
-                    else -> "A tie: you both have the same number."
-                }
-                "forfeit" -> if (winner == "me") "$name left the game." else "You left the game."
-                "timeout" -> if (winner == "me") "$name lost connection." else "You were disconnected for too long."
-                else -> ""
-            },
-            color = p.text,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
+    "draw" -> when (game) {
+        GameKind.CONNECT4 -> "The board is full and nobody got four."
+        GameKind.TTT -> "Every board is decided and nobody has three in a row."
+        else -> "You both have the same number."
     }
+    "forfeit" -> if (winner == "me") "$name left the game." else "You left the game."
+    "timeout" -> if (winner == "me") "$name lost connection." else "You were disconnected for too long."
+    else -> ""
 }
+
+/** Memory Pairs' 4 × 4 cards with their gaps, width per unit of height. */
+private const val MEMORY_ASPECT = 0.75f
 
 // ---- On your own --------------------------------------------------------------------------
+
+/** The result popup of a game against the computer: "me", "computer" or "draw". */
+@Composable
+private fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome) {
+    ResultPopup(
+        game = game,
+        outcome = when (result) {
+            "me" -> Outcome.WIN
+            "computer" -> Outcome.LOSE
+            else -> Outcome.TIE
+        },
+        title = when (result) {
+            "me" -> "You win!"
+            "computer" -> "The computer wins"
+            else -> "It's a tie"
+        },
+        detail = detail,
+        finish = PopupAction(finishLabel, onFinish),
+        again = PopupAction("Play again", onAgain),
+    )
+}
 
 /** Connect Four against the computer. */
 @Composable
@@ -612,15 +629,28 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CONNECT4) { showRules = false }
     val level = state.level
+    val result = state.result
     GameFrame(
         title = "Connect Four",
         subtitle = level?.let { "Against the computer · ${it.label}" } ?: "Against the computer",
         players = if (level == null) emptyList() else listOf(
-            ChipPlayer("You", null, MyDisc, "Red", active = state.myTurn && state.result == null),
-            ChipPlayer("Computer", null, TheirDisc, level.label, active = !state.myTurn && state.result == null),
+            ChipPlayer("You", null, MyDisc, "Red", active = state.myTurn && result == null),
+            ChipPlayer("Computer", null, TheirDisc, level.label, active = !state.myTurn && result == null),
         ),
         glow = GameKind.CONNECT4.color,
         dock = soloDock(onHome, { showRules = true }, if (level != null) ({ vm.changeLevel() }) else null),
+        scrollable = level == null,
+        popup = if (level == null || result == null) null else popupContent {
+            SoloPopup(
+                GameKind.CONNECT4, result,
+                when (result) {
+                    "me" -> "Four in a row against ${level.label}!"
+                    "computer" -> "The computer got four in a row."
+                    else -> "The board is full and nobody got four."
+                },
+                onAgain = vm::rematch, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+            )
+        },
     ) {
         if (level == null) {
             AppCard("Choose the computer's level") {
@@ -628,32 +658,16 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
                 C4Level.entries.forEach { PrimaryButton(it.label, { vm.start(it) }) }
             }
         } else {
-            if (state.result == null) {
-                TurnLine(if (state.myTurn) "Your turn: slide to a column and let go" else "The computer is thinking…", state.myTurn, GameKind.CONNECT4.color)
-            }
-            ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && state.result == null) vm::drop else null)
-            state.result?.let { result ->
-                AppCard {
-                    Text(
-                        when (result) {
-                            "me" -> "You win!"
-                            "computer" -> "The computer wins."
-                            else -> "Draw: the board is full."
-                        },
-                        color = when (result) {
-                            "me" -> p.good
-                            "computer" -> p.bad
-                            else -> p.muted
-                        },
-                        fontSize = 26.sp,
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    PrimaryButton("Play again", { vm.rematch() })
-                    SecondaryButton("Change level", vm::changeLevel)
-                }
+            TurnLine(
+                when {
+                    result != null -> "Game over"
+                    state.myTurn -> "Your turn: slide to a column and let go"
+                    else -> "The computer is thinking…"
+                },
+                state.myTurn && result == null, GameKind.CONNECT4.color,
+            )
+            BoardArea(1f) { size ->
+                ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && result == null) vm::drop else null, modifier = size)
             }
         }
     }
@@ -665,47 +679,36 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.DOTS) { showRules = false }
-    val playing = state.result == null
+    val result = state.result
+    val playing = result == null
+    val mine = state.boxes.count { it == 'm' }
+    val theirs = state.boxes.count { it == 'o' }
     GameFrame(
         title = "Dots & Boxes",
         subtitle = "Against the computer",
         players = listOf(
-            ChipPlayer("You", null, MyDisc, "${state.boxes.count { it == 'm' }} boxes", active = state.myTurn && playing),
-            ChipPlayer("Computer", null, TheirDisc, "${state.boxes.count { it == 'o' }} boxes", active = !state.myTurn && playing),
+            ChipPlayer("You", null, MyDisc, "$mine boxes", active = state.myTurn && playing),
+            ChipPlayer("Computer", null, TheirDisc, "$theirs boxes", active = !state.myTurn && playing),
         ),
         glow = GameKind.DOTS.color,
         dock = soloDock(onHome, { showRules = true }, vm::newGame),
+        popup = if (result == null) null else popupContent {
+            SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = vm::newGame, onHome = onHome)
+        },
     ) {
-        if (playing) {
-            val again = state.myTurn && state.lastLine != null && state.lines[state.lastLine] == 'm'
-            TurnLine(
-                when {
-                    !state.myTurn -> "The computer is drawing…"
-                    again -> "Box! Go again"
-                    else -> "Your turn: draw a line between two dots"
-                },
-                state.myTurn,
-                if (again) p.good else GameKind.DOTS.color,
-            )
-        }
-        DotsBoard(state.lines, state.boxes, state.lastLine, null, null, onLine = if (state.myTurn && playing) vm::drawLine else null)
-        state.result?.let { result ->
-            AppCard {
-                Text(
-                    when (result) {
-                        "me" -> "You win!"
-                        "computer" -> "The computer wins."
-                        else -> "A tie: 8 boxes each."
-                    },
-                    color = if (result == "me") p.good else if (result == "computer") p.bad else p.muted,
-                    fontSize = 26.sp,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                PrimaryButton("Play again", vm::newGame)
-            }
+        val again = state.myTurn && state.lastLine != null && state.lines[state.lastLine] == 'm'
+        TurnLine(
+            when {
+                !playing -> "Game over"
+                !state.myTurn -> "The computer is drawing…"
+                again -> "Box! Go again"
+                else -> "Your turn: draw a line between two dots"
+            },
+            state.myTurn && playing,
+            if (again && playing) p.good else GameKind.DOTS.color,
+        )
+        BoardArea(1f) { size ->
+            DotsBoard(state.lines, state.boxes, state.lastLine, null, null, onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size)
         }
     }
 }
@@ -713,10 +716,10 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
 /** Ultimate Tic-Tac-Toe against the computer. */
 @Composable
 fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Unit) {
-    val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.TTT) { showRules = false }
-    val playing = state.result == null
+    val result = state.result
+    val playing = result == null
     val pos = state.position
     GameFrame(
         title = "Tic-Tac-Toe",
@@ -727,44 +730,39 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
         ),
         glow = GameKind.TTT.color,
         dock = soloDock(onHome, { showRules = true }, vm::newGame),
-    ) {
-        if (playing) {
-            TurnLine(
-                when {
-                    !state.myTurn -> "The computer is thinking…"
-                    pos.next < 0 -> "Your turn: play in any open board"
-                    else -> "Your turn: play in the glowing board"
+        popup = if (result == null) null else popupContent {
+            SoloPopup(
+                GameKind.TTT, result,
+                when (result) {
+                    "me" -> "Three boards in a row!"
+                    "computer" -> "The computer won three boards in a row."
+                    else -> "Every board is decided and nobody has three in a row."
                 },
-                state.myTurn,
-                GameKind.TTT.color,
+                onAgain = vm::newGame, onHome = onHome,
             )
-        }
-        TttBoard(
-            board = pos.cells,
-            boards = pos.boards,
-            next = pos.next.takeIf { it >= 0 },
-            winLine = state.winLine,
-            lastCell = state.lastCell,
-            playing = playing,
-            onMark = if (state.myTurn && playing) vm::mark else null,
+        },
+    ) {
+        TurnLine(
+            when {
+                !playing -> "Game over"
+                !state.myTurn -> "The computer is thinking…"
+                pos.next < 0 -> "Your turn: play in any open board"
+                else -> "Your turn: play in the glowing board"
+            },
+            state.myTurn && playing,
+            GameKind.TTT.color,
         )
-        state.result?.let { result ->
-            AppCard {
-                Text(
-                    when (result) {
-                        "me" -> "You win!"
-                        "computer" -> "The computer wins."
-                        else -> "A draw: nobody has three boards in a row."
-                    },
-                    color = if (result == "me") p.good else if (result == "computer") p.bad else p.muted,
-                    fontSize = 26.sp,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                PrimaryButton("Play again", vm::newGame)
-            }
+        BoardArea(1f) { size ->
+            TttBoard(
+                board = pos.cells,
+                boards = pos.boards,
+                next = pos.next.takeIf { it >= 0 },
+                winLine = state.winLine,
+                lastCell = state.lastCell,
+                playing = playing,
+                onMark = if (state.myTurn && playing) vm::mark else null,
+                modifier = size,
+            )
         }
     }
 }
@@ -775,6 +773,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.MEMORY) { showRules = false }
+    val finished = state.finishedMs
     GameFrame(
         title = "Memory Pairs",
         subtitle = "On your own",
@@ -787,6 +786,17 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
                 state.bestFlips?.let { Text("Best: $it", color = p.muted, fontSize = 13.sp) }
             }
         },
+        popup = if (finished == null) null else popupContent {
+            ResultPopup(
+                game = GameKind.MEMORY,
+                outcome = Outcome.WIN,
+                title = "All pairs found!",
+                detail = "${state.flips} flips in ${formatDuration(finished)}",
+                scores = listOfNotNull(state.bestFlips?.let { "Best: $it flips" }),
+                finish = PopupAction("Home", onHome),
+                again = PopupAction("Play again", vm::newGame),
+            )
+        },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Found", color = p.muted, fontSize = 13.sp, modifier = Modifier.width(52.dp))
@@ -795,20 +805,8 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
             found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
             Spacer(Modifier.width(4.dp))
         }
-        MemoryBoard(state.faces, state.found, onFlip = if (state.finishedMs == null) vm::flip else null)
-        state.finishedMs?.let { ms ->
-            AppCard {
-                Text(
-                    "All pairs in ${state.flips} flips · ${formatDuration(ms)}",
-                    color = p.good,
-                    fontSize = 22.sp,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                PrimaryButton("Play again", vm::newGame)
-            }
+        BoardArea(MEMORY_ASPECT) { size ->
+            MemoryBoard(state.faces, state.found, onFlip = if (finished == null) vm::flip else null, modifier = size)
         }
     }
 }
