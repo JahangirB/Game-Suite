@@ -11,6 +11,7 @@ import * as words from './words.js';
 import * as draw from './draw.js';
 import * as ttt from './ttt.js';
 import * as dominoes from './dominoes.js';
+import * as numbers from './numbers.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -30,11 +31,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -338,8 +339,9 @@ export function setOptions(room, role, options) {
   if (room.status !== 'waiting' && room.status !== 'lobby' && room.status !== 'finished') {
     throw new GameError('The rules can only change between matches.');
   }
-  if (room.game !== 'dominoes') throw new GameError('This game has no options.');
-  room.options = dominoes.cleanOptions(options);
+  if (room.game === 'dominoes') room.options = dominoes.cleanOptions(options);
+  else if (room.game === 'numbers') room.options = numbers.cleanOptions(options);
+  else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
 }
@@ -566,6 +568,65 @@ function wordsView(room, role, status) {
   };
 }
 
+/**
+ * Number Cross: ready (or not). The host's Ready carries the next puzzle, built on their phone;
+ * the match starts when everyone is ready.
+ */
+export function setNumbersReady(room, role, ready, puzzle, now) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  if (role === 'host') {
+    if (ready === false) room.nextPuzzle = null;
+    else {
+      try {
+        room.nextPuzzle = numbers.checkPuzzle(puzzle);
+      } catch (e) {
+        room.players[role].ready = false;
+        throw new GameError(e.message);
+      }
+    }
+  }
+  if (allReady(room) && room.nextPuzzle) {
+    const p = room.nextPuzzle;
+    room.nextPuzzle = null;
+    beginMatch(room, { numbers: p, startAt: now + COUNTDOWN_MS }, { entries: p.blanks.map(() => ''), progress: 0 });
+  }
+  bump(room);
+}
+
+/** Number Cross: stores a player's entries (one per blank). Returns true if anything changed. */
+export function submitNumbers(room, role, entries, now) {
+  const player = room.players[role];
+  const p = room.numbers;
+  if (room.status !== 'started' || !p || now < room.startAt || player.finishedAt) return false;
+  let clean;
+  try {
+    clean = numbers.cleanEntries(p, entries);
+  } catch (e) {
+    throw new GameError(e.message);
+  }
+  if (clean.join(',') === (player.entries || []).join(',')) return false;
+  player.entries = clean;
+  player.progress = numbers.progressOf(p, clean);
+  if (numbers.isSolved(p, clean)) {
+    player.finishedAt = now;
+    endMatch(room, role, 'solved');
+  }
+  bump(room);
+  return true;
+}
+
+function numbersView(room, role, status) {
+  const p = room.numbers;
+  const show = p && (status === 'countdown' || status === 'playing' || status === 'finished');
+  return {
+    level: numbers.cleanOptions(room.options).level,
+    puzzle: show && status !== 'countdown' ? numbers.puzzleView(p) : null,
+    entries: show ? room.players[role].entries || null : null,
+    solution: status === 'finished' && p ? p.grid : null,
+  };
+}
+
 /** Stores a player's board during a match. Returns true if anything changed. */
 export function submitBoard(room, role, board, now) {
   const player = room.players[role];
@@ -785,7 +846,7 @@ export function view(room, role, now) {
     winnerName: room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,
@@ -795,6 +856,7 @@ export function view(room, role, now) {
     turns: TURN_GAMES.includes(room.game) ? turnView(room, role, status) : null,
     words: room.game === 'words' ? wordsView(room, role, status) : null,
     draw: room.game === 'draw' ? drawView(room, role, status) : null,
+    numbers: room.game === 'numbers' ? numbersView(room, role, status) : null,
   };
 }
 

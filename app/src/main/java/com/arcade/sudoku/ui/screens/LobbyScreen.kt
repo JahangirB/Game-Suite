@@ -145,7 +145,8 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 )
             } else if (room.game.readyOnly) {
                 if (room.game == GameKind.DOMINOES) DominoOptionsCard(room, state.busy, vm::setDominoOptions)
-                TurnReadyCard(room, state.busy, vm::readyTurns)
+                if (room.game == GameKind.NUMBERS) NumbersLevelCard(room, state.busy, vm::setNumberLevel)
+                TurnReadyCard(room, state.busy, if (room.game == GameKind.NUMBERS) vm::readyNumbers else vm::readyTurns)
             } else {
                 AppCard("Choose the level") {
                     LevelPicker(room, state.busy, onPick = vm::chooseLevel)

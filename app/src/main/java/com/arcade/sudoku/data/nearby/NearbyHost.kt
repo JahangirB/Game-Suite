@@ -6,7 +6,7 @@ import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.BattleBackend
 import com.arcade.sudoku.data.Difficulty
 import com.arcade.sudoku.data.GameKind
-import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.numbers.NumberPuzzle
 import com.arcade.sudoku.data.Hello
 import com.arcade.sudoku.data.Reaction
 import com.arcade.sudoku.game.ships.Ship
@@ -82,7 +82,10 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         }
 
     override suspend fun sync(code: String, playerId: String, board: String?, version: Int?) =
-        local { if (board != null) submitBoard(LocalRoom.HOST, board, now()) }
+        local {
+            if (board != null && game == GameKind.NUMBERS) submitNumbers(LocalRoom.HOST, board.split(","), now())
+            else if (board != null) submitBoard(LocalRoom.HOST, board, now())
+        }
 
     override suspend fun emoji(code: String, playerId: String, reaction: Reaction) =
         local { sendEmoji(LocalRoom.HOST, reaction, now()) }
@@ -97,7 +100,10 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         local { move(LocalRoom.HOST, move, now()) }
 
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
-        local { setOptions(LocalRoom.HOST, DominoOptions.from(options)) }
+        local { setOptions(LocalRoom.HOST, options) }
+
+    override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?) =
+        local { setNumbersReady(LocalRoom.HOST, ready, NumberPuzzle.from(puzzle), now()) }
 
     override suspend fun guess(code: String, playerId: String, word: String) =
         local { if (game == GameKind.DRAW) drawGuess(LocalRoom.HOST, word, now()) else guessWord(LocalRoom.HOST, word, now()) }
@@ -211,12 +217,14 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.setWordsReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.DRAW) {
                     r.setDrawReady(role!!, msg.optBoolean("ready", true), now)
+                } else if (r.game == GameKind.NUMBERS) {
+                    r.setNumbersReady(role!!, msg.optBoolean("ready", true), NumberPuzzle.from(msg.optJSONObject("puzzle")), now)
                 } else {
                     r.setReady(role!!, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now)
                 }
                 "fire" -> r.fire(role!!, msg.optInt("x", -1), msg.optInt("y", -1), now)
                 "move" -> r.move(role!!, msg.optJSONObject("move") ?: JSONObject(), now)
-                "options" -> r.setOptions(role!!, DominoOptions.from(msg.optJSONObject("options")))
+                "options" -> r.setOptions(role!!, msg.optJSONObject("options") ?: JSONObject())
                 "guess" -> if (r.game == GameKind.DRAW) {
                     r.drawGuess(role!!, msg.optString("word"), now)
                 } else {
@@ -231,7 +239,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     return
                 }
                 "clear" -> r.clearDrawing(role!!, now)
-                "board" -> r.submitBoard(role!!, msg.optString("board"), now)
+                "board" -> if (r.game == GameKind.NUMBERS) {
+                    r.submitNumbers(role!!, msg.optString("board").split(","), now)
+                } else {
+                    r.submitBoard(role!!, msg.optString("board"), now)
+                }
                 "emoji" -> r.sendEmoji(
                     role!!,
                     Reaction.from(msg.optString("emoji")) ?: throw ApiException("Unknown reaction."),

@@ -21,6 +21,7 @@ val GameKind.color: Color
         GameKind.DRAW -> Color(0xFFE0569B)
         GameKind.TTT -> Color(0xFF4F46E5)
         GameKind.DOMINOES -> Color(0xFF8B5E34)
+        GameKind.NUMBERS -> Color(0xFF0E9AA7)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -35,6 +36,7 @@ val GameKind.tagline: String
         GameKind.DRAW -> "One draws, one guesses, as a team"
         GameKind.TTT -> "Nine boards, one big game"
         GameKind.DOMINOES -> "Match the ends, play out your hand"
+        GameKind.NUMBERS -> "A crossword made of sums"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -66,6 +68,10 @@ val GameKind.rules: String
             "until you can; in the block game you pass. The first to play out their hand (or, if nobody can play, the " +
             "lightest hand) wins the round and scores the pips left in the others' hands. First to the target wins. " +
             "With four players you can play two against two, partners opposite."
+        GameKind.NUMBERS -> "A crossword of sums such as 4 + 5 = 9, crossing at shared numbers. Some numbers are " +
+            "missing: tap a blank, then tap a number from the bank below. Every sum, across and down, must work, and " +
+            "each bank number is used once. A sum turns green when it's right. In a race everyone gets the same new " +
+            "puzzle, built on the host's phone; the first to solve it wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -121,6 +127,12 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.stroke(tint, 1.4) { moveTo(8.5, 12); lineTo(15.5, 12) }
             p.circle(9.8, 5.6, 1.15, tint); p.circle(12, 7.4, 1.15, tint); p.circle(14.2, 9.2, 1.15, tint)
             p.circle(9.8, 15.4, 1.15, tint); p.circle(14.2, 18.6, 1.15, tint)
+        }
+        GameKind.NUMBERS -> {
+            // A plus crossing an equals: a sum across meeting one going down.
+            p.rr(3, 3, 18, 18, 4, null, tint, 1.8)
+            p.stroke(tint, 2) { moveTo(7, 9); lineTo(13, 9); moveTo(10, 6); lineTo(10, 12) }
+            p.stroke(tint, 2) { moveTo(11, 15); lineTo(17, 15); moveTo(11, 18); lineTo(17, 18) }
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

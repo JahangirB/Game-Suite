@@ -2,6 +2,7 @@ package com.arcade.sudoku.data
 
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
+import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.ships.Ship
 import com.arcade.sudoku.game.ships.Shot
 import org.json.JSONArray
@@ -17,16 +18,17 @@ enum class GameKind(val key: String, val label: String) {
     WORDS("words", "Word Race"),
     DRAW("draw", "Draw & Guess"),
     TTT("ttt", "Ultimate Tic-Tac-Toe"),
-    DOMINOES("dominoes", "Dominoes");
+    DOMINOES("dominoes", "Dominoes"),
+    NUMBERS("numbers", "Number Cross");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -99,6 +101,15 @@ data class TurnsView(
     /** Dominoes: the line, your hand and everyone's counts and scores. */
     val dominoes: DominoView? = null,
 )
+
+/**
+ * A Number Cross puzzle as a player sees it: [cells] row by row ('' empty, a number, an operator,
+ * or '?' for a blank), the [blanks] in order, and the [bank] of numbers that fill them.
+ */
+data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blanks: List<Int>, val bank: List<Int>)
+
+/** A Number Cross round: the host's level, the board (once playing), your entries and, at the end, the solved grid. */
+data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
 
 /** One Word Race guess: the word (hidden for the opponent until the round is over) and its colours. */
 data class WordGuess(val word: String?, val score: String)
@@ -219,6 +230,7 @@ data class RoomState(
     val turns: TurnsView?,
     val words: WordsView? = null,
     val draw: DrawView? = null,
+    val numbers: NumbersView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -252,6 +264,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     turns = json.optJSONObject("turns")?.let(::parseTurns),
     words = json.optJSONObject("words")?.let(::parseWords),
     draw = json.optJSONObject("draw")?.let(::parseDraw),
+    numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
     others = json.optJSONArray("others")?.objects()?.map(::parsePlayer) ?: listOfNotNull(json.optJSONObject("opponent")?.let(::parsePlayer)),
@@ -320,6 +333,23 @@ private fun parseWords(json: JSONObject): WordsView {
         others = json.optJSONArray("others").objects().map { o ->
             OtherWords(o.optJSONArray("guesses").objects().map { WordGuess(it.stringOrNull("word"), it.optString("score")) }, o.optBoolean("done"))
         },
+    )
+}
+
+private fun parseNumbers(json: JSONObject): NumbersView {
+    fun strings(a: JSONArray?) = a?.let { (0 until it.length()).map { i -> it.optString(i) } }
+    val p = json.optJSONObject("puzzle")
+    return NumbersView(
+        level = NumberLevel.from(json.stringOrNull("level")),
+        board = p?.let {
+            NumberBoard(
+                it.optInt("w"), it.optInt("h"), strings(it.optJSONArray("cells")).orEmpty(),
+                it.optJSONArray("blanks")?.let { a -> (0 until a.length()).map { i -> a.optInt(i) } }.orEmpty(),
+                it.optJSONArray("bank")?.let { a -> (0 until a.length()).map { i -> a.optInt(i) } }.orEmpty(),
+            )
+        },
+        entries = strings(json.optJSONArray("entries")),
+        solution = strings(json.optJSONArray("solution")),
     )
 }
 

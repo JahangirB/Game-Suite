@@ -466,6 +466,7 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
                     (if (others.size - waiting.size == 1) " is" else " are") + " ready. Tap Ready to start."
                 room.game == GameKind.WORDS -> "The race starts when everyone is ready: same word, same moment."
                 room.game == GameKind.DRAW -> "The match starts when everyone is ready. You take turns drawing."
+                room.game == GameKind.NUMBERS -> "Everyone gets the same new puzzle. The first to solve it wins."
                 else -> "The game starts when you are both ready. Starting player swaps every round."
             },
             color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,

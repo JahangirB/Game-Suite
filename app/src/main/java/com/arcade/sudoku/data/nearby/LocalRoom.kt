@@ -9,6 +9,9 @@ import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.numbers.NumberCross
+import com.arcade.sudoku.game.numbers.NumberLevel
+import com.arcade.sudoku.game.numbers.NumberPuzzle
 import com.arcade.sudoku.game.turns.TurnMatch
 import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
@@ -36,6 +39,8 @@ class LocalRoom(
         var ready = false
         var difficulty: Difficulty? = null
         var board: String? = null
+        // Number Cross: one entry per blank
+        var entries: List<String> = emptyList()
         var progress = 0
         var finishedAt: Long? = null
         var left = false
@@ -74,6 +79,11 @@ class LocalRoom(
     /** The host's Dominoes rules for the next match. */
     var options = DominoOptions()
         private set
+    /** Number Cross: the host's level, the puzzle being played, and the one sent with the host's Ready. */
+    var numberLevel = NumberLevel.EASY
+        private set
+    private var numbers: NumberPuzzle? = null
+    private var nextPuzzle: NumberPuzzle? = null
     // Word Race
     private var answer: String? = null
     // Draw & Guess
@@ -286,11 +296,14 @@ class LocalRoom(
     private fun roleOfMark(mark: Char) = MARKS.entries.first { it.value == mark }.key
 
     /** The host's choices for the next match (Dominoes: teams, drawing, points target). Everyone gets ready again. */
-    fun setOptions(role: String, options: DominoOptions) {
+    fun setOptions(role: String, options: JSONObject) {
         if (role != HOST) throw ApiException("Only the host can change the rules.")
         if (status != "waiting" && status != "lobby" && status != "finished") throw ApiException("The rules can only change between matches.")
-        if (game != GameKind.DOMINOES) throw ApiException("This game has no options.")
-        this.options = options
+        when (game) {
+            GameKind.DOMINOES -> this.options = DominoOptions.from(options)
+            GameKind.NUMBERS -> numberLevel = NumberLevel.from(options.optString("level"))
+            else -> throw ApiException("This game has no options.")
+        }
         for (r in seated()) player(r).ready = false
         version++
     }
@@ -506,6 +519,66 @@ class LocalRoom(
             )
     }
 
+    /**
+     * Number Cross: ready (or not). The host's Ready carries the next puzzle, built on their phone;
+     * the match starts when everyone is ready.
+     */
+    fun setNumbersReady(role: String, ready: Boolean, puzzle: NumberPuzzle?, now: Long) {
+        checkCanReady()
+        player(role).ready = ready
+        if (role == HOST) {
+            nextPuzzle = if (!ready) null else try {
+                NumberCross.check(puzzle ?: throw IllegalArgumentException("The puzzle is missing."))
+            } catch (e: IllegalArgumentException) {
+                player(role).ready = false
+                throw ApiException(e.message ?: "The puzzle is not valid.")
+            }
+        }
+        val next = nextPuzzle
+        if (allReady() && next != null) {
+            nextPuzzle = null
+            numbers = next
+            beginMatch(now + COUNTDOWN_MS) { it.entries = List(next.blanks.size) { "" }; it.progress = 0 }
+        }
+        version++
+    }
+
+    /** Number Cross: stores a player's entries (one per blank); returns true if anything changed. */
+    fun submitNumbers(role: String, entries: List<String>, now: Long): Boolean {
+        val player = player(role)
+        val p = numbers
+        val start = startAt
+        if (status != "started" || p == null || start == null || now < start || player.finishedAt != null) return false
+        if (entries.size != p.blanks.size || entries.any { it != "" && !NumberCross.isNumber(it) }) throw ApiException("Invalid board.")
+        if (entries == player.entries) return false
+        player.entries = entries
+        player.progress = NumberCross.progressOf(p, entries)
+        if (NumberCross.isSolved(p, entries)) {
+            player.finishedAt = now
+            endMatch(role, "solved")
+        }
+        version++
+        return true
+    }
+
+    private fun numbersView(role: String, shown: String): JSONObject {
+        val p = numbers
+        val show = p != null && (shown == "playing" || shown == "finished")
+        val blank = p?.blanks?.toSet().orEmpty()
+        return JSONObject()
+            .put("level", numberLevel.key)
+            .put(
+                "puzzle",
+                if (p == null || !show) JSONObject.NULL else JSONObject()
+                    .put("w", p.w).put("h", p.h)
+                    .put("cells", org.json.JSONArray(p.grid.mapIndexed { i, t -> if (i in blank) "?" else t }))
+                    .put("blanks", org.json.JSONArray(p.blanks))
+                    .put("bank", org.json.JSONArray(p.bank)),
+            )
+            .put("entries", if (p != null && shown != "lobby" && shown != "waiting") org.json.JSONArray(player(role).entries) else JSONObject.NULL)
+            .put("solution", if (shown == "finished" && p != null) org.json.JSONArray(p.grid) else JSONObject.NULL)
+    }
+
     /** Stores a board during a match; returns true if anything changed. */
     fun submitBoard(role: String, board: String, now: Long): Boolean {
         val player = players.getValue(role)!!
@@ -630,7 +703,14 @@ class LocalRoom(
             .put("solution", if (shown == "finished") solution else JSONObject.NULL)
             .put("winner", winner?.let { if (wonWith(role)) "me" else "opponent" } ?: JSONObject.NULL)
             .put("winnerName", winner?.let { winnerNames() } ?: JSONObject.NULL)
-            .put("options", if (game == GameKind.DOMINOES) options.toJson() else JSONObject.NULL)
+            .put(
+                "options",
+                when (game) {
+                    GameKind.DOMINOES -> options.toJson()
+                    GameKind.NUMBERS -> JSONObject().put("level", numberLevel.key)
+                    else -> JSONObject.NULL
+                },
+            )
             .put("endReason", endReason ?: JSONObject.NULL)
             .put("maxPlayers", game.maxPlayers)
             // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
@@ -642,6 +722,7 @@ class LocalRoom(
             .put("turns", if (game.turnBased) turnsView(role, shown) else JSONObject.NULL)
             .put("words", if (game == GameKind.WORDS) wordsView(role, shown) else JSONObject.NULL)
             .put("draw", if (game == GameKind.DRAW) drawView(role, shown) else JSONObject.NULL)
+            .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
     }
 
     private fun turnsView(role: String, shown: String): JSONObject {

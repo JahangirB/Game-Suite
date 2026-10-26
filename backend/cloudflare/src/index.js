@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setOptions, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setOptions, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -189,6 +189,7 @@ export class Room extends DurableObject {
           else if (TURN_GAMES.includes(this.room.game)) setTurnReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'words') setWordsReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'draw') setDrawReady(this.room, role, msg.ready !== false, now);
+          else if (this.room.game === 'numbers') setNumbersReady(this.room, role, msg.ready !== false, msg.puzzle, now);
           else setReady(this.room, role, msg.ready !== false, msg.difficulty, now);
           break;
         case 'move':
@@ -226,7 +227,9 @@ export class Room extends DurableObject {
           fire(this.room, role, msg.x, msg.y, now);
           break;
         case 'board':
-          submitBoard(this.room, role, msg.board, now);
+          // Number Cross entries come one per blank, joined by commas.
+          if (this.room.game === 'numbers') submitNumbers(this.room, role, String(msg.board ?? '').split(','), now);
+          else submitBoard(this.room, role, msg.board, now);
           break;
         case 'emoji':
           sendEmoji(this.room, role, msg.emoji, now);

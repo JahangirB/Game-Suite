@@ -57,6 +57,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.DRAW -> if (win) a.drawWin() else a.drawLose()
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
+                    GameKind.NUMBERS -> if (win) a.numbersWin() else a.numbersLose()
                 }
             }
         }
@@ -529,6 +530,44 @@ private class ResultScene(val d: DrawScope, val t: Float) {
                 }
             }
         }
+    }
+
+    // ---- Number Cross ------------------------------------------------------------------------
+
+    /** A tile with [s] on it, 34 wide, centred on (x, y). */
+    fun numberTile(s: String, x: Float, y: Float, fill: Color, ink: Color = Ink) {
+        p.rr(x - 17, y - 17, 34, 34, 7, fill, Ink, 3)
+        p.text(s, x, y, 20, ink)
+    }
+
+    fun numbersWin() {
+        // 7 + 5 = 12 pops in tile by tile, turns green, and a star bobs beside it.
+        val ph = f(3f)
+        listOf("7", "+", "5", "=", "12").forEachIndexed { i, s ->
+            val start = .05f + i * .08f
+            val sc = kf(ph, 0f to 0f, start to 0f, start + .08f to 1.15f, start + .14f to 1f, .9f to 1f, 1f to 0f)
+            val green = ph > .5f && ph < .92f
+            if (sc > 0f) p.at(50f + i * 40f, 85, 0, sc) {
+                if (s == "+" || s == "=") p.text(s, 50f + i * 40f, 85, 24, White)
+                else numberTile(s, 50f + i * 40f, 85f, if (green) Green else White, if (green) White else Ink)
+            }
+        }
+        p.translate(0, bob(f(1.5f))) { filled(star(262, 50, 18f, 8f), Gold) }
+        spark(30, 40, 5, White, 2f, .4f); spark(270, 130, 5, Gold, 2f, 1.1f)
+    }
+
+    fun numbersLose() {
+        // 6 × ? = 20 doesn't work out: the blank shakes and its question mark glows red.
+        val ph = f(1.5f)
+        listOf("6", "×", "?", "=", "20").forEachIndexed { i, s ->
+            val x = 50f + i * 40f
+            when {
+                s == "×" || s == "=" -> p.text(s, x, 85, 24, White)
+                s == "?" -> p.translate(shakeX(ph), 0) { numberTile(s, x, 85f, White, Red) }
+                else -> numberTile(s, x, 85f, White)
+            }
+        }
+        p.withAlpha(glow(f(1.5f))) { p.text("✗", 150, 135, 26, Red) }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

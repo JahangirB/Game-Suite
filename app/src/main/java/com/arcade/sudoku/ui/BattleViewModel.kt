@@ -12,6 +12,8 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
+import com.arcade.sudoku.game.numbers.NumberCrossGenerator
+import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.ttt.Ttt
 import com.arcade.sudoku.game.ttt.TttPosition
 import com.arcade.sudoku.game.words.Words
@@ -91,6 +93,10 @@ data class BattleUiState(
     val wordRound: Int = -1,
     /** Draw & Guess: the strokes on the canvas this turn (yours appear before the server confirms them). */
     val drawStrokes: List<DrawStroke> = emptyList(),
+    /** Number Cross: your entries (one per blank), the blank picked to fill next, and the round they belong to. */
+    val numberEntries: List<String>? = null,
+    val numberSelected: Int? = null,
+    val numbersRound: Int = -1,
     /** Nearby hosts found while looking for a game. */
     val nearbyHosts: List<FoundHost> = emptyList(),
     val scanning: Boolean = false,
@@ -736,6 +742,39 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun erase() = enterDigit(0)
 
+    /** Number Cross: ready (or not). The host's phone builds the next puzzle and sends it with its Ready. */
+    fun readyNumbers() {
+        val room = _state.value.room ?: return
+        val ready = !room.me.ready
+        val puzzle = if (ready && room.isHost) NumberCrossGenerator().generate(room.numbers?.level ?: NumberLevel.EASY).toJson() else null
+        sendReady(room.copy(me = room.me.copy(ready = ready))) { b, id -> b.readyNumbers(room.code, id, ready, puzzle) }
+    }
+
+    /** Number Cross: the host picks the level of the next puzzle; everyone gets ready again. */
+    fun setNumberLevel(level: NumberLevel) {
+        val room = _state.value.room ?: return
+        val numbers = room.numbers ?: return
+        if (!room.isHost || numbers.level == level) return
+        sendReady(room.copy(numbers = numbers.copy(level = level), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("level", level.key))
+        }
+    }
+
+    /** Number Cross: pick blank [k] to fill (again to put it back). */
+    fun selectBlank(k: Int) = _state.update { it.copy(numberSelected = if (it.numberSelected == k) null else k) }
+
+    /** Number Cross: put [value] in the picked blank (or "" to empty it), then pick the next empty one. */
+    fun placeNumber(value: String) {
+        val s = _state.value
+        val k = s.numberSelected ?: return
+        val entries = s.numberEntries ?: return
+        if (s.phase(s.serverNow()) != RoomStatus.PLAYING || k !in entries.indices) return
+        val updated = entries.toMutableList().also { it[k] = value }
+        val next = if (value == "") k else (1..updated.size).map { (k + it) % updated.size }.firstOrNull { updated[it] == "" }
+        _state.update { it.copy(numberEntries = updated, numberSelected = next) }
+        syncNow.trySend(Unit)
+    }
+
     fun undo() {
         val s = _state.value
         val board = s.board ?: return
@@ -828,7 +867,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val s = _state.value
         val room = s.room ?: return
         val id = playerId ?: return
-        val board = if (s.canEdit()) Sudoku.encode(s.board!!.cells).takeIf { it != lastSentBoard } else null
+        val board = when {
+            room.game == GameKind.NUMBERS ->
+                s.numberEntries?.takeIf { s.phase(s.serverNow()) == RoomStatus.PLAYING && s.numbersRound == room.round }?.joinToString(",")
+            s.canEdit() -> Sudoku.encode(s.board!!.cells)
+            else -> null
+        }?.takeIf { it != lastSentBoard }
         // A live server pushes news by itself, so there is only something to do with a new board.
         if (!polling && board == null) return
         val sentAt = System.currentTimeMillis()
@@ -906,6 +950,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
+            room.numbers?.board?.let { board ->
+                if (room.round != next.numbersRound) {
+                    lastSentBoard = null
+                    next = next.copy(
+                        numberEntries = room.numbers?.entries?.takeIf { it.size == board.blanks.size } ?: List(board.blanks.size) { "" },
+                        numberSelected = null,
+                        numbersRound = room.round,
+                    )
+                }
+            }
             val puzzle = room.puzzle
             if (puzzle != null && room.round != loadedRound) {
                 loadedRound = room.round

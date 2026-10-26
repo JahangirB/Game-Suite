@@ -163,14 +163,36 @@ class LocalShipsTest {
     private val T0 = 1_000_000L
 
     @Test
+    fun numberCrossHostSendsThePuzzle() {
+        val room = LocalRoom("NUM1", "Ann", null, com.arcade.sudoku.data.GameKind.NUMBERS)
+        val guest = room.join("Bob", null, null, listOf("numbers"))
+        room.setOptions(LocalRoom.HOST, org.json.JSONObject().put("level", "hard"))
+        val puzzle = com.arcade.sudoku.game.numbers.NumberCrossGenerator(kotlin.random.Random(1))
+            .generate(com.arcade.sudoku.game.numbers.NumberLevel.HARD)
+        room.setNumbersReady(guest, true, null, T0)
+        room.setNumbersReady(LocalRoom.HOST, true, puzzle, T0)
+        val now = T0 + 10_000
+        val view = parseRoom(room.view(guest, now))
+        assertEquals(com.arcade.sudoku.game.numbers.NumberLevel.HARD, view.numbers!!.level)
+        val board = view.numbers!!.board!!
+        assertEquals(puzzle.bank, board.bank)
+        assertTrue(board.blanks.all { board.cells[it] == "?" })
+        room.submitNumbers(guest, puzzle.blanks.map { puzzle.grid[it] }, now)
+        val end = parseRoom(room.view(LocalRoom.HOST, now))
+        assertEquals(RoomStatus.FINISHED, end.status)
+        assertEquals("opponent", end.winner)
+        assertEquals("solved", end.endReason)
+    }
+
+    @Test
     fun dominoesTeamsWinTogether() {
         val room = LocalRoom("DOM1", "Ann", null, com.arcade.sudoku.data.GameKind.DOMINOES)
-        val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null) }
+        val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null, listOf("dominoes")) }
         val roles = listOf(LocalRoom.HOST) + guests
         assertThrows(ApiException::class.java) {
-            room.setOptions(guests[0], com.arcade.sudoku.game.dominoes.DominoOptions(teams = true))
+            room.setOptions(guests[0], com.arcade.sudoku.game.dominoes.DominoOptions(teams = true).toJson())
         }
-        room.setOptions(LocalRoom.HOST, com.arcade.sudoku.game.dominoes.DominoOptions(teams = true, target = 50))
+        room.setOptions(LocalRoom.HOST, com.arcade.sudoku.game.dominoes.DominoOptions(teams = true, target = 50).toJson())
         assertEquals(true, parseRoom(room.view(guests[1], T0)).options?.teams)
         for (r in roles) room.setTurnReady(r, true, T0)
         var now = T0 + 10_000
