@@ -89,7 +89,11 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   host's phone rolls the grid (always one with plenty of words) and the server checks every
   word against the same list the app has. On your own it shows the best words you missed.
 
-**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes, Memory Pairs, Dominoes, Number Cross, Colour Clash, Ludo and Letter Grid rooms take up to four people, online
+- **Balloon Words:** one player types a secret word (any word: names and in-jokes work), the
+  others guess letters in turn; each miss pops one of seven balloons. Everyone picks once and
+  the most points wins. On your own, guess the computer's word or give it one of yours.
+
+**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes, Memory Pairs, Dominoes, Number Cross, Colour Clash, Ludo, Letter Grid and Balloon Words rooms take up to four people, online
 (Cloudflare server) or nearby: share the code, or let the others pick your name under Nearby.
 Everyone taps **Ready** to start. In Draw & Guess the drawer goes round the table and everyone
 else guesses; in Dots & Boxes, Memory Pairs and Dominoes turns go round the table. Someone leaving
@@ -372,7 +376,7 @@ Requires Android 8.0 (API 26) or newer.
 | `backend/cloudflare/` | Cloudflare Worker: one Durable Object per room (`src/room.js`: Sudoku, Ship Battle and turn-game rules; `src/connect4.js`, `src/dots.js`, `src/memory.js`, `src/words.js`, `src/draw.js`) and a Directory object for invitations (`src/directory.js`, `src/push.js`), with unit and end-to-end tests |
 | `app/src/main/java/com/arcade/sudoku/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
 | `app/src/main/java/com/arcade/sudoku/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
-| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `numbers/`, `hockey/`, `clash/`, `ludo/`, `grid/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
+| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `numbers/`, `hockey/`, `clash/`, `ludo/`, `grid/`, `balloon/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
 | `app/src/main/java/com/arcade/sudoku/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |
 | `app/src/main/java/com/arcade/sudoku/push/` | Invitations: Firebase setup, notifications with Play/Decline, the invite endpoints |
 | `app/src/main/java/com/arcade/sudoku/data/nearby/` | Nearby battles: `LocalRoom` (the rules, run on the host phone), `NearbyHost`, `NearbyGuest` |

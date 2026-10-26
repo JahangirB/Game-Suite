@@ -1,5 +1,6 @@
 package com.arcade.sudoku.data
 
+import com.arcade.sudoku.game.balloon.BalloonView
 import com.arcade.sudoku.game.clash.ClashView
 import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.dominoes.DominoOptions
@@ -25,13 +26,14 @@ enum class GameKind(val key: String, val label: String) {
     HOCKEY("hockey", "Air Hockey"),
     CLASH("clash", "Colour Clash"),
     LUDO("ludo", "Ludo"),
-    GRID("grid", "Letter Grid");
+    GRID("grid", "Letter Grid"),
+    BALLOON("balloon", "Balloon Words");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID
@@ -110,6 +112,8 @@ data class TurnsView(
     val clash: ClashView? = null,
     /** Ludo: every player's colour and tokens, and your roll. */
     val ludo: LudoView? = null,
+    /** Balloon Words: the word so far, the balloons and the scores. */
+    val balloon: BalloonView? = null,
 )
 
 /**
@@ -415,6 +419,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         dominoes = if (json.has("line")) DominoView.from(json) else null,
         clash = if (json.has("top")) ClashView.from(json) else null,
         ludo = if (json.has("tokens")) LudoView.from(json) else null,
+        balloon = if (json.has("pattern")) BalloonView.from(json) else null,
     )
 }
 

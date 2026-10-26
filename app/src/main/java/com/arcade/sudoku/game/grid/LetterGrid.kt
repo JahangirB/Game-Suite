@@ -7,6 +7,7 @@ import kotlin.random.Random
 object GridWords {
     @Volatile private var words: Set<String> = emptySet()
     @Volatile private var prefixes: Set<String> = emptySet()
+    @Volatile private var list: List<String> = emptyList()
 
     fun load(context: Context) {
         if (words.isNotEmpty()) return
@@ -17,7 +18,16 @@ object GridWords {
     fun install(list: List<String>) {
         prefixes = list.flatMap { w -> (1 until w.length).map { w.substring(0, it) } }.toSet()
         words = list.toSet()
+        this.list = list
     }
+
+    /** Every word, for the Balloon Words computer. */
+    val all: List<String> get() = list
+
+    /** A random word of 5 to 8 letters (Balloon Words on your own). */
+    fun randomWord(random: Random = Random.Default): String =
+        list.filter { it.length in 5..8 }.randomOrNull(random) ?: "balloon"
+
 
     val loaded get() = words.isNotEmpty()
 

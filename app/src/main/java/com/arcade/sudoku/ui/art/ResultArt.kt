@@ -62,6 +62,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.CLASH -> if (win) a.clashWin() else a.clashLose()
                     GameKind.LUDO -> if (win) a.ludoWin() else a.ludoLose()
                     GameKind.GRID -> if (win) a.gridWin() else a.gridLose()
+                    GameKind.BALLOON -> if (win) a.balloonWin() else a.balloonLose()
                 }
             }
         }
@@ -693,6 +694,39 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         p.circle(150, 50, 28, White); p.ring(150, 50, 28, Ink, 3)
         p.at(150, 50, rad(ph * 360f), 1) { p.stroke(Ink, 3) { moveTo(150, 50); lineTo(150, 30) } }
         p.withAlpha(glow(f(1.5f))) { p.text("0:00", 240, 50, 18, Red) }
+    }
+
+    // ---- Balloon Words -----------------------------------------------------------------------
+
+    fun balloon(x: Float, y: Float, fill: Color) {
+        p.stroke(Ink, 2) { moveTo(x, y + 26); quadTo(x - 6, y + 40, x + 2, y + 56) }
+        p.ell(x, y, 20, 25, 0, fill)
+        p.circle(x - 7, y - 9, 5, White.copy(alpha = .5f))
+    }
+
+    fun balloonWin() {
+        // A bunch of balloons floats up, swaying, over the found word.
+        val ph = f(3f)
+        listOf(Red, Yellow, Green, BoardBlue, Coral).forEachIndexed { i, c ->
+            val rise = (f(3f, i * .4f)) * 40f
+            balloon(70f + i * 40f + sway(f(2f, i * .3f)) * .6f, 70f - rise + (i % 2) * 14f, c)
+        }
+        p.withAlpha(kf(ph, 0f to 1f, .9f to 1f, 1f to 0f)) { outlinedText("FOUND!", 150, 150, 22, Gold) }
+    }
+
+    fun balloonLose() {
+        // The last balloon pops.
+        val ph = f(2f)
+        val pop = kf(ph, 0f to 0f, .45f to 0f, .5f to 1f, 1f to 1f)
+        if (pop < 1f) balloon(150f, 70f, Red)
+        else {
+            for (k in 0 until 8) {
+                val a = k * PI.toFloat() / 4
+                val d = 18f + (ph - .5f) * 60f
+                p.circle(150 + d * cos(a), 70 + d * kotlin.math.sin(a), 5, Red)
+            }
+            p.text("POP!", 150, 70, 22, White)
+        }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

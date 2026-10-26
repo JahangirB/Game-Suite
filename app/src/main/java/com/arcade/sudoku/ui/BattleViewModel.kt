@@ -557,6 +557,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playMove(move, turns.copy(clash = shown, lastMoveByMe = true))
     }
 
+    /** Balloon Words: as this round's picker, choose the secret word. */
+    fun pickBalloonWord(word: String) = playMove(JSONObject().put("word", word))
+
+    /** Balloon Words: guess [letter]. */
+    fun guessBalloonLetter(letter: Char) {
+        val turns = _state.value.room?.turns ?: return
+        val view = turns.balloon ?: return
+        if (letter in view.guessed) return
+        playMove(JSONObject().put("letter", letter.toString()), turns.copy(balloon = view.copy(guessed = view.guessed + letter)))
+    }
+
     /** Ludo: roll the die (the server rolls it). */
     fun rollDie() = playMove(JSONObject().put("roll", true))
 

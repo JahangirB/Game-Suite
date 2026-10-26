@@ -26,6 +26,7 @@ val GameKind.color: Color
         GameKind.CLASH -> Color(0xFFE8505B)
         GameKind.LUDO -> Color(0xFF20A47B)
         GameKind.GRID -> Color(0xFF7B6CF0)
+        GameKind.BALLOON -> Color(0xFFEC6FA9)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -45,6 +46,7 @@ val GameKind.tagline: String
         GameKind.CLASH -> "Match the colour, empty your hand"
         GameKind.LUDO -> "Roll, race home, knock them back"
         GameKind.GRID -> "Trace words in two minutes"
+        GameKind.BALLOON -> "Guess the letters before they pop"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -97,6 +99,10 @@ val GameKind.rules: String
             "corner to corner, each letter once per word, three letters or more. Words of 3-4 letters score 1, 5 letters 2, " +
             "6 letters 3, 7 letters 5 and 8 letters 11. When time is up, a word nobody else found scores double. In a " +
             "race everyone gets the same grid, rolled on the host's phone."
+        GameKind.BALLOON -> "Each round one player types a secret word (any word: names and in-jokes work). The others " +
+            "take turns guessing letters. A right letter scores 1 for each time it's in the word, and whoever fills in the " +
+            "last letter scores 3 more. Each wrong letter pops one of the seven balloons; if they all pop, the picker scores " +
+            "5. Everyone picks once, and the most points wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -183,6 +189,11 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.rr(3, 3, 8, 8, 2, tint, tint, 1.4); p.rr(13, 3, 8, 8, 2, null, tint, 1.4)
             p.rr(3, 13, 8, 8, 2, null, tint, 1.4); p.rr(13, 13, 8, 8, 2, tint, tint, 1.4)
             p.stroke(tint, 1.6) { moveTo(7, 7); lineTo(17, 17) }
+        }
+        GameKind.BALLOON -> {
+            // A balloon on a string.
+            p.ell(12, 9.5, 6, 7, 0, tint)
+            p.stroke(tint, 1.4) { moveTo(12, 16.5); quadTo(10, 19, 13, 22) }
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.
