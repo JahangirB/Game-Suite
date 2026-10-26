@@ -292,7 +292,7 @@ data class RoomState(
     /** Air Hockey: the score as the server last heard it from the host. */
     val hockey: HockeyScore? = null,
     val grid: GridView? = null,
-    /** Code Breaker ("code" in the JSON; [code] is the room's code). */
+    /** Code Breaker ([code] is the room's code). */
     val codeGame: CodeView? = null,
     val slide: SlideView? = null,
     val serverTime: Long,
@@ -330,7 +330,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     draw = json.optJSONObject("draw")?.let(::parseDraw),
     numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
     grid = json.optJSONObject("grid")?.let(::parseGrid),
-    codeGame = json.optJSONObject("code")?.let(::parseCode),
+    codeGame = json.optJSONObject("codeGame")?.let(::parseCode),
     slide = json.optJSONObject("slide")?.let { s ->
         fun ints(k: String) = s.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
         SlideView(SlideLevel.from(s.stringOrNull("level")), s.optInt("size", 3), ints("start"), ints("moves").orEmpty())

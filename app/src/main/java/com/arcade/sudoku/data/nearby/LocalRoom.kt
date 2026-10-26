@@ -1005,7 +1005,7 @@ class LocalRoom(
             .put("draw", if (game == GameKind.DRAW) drawView(role, shown) else JSONObject.NULL)
             .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
             .put("grid", if (game == GameKind.GRID) gridView(role, shown) else JSONObject.NULL)
-            .put("code", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
+            .put("codeGame", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
             .put("slide", if (game == GameKind.SLIDE) slideView(role, shown) else JSONObject.NULL)
             .put(
                 "hockey",

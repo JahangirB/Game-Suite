@@ -1116,7 +1116,7 @@ export function view(room, role, now) {
     numbers: room.game === 'numbers' ? numbersView(room, role, status) : null,
     hockey: room.game === 'hockey' ? hockeyView(room, role) : null,
     grid: room.game === 'grid' ? gridView(room, role, status) : null,
-    code: room.game === 'code' ? codeView(room, role, status) : null,
+    codeGame: room.game === 'code' ? codeView(room, role, status) : null,
     slide: room.game === 'slide' ? slideView(room, role, status) : null,
   };
 }
