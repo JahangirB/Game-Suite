@@ -19,6 +19,16 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.arcade.sudoku.game.ludo.LudoMove
+import kotlin.math.sin
+import kotlin.math.PI
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +93,22 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
     val bob by rememberInfiniteTransition(label = "ludo").animateFloat(0f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "bob")
     val tap by rememberUpdatedState(onToken)
     val current by rememberUpdatedState(view)
+    // The last token moved hops square by square from where it was; [steps] counts the squares.
+    val move = view.lastMove?.takeIf { it.token != null && it.from != null && it.to != null && it.to > it.from }
+    val steps = remember { Animatable(0f) }
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(move) {
+        val m = move
+        if (!seen || m == null) {
+            seen = true
+            steps.snapTo(Float.MAX_VALUE)
+            return@LaunchedEffect
+        }
+        // Coming out of the yard is a single step onto the start square.
+        val count = if (m.from!! < 0) 1 else m.to!! - m.from
+        steps.snapTo(0f)
+        steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
+    }
     val touch = if (onToken == null) Modifier else Modifier.pointerInput(Unit) {
         detectTapGestures { pos ->
             val v = current
@@ -144,10 +170,21 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         val placed = mutableMapOf<Pair<Float, Float>, Int>()
         for ((who, i, prog) in all) {
             val colour = view.colours[who] ?: continue
-            val (x, y) = Ludo.cellOf(colour, prog, i)
-            val n = placed[x to y] ?: 0
-            placed[x to y] = n + 1
-            val shift = if (prog in 0 until Ludo.HOME) n * cell * 0.18f else 0f
+            // The token on the move: between two squares, with a little hop.
+            val hopping = move != null && who == move.who && i == move.token && steps.value < stepsFor(move)
+            val (x, y) = if (hopping) {
+                val k = steps.value
+                val start = move!!.from!!
+                val a = Ludo.cellOf(colour, if (start < 0) -1 else start + k.toInt(), i)
+                val b = Ludo.cellOf(colour, if (start < 0) 0 else minOf(move.to!!, start + k.toInt() + 1), i)
+                val f = k - k.toInt()
+                (a.first + (b.first - a.first) * f) to (a.second + (b.second - a.second) * f - sin(f * PI.toFloat()) * 0.35f)
+            } else {
+                Ludo.cellOf(colour, prog, i)
+            }
+            val n = if (hopping) 0 else placed[x to y] ?: 0
+            if (!hopping) placed[x to y] = n + 1
+            val shift = if (prog in 0 until Ludo.HOME && !hopping) n * cell * 0.18f else 0f
             val lift = if (who == 'm' && i in view.movable) -cell * 0.18f * bob else 0f
             val at = Offset(x * cell + shift, y * cell + shift + lift)
             drawCircle(Ink, cell * 0.38f, at)
@@ -158,12 +195,42 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
     }
 }
 
-/** A die face showing [n]. */
+/** How long a token takes per square. */
+private const val HOP_MS = 150
+
+private const val TUMBLE_MS = 560
+
+private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).toFloat()
+
+/**
+ * A die face showing [n]. When [rolled] changes the die tumbles through a few faces first, so
+ * every roll is seen happening.
+ */
 @Composable
-private fun DieFace(n: Int?, modifier: Modifier = Modifier) {
+private fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
     val p = AppTheme.palette
-    Surface(color = p.card, shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(52.dp)) {
+    var face by remember { mutableStateOf(n) }
+    val spin = remember { Animatable(0f) }
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(rolled, n) {
+        if (!seen || rolled == null || n == null) {
+            seen = true
+            face = n
+            return@LaunchedEffect
+        }
+        launch { spin.snapTo(0f); spin.animateTo(1f, tween(TUMBLE_MS, easing = FastOutSlowInEasing)) }
+        repeat(7) {
+            face = (1..6).random()
+            delay(TUMBLE_MS / 8L)
+        }
+        face = n
+    }
+    Surface(
+        color = p.card, shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, p.ink),
+        modifier = modifier.size(52.dp).graphicsLayer { rotationZ = spin.value * 360f; scaleX = 1f + 0.2f * sin(spin.value * PI.toFloat()); scaleY = scaleX },
+    ) {
         Canvas(Modifier.size(52.dp)) {
+            val n = face
             if (n == null) return@Canvas
             val d = size.width * 0.25f
             val c = Offset(size.width / 2, size.height / 2)
@@ -220,7 +287,7 @@ private fun ColumnScope.LudoTable(
     ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        DieFace(view.roll ?: view.lastMove?.roll)
+        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
         PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
     }
 }
