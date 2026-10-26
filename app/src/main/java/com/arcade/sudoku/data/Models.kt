@@ -1,5 +1,6 @@
 package com.arcade.sudoku.data
 
+import com.arcade.sudoku.game.clash.ClashView
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.numbers.NumberLevel
@@ -20,13 +21,14 @@ enum class GameKind(val key: String, val label: String) {
     TTT("ttt", "Ultimate Tic-Tac-Toe"),
     DOMINOES("dominoes", "Dominoes"),
     NUMBERS("numbers", "Number Cross"),
-    HOCKEY("hockey", "Air Hockey");
+    HOCKEY("hockey", "Air Hockey"),
+    CLASH("clash", "Colour Clash");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY
@@ -101,6 +103,8 @@ data class TurnsView(
     val nextBoard: Int? = null,
     /** Dominoes: the line, your hand and everyone's counts and scores. */
     val dominoes: DominoView? = null,
+    /** Colour Clash: the pile, your hand and everyone's card counts. */
+    val clash: ClashView? = null,
 )
 
 /**
@@ -376,7 +380,8 @@ private fun parseTurns(json: JSONObject): TurnsView {
         turnName = json.stringOrNull("turnName"),
         smallBoards = json.stringOrNull("boards"),
         nextBoard = json.optInt("next", -1).takeIf { it >= 0 },
-        dominoes = if (json.has("hand")) DominoView.from(json) else null,
+        dominoes = if (json.has("line")) DominoView.from(json) else null,
+        clash = if (json.has("top")) ClashView.from(json) else null,
     )
 }
 

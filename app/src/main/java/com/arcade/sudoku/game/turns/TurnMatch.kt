@@ -1,6 +1,7 @@
 package com.arcade.sudoku.game.turns
 
 import com.arcade.sudoku.data.GameKind
+import com.arcade.sudoku.game.clash.ClashMatch
 import com.arcade.sudoku.game.connect4.C4Match
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
@@ -41,6 +42,7 @@ interface TurnMatch {
             options: DominoOptions = DominoOptions(),
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
+            GameKind.CLASH -> ClashMatch(marks, random)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
             GameKind.TTT -> TttMatch()

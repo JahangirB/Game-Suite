@@ -59,6 +59,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
                     GameKind.NUMBERS -> if (win) a.numbersWin() else a.numbersLose()
                     GameKind.HOCKEY -> if (win) a.hockeyWin() else a.hockeyLose()
+                    GameKind.CLASH -> if (win) a.clashWin() else a.clashLose()
                 }
             }
         }
@@ -602,6 +603,36 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         p.circle(120 + late, 110, 24, Red); p.ring(120 + late, 110, 24, Ink, 3)
         if (slip < 1f) p.circle(190 - slip * 40, 40 + slip * 110, 11, Ink)
         p.withAlpha(glow(f(1.5f))) { p.text("!", 240, 70, 40, White) }
+    }
+
+    // ---- Colour Clash ------------------------------------------------------------------------
+
+    fun clashCard(x: Float, y: Float, deg: Float, fill: Color, label: String) {
+        p.at(x, y, rad(deg), 1) {
+            p.rr(x - 20, y - 29, 40, 58, 7, fill, Ink, 3)
+            p.circle(x, y, 13, White)
+            p.text(label, x, y, 16, fill)
+        }
+    }
+
+    fun clashWin() {
+        // The last card flies onto the pile and the empty hand waves.
+        val ph = f(3f)
+        clashCard(150f, 95f, -8f, Coral, "7")
+        val fly = kf(ph, 0f to 0f, .2f to 0f, .5f to 1f, 1f to 1f)
+        clashCard(60f + fly * 92f, 150f - fly * 52f, -30f + fly * 40f, Green, "★")
+        if (ph > .5f) p.withAlpha(kf(ph, .5f to 1f, .9f to 1f, 1f to 0f)) { p.text("LAST!", 150, 30, 26, Gold) }
+        spark(250, 50, 6, Gold, 2f, .3f); spark(40, 40, 5, White, 2f, 1.2f)
+    }
+
+    fun clashLose() {
+        // A +4 lands and four cards fall into your hand, one after another.
+        clashCard(150f, 70f, 6f, Ink, "+4")
+        val ph = f(3f)
+        for (i in 0 until 4) {
+            val drop = kf(ph, 0f to 0f, (.15f + i * .12f) to 0f, (.3f + i * .12f) to 1f, 1f to 1f)
+            if (drop > 0f) clashCard(90f + i * 40f, 40f + drop * 95f, (i - 1.5f) * 8f, listOf(Red, Yellow, Green, BoardBlue)[i], "")
+        }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

@@ -539,6 +539,31 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playMove(JSONObject().put("tile", index).put("end", end), turns.copy(dominoes = shown, lastMoveByMe = true, turn = "opponent"))
     }
 
+    /** Colour Clash: play hand card [index] ([colour] names the colour for a wild). */
+    fun playCard(index: Int, colour: Char? = null) {
+        val turns = _state.value.room?.turns ?: return
+        val view = turns.clash ?: return
+        if (!view.canPlay(index)) return
+        val card = view.hand[index]
+        val move = JSONObject().put("card", index)
+        if (colour != null) move.put("colour", colour.toString())
+        // The card goes on the pile at once; who plays next is the server's call.
+        val shown = view.copy(
+            top = card, colour = colour ?: card[0], hand = view.hand.filterIndexed { i, _ -> i != index },
+            counts = view.counts + ('m' to view.hand.size - 1), drawn = false,
+        )
+        playMove(move, turns.copy(clash = shown, lastMoveByMe = true))
+    }
+
+    /** Colour Clash: take a card from the deck. */
+    fun drawCard() = playMove(JSONObject().put("draw", true))
+
+    /** Colour Clash: keep the card you drew and end your turn. */
+    fun passCard() {
+        val turns = _state.value.room?.turns ?: return
+        playMove(JSONObject().put("pass", true), turns.copy(lastMoveByMe = true, turn = "opponent"))
+    }
+
     /** Dominoes: take a tile from the boneyard (when nothing in your hand fits). */
     fun drawTile() = playMove(JSONObject().put("draw", true))
 

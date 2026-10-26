@@ -3,6 +3,9 @@ package com.arcade.sudoku.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arcade.sudoku.data.Avatar
+import com.arcade.sudoku.game.clash.ClashComputer
+import com.arcade.sudoku.game.clash.ClashMatch
+import com.arcade.sudoku.game.clash.ClashView
 import com.arcade.sudoku.game.dominoes.DominoComputer
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
@@ -278,4 +281,88 @@ class SoloDominoesViewModel : ViewModel() {
     }
 
     private fun viewOf(m: DominoMatch) = DominoView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
+}
+
+/**
+ * Colour Clash against one to three computer players. Marks: 'm' you, then 'o', 'p', 'q' for
+ * the computers in seat order.
+ */
+data class SoloClashUiState(
+    /** Null while choosing how many computers to play. */
+    val view: ClashView? = null,
+    val opponents: Int = 1,
+    /** Whose turn: 'm' or a computer's mark. */
+    val turn: Char = 'm',
+    /** "me", "computer" or null while playing. */
+    val result: String? = null,
+)
+
+class SoloClashViewModel : ViewModel() {
+    private var match: ClashMatch? = null
+    private val computer = ClashComputer()
+    private var thinking: Job? = null
+    private var starter = 0
+    private val _state = MutableStateFlow(SoloClashUiState())
+    val state: StateFlow<SoloClashUiState> = _state.asStateFlow()
+
+    fun setOpponents(n: Int) = _state.update { it.copy(opponents = n.coerceIn(1, 3)) }
+
+    fun changeSetup() {
+        thinking?.cancel()
+        match = null
+        _state.update { it.copy(view = null, result = null, turn = 'm') }
+    }
+
+    fun start() {
+        thinking?.cancel()
+        val marks = "mopq".take(_state.value.opponents + 1).toList()
+        val m = ClashMatch(marks)
+        match = m
+        // Who starts moves one seat on each game.
+        val first = marks[starter++ % marks.size]
+        _state.update { it.copy(view = viewOf(m), turn = first, result = null) }
+        if (first != 'm') computersMove()
+    }
+
+    fun playCard(index: Int, colour: Char? = null) = humanMove(JSONObject().put("card", index).apply { if (colour != null) put("colour", colour.toString()) })
+
+    fun drawCard() = humanMove(JSONObject().put("draw", true))
+
+    fun passCard() = humanMove(JSONObject().put("pass", true))
+
+    private fun humanMove(move: JSONObject) {
+        val s = _state.value
+        if (s.turn != 'm' || s.result != null || match == null) return
+        try {
+            play('m', move)
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+        if (_state.value.result == null && _state.value.turn != 'm') computersMove()
+    }
+
+    private fun play(mark: Char, move: JSONObject) {
+        val m = match ?: return
+        val result = m.play(mark, move)
+        _state.update {
+            it.copy(
+                view = viewOf(m),
+                turn = result.turn ?: mark,
+                result = if (!result.over) null else if (result.winner == 'm') "me" else "computer",
+            )
+        }
+    }
+
+    private fun computersMove() {
+        thinking = viewModelScope.launch {
+            while (_state.value.result == null && _state.value.turn != 'm') {
+                delay(900)
+                val m = match ?: return@launch
+                val mark = _state.value.turn
+                play(mark, computer.move(m, mark))
+            }
+        }
+    }
+
+    private fun viewOf(m: ClashMatch) = ClashView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
 }

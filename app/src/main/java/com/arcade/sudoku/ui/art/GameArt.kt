@@ -23,6 +23,7 @@ val GameKind.color: Color
         GameKind.DOMINOES -> Color(0xFF8B5E34)
         GameKind.NUMBERS -> Color(0xFF0E9AA7)
         GameKind.HOCKEY -> Color(0xFF1E88E5)
+        GameKind.CLASH -> Color(0xFFE8505B)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -39,6 +40,7 @@ val GameKind.tagline: String
         GameKind.DOMINOES -> "Match the ends, play out your hand"
         GameKind.NUMBERS -> "A crossword made of sums"
         GameKind.HOCKEY -> "Fast paddles, one puck"
+        GameKind.CLASH -> "Match the colour, empty your hand"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -77,6 +79,11 @@ val GameKind.rules: String
         GameKind.HOCKEY -> "Drag your paddle (it stays in your half) to knock the puck into the goal at the far end. " +
             "The puck bounces off the sides and takes the speed of your paddle, so swing through it to shoot hard. " +
             "First to 7 goals wins. Against your partner it's live: best nearby, where the phones talk directly."
+        GameKind.CLASH -> "Everyone starts with seven cards. On your turn play a card that matches the top of the pile " +
+            "by colour or by number or symbol. Skip (⦸) skips the next player, reverse (⇄) turns the order round and +2 " +
+            "makes the next player draw two and miss their turn. Wilds (★) go on anything and you name the colour; +4 " +
+            "also makes the next player draw four. Can't play? Draw a card: play it if it fits, or keep it. First to " +
+            "play their last card wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -145,6 +152,12 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.circle(9, 15, 2, tint)
             p.circle(17, 7, 3, tint)
             p.stroke(tint, 1.6) { moveTo(13.5, 10.5); lineTo(15, 9) }
+        }
+        GameKind.CLASH -> {
+            // Two cards fanned out.
+            p.rr(4, 6, 10, 14, 2, null, tint, 1.6)
+            p.rr(10, 4, 10, 14, 2, tint, tint, 1.6)
+            p.circle(15, 11, 2.2, Color.White)
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

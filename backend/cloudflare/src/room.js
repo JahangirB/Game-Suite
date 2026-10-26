@@ -12,6 +12,7 @@ import * as draw from './draw.js';
 import * as ttt from './ttt.js';
 import * as dominoes from './dominoes.js';
 import * as numbers from './numbers.js';
+import * as clash from './clash.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -31,11 +32,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -315,7 +316,7 @@ function shipsView(room, role, status) {
 // (start, play, view); the player who starts moves one seat on each round. A player may close
 // the app between moves: turn games are never forfeited for being away, the room just waits.
 
-const TURN_RULES = { connect4, dots, memory, ttt, dominoes };
+const TURN_RULES = { connect4, dots, memory, ttt, dominoes, clash };
 export const TURN_GAMES = Object.keys(TURN_RULES);
 
 /** Ready (or not ready) for the next round of a turn game; it starts when both are ready. */
@@ -719,8 +720,8 @@ function dropOut(room, role, reason, now) {
   if (room.status !== 'started' || !playing(room).includes(role)) return;
   const rest = playing(room).filter((r) => r !== role);
   if (rest.length < 2) return endMatch(room, rest[0] || null, reason);
-  // A dominoes hand (or team) can't play on short: the match stops there.
-  if (room.game === 'dominoes') return endMatch(room, null, 'left');
+  // A dominoes or Colour Clash hand (or team) can't play on short: the match stops there.
+  if (room.game === 'dominoes' || room.game === 'clash') return endMatch(room, null, 'left');
   room.players[role].out = true;
   if (room.game === 'words') decideWords(room);
   if (TURN_GAMES.includes(room.game) && room.turn === role) room.turn = nextOf(room.inMatch, role, playing(room));
