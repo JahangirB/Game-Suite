@@ -1,5 +1,11 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -16,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,10 +30,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,38 +55,111 @@ import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
+import kotlin.math.cos
+import kotlin.math.sin
 
 private val BalloonColors = listOf(
     Color(0xFFE8505B), Color(0xFFFFC93C), Color(0xFF20A47B), Color(0xFF3D7BF7),
     Color(0xFF7B6CF0), Color(0xFFFF8A3D), Color(0xFFEC6FA9),
 )
 
-/** A row of [total] balloons on strings; the first [popped] have burst. */
+/**
+ * A row of [total] balloons on strings, swaying a little; the first [popped] have burst. A
+ * balloon that has just popped swells and wobbles, bursts with a flash, and its scraps fly
+ * out and fall while the string drops.
+ */
 @Composable
 fun BalloonRow(total: Int, popped: Int, modifier: Modifier = Modifier) {
     val ink = AppTheme.palette.ink
+    val sway by rememberInfiniteTransition(label = "sway").animateFloat(
+        0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(3200, easing = LinearEasing)), label = "sway",
+    )
+    // The pop being played: which balloon, and how far along (0 to 1).
+    var before by remember { mutableStateOf(popped) }
+    var bursting by remember { mutableStateOf<Int?>(null) }
+    val pop = remember { Animatable(1f) }
+    LaunchedEffect(popped) {
+        if (popped > before) {
+            bursting = popped - 1
+            pop.snapTo(0f)
+            pop.animateTo(1f, tween(POP_MS, easing = LinearEasing))
+        }
+        before = popped
+        bursting = null
+    }
     Canvas(modifier.fillMaxWidth().height(110.dp)) {
         val gap = size.width / total
         for (i in 0 until total) {
-            val cx = gap * (i + 0.5f)
             val r = minOf(gap * 0.38f, size.height * 0.24f)
-            val cy = r + 6f + if (i % 2 == 0) 0f else r * 0.35f
+            val bob = sin(sway + i * 0.9f)
+            val cx = gap * (i + 0.5f) + bob * r * 0.08f
+            val cy = r + 6f + (if (i % 2 == 0) 0f else r * 0.35f) + cos(sway + i) * r * 0.06f
             val color = BalloonColors[i % BalloonColors.size]
-            if (i < popped) {
-                // Burst: a few scraps where the balloon was, and a loose string.
-                for (k in 0 until 5) {
-                    val a = Math.toRadians((k * 72 + i * 20).toDouble())
-                    drawCircle(color, r * 0.18f, Offset(cx + (r * 0.7f * Math.cos(a)).toFloat(), cy + (r * 0.7f * Math.sin(a)).toFloat()))
+            val t = if (i == bursting) pop.value else null
+            when {
+                t != null && t < SWELL -> {
+                    // Swelling and trembling before it goes.
+                    val k = t / SWELL
+                    val grow = 1f + 0.22f * k
+                    val shake = sin(k * 40f) * r * 0.08f * k
+                    balloon(cx + shake, cy, r * grow, color, ink)
                 }
-                drawLine(ink.copy(alpha = 0.35f), Offset(cx, cy + r * 0.6f), Offset(cx + 4f, size.height), 2f)
-            } else {
-                drawLine(ink.copy(alpha = 0.6f), Offset(cx, cy + r), Offset(cx - 3f, size.height), 2f)
-                drawOval(color, Offset(cx - r * 0.85f, cy - r), androidx.compose.ui.geometry.Size(r * 1.7f, r * 2f))
-                drawOval(ink, Offset(cx - r * 0.85f, cy - r), androidx.compose.ui.geometry.Size(r * 1.7f, r * 2f), style = Stroke(2.5f))
-                drawCircle(Color.White.copy(alpha = 0.45f), r * 0.22f, Offset(cx - r * 0.35f, cy - r * 0.4f))
-                val knot = Path().apply { moveTo(cx - 5f, cy + r + 6f); lineTo(cx + 5f, cy + r + 6f); lineTo(cx, cy + r - 2f); close() }
-                drawPath(knot, color)
+                t != null -> {
+                    val k = (t - SWELL) / (1f - SWELL)
+                    // The flash: rays out from the middle, fading.
+                    if (k < 0.35f) {
+                        val f = k / 0.35f
+                        for (ray in 0 until 8) {
+                            val a = ray * Math.PI / 4
+                            val from = r * (0.4f + f)
+                            val to = r * (0.9f + 1.2f * f)
+                            drawLine(
+                                Color(0xFFFFE08A).copy(alpha = 1f - f), Offset(cx + (from * cos(a)).toFloat(), cy + (from * sin(a)).toFloat()),
+                                Offset(cx + (to * cos(a)).toFloat(), cy + (to * sin(a)).toFloat()), 4f,
+                            )
+                        }
+                    }
+                    shreds(cx, cy, r, color, i, k, size.height)
+                    // The string falls away.
+                    drawLine(ink.copy(alpha = 0.6f * (1f - k) + 0.35f * k), Offset(cx, cy + r + k * size.height * 0.5f), Offset(cx - 3f, size.height), 2f)
+                }
+                i < popped -> {
+                    // Long gone: the scraps lie at the bottom.
+                    shreds(cx, cy, r, color, i, 1f, size.height)
+                    drawLine(ink.copy(alpha = 0.3f), Offset(cx + 3f, size.height - 6f), Offset(cx - 8f, size.height), 2f)
+                }
+                else -> balloon(cx, cy, r, color, ink)
             }
+        }
+    }
+}
+
+/** How long a pop takes, and how much of it the swelling is. */
+private const val POP_MS = 1100
+private const val SWELL = 0.3f
+
+private fun DrawScope.balloon(cx: Float, cy: Float, r: Float, color: Color, ink: Color) {
+    drawLine(ink.copy(alpha = 0.6f), Offset(cx, cy + r), Offset(cx - 3f, size.height), 2f)
+    drawOval(color, Offset(cx - r * 0.85f, cy - r), Size(r * 1.7f, r * 2f))
+    drawOval(ink, Offset(cx - r * 0.85f, cy - r), Size(r * 1.7f, r * 2f), style = Stroke(2.5f))
+    drawCircle(Color.White.copy(alpha = 0.45f), r * 0.22f, Offset(cx - r * 0.35f, cy - r * 0.4f))
+    val knot = Path().apply { moveTo(cx - 5f, cy + r + 6f); lineTo(cx + 5f, cy + r + 6f); lineTo(cx, cy + r - 2f); close() }
+    drawPath(knot, color)
+}
+
+/** The burst balloon's scraps, [k] (0 to 1) of the way from flying out to lying on the ground. */
+private fun DrawScope.shreds(cx: Float, cy: Float, r: Float, color: Color, seed: Int, k: Float, floor: Float) {
+    for (n in 0 until 7) {
+        val a = Math.toRadians((n * 51 + seed * 23).toDouble())
+        val out = r * (0.4f + 1.1f * minOf(1f, k * 2.5f))
+        val x = cx + (out * cos(a)).toFloat()
+        // Out first, then falling to the ground.
+        val fall = maxOf(0f, k - 0.25f) / 0.75f
+        val y0 = cy + (out * sin(a)).toFloat()
+        val y = y0 + (floor - 6f - y0) * fall * fall
+        val w = r * (0.28f + 0.08f * (n % 3))
+        rotate(n * 40f + k * 220f, Offset(x, y)) {
+            drawRoundRect(color, Offset(x - w / 2, y - w / 4), Size(w, w / 2), CornerRadius(w / 4))
         }
     }
 }
@@ -90,7 +174,8 @@ private fun WordTiles(pattern: String, reveal: String? = null) {
             Surface(
                 color = if (c != '_') p.card else if (shown != null) p.accent else p.card,
                 shape = RoundedCornerShape(8.dp), border = BorderStroke(2.dp, p.ink),
-                modifier = Modifier.weight(1f, fill = false).height(44.dp),
+                // A letter found drops into its tile.
+                modifier = Modifier.weight(1f, fill = false).height(44.dp).then(if (c != '_') Modifier.dropIn(c, delayMs = 150) else Modifier),
             ) {
                 Box(Modifier.height(44.dp), contentAlignment = Alignment.Center) {
                     Text((shown ?: ' ').toString(), color = if (c == '_') p.muted else p.text, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
