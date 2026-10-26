@@ -19,6 +19,7 @@ val GameKind.color: Color
         GameKind.MEMORY -> Color(0xFFF2A33A)
         GameKind.WORDS -> Color(0xFF20A47B)
         GameKind.DRAW -> Color(0xFFE0569B)
+        GameKind.TTT -> Color(0xFF4F46E5)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -31,6 +32,7 @@ val GameKind.tagline: String
         GameKind.MEMORY -> "Find the pairs"
         GameKind.WORDS -> "Same word, who finds it first?"
         GameKind.DRAW -> "One draws, one guesses, as a team"
+        GameKind.TTT -> "Nine boards, one big game"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -53,6 +55,10 @@ val GameKind.rules: String
         GameKind.DRAW -> "You play as a team, four turns, taking turns to draw. The drawer gets a secret word and draws it; " +
             "the other watches the drawing appear and types guesses. A right guess adds the seconds left (out of 80) " +
             "to your team score. No letters or words in the drawing!"
+        GameKind.TTT -> "Nine small tic-tac-toe boards make one big board. The square you mark sends your partner to " +
+            "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +
+            "Three in a row wins a small board; three small boards in a row wins the game. If you are sent to a " +
+            "board that is already won or full, play in any open board."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -94,6 +100,13 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.stroke(tint, 2) { moveTo(3, 19); quadTo(6, 13, 9, 17); quadTo(12, 21, 14, 15) }
             p.at(17, 9, 0.785, 1) { p.rr(14, 2, 6, 15, 1.5, tint) }
             p.fill(tint) { moveTo(13.2, 15.6); lineTo(16.5, 18.9); lineTo(12, 20.5); close() }
+        }
+        GameKind.TTT -> {
+            // The big grid, with an X and an O in two of its boards.
+            p.stroke(tint, 2) { moveTo(9, 3); lineTo(9, 21); moveTo(15, 3); lineTo(15, 21); moveTo(3, 9); lineTo(21, 9); moveTo(3, 15); lineTo(21, 15) }
+            p.stroke(tint, 1.8) { moveTo(3.8, 3.8); lineTo(7.2, 7.2); moveTo(7.2, 3.8); lineTo(3.8, 7.2) }
+            p.ring(18, 18, 1.9, tint, 1.6)
+            p.rr(10.2, 10.2, 3.6, 3.6, 0.8, tint)
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

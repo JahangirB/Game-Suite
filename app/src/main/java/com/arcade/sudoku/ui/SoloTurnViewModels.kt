@@ -7,6 +7,10 @@ import com.arcade.sudoku.game.dots.Dots
 import com.arcade.sudoku.game.dots.DotsComputer
 import com.arcade.sudoku.game.dots.DotsMatch
 import com.arcade.sudoku.game.memory.MemoryMatch
+import com.arcade.sudoku.game.ttt.Ttt
+import com.arcade.sudoku.game.ttt.TttComputer
+import com.arcade.sudoku.game.ttt.TttMatch
+import com.arcade.sudoku.game.ttt.TttPosition
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +73,60 @@ class SoloDotsViewModel : ViewModel() {
                 delay(500)
                 val again = play('o', computer.move(match.lines))
             } while (again && _state.value.result == null)
+        }
+    }
+}
+
+/** Ultimate Tic-Tac-Toe against the computer. Marks: 'm' your X, 'o' the computer's O. */
+data class SoloTttUiState(
+    val position: TttPosition = TttPosition(),
+    val lastCell: Int? = null,
+    val winLine: List<Int> = emptyList(),
+    val myTurn: Boolean = true,
+    /** "me", "computer", "draw" or null while playing. */
+    val result: String? = null,
+)
+
+class SoloTttViewModel : ViewModel() {
+    private var match = TttMatch()
+    private val computer = TttComputer()
+    private var playerStarts = true
+    private val _state = MutableStateFlow(SoloTttUiState())
+    val state: StateFlow<SoloTttUiState> = _state.asStateFlow()
+
+    fun newGame() {
+        playerStarts = !playerStarts
+        match = TttMatch()
+        _state.value = SoloTttUiState(myTurn = playerStarts)
+        if (!playerStarts) computerMoves()
+    }
+
+    fun mark(cell: Int) {
+        val s = _state.value
+        if (!s.myTurn || s.result != null || !Ttt.isLegal(match.position, cell)) return
+        play('m', cell)
+        if (_state.value.result == null) computerMoves()
+    }
+
+    private fun play(mark: Char, cell: Int) {
+        val result = match.play(mark, JSONObject().put("cell", cell))
+        _state.value = SoloTttUiState(
+            position = match.position,
+            lastCell = cell,
+            winLine = match.winLine.orEmpty(),
+            myTurn = mark != 'm',
+            result = if (!result.over) null else when (result.winner) {
+                'm' -> "me"
+                'o' -> "computer"
+                else -> "draw"
+            },
+        )
+    }
+
+    private fun computerMoves() {
+        viewModelScope.launch {
+            delay(600)
+            play('o', computer.move(match.position, 'o', 'm'))
         }
     }
 }

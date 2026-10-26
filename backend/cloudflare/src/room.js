@@ -9,6 +9,7 @@ import * as dots from './dots.js';
 import * as memory from './memory.js';
 import * as words from './words.js';
 import * as draw from './draw.js';
+import * as ttt from './ttt.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -28,7 +29,7 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt'];
 // What apps from before the version check could play; they don't say which games they know.
 const OLD_APP_GAMES = ['sudoku', 'ships'];
 
@@ -277,12 +278,12 @@ function shipsView(room, role, status) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Turn games (Connect Four, Dots & Boxes, Memory Pairs): both players get ready, then take
-// turns making moves. Each game's own rules live in its module (start, play, view); the
-// player who starts alternates from round to round. A player may close the app between
+// Turn games (Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe): both players
+// get ready, then take turns making moves. Each game's own rules live in its module (start,
+// play, view); the player who starts alternates from round to round. A player may close the app between
 // moves: turn games are never forfeited for being away, the room just waits.
 
-const TURN_RULES = { connect4, dots, memory };
+const TURN_RULES = { connect4, dots, memory, ttt };
 export const TURN_GAMES = Object.keys(TURN_RULES);
 
 /** Ready (or not ready) for the next round of a turn game; it starts when both are ready. */
@@ -305,7 +306,7 @@ export function setTurnReady(room, role, ready, now, random = Math.random) {
   bump(room);
 }
 
-/** Plays `move` for `role`: { col } in Connect Four, { line } in Dots & Boxes, { card } in Memory Pairs. */
+/** Plays `move` for `role`: { col } in Connect Four, { line } in Dots & Boxes, { card } in Memory Pairs, { cell } in Ultimate Tic-Tac-Toe. */
 export function makeMove(room, role, move, now) {
   if (!TURN_GAMES.includes(room.game) || room.status !== 'started') throw new GameError('The game is not running.');
   if (room.turn !== role) throw new GameError("It's not your turn.");

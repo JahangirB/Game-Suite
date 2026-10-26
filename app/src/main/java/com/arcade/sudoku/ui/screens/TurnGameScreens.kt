@@ -15,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,6 +73,8 @@ import com.arcade.sudoku.ui.SoloDotsUiState
 import com.arcade.sudoku.ui.SoloDotsViewModel
 import com.arcade.sudoku.ui.SoloMemoryUiState
 import com.arcade.sudoku.ui.SoloMemoryViewModel
+import com.arcade.sudoku.ui.SoloTttUiState
+import com.arcade.sudoku.ui.SoloTttViewModel
 import com.arcade.sudoku.ui.art.AvatarImage
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.art.drawAvatar
@@ -142,6 +145,103 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
                 val center = Offset((i % ConnectFour.COLS + 0.5f) * cell, top + (i / ConnectFour.COLS + 0.5f) * cell)
                 drawCircle(Color.White.copy(alpha = glow), radius * 1.02f, center, style = Stroke(cell * 0.1f))
             }
+        }
+    }
+}
+
+// ---- Ultimate Tic-Tac-Toe -----------------------------------------------------------------
+
+private val TttBlue = Color(0xFF4F46E5)
+private val Target = Color(0xFFFFD23F)
+
+/**
+ * An Ultimate Tic-Tac-Toe board: [board] holds 81 cells ('m' your X, 'o' their O, '.'), small
+ * board by small board; [boards] each small board's winner ('d' drawn). While [playing], the
+ * board(s) the next move must go in glow. With [onMark] set, tapping a square marks it.
+ */
+@Composable
+fun TttBoard(
+    board: String,
+    boards: String,
+    next: Int?,
+    winLine: List<Int>,
+    lastCell: Int?,
+    playing: Boolean,
+    onMark: ((Int) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val p = AppTheme.palette
+    val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
+    LaunchedEffect(lastCell) { pop.animateTo(1f, tween(260)) }
+    val pulse by rememberInfiniteTransition(label = "target").animateFloat(
+        0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "targetPulse",
+    )
+    val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
+        detectTapGestures { at ->
+            val big = size.width / 3f
+            val gap = big * 0.07f
+            val small = (big - 2 * gap) / 3f
+            val bx = (at.x / big).toInt().coerceIn(0, 2)
+            val by = (at.y / big).toInt().coerceIn(0, 2)
+            val cx = ((at.x - bx * big - gap) / small).toInt().coerceIn(0, 2)
+            val cy = ((at.y - by * big - gap) / small).toInt().coerceIn(0, 2)
+            onMark((by * 3 + bx) * 9 + cy * 3 + cx)
+        }
+    }
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).then(tap)) {
+        val big = size.width / 3f
+        val gap = big * 0.07f
+        val small = (big - 2 * gap) / 3f
+        val corner = CornerRadius(big * 0.12f)
+        drawRoundRect(p.ink, Offset(0f, 6f), Size(size.width, size.height - 6f), corner)
+        drawRoundRect(TttBlue, Offset.Zero, Size(size.width, size.height - 6f), corner)
+        drawRoundRect(p.ink, Offset.Zero, Size(size.width, size.height - 6f), corner, style = Stroke(4f))
+        fun origin(b: Int) = Offset((b % 3) * big + gap, (b / 3) * big + gap)
+        fun mark(kind: Char, center: Offset, r: Float, width: Float, scale: Float = 1f) {
+            val k = r * scale
+            when (kind) {
+                'm' -> for (color in listOf(p.ink, MyDisc)) {
+                    val w = if (color == MyDisc) width else width + 5f
+                    drawLine(color, center + Offset(-k, -k), center + Offset(k, k), w, StrokeCap.Round)
+                    drawLine(color, center + Offset(k, -k), center + Offset(-k, k), w, StrokeCap.Round)
+                }
+                'o' -> {
+                    drawCircle(p.ink, k, center, style = Stroke(width + 5f))
+                    drawCircle(TheirDisc, k, center, style = Stroke(width))
+                }
+            }
+        }
+        // Lines between the small boards.
+        for (i in 1..2) {
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(i * big, gap * 0.6f), Offset(i * big, size.height - 6f - gap * 0.6f), 5f, StrokeCap.Round)
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(gap * 0.6f, i * big), Offset(size.width - gap * 0.6f, i * big), 5f, StrokeCap.Round)
+        }
+        for (b in 0 until 9) {
+            val o = origin(b)
+            val target = playing && boards[b] == '.' && (next == null || next == b)
+            if (target) {
+                drawRoundRect(Target.copy(alpha = 0.3f * pulse), o - Offset(gap * 0.4f, gap * 0.4f), Size(3 * small + gap * 0.8f, 3 * small + gap * 0.8f), CornerRadius(gap))
+                drawRoundRect(Target.copy(alpha = pulse), o - Offset(gap * 0.4f, gap * 0.4f), Size(3 * small + gap * 0.8f, 3 * small + gap * 0.8f), CornerRadius(gap), style = Stroke(4f))
+            }
+            for (i in 1..2) {
+                drawLine(Color.White.copy(alpha = 0.45f), o + Offset(i * small, 0f), o + Offset(i * small, 3 * small), 2.5f, StrokeCap.Round)
+                drawLine(Color.White.copy(alpha = 0.45f), o + Offset(0f, i * small), o + Offset(3 * small, i * small), 2.5f, StrokeCap.Round)
+            }
+            for (c in 0 until 9) {
+                val cell = b * 9 + c
+                val center = o + Offset((c % 3 + 0.5f) * small, (c / 3 + 0.5f) * small)
+                if (cell == lastCell) drawCircle(Color.White.copy(alpha = 0.22f), small * 0.46f, center)
+                mark(board.getOrElse(cell) { '.' }, center, small * 0.26f, small * 0.11f, if (cell == lastCell) pop.value else 1f)
+            }
+            // A decided small board: dimmed, with its winner's big mark on top.
+            if (boards[b] != '.') {
+                drawRoundRect(TttBlue.copy(alpha = 0.72f), o - Offset(gap * 0.3f, gap * 0.3f), Size(3 * small + gap * 0.6f, 3 * small + gap * 0.6f), CornerRadius(gap))
+                mark(boards[b], o + Offset(1.5f * small, 1.5f * small), small * 1.05f, small * 0.3f)
+            }
+        }
+        if (winLine.size == 3) {
+            val center = { b: Int -> Offset((b % 3 + 0.5f) * big, (b / 3 + 0.5f) * big) }
+            drawLine(Color.White.copy(alpha = pulse), center(winLine.first()), center(winLine.last()), big * 0.09f, StrokeCap.Round)
         }
     }
 }
@@ -375,7 +475,7 @@ private fun soloDock(onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit
 
 // ---- Against your partner -----------------------------------------------------------------
 
-/** A turn game (Connect Four, Dots & Boxes, Memory Pairs) against your partner. */
+/** A turn game (Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe) against your partner. */
 @Composable
 fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
     val p = AppTheme.palette
@@ -395,11 +495,12 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val owned = turns.boxes ?: turns.owners
     fun score(mark: Char): String? = owned?.let { o -> o.count { it == mark }.let { if (game == GameKind.MEMORY) it / 2 else it } }
         ?.let { if (game == GameKind.MEMORY) "$it pairs" else "$it boxes" }
+    val (myLabel, theirLabel) = if (game == GameKind.TTT) "X" to "O" else "Red" to "Yellow"
     val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, MyDisc, score('m') ?: "Red", visibleReaction(state.myReaction, now), active = myTurn && !finished),
+        ChipPlayer("You", room.me.avatar, MyDisc, score('m') ?: myLabel, visibleReaction(state.myReaction, now), active = myTurn && !finished),
         opponent?.let {
             ChipPlayer(
-                it.name + if (it.online == false) " (away)" else "", it.avatar, TheirDisc, score('o') ?: "Yellow",
+                it.name + if (it.online == false) " (away)" else "", it.avatar, TheirDisc, score('o') ?: theirLabel,
                 visibleReaction(state.opponentReaction, now), active = turns.turn == "opponent",
             )
         },
@@ -418,7 +519,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         if (!finished) {
             val name = opponent?.name ?: "Your opponent"
             // In Dots & Boxes and Memory, a move that scores keeps the turn: say so.
-            val again = myTurn && turns.lastMoveByMe == true && game != GameKind.CONNECT4
+            val again = myTurn && turns.lastMoveByMe == true && (game == GameKind.DOTS || game == GameKind.MEMORY)
             TurnLine(
                 when {
                     !myTurn && opponent?.online == false -> "$name is away. They'll get a notification that it's their turn."
@@ -427,6 +528,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     again && game == GameKind.MEMORY && turns.faces.count { it != null } % 2 == 0 -> "A pair! Go again"
                     game == GameKind.DOTS -> "Your turn: draw a line between two dots"
                     game == GameKind.MEMORY -> "Your turn: flip two cards"
+                    game == GameKind.TTT -> if (turns.nextBoard == null) "Your turn: play in any open board" else "Your turn: play in the glowing board"
                     else -> "Your turn: slide to a column and let go"
                 },
                 myTurn,
@@ -441,6 +543,15 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 onLine = if (canMove) vm::drawLine else null,
             )
             GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null)
+            GameKind.TTT -> TttBoard(
+                board = turns.board ?: ".".repeat(81),
+                boards = turns.smallBoards ?: ".".repeat(9),
+                next = turns.nextBoard,
+                winLine = turns.winLine,
+                lastCell = turns.lastCell,
+                playing = !finished,
+                onMark = if (canMove) vm::markCell else null,
+            )
             else -> ConnectFourBoard(
                 board = turns.board ?: ConnectFour.EMPTY,
                 winLine = turns.winLine,
@@ -470,11 +581,16 @@ private fun ResultCard(game: GameKind, winner: String?, endReason: String?, oppo
         Text(
             when (endReason) {
                 "four" -> if (winner == "me") "Four in a row!" else "$name got four in a row."
+                "three" -> if (winner == "me") "Three boards in a row!" else "$name won three boards in a row."
                 "most" -> {
                     val what = if (game == GameKind.MEMORY) "pairs" else "boxes"
                     if (winner == "me") "You found more $what." else "$name found more $what."
                 }
-                "draw" -> if (game == GameKind.CONNECT4) "The board is full and nobody got four." else "A tie: you both have the same number."
+                "draw" -> when (game) {
+                    GameKind.CONNECT4 -> "The board is full and nobody got four."
+                    GameKind.TTT -> "Every board is decided and nobody has three in a row."
+                    else -> "A tie: you both have the same number."
+                }
                 "forfeit" -> if (winner == "me") "$name left the game." else "You left the game."
                 "timeout" -> if (winner == "me") "$name lost connection." else "You were disconnected for too long."
                 else -> ""
@@ -579,6 +695,65 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
                         "me" -> "You win!"
                         "computer" -> "The computer wins."
                         else -> "A tie: 8 boxes each."
+                    },
+                    color = if (result == "me") p.good else if (result == "computer") p.bad else p.muted,
+                    fontSize = 26.sp,
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PrimaryButton("Play again", vm::newGame)
+            }
+        }
+    }
+}
+
+/** Ultimate Tic-Tac-Toe against the computer. */
+@Composable
+fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Unit) {
+    val p = AppTheme.palette
+    var showRules by remember { mutableStateOf(false) }
+    if (showRules) RulesDialog(GameKind.TTT) { showRules = false }
+    val playing = state.result == null
+    val pos = state.position
+    GameFrame(
+        title = "Tic-Tac-Toe",
+        subtitle = "Ultimate · against the computer",
+        players = listOf(
+            ChipPlayer("You", null, MyDisc, "X · ${pos.boards.count { it == 'm' }} boards", active = state.myTurn && playing),
+            ChipPlayer("Computer", null, TheirDisc, "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
+        ),
+        glow = GameKind.TTT.color,
+        dock = soloDock(onHome, { showRules = true }, vm::newGame),
+    ) {
+        if (playing) {
+            TurnLine(
+                when {
+                    !state.myTurn -> "The computer is thinking…"
+                    pos.next < 0 -> "Your turn: play in any open board"
+                    else -> "Your turn: play in the glowing board"
+                },
+                state.myTurn,
+                GameKind.TTT.color,
+            )
+        }
+        TttBoard(
+            board = pos.cells,
+            boards = pos.boards,
+            next = pos.next.takeIf { it >= 0 },
+            winLine = state.winLine,
+            lastCell = state.lastCell,
+            playing = playing,
+            onMark = if (state.myTurn && playing) vm::mark else null,
+        )
+        state.result?.let { result ->
+            AppCard {
+                Text(
+                    when (result) {
+                        "me" -> "You win!"
+                        "computer" -> "The computer wins."
+                        else -> "A draw: nobody has three boards in a row."
                     },
                     color = if (result == "me") p.good else if (result == "computer") p.bad else p.muted,
                     fontSize = 26.sp,

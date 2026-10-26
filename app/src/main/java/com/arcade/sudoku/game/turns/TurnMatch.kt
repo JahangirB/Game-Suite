@@ -4,6 +4,7 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.C4Match
 import com.arcade.sudoku.game.dots.DotsMatch
 import com.arcade.sudoku.game.memory.MemoryMatch
+import com.arcade.sudoku.game.ttt.TttMatch
 import org.json.JSONObject
 import kotlin.random.Random
 
@@ -12,7 +13,7 @@ data class TurnResult(val again: Boolean, val over: Boolean = false, val winner:
 
 /**
  * One round of a turn game, matching the server modules in backend/cloudflare/src
- * (connect4.js, dots.js, memory.js). A mark is a player's one-letter id.
+ * (connect4.js, dots.js, memory.js, ttt.js). A mark is a player's one-letter id.
  */
 interface TurnMatch {
     /** Plays [move] for [mark]; throws IllegalArgumentException for a move that isn't allowed. */
@@ -25,6 +26,7 @@ interface TurnMatch {
         fun start(game: GameKind, random: Random = Random.Default): TurnMatch = when (game) {
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
+            GameKind.TTT -> TttMatch()
             else -> C4Match()
         }
 

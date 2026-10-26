@@ -31,6 +31,7 @@ import com.arcade.sudoku.ui.screens.SoloConnectFourScreen
 import com.arcade.sudoku.ui.screens.SoloDotsScreen
 import com.arcade.sudoku.ui.screens.SoloMemoryScreen
 import com.arcade.sudoku.ui.screens.TurnGameScreen
+import com.arcade.sudoku.ui.screens.SoloTttScreen
 import com.arcade.sudoku.ui.screens.SoloWordsScreen
 import com.arcade.sudoku.ui.screens.WordRaceScreen
 import com.arcade.sudoku.ui.screens.DrawGuessScreen
@@ -47,7 +48,7 @@ import com.arcade.sudoku.ui.art.ReactionBurst
 import com.arcade.sudoku.ui.screens.LocalShipStyle
 import com.arcade.sudoku.ui.theme.AppTheme
 
-private enum class Dest { HOME, PROFILE, BATTLE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS }
+private enum class Dest { HOME, PROFILE, BATTLE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT }
 
 @Composable
 fun ArcadeSudokuApp(
@@ -60,6 +61,7 @@ fun ArcadeSudokuApp(
     dots: SoloDotsViewModel = viewModel(),
     memory: SoloMemoryViewModel = viewModel(),
     words: SoloWordsViewModel = viewModel(),
+    ttt: SoloTttViewModel = viewModel(),
 ) {
     val p = AppTheme.palette
     val profile by app.profile.collectAsStateWithLifecycle()
@@ -71,6 +73,7 @@ fun ArcadeSudokuApp(
     val dotsState by dots.state.collectAsStateWithLifecycle()
     val memoryState by memory.state.collectAsStateWithLifecycle()
     val wordsState by words.state.collectAsStateWithLifecycle()
+    val tttState by ttt.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
@@ -126,6 +129,7 @@ fun ArcadeSudokuApp(
                     dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = { dest = Dest.HOME })
                     dest == Dest.MEMORY -> SoloMemoryScreen(memoryState, memory, onHome = { dest = Dest.HOME })
                     dest == Dest.WORDS -> SoloWordsScreen(wordsState, words, onHome = { dest = Dest.HOME })
+                    dest == Dest.TTT -> SoloTttScreen(tttState, ttt, onHome = { dest = Dest.HOME })
                     dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = { dest = Dest.HOME })
                     dest == Dest.PROFILE -> ProfileScreen(
                         profile, battleState.busy, app, battle, updateState,
@@ -159,6 +163,7 @@ fun ArcadeSudokuApp(
                                 GameKind.DOTS -> Dest.DOTS
                                 GameKind.MEMORY -> Dest.MEMORY
                                 GameKind.WORDS -> Dest.WORDS
+                                GameKind.TTT -> Dest.TTT
                                 // Draw & Guess needs two players; its sheet offers no solo game.
                                 GameKind.DRAW -> Dest.HOME
                                 GameKind.SUDOKU -> Dest.SOLO

@@ -9,6 +9,8 @@ import com.arcade.sudoku.data.Difficulty
 import com.arcade.sudoku.data.DrawStroke
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
+import com.arcade.sudoku.game.ttt.Ttt
+import com.arcade.sudoku.game.ttt.TttPosition
 import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
 import com.arcade.sudoku.data.Hello
@@ -431,6 +433,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun drawLine(line: Int) {
         val lines = _state.value.room?.turns?.lines ?: return
         if (lines.getOrNull(line) == '.') playMove(JSONObject().put("line", line))
+    }
+
+    /** Ultimate Tic-Tac-Toe: mark [cell]. */
+    fun markCell(cell: Int) {
+        val turns = _state.value.room?.turns ?: return
+        val pos = TttPosition(turns.board ?: return, turns.smallBoards ?: return, turns.nextBoard ?: -1)
+        if (Ttt.isLegal(pos, cell)) playMove(JSONObject().put("cell", cell))
     }
 
     /** Memory Pairs: flip [card]. */

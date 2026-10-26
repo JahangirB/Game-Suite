@@ -233,7 +233,7 @@ class LocalRoom(
         version++
     }
 
-    /** Turn games: plays [move] ({"col"}, {"line"} or {"card"}) for [role]. */
+    /** Turn games: plays [move] ({"col"}, {"line"}, {"card"} or {"cell"}) for [role]. */
     fun move(role: String, move: JSONObject, now: Long) {
         val match = turnMatch
         if (!game.turnBased || status != "started" || match == null) throw ApiException("The game is not running.")

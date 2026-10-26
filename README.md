@@ -51,8 +51,12 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   the drawing appear live and types guesses; a right guess adds the seconds left (out of 80) to
   your team score. Four turns, taking turns to draw. Online (Cloudflare) or nearby.
 
-**Play across time zones.** Connect Four, Dots & Boxes and Memory Pairs don't need you both
-online at once: close the app after your move and your partner gets a **"Your turn"**
+- **Ultimate Tic-Tac-Toe:** nine small boards make one big board. The square you mark sends
+  your partner to the small board in the same spot; three in a row wins a small board, three
+  small boards in a row wins the game. Play against the computer, online or nearby.
+
+**Play across time zones.** Connect Four, Dots & Boxes, Memory Pairs and Ultimate Tic-Tac-Toe
+don't need you both online at once: close the app after your move and your partner gets a **"Your turn"**
 notification (Cloudflare server with invitations set up). Tap it to make your move. Turn games
 are never lost for being away, and the room waits up to a week.
 
@@ -327,7 +331,7 @@ Requires Android 8.0 (API 26) or newer.
 | `backend/cloudflare/` | Cloudflare Worker: one Durable Object per room (`src/room.js`: Sudoku, Ship Battle and turn-game rules; `src/connect4.js`, `src/dots.js`, `src/memory.js`, `src/words.js`, `src/draw.js`) and a Directory object for invitations (`src/directory.js`, `src/push.js`), with unit and end-to-end tests |
 | `app/src/main/java/com/arcade/sudoku/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
 | `app/src/main/java/com/arcade/sudoku/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
-| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `turns/` | Turn games: Connect Four, Dots & Boxes and Memory Pairs rules, the computer opponents, and the shared move interface |
+| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs and Ultimate Tic-Tac-Toe rules, the computer opponents, and the shared move interface |
 | `app/src/main/java/com/arcade/sudoku/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |
 | `app/src/main/java/com/arcade/sudoku/push/` | Invitations: Firebase setup, notifications with Play/Decline, the invite endpoints |
 | `app/src/main/java/com/arcade/sudoku/data/nearby/` | Nearby battles: `LocalRoom` (the rules, run on the host phone), `NearbyHost`, `NearbyGuest` |

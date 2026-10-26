@@ -13,10 +13,11 @@ enum class GameKind(val key: String, val label: String) {
     DOTS("dots", "Dots & Boxes"),
     MEMORY("memory", "Memory Pairs"),
     WORDS("words", "Word Race"),
-    DRAW("draw", "Draw & Guess");
+    DRAW("draw", "Draw & Guess"),
+    TTT("ttt", "Ultimate Tic-Tac-Toe");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW
@@ -70,12 +71,12 @@ data class ShipsView(
 data class TurnsView(
     /** "me", "opponent" or null when nobody is to move. */
     val turn: String?,
-    /** Connect Four: 42 cells from the top row. */
+    /** Connect Four: 42 cells from the top row. Ultimate Tic-Tac-Toe: 81 cells, board by board. */
     val board: String?,
-    /** Connect Four: the winning cells once someone has four in a row. */
+    /** Connect Four: the winning cells once someone has four in a row. Ultimate Tic-Tac-Toe: the winning small boards. */
     val winLine: List<Int>,
     val lastMoveByMe: Boolean?,
-    /** Connect Four: the cell of the last disc. */
+    /** Connect Four and Ultimate Tic-Tac-Toe: the cell of the last move. */
     val lastCell: Int?,
     /** Dots & Boxes: who drew each of the 40 lines, and who owns each of the 16 boxes. */
     val lines: String? = null,
@@ -84,6 +85,9 @@ data class TurnsView(
     /** Memory Pairs: each card's picture when face up or matched, and who found it. */
     val faces: List<Avatar?> = emptyList(),
     val owners: String? = null,
+    /** Ultimate Tic-Tac-Toe: who won each small board ('d' drawn), and the board to play in next (null: any). */
+    val smallBoards: String? = null,
+    val nextBoard: Int? = null,
 )
 
 /** One Word Race guess: the word (hidden for the opponent until the round is over) and its colours. */
@@ -277,6 +281,8 @@ private fun parseTurns(json: JSONObject): TurnsView {
         lastLine = last?.takeIf { it.has("line") }?.optInt("line"),
         faces = json.optJSONArray("faces")?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else Avatar.from(a.optString(it)) } }.orEmpty(),
         owners = json.stringOrNull("owners"),
+        smallBoards = json.stringOrNull("boards"),
+        nextBoard = json.optInt("next", -1).takeIf { it >= 0 },
     )
 }
 
