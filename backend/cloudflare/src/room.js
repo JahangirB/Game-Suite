@@ -18,6 +18,7 @@ import * as grid from './grid.js';
 import * as balloon from './balloon.js';
 import * as codeGame from './code.js';
 import * as slideGame from './slide.js';
+import * as bingo from './bingo.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -37,11 +38,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code', 'slide'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code', 'slide', 'bingo'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4, slide: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4, slide: 4, bingo: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -675,6 +676,49 @@ function slideView(room, role, status) {
   };
 }
 
+// ---------------------------------------------------------------------------------------
+// Bingo: a card each and one shared call order; the first to claim a full line wins.
+
+/** Bingo: ready (or not); the server deals the cards and shuffles the calls. */
+export function setBingoReady(room, role, ready, now, random = Math.random) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  if (allReady(room)) {
+    const startAt = now + COUNTDOWN_MS;
+    beginMatch(room, { startAt, calls: bingo.shuffledCalls(random), bingoEndsAt: bingo.endsAt(startAt), bingoLine: null });
+    for (const r of room.inMatch) room.players[r].card = bingo.dealCard(random);
+  }
+  bump(room);
+}
+
+/** Bingo: [role] claims a full line of numbers called so far. */
+export function claimBingo(room, role, now) {
+  if (room.game !== 'bingo' || room.status !== 'started') throw new GameError('The game is not running.');
+  if (now < room.startAt) throw new GameError('Wait for the countdown.');
+  if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
+  const me = room.players[role];
+  const line = bingo.fullLine(me.card, room.calls.slice(0, bingo.calledCount(room.startAt, now)));
+  if (!line) throw new GameError('No full line yet.');
+  room.bingoLine = line;
+  me.finishedAt = now;
+  endMatch(room, role, 'bingo');
+  bump(room);
+}
+
+function bingoView(room, role, status) {
+  const show = status === 'playing' || status === 'finished';
+  const winner = room.winner && room.players[room.winner];
+  return {
+    card: show ? room.players[role].card || null : null,
+    calls: show ? room.calls || null : null,
+    callMs: bingo.CALL_MS,
+    endsAt: room.bingoEndsAt || null,
+    // At the end: the winning card and its line.
+    winCard: status === 'finished' && winner ? winner.card || null : null,
+    line: status === 'finished' ? room.bingoLine || null : null,
+  };
+}
+
 /** Ends the round once nobody can change the result any more. */
 function decideWords(room) {
   const roles = playing(room);
@@ -995,6 +1039,11 @@ export function checkTimers(room, now) {
     bump(room);
     return 'changed';
   }
+  if (room.status === 'started' && room.game === 'bingo' && now >= room.bingoEndsAt) {
+    endMatch(room, null, 'draw');
+    bump(room);
+    return 'changed';
+  }
   if (room.status === 'started' && room.game === 'draw' && now >= room.turnEndsAt) {
     room.lastTurn = { word: room.drawWord, guessed: false, points: 0, drawer: room.drawer };
     nextDrawTurn(room, now);
@@ -1037,6 +1086,7 @@ export function nextDeadline(room) {
   }
   if (room.status === 'started' && room.game === 'draw') deadlines.push(room.turnEndsAt);
   if (room.status === 'started' && room.game === 'grid') deadlines.push(room.gridEndsAt);
+  if (room.status === 'started' && room.game === 'bingo') deadlines.push(room.bingoEndsAt);
   if (room.status !== 'closed' && !TURN_GAMES.includes(room.game)) {
     for (const role of roles) {
       const player = room.players[role];
@@ -1118,6 +1168,7 @@ export function view(room, role, now) {
     grid: room.game === 'grid' ? gridView(room, role, status) : null,
     codeGame: room.game === 'code' ? codeView(room, role, status) : null,
     slide: room.game === 'slide' ? slideView(room, role, status) : null,
+    bingo: room.game === 'bingo' ? bingoView(room, role, status) : null,
   };
 }
 

@@ -468,6 +468,7 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
                 room.game == GameKind.DRAW -> "The match starts when everyone is ready. You take turns drawing."
                 room.game == GameKind.NUMBERS -> "Everyone gets the same new puzzle. The first to solve it wins."
                 room.game == GameKind.SLIDE -> "Same shuffle for everyone; the first to put it in order wins."
+                room.game == GameKind.BINGO -> "A card each; the first full line of called numbers wins."
                 room.game == GameKind.CODE -> "Each of you hides a code for the other; fewest guesses wins."
                 room.game == GameKind.GRID -> "Same letters for everyone, two minutes on the clock."
                 room.game == GameKind.HOCKEY -> "Live air hockey, first to 7. Best nearby, where the phones talk directly."

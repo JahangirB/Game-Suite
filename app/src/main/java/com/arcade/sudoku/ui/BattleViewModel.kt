@@ -12,6 +12,7 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
+import com.arcade.sudoku.game.bingo.Bingo
 import com.arcade.sudoku.game.code.CodeBreaker
 import com.arcade.sudoku.game.slide.Slide
 import com.arcade.sudoku.game.slide.SlideLevel
@@ -115,6 +116,9 @@ data class BattleUiState(
     /** Slide Race: your slides so far this round, and the round they belong to. */
     val slideMoves: List<Int> = emptyList(),
     val slideRound: Int = -1,
+    /** Bingo: the squares you dabbed, for round [bingoRound]. */
+    val bingoDabs: Set<Int> = emptySet(),
+    val bingoRound: Int = -1,
     /** Nearby hosts found while looking for a game. */
     val nearbyHosts: List<FoundHost> = emptyList(),
     val scanning: Boolean = false,
@@ -995,12 +999,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Code Breaker: set your code, or (once both are set) guess theirs. */
+    /** Code Breaker: set your code, or (once both are set) guess theirs. Bingo claims go the same way. */
     fun sendCode(code: String) {
         val room = _state.value.room ?: return
         val id = playerId ?: return
         val b = backend ?: return
-        if (_state.value.firing || !CodeBreaker.isCode(code)) return
+        if (_state.value.firing || (room.game == GameKind.CODE && !CodeBreaker.isCode(code))) return
         _state.update { it.copy(firing = true) }
         viewModelScope.launch {
             try {
@@ -1037,6 +1041,26 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Slide Race: tap a tile in line with the gap; it (and any tiles between) slide over at once. */
+    /** Bingo: dab (or un-dab) square [index] of your card; only called numbers take a dab. */
+    fun dabBingo(index: Int) {
+        val s = _state.value
+        val room = s.room ?: return
+        val bingo = room.bingo ?: return
+        val card = bingo.card ?: return
+        val calls = bingo.calls ?: return
+        val start = room.startAt ?: return
+        if (s.phase(s.serverNow()) != RoomStatus.PLAYING || index == Bingo.FREE) return
+        val n = card.getOrNull(index) ?: return
+        if (n !in calls.take(Bingo.calledCount(s.serverNow() - start))) return
+        _state.update {
+            val dabs = if (it.bingoRound == room.round) it.bingoDabs else emptySet()
+            it.copy(bingoDabs = if (index in dabs) dabs - index else dabs + index, bingoRound = room.round)
+        }
+    }
+
+    /** Bingo: claim a full line; the server checks it against the calls. */
+    fun claimBingo() = sendCode(BINGO_CLAIM)
+
     fun tapSlideTile(tile: Int) {
         val s = _state.value
         val slide = s.room?.slide ?: return
@@ -1385,6 +1409,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MOVE_BATCH_MS = 700L
+        // Bingo: a claim goes as a "guess" with this word; the server only checks the card.
+        const val BINGO_CLAIM = "bingo"
         // Air Hockey: the table steps about 60 times a second and goes to the other phone 20 times a second.
         const val HOCKEY_FRAME_MS = 16L
         const val HOCKEY_SEND_MS = 50L

@@ -31,16 +31,17 @@ enum class GameKind(val key: String, val label: String) {
     GRID("grid", "Letter Grid"),
     BALLOON("balloon", "Balloon Words"),
     CODE("code", "Code Breaker"),
-    SLIDE("slide", "Slide Race");
+    SLIDE("slide", "Slide Race"),
+    BINGO("bingo", "Bingo");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE || this == BINGO) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE || this == SLIDE
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE || this == SLIDE || this == BINGO
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -131,6 +132,12 @@ data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entr
 
 /** A Slide Race round: the host's level, the puzzle's size, the shuffled start (once playing) and your moves so far. */
 data class SlideView(val level: SlideLevel, val size: Int, val start: List<Int>?, val moves: List<Int>)
+
+/**
+ * A Bingo round: your card and the call order (once playing; the calls so far follow from the
+ * start time), and at the end the winning card and its line.
+ */
+data class BingoView(val card: List<Int>?, val calls: List<Int>?, val callMs: Long, val endsAt: Long?, val winCard: List<Int>?, val line: List<Int>?)
 
 /** One Code Breaker guess: its pegs (hidden for the other player until the end) and the black and white score. */
 data class CodeGuess(val code: String?, val black: Int, val white: Int)
@@ -295,6 +302,7 @@ data class RoomState(
     /** Code Breaker ([code] is the room's code). */
     val codeGame: CodeView? = null,
     val slide: SlideView? = null,
+    val bingo: BingoView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -334,6 +342,10 @@ fun parseRoom(json: JSONObject) = RoomState(
     slide = json.optJSONObject("slide")?.let { s ->
         fun ints(k: String) = s.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
         SlideView(SlideLevel.from(s.stringOrNull("level")), s.optInt("size", 3), ints("start"), ints("moves").orEmpty())
+    },
+    bingo = json.optJSONObject("bingo")?.let { b ->
+        fun ints(k: String) = b.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
+        BingoView(ints("card"), ints("calls"), b.optLong("callMs", 3500), b.longOrNull("endsAt"), ints("winCard"), ints("line"))
     },
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),

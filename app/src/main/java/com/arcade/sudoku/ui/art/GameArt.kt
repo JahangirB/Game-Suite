@@ -29,6 +29,7 @@ val GameKind.color: Color
         GameKind.BALLOON -> Color(0xFFEC6FA9)
         GameKind.CODE -> Color(0xFF5B5F97)
         GameKind.SLIDE -> Color(0xFFFF8A3D)
+        GameKind.BINGO -> Color(0xFFD9467A)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -51,6 +52,7 @@ val GameKind.tagline: String
         GameKind.BALLOON -> "Guess the letters before they pop"
         GameKind.CODE -> "Crack the hidden colour code"
         GameKind.SLIDE -> "Same shuffle, first in order wins"
+        GameKind.BINGO -> "Dab the calls, shout first"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -115,6 +117,9 @@ val GameKind.rules: String
         GameKind.SLIDE -> "Put the numbered tiles back in order, 1 to the last, with the gap at the end. Tap a tile in line " +
             "with the gap and it slides over (with any tiles between). In a race everyone gets the same shuffle, made on the " +
             "host's phone with real slides so it can always be solved; the first to finish wins. Tiles in their place turn orange."
+        GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
+            "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +
+            "diagonal (the star counts) and the Bingo button lights up: the first to press it wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -216,6 +221,11 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             // A 2 × 2 of tiles with one gap and an arrow.
             p.rr(3, 3, 8, 8, 2, tint, tint, 1.4); p.rr(13, 3, 8, 8, 2, tint, tint, 1.4); p.rr(3, 13, 8, 8, 2, tint, tint, 1.4)
             p.stroke(tint, 1.6) { moveTo(14, 17); lineTo(20, 17); moveTo(17.5, 14.5); lineTo(20, 17); lineTo(17.5, 19.5) }
+        }
+        GameKind.BINGO -> {
+            // A ball with a dabbed card corner.
+            p.ring(9, 9, 6, tint, 1.6); p.circle(9, 9, 2.6, tint)
+            p.rr(12, 12, 9, 9, 1.5, null, tint, 1.6); p.circle(16.5, 16.5, 2.2, tint)
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

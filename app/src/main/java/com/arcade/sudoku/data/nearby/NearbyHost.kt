@@ -77,6 +77,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 game.turnBased -> setTurnReady(LocalRoom.HOST, ready, now())
                 game == GameKind.WORDS -> setWordsReady(LocalRoom.HOST, ready, now())
                 game == GameKind.CODE -> setCodeReady(LocalRoom.HOST, ready, now())
+                game == GameKind.BINGO -> setBingoReady(LocalRoom.HOST, ready, now())
                 game == GameKind.DRAW -> setDrawReady(LocalRoom.HOST, ready, now())
                 game == GameKind.HOCKEY -> setHockeyReady(LocalRoom.HOST, ready, now())
                 else -> setReady(LocalRoom.HOST, ready, difficulty, now())
@@ -128,6 +129,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 GameKind.DRAW -> drawGuess(LocalRoom.HOST, word, now())
                 GameKind.GRID -> findWord(LocalRoom.HOST, word, now())
                 GameKind.CODE -> codeMove(LocalRoom.HOST, word, now())
+                GameKind.BINGO -> claimBingo(LocalRoom.HOST, now())
                 else -> guessWord(LocalRoom.HOST, word, now())
             }
         }
@@ -241,6 +243,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.setSlideReady(role!!, msg.optBoolean("ready", true), msg.optJSONArray("tiles")?.let { a -> (0 until a.length()).map { a.optInt(it) } }, now)
                 } else if (r.game == GameKind.CODE) {
                     r.setCodeReady(role!!, msg.optBoolean("ready", true), now)
+                } else if (r.game == GameKind.BINGO) {
+                    r.setBingoReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.WORDS) {
                     r.setWordsReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.DRAW) {
@@ -267,6 +271,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.drawGuess(role!!, msg.optString("word"), now)
                 } else if (r.game == GameKind.CODE) {
                     r.codeMove(role!!, msg.optString("word"), now)
+                } else if (r.game == GameKind.BINGO) {
+                    r.claimBingo(role!!, now)
                 } else if (r.game == GameKind.GRID) {
                     r.findWord(role!!, msg.optString("word"), now)
                 } else {

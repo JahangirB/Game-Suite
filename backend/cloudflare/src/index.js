@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setOptions, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -206,6 +206,7 @@ export class Room extends DurableObject {
           else if (this.room.game === 'words') setWordsReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'draw') setDrawReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'slide') setSlideReady(this.room, role, msg.ready !== false, msg.tiles, now);
+          else if (this.room.game === 'bingo') setBingoReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'code') setCodeReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'grid') setGridReady(this.room, role, msg.ready !== false, msg.letters, now);
           else if (this.room.game === 'hockey') setHockeyReady(this.room, role, msg.ready !== false, now);
@@ -219,7 +220,8 @@ export class Room extends DurableObject {
           setOptions(this.room, role, msg.options);
           break;
         case 'guess':
-          if (this.room.game === 'code') codeMove(this.room, role, msg.word, now);
+          if (this.room.game === 'bingo') claimBingo(this.room, role, now);
+          else if (this.room.game === 'code') codeMove(this.room, role, msg.word, now);
           else if (this.room.game === 'grid') findWord(this.room, role, msg.word, now);
           else if (this.room.game === 'draw') drawGuess(this.room, role, msg.word, now);
           else guessWord(this.room, role, msg.word, now);

@@ -65,6 +65,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.BALLOON -> if (win) a.balloonWin() else a.balloonLose()
                     GameKind.CODE -> if (win) a.codeWin() else a.codeLose()
                     GameKind.SLIDE -> if (win) a.slideWin() else a.slideLose()
+                    GameKind.BINGO -> if (win) a.bingoWin() else a.bingoLose()
                 }
             }
         }
@@ -780,6 +781,34 @@ private class ResultScene(val d: DrawScope, val t: Float) {
             val dx = if (i == 1 || i == 2) shakeX(ph) else 0f
             slideTile(105f + (i % 3) * 45f + dx, 40f + (i / 3) * 45f, n, White)
         }
+    }
+
+    // ---- Bingo ------------------------------------------------------------------------------
+
+    private fun bingoRow(dabbed: Int, colour: Color, dx: Float = 0f) {
+        for (i in 0 until 5) {
+            val x = 70f + i * 40f + dx
+            p.rr(x, 100, 34, 34, 6, White, Ink, 3)
+            if (i < dabbed) p.circle(x + 17, 117, 12, colour)
+        }
+    }
+
+    fun bingoWin() {
+        // The row fills dab by dab and BINGO! pops up.
+        val ph = f(3f)
+        val dabbed = (ph * 8).toInt().coerceAtMost(5)
+        bingoRow(dabbed, Red)
+        if (dabbed >= 5) {
+            p.text("BINGO!", 150, 60, 30, Red)
+            spark(260, 40, 6, Gold, 2f, .5f)
+        }
+    }
+
+    fun bingoLose() {
+        // One square short: the last number never comes.
+        val ph = f(1.5f)
+        bingoRow(4, BoardBlue, shakeX(ph) * 0.3f)
+        p.text("?", 247, 117, 20, Ink)
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

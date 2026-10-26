@@ -9,6 +9,7 @@ import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.bingo.Bingo
 import com.arcade.sudoku.game.code.CodeBreaker
 import com.arcade.sudoku.game.slide.Slide
 import com.arcade.sudoku.game.slide.SlideLevel
@@ -67,6 +68,8 @@ class LocalRoom(
         var code: String? = null
         // Slide Race: every slide so far
         var slideMoves: List<Int> = emptyList()
+        // Bingo: this player's card
+        var card: List<Int> = emptyList()
         var solved = false
         /** Left or lost their connection during the match being played, which goes on without them. */
         var out = false
@@ -573,6 +576,48 @@ class LocalRoom(
             .put("moves", JSONArray(player(role).slideMoves))
     }
 
+    // Bingo: the call order and, once won, the winning line.
+    private var calls: List<Int> = emptyList()
+    private var bingoLine: List<Int>? = null
+
+    /** Bingo: ready (or not); the host's phone deals the cards and shuffles the calls. */
+    fun setBingoReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
+            calls = Bingo.shuffledCalls(random)
+            bingoLine = null
+            beginMatch(now + COUNTDOWN_MS) { it.card = Bingo.dealCard(random) }
+        }
+        version++
+    }
+
+    /** Bingo: [role] claims a full line of numbers called so far. */
+    fun claimBingo(role: String, now: Long) {
+        val start = startAt
+        if (game != GameKind.BINGO || status != "started" || start == null) throw ApiException("The game is not running.")
+        if (now < start) throw ApiException("Wait for the countdown.")
+        if (role !in playing()) throw ApiException("You are not in this round.")
+        val me = player(role)
+        val line = Bingo.fullLine(me.card, calls.take(Bingo.calledCount(now - start)).toSet()) ?: throw ApiException("No full line yet.")
+        bingoLine = line
+        me.finishedAt = now
+        endMatch(role, "bingo")
+        version++
+    }
+
+    private fun bingoView(role: String, shown: String): JSONObject {
+        val show = shown == "playing" || shown == "finished"
+        val won = winner?.let { players[it] }
+        return JSONObject()
+            .put("card", if (show) JSONArray(player(role).card) else JSONObject.NULL)
+            .put("calls", if (show) JSONArray(calls) else JSONObject.NULL)
+            .put("callMs", Bingo.CALL_MS)
+            .put("endsAt", startAt?.let { it + Bingo.ROUND_MS } ?: JSONObject.NULL)
+            .put("winCard", if (shown == "finished" && won != null) JSONArray(won.card) else JSONObject.NULL)
+            .put("line", if (shown == "finished") bingoLine?.let { JSONArray(it) } ?: JSONObject.NULL else JSONObject.NULL)
+    }
+
     // Code Breaker: "set" while the codes are being chosen, then "guess".
     private var codePhase = "set"
 
@@ -929,6 +974,11 @@ class LocalRoom(
     fun checkTimers(now: Long): Boolean {
         val start = startAt ?: return false
         if (status != "started" || now < start) return false
+        if (game == GameKind.BINGO && now >= start + Bingo.ROUND_MS) {
+            endMatch(null, "draw")
+            version++
+            return true
+        }
         if (game == GameKind.GRID && now >= gridEndsAt) {
             finishGrid()
             version++
@@ -1007,6 +1057,7 @@ class LocalRoom(
             .put("grid", if (game == GameKind.GRID) gridView(role, shown) else JSONObject.NULL)
             .put("codeGame", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
             .put("slide", if (game == GameKind.SLIDE) slideView(role, shown) else JSONObject.NULL)
+            .put("bingo", if (game == GameKind.BINGO) bingoView(role, shown) else JSONObject.NULL)
             .put(
                 "hockey",
                 if (game != GameKind.HOCKEY) JSONObject.NULL else {
