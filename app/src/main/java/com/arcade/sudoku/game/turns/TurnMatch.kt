@@ -8,6 +8,7 @@ import com.arcade.sudoku.game.ludo.LudoMatch
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dots.DotsMatch
+import com.arcade.sudoku.game.golf.GolfMatch
 import com.arcade.sudoku.game.memory.MemoryMatch
 import com.arcade.sudoku.game.ttt.TttMatch
 import org.json.JSONObject
@@ -47,6 +48,7 @@ interface TurnMatch {
             GameKind.CLASH -> ClashMatch(marks, random)
             GameKind.LUDO -> LudoMatch(marks, random)
             GameKind.BALLOON -> BalloonMatch(marks)
+            GameKind.GOLF -> GolfMatch(marks)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
             GameKind.TTT -> TttMatch()

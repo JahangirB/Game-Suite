@@ -14,6 +14,8 @@ import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
 import com.arcade.sudoku.game.bingo.Bingo
 import com.arcade.sudoku.game.code.CodeBreaker
+import com.arcade.sudoku.game.golf.Golf
+import com.arcade.sudoku.game.golf.GolfLastShot
 import com.arcade.sudoku.game.slide.Slide
 import com.arcade.sudoku.game.slide.SlideLevel
 import com.arcade.sudoku.game.grid.LetterGrid
@@ -578,6 +580,23 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val view = turns.balloon ?: return
         if (letter in view.guessed) return
         playMove(JSONObject().put("letter", letter.toString()), turns.copy(balloon = view.copy(guessed = view.guessed + letter)))
+    }
+
+    /** Mini Golf: shoot at [angle] with [power]; this phone works out where the ball stops. */
+    fun shootGolf(angle: Double, power: Double) {
+        val turns = _state.value.room?.turns ?: return
+        val golf = turns.golf ?: return
+        val hole = Golf.HOLES.getOrNull(golf.hole) ?: return
+        val from = golf.balls['m']
+        val shot = Golf.simulate(hole, from ?: hole.tee, angle, power)
+        val shown = golf.copy(
+            balls = golf.balls + ('m' to shot.end),
+            last = GolfLastShot('m', golf.hole, from, angle, power, shot.end, shot.holed, (golf.last?.seq ?: 0) + 1),
+        )
+        playMove(
+            JSONObject().put("angle", angle).put("power", power).put("x", shot.end.x).put("y", shot.end.y).put("holed", shot.holed),
+            turns.copy(turn = "opponent", golf = shown),
+        )
     }
 
     /** Ludo: roll the die (the server rolls it). */

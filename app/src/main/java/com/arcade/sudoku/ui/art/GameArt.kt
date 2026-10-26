@@ -30,6 +30,7 @@ val GameKind.color: Color
         GameKind.CODE -> Color(0xFF5B5F97)
         GameKind.SLIDE -> Color(0xFFFF8A3D)
         GameKind.BINGO -> Color(0xFFD9467A)
+        GameKind.GOLF -> Color(0xFF3FA34D)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -53,6 +54,7 @@ val GameKind.tagline: String
         GameKind.CODE -> "Crack the hidden colour code"
         GameKind.SLIDE -> "Same shuffle, first in order wins"
         GameKind.BINGO -> "Dab the calls, shout first"
+        GameKind.GOLF -> "Nine holes, fewest strokes"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -120,6 +122,9 @@ val GameKind.rules: String
         GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
             "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +
             "diagonal (the star counts) and the Bingo button lights up: the first to press it wins."
+        GameKind.GOLF -> "Nine holes of mini golf. On your turn, pull back from anywhere on the course like a slingshot and let go: " +
+            "the further you pull, the harder the shot. Walls bounce the ball and sand slows it. Everyone tees off in turn, then " +
+            "whoever is still out plays. A ball still out after six strokes is picked up and scores seven. Fewest strokes wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -221,6 +226,13 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             // A 2 × 2 of tiles with one gap and an arrow.
             p.rr(3, 3, 8, 8, 2, tint, tint, 1.4); p.rr(13, 3, 8, 8, 2, tint, tint, 1.4); p.rr(3, 13, 8, 8, 2, tint, tint, 1.4)
             p.stroke(tint, 1.6) { moveTo(14, 17); lineTo(20, 17); moveTo(17.5, 14.5); lineTo(20, 17); lineTo(17.5, 19.5) }
+        }
+        GameKind.GOLF -> {
+            // A flag in the cup and a ball.
+            p.stroke(tint, 1.6) { moveTo(9, 19); lineTo(9, 4) }
+            p.fill(tint) { moveTo(9, 4); lineTo(17, 7); lineTo(9, 10); close() }
+            p.ell(9, 19.5, 5, 1.6, 0, tint)
+            p.circle(18, 18, 2.4, tint)
         }
         GameKind.BINGO -> {
             // A ball with a dabbed card corner.

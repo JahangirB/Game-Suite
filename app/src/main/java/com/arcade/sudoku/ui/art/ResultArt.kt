@@ -66,6 +66,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.CODE -> if (win) a.codeWin() else a.codeLose()
                     GameKind.SLIDE -> if (win) a.slideWin() else a.slideLose()
                     GameKind.BINGO -> if (win) a.bingoWin() else a.bingoLose()
+                    GameKind.GOLF -> if (win) a.golfWin() else a.golfLose()
                 }
             }
         }
@@ -809,6 +810,40 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         val ph = f(1.5f)
         bingoRow(4, BoardBlue, shakeX(ph) * 0.3f)
         p.text("?", 247, 117, 20, Ink)
+    }
+
+    // ---- Mini Golf --------------------------------------------------------------------------
+
+    private fun green() {
+        p.rr(30, 120, 240, 40, 20, Green, Ink, 3)
+        p.circle(220, 136, 9, Ink)
+        p.stroke(Ink, 3) { moveTo(220, 136); lineTo(220, 70) }
+    }
+
+    fun golfWin() {
+        // The ball rolls into the cup and the flag waves.
+        val ph = f(2.5f)
+        green()
+        val wave = kf(ph, 0f to 0f, .5f to 6f, 1f to 0f)
+        p.fill(Red) { moveTo(220, 70); lineTo(255, 80 + wave); lineTo(220, 92); close() }
+        val roll = kf(ph, 0f to 0f, .55f to 1f, 1f to 1f)
+        if (roll < 1f) {
+            p.circle(70 + 150 * roll, 132, 8, White)
+            p.ring(70 + 150 * roll, 132, 8, Ink, 2)
+        } else {
+            spark(150, 60, 6, Gold, 2f, .3f)
+        }
+    }
+
+    fun golfLose() {
+        // The ball stops just short of the cup.
+        val ph = f(2f)
+        green()
+        p.fill(Grey) { moveTo(220, 70); lineTo(250, 80); lineTo(220, 92); close() }
+        val roll = kf(ph, 0f to 0f, .5f to 1f, 1f to 1f)
+        val x = 70 + 125 * roll
+        p.circle(x, 132, 8, White)
+        p.ring(x, 132, 8, Ink, 2)
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

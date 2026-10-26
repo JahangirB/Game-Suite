@@ -938,7 +938,7 @@ class LocalRoom(
         val rest = playing() - role
         if (rest.size < 2) return endMatch(rest.firstOrNull(), reason)
         // A dominoes hand (or team) can't play on short: the match stops there.
-        if (game == GameKind.DOMINOES || game == GameKind.CLASH || game == GameKind.LUDO || game == GameKind.BALLOON) return endMatch(null, "left")
+        if (game == GameKind.DOMINOES || game == GameKind.CLASH || game == GameKind.LUDO || game == GameKind.BALLOON || game == GameKind.GOLF) return endMatch(null, "left")
         player(role).out = true
         if (game == GameKind.WORDS) decideWords()
         if (game.turnBased && turn == role) turn = nextOf(role, playing())
