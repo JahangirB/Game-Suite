@@ -13,6 +13,8 @@ import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
 import com.arcade.sudoku.game.bingo.Bingo
+import com.arcade.sudoku.game.blocks.Blocks
+import com.arcade.sudoku.game.blocks.Placement
 import com.arcade.sudoku.game.code.CodeBreaker
 import com.arcade.sudoku.game.golf.Golf
 import com.arcade.sudoku.game.golf.GolfLastShot
@@ -597,6 +599,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             JSONObject().put("angle", angle).put("power", power).put("x", shot.end.x).put("y", shot.end.y).put("holed", shot.holed),
             turns.copy(turn = "opponent", golf = shown),
         )
+    }
+
+    /** Corner Blocks: lay [p]; it shows at once and the server (or nearby host) checks it. */
+    fun placeBlock(p: Placement) {
+        val turns = _state.value.room?.turns ?: return
+        val view = turns.blocks ?: return
+        if (!view.allows(p)) return
+        val board = view.board.toCharArray()
+        for ((cx, cy) in Blocks.shape(p.piece, p.orient)) board[(p.y + cy) * view.size + p.x + cx] = 'm'
+        val shown = view.copy(board = String(board), left = view.left + ('m' to view.left['m'].orEmpty() - p.piece))
+        playMove(JSONObject().put("piece", p.piece).put("orient", p.orient).put("x", p.x).put("y", p.y), turns.copy(turn = "opponent", blocks = shown))
     }
 
     /** Ludo: roll the die (the server rolls it). */

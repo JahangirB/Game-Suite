@@ -67,6 +67,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.SLIDE -> if (win) a.slideWin() else a.slideLose()
                     GameKind.BINGO -> if (win) a.bingoWin() else a.bingoLose()
                     GameKind.GOLF -> if (win) a.golfWin() else a.golfLose()
+                    GameKind.BLOCKS -> if (win) a.blocksWin() else a.blocksLose()
                 }
             }
         }
@@ -844,6 +845,27 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         val x = 70 + 125 * roll
         p.circle(x, 132, 8, White)
         p.ring(x, 132, 8, Ink, 2)
+    }
+
+    // ---- Corner Blocks ----------------------------------------------------------------------
+
+    fun blocksWin() {
+        // Red squares fill the board corner to corner.
+        val ph = f(3f)
+        val shown = (ph * 14).toInt()
+        for (k in 0 until 7) {
+            val c = if (k < shown) Red else White
+            p.rr(80 + k * 20, 40 + k * 15, 20, 15, 3, c, Ink, 2)
+            p.rr(100 + k * 20, 40 + k * 15, 20, 15, 3, if (k + 7 < shown) Red else White, Ink, 2)
+        }
+        if (shown >= 14) spark(250, 40, 6, Gold, 2f, .3f)
+    }
+
+    fun blocksLose() {
+        // A piece that fits nowhere wobbles over a full board.
+        val ph = f(1.5f)
+        for (r in 0 until 4) for (c in 0 until 6) p.rr(90 + c * 20, 70 + r * 20, 20, 20, 3, if ((r + c) % 2 == 0) Yellow else BoardBlue, Ink, 2)
+        p.translate(shakeX(ph), 0) { p.rr(140, 30, 40, 20, 3, Red, Ink, 3) }
     }
 
     // ---- A tie, any game ------------------------------------------------------------------

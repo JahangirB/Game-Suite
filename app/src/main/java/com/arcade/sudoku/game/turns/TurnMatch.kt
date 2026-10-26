@@ -2,6 +2,7 @@ package com.arcade.sudoku.game.turns
 
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.balloon.BalloonMatch
+import com.arcade.sudoku.game.blocks.BlocksMatch
 import com.arcade.sudoku.game.clash.ClashMatch
 import com.arcade.sudoku.game.connect4.C4Match
 import com.arcade.sudoku.game.ludo.LudoMatch
@@ -49,6 +50,7 @@ interface TurnMatch {
             GameKind.LUDO -> LudoMatch(marks, random)
             GameKind.BALLOON -> BalloonMatch(marks)
             GameKind.GOLF -> GolfMatch(marks)
+            GameKind.BLOCKS -> BlocksMatch(marks)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
             GameKind.TTT -> TttMatch()

@@ -31,6 +31,7 @@ val GameKind.color: Color
         GameKind.SLIDE -> Color(0xFFFF8A3D)
         GameKind.BINGO -> Color(0xFFD9467A)
         GameKind.GOLF -> Color(0xFF3FA34D)
+        GameKind.BLOCKS -> Color(0xFF3D7BF7)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -55,6 +56,7 @@ val GameKind.tagline: String
         GameKind.SLIDE -> "Same shuffle, first in order wins"
         GameKind.BINGO -> "Dab the calls, shout first"
         GameKind.GOLF -> "Nine holes, fewest strokes"
+        GameKind.BLOCKS -> "Corner to corner, fill the board"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -125,6 +127,10 @@ val GameKind.rules: String
         GameKind.GOLF -> "Nine holes of mini golf. On your turn, pull back from anywhere on the course like a slingshot and let go: " +
             "the further you pull, the harder the shot. Walls bounce the ball and sand slows it. Everyone tees off in turn, then " +
             "whoever is still out plays. A ball still out after six strokes is picked up and scores seven. Fewest strokes wins."
+        GameKind.BLOCKS -> "Everyone has the same 21 pieces in their colour. Your first piece must cover your ringed start square. " +
+            "After that, each new piece must touch one of your own pieces corner to corner and never along an edge (other colours " +
+            "can touch you anywhere). Pick a piece, turn or flip it, tap the board to put it there and Place. Stuck players are " +
+            "skipped; when nobody can place another piece, the most squares placed wins."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -226,6 +232,11 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             // A 2 × 2 of tiles with one gap and an arrow.
             p.rr(3, 3, 8, 8, 2, tint, tint, 1.4); p.rr(13, 3, 8, 8, 2, tint, tint, 1.4); p.rr(3, 13, 8, 8, 2, tint, tint, 1.4)
             p.stroke(tint, 1.6) { moveTo(14, 17); lineTo(20, 17); moveTo(17.5, 14.5); lineTo(20, 17); lineTo(17.5, 19.5) }
+        }
+        GameKind.BLOCKS -> {
+            // Two pieces meeting at a corner.
+            p.rr(3, 3, 6, 6, 1.2, tint); p.rr(3, 9.5, 6, 6, 1.2, tint); p.rr(9.5, 9.5, 6, 6, 1.2, null, tint, 1.4)
+            p.rr(15.5, 15.5, 5.5, 5.5, 1.2, null, tint, 1.4)
         }
         GameKind.GOLF -> {
             // A flag in the cup and a ball.

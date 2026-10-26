@@ -2,6 +2,7 @@ package com.arcade.sudoku.data
 
 import com.arcade.sudoku.game.balloon.BalloonView
 import com.arcade.sudoku.game.golf.GolfView
+import com.arcade.sudoku.game.blocks.BlocksView
 import com.arcade.sudoku.game.clash.ClashView
 import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.dominoes.DominoOptions
@@ -34,13 +35,14 @@ enum class GameKind(val key: String, val label: String) {
     CODE("code", "Code Breaker"),
     SLIDE("slide", "Slide Race"),
     BINGO("bingo", "Bingo"),
-    GOLF("golf", "Mini Golf");
+    GOLF("golf", "Mini Golf"),
+    BLOCKS("blocks", "Corner Blocks");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON || this == GOLF
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON || this == GOLF || this == BLOCKS
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE || this == BINGO || this == GOLF) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE || this == BINGO || this == GOLF || this == BLOCKS) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE || this == SLIDE || this == BINGO
@@ -123,6 +125,8 @@ data class TurnsView(
     val balloon: BalloonView? = null,
     /** Mini Golf: strokes, balls and the last shot. */
     val golf: GolfView? = null,
+    /** Corner Blocks: the board, pieces left and squares placed. */
+    val blocks: BlocksView? = null,
 )
 
 /**
@@ -491,6 +495,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         ludo = if (json.has("tokens")) LudoView.from(json) else null,
         balloon = if (json.has("pattern")) BalloonView.from(json) else null,
         golf = if (json.has("golf")) GolfView.from(json) else null,
+        blocks = if (json.has("blocks")) BlocksView.from(json) else null,
     )
 }
 
