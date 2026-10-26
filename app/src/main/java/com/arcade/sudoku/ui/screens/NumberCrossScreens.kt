@@ -19,6 +19,13 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlin.random.Random
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -83,7 +90,8 @@ private fun shown(token: String) = when (token) {
 }
 
 /**
- * The grid, cropped to the cells in use. Blanks show your entries; a sum turns green once it is
+ * The grid, cropped to the cells in use and drawn whole like a crossword: squares no sum uses
+ * are stone blocks. Blanks show your entries; a sum turns green once it is
  * filled in and right, red when filled in and wrong. Tap a blank to pick it.
  */
 @Composable
@@ -105,15 +113,18 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
     BoxWithConstraints(modifier) {
         val cell = minOf(maxWidth / cols.count(), maxHeight / rows.count())
         val fontSize = with(LocalDensity.current) { (cell * 0.42f).toSp() }
-        Column(Modifier.align(Alignment.Center)) {
+        Column(
+            Modifier.align(Alignment.Center).clip(RoundedCornerShape(10.dp)).background(GridFrame)
+                .border(2.dp, p.ink, RoundedCornerShape(10.dp)).padding(3.dp),
+        ) {
             for (r in rows) Row {
                 for (c in cols) {
                     val i = r * board.w + c
                     val token = cells[i]
                     val k = blankIndex[i]
-                    Box(Modifier.size(cell).padding(1.5.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(cell - 6.dp / maxOf(cols.count(), rows.count())).padding(1.5.dp), contentAlignment = Alignment.Center) {
                         when {
-                            board.cells[i] == "" -> {}
+                            board.cells[i] == "" -> StoneBlock(i, Modifier.fillMaxSize())
                             k != null -> {
                                 val pick = k == selected
                                 val tint = when (verdict[i]) {
@@ -140,12 +151,47 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
                             ) {
                                 Box(contentAlignment = Alignment.Center) { Text(token, color = p.text, fontSize = fontSize, fontWeight = FontWeight.Bold) }
                             }
-                            else -> Text(shown(token), color = p.muted, fontSize = fontSize, fontWeight = FontWeight.Bold)
+                            else -> Box(Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)).background(OperatorTile), contentAlignment = Alignment.Center) {
+                                Text(shown(token), color = p.muted, fontSize = fontSize, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private val GridFrame = Color(0xFF6E6A7C)
+private val OperatorTile = Color(0xFFEDE8F7)
+private val Stone = Color(0xFF9C98A8)
+private val StoneLight = Color(0xFFB9B5C4)
+private val StoneDark = Color(0xFF6F6B7D)
+
+/** An unused square: a stone block with a bevel and a crack or two, different square to square. */
+@Composable
+private fun StoneBlock(seed: Int, modifier: Modifier) {
+    Canvas(modifier.clip(RoundedCornerShape(5.dp))) {
+        val w = size.width
+        drawRect(Stone)
+        // Light top-left edge, dark bottom-right edge.
+        drawPath(Path().apply { moveTo(0f, 0f); lineTo(w, 0f); lineTo(w * 0.86f, w * 0.14f); lineTo(w * 0.14f, w * 0.14f); lineTo(w * 0.14f, w * 0.86f); lineTo(0f, w); close() }, StoneLight)
+        drawPath(Path().apply { moveTo(w, w); lineTo(0f, w); lineTo(w * 0.14f, w * 0.86f); lineTo(w * 0.86f, w * 0.86f); lineTo(w * 0.86f, w * 0.14f); lineTo(w, 0f); close() }, StoneDark)
+        val r = Random(seed)
+        repeat(1 + r.nextInt(2)) {
+            val x0 = w * (0.25f + 0.5f * r.nextFloat())
+            val y0 = w * (0.2f + 0.2f * r.nextFloat())
+            drawPath(
+                Path().apply {
+                    moveTo(x0, y0)
+                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.3f, y0 + w * 0.22f)
+                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.4f, y0 + w * 0.42f)
+                },
+                StoneDark, style = Stroke(w * 0.035f),
+            )
+        }
+        // A few specks.
+        repeat(4) { drawCircle(StoneDark.copy(alpha = 0.5f), w * 0.03f, Offset(w * (0.2f + 0.6f * r.nextFloat()), w * (0.2f + 0.6f * r.nextFloat()))) }
     }
 }
 
