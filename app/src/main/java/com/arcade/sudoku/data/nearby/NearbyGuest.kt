@@ -134,6 +134,9 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("puzzle", puzzle ?: JSONObject.NULL))
 
+    override suspend fun readySlide(code: String, playerId: String, ready: Boolean, tiles: List<Int>?) =
+        request(JSONObject().put("type", "ready").put("ready", ready).put("tiles", tiles?.let { org.json.JSONArray(it) } ?: JSONObject.NULL))
+
     override suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("letters", letters ?: JSONObject.NULL))
 

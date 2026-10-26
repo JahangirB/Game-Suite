@@ -85,7 +85,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun sync(code: String, playerId: String, board: String?, version: Int?) =
         local {
-            if (board != null && game == GameKind.NUMBERS) submitNumbers(LocalRoom.HOST, board.split(","), now())
+            if (board != null && game == GameKind.SLIDE) slideMoves(LocalRoom.HOST, board, now())
+            else if (board != null && game == GameKind.NUMBERS) submitNumbers(LocalRoom.HOST, board.split(","), now())
             else if (board != null) submitBoard(LocalRoom.HOST, board, now())
         }
 
@@ -103,6 +104,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
         local { setOptions(LocalRoom.HOST, options) }
+
+    override suspend fun readySlide(code: String, playerId: String, ready: Boolean, tiles: List<Int>?) =
+        local { setSlideReady(LocalRoom.HOST, ready, tiles, now()) }
 
     override suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?) =
         local { setGridReady(LocalRoom.HOST, ready, letters, now()) }
@@ -233,6 +237,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     r.setShipsReady(role!!, msg.optBoolean("ready", true), parseFleet(msg.optJSONArray("fleet")), now)
                 } else if (r.game.turnBased) {
                     r.setTurnReady(role!!, msg.optBoolean("ready", true), now)
+                } else if (r.game == GameKind.SLIDE) {
+                    r.setSlideReady(role!!, msg.optBoolean("ready", true), msg.optJSONArray("tiles")?.let { a -> (0 until a.length()).map { a.optInt(it) } }, now)
                 } else if (r.game == GameKind.CODE) {
                     r.setCodeReady(role!!, msg.optBoolean("ready", true), now)
                 } else if (r.game == GameKind.WORDS) {
@@ -275,7 +281,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     return
                 }
                 "clear" -> r.clearDrawing(role!!, now)
-                "board" -> if (r.game == GameKind.NUMBERS) {
+                "board" -> if (r.game == GameKind.SLIDE) {
+                    r.slideMoves(role!!, msg.optString("board"), now)
+                } else if (r.game == GameKind.NUMBERS) {
                     r.submitNumbers(role!!, msg.optString("board").split(","), now)
                 } else {
                     r.submitBoard(role!!, msg.optString("board"), now)

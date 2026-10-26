@@ -39,6 +39,9 @@ interface BattleBackend {
     /** Number Cross: ready (or not); the host's Ready carries the next [puzzle], built on their phone. */
     suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?): JSONObject
 
+    /** Slide Race: ready (or not); the host's Ready carries the shuffled start [tiles]. */
+    suspend fun readySlide(code: String, playerId: String, ready: Boolean, tiles: List<Int>?): JSONObject
+
     /** Letter Grid: ready (or not); the host's Ready carries the next grid's 16 [letters]. */
     suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?): JSONObject
 

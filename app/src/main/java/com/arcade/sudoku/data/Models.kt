@@ -6,6 +6,7 @@ import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.numbers.NumberLevel
+import com.arcade.sudoku.game.slide.SlideLevel
 import com.arcade.sudoku.game.words.WordLevel
 import com.arcade.sudoku.game.ships.Ship
 import com.arcade.sudoku.game.ships.Shot
@@ -29,16 +30,17 @@ enum class GameKind(val key: String, val label: String) {
     LUDO("ludo", "Ludo"),
     GRID("grid", "Letter Grid"),
     BALLOON("balloon", "Balloon Words"),
-    CODE("code", "Code Breaker");
+    CODE("code", "Code Breaker"),
+    SLIDE("slide", "Slide Race");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE || this == SLIDE
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -126,6 +128,9 @@ data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blan
 
 /** A Number Cross round: the host's level, the board (once playing), your entries and, at the end, the solved grid. */
 data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
+
+/** A Slide Race round: the host's level, the puzzle's size, the shuffled start (once playing) and your moves so far. */
+data class SlideView(val level: SlideLevel, val size: Int, val start: List<Int>?, val moves: List<Int>)
 
 /** One Code Breaker guess: its pegs (hidden for the other player until the end) and the black and white score. */
 data class CodeGuess(val code: String?, val black: Int, val white: Int)
@@ -289,6 +294,7 @@ data class RoomState(
     val grid: GridView? = null,
     /** Code Breaker ("code" in the JSON; [code] is the room's code). */
     val codeGame: CodeView? = null,
+    val slide: SlideView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -325,6 +331,10 @@ fun parseRoom(json: JSONObject) = RoomState(
     numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
     grid = json.optJSONObject("grid")?.let(::parseGrid),
     codeGame = json.optJSONObject("code")?.let(::parseCode),
+    slide = json.optJSONObject("slide")?.let { s ->
+        fun ints(k: String) = s.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
+        SlideView(SlideLevel.from(s.stringOrNull("level")), s.optInt("size", 3), ints("start"), ints("moves").orEmpty())
+    },
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".

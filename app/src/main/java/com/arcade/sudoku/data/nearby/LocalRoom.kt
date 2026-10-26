@@ -10,6 +10,8 @@ import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.code.CodeBreaker
+import com.arcade.sudoku.game.slide.Slide
+import com.arcade.sudoku.game.slide.SlideLevel
 import com.arcade.sudoku.game.grid.LetterGrid
 import com.arcade.sudoku.game.hockey.Hockey
 import org.json.JSONArray
@@ -63,6 +65,8 @@ class LocalRoom(
         var guesses: List<Pair<String, String>> = emptyList()
         // Code Breaker: the code this player set
         var code: String? = null
+        // Slide Race: every slide so far
+        var slideMoves: List<Int> = emptyList()
         var solved = false
         /** Left or lost their connection during the match being played, which goes on without them. */
         var out = false
@@ -315,6 +319,7 @@ class LocalRoom(
             GameKind.DOMINOES -> this.options = DominoOptions.from(options)
             GameKind.NUMBERS -> numberLevel = NumberLevel.from(options.optString("level"))
             GameKind.WORDS -> wordLevel = WordLevel.from(options.optString("level"))
+            GameKind.SLIDE -> slideLevel = SlideLevel.from(options.optString("level"))
             else -> throw ApiException("This game has no options.")
         }
         for (r in seated()) player(r).ready = false
@@ -501,6 +506,71 @@ class LocalRoom(
                     },
                 ),
             )
+    }
+
+    // Slide Race: the host's level, the start being played and the next one from the host.
+    var slideLevel = SlideLevel.EASY
+        private set
+    private var slideStart: List<Int>? = null
+    private var nextSlide: List<Int>? = null
+
+    /** Slide Race: ready (or not); the host's Ready carries the shuffled start. */
+    fun setSlideReady(role: String, ready: Boolean, tiles: List<Int>?, now: Long) {
+        checkCanReady()
+        player(role).ready = ready
+        val size = slideLevel.size
+        if (role == HOST) {
+            nextSlide = if (!ready) null else tiles?.takeIf { t ->
+                t.size == size * size && t.sorted() == (0 until size * size).toList() && !Slide.isSolved(t, size)
+            } ?: run {
+                player(role).ready = false
+                throw ApiException("The puzzle is not valid.")
+            }
+        }
+        val next = nextSlide
+        if (allReady() && next != null) {
+            nextSlide = null
+            slideStart = next
+            beginMatch(now + COUNTDOWN_MS) {
+                it.slideMoves = emptyList()
+                it.progress = Slide.progress(next, size)
+            }
+        }
+        version++
+    }
+
+    /** Slide Race: [role]'s whole list of moves so far, comma separated; returns true if it changed. */
+    fun slideMoves(role: String, text: String, now: Long): Boolean {
+        val me = player(role)
+        val start = slideStart
+        val begin = startAt
+        if (game != GameKind.SLIDE || status != "started" || start == null || begin == null || now < begin || me.finishedAt != null) return false
+        val size = kotlin.math.sqrt(start.size.toDouble()).toInt()
+        val moves = text.split(",").filter { it.isNotEmpty() }.map { it.toIntOrNull() ?: throw ApiException("That tile can't slide.") }
+        if (moves.size == me.slideMoves.size) return false
+        val tiles = try {
+            Slide.replay(start, size, moves)
+        } catch (e: IllegalArgumentException) {
+            throw ApiException(e.message ?: "That tile can't slide.")
+        }
+        me.slideMoves = moves
+        me.progress = Slide.progress(tiles, size)
+        if (Slide.isSolved(tiles, size)) {
+            me.finishedAt = now
+            endMatch(role, "solved")
+        }
+        version++
+        return true
+    }
+
+    private fun slideView(role: String, shown: String): JSONObject {
+        val start = slideStart
+        val show = shown == "playing" || shown == "finished"
+        return JSONObject()
+            .put("level", slideLevel.key)
+            .put("size", start?.let { kotlin.math.sqrt(it.size.toDouble()).toInt() } ?: slideLevel.size)
+            .put("start", if (show && start != null) JSONArray(start) else JSONObject.NULL)
+            .put("moves", JSONArray(player(role).slideMoves))
     }
 
     // Code Breaker: "set" while the codes are being chosen, then "guess".
@@ -918,6 +988,7 @@ class LocalRoom(
                     GameKind.DOMINOES -> options.toJson()
                     GameKind.NUMBERS -> JSONObject().put("level", numberLevel.key)
                     GameKind.WORDS -> JSONObject().put("level", wordLevel.key)
+                    GameKind.SLIDE -> JSONObject().put("level", slideLevel.key)
                     else -> JSONObject.NULL
                 },
             )
@@ -935,6 +1006,7 @@ class LocalRoom(
             .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
             .put("grid", if (game == GameKind.GRID) gridView(role, shown) else JSONObject.NULL)
             .put("code", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
+            .put("slide", if (game == GameKind.SLIDE) slideView(role, shown) else JSONObject.NULL)
             .put(
                 "hockey",
                 if (game != GameKind.HOCKEY) JSONObject.NULL else {

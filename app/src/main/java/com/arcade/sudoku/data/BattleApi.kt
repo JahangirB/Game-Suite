@@ -71,6 +71,9 @@ class BattleApi(scriptUrl: String) : BattleBackend {
     override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?): JSONObject =
         throw ApiException(SHIPS_UNSUPPORTED)
 
+    override suspend fun readySlide(code: String, playerId: String, ready: Boolean, tiles: List<Int>?): JSONObject =
+        throw ApiException(SHIPS_UNSUPPORTED)
+
     override suspend fun readyGrid(code: String, playerId: String, ready: Boolean, letters: String?): JSONObject =
         throw ApiException(SHIPS_UNSUPPORTED)
 

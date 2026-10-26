@@ -148,11 +148,13 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 if (room.game == GameKind.DOMINOES) DominoOptionsCard(room, state.busy, vm::setDominoOptions)
                 if (room.game == GameKind.NUMBERS) NumbersLevelCard(room, state.busy, vm::setNumberLevel)
                 if (room.game == GameKind.WORDS) WordLevelCard(room, state.busy, vm::setWordLevel)
+                if (room.game == GameKind.SLIDE) SlideLevelCard(room, state.busy, vm::setSlideLevel)
                 TurnReadyCard(
                     room, state.busy,
                     when (room.game) {
                         GameKind.NUMBERS -> vm::readyNumbers
                         GameKind.GRID -> vm::readyGrid
+                        GameKind.SLIDE -> vm::readySlide
                         else -> vm::readyTurns
                     },
                 )

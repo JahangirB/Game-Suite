@@ -28,6 +28,7 @@ val GameKind.color: Color
         GameKind.GRID -> Color(0xFF7B6CF0)
         GameKind.BALLOON -> Color(0xFFEC6FA9)
         GameKind.CODE -> Color(0xFF5B5F97)
+        GameKind.SLIDE -> Color(0xFFFF8A3D)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -49,6 +50,7 @@ val GameKind.tagline: String
         GameKind.GRID -> "Trace words in two minutes"
         GameKind.BALLOON -> "Guess the letters before they pop"
         GameKind.CODE -> "Crack the hidden colour code"
+        GameKind.SLIDE -> "Same shuffle, first in order wins"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -110,6 +112,9 @@ val GameKind.rules: String
             "After each guess you get a black pin for every right colour in the right place and a white pin for every " +
             "right colour in the wrong place. You see each other's pins but never the guesses. Fewest guesses wins; " +
             "on a tie, the faster. Ten guesses each."
+        GameKind.SLIDE -> "Put the numbered tiles back in order, 1 to the last, with the gap at the end. Tap a tile in line " +
+            "with the gap and it slides over (with any tiles between). In a race everyone gets the same shuffle, made on the " +
+            "host's phone with real slides so it can always be solved; the first to finish wins. Tiles in their place turn orange."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -206,6 +211,11 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             // Four pegs and the score pins.
             p.circle(5, 9, 2.6, tint); p.circle(11, 9, 2.6, tint); p.ring(17, 9, 2.4, tint, 1.4)
             p.circle(5, 17, 1.4, tint); p.circle(9, 17, 1.4, tint); p.ring(13, 17, 1.3, tint, 1.2)
+        }
+        GameKind.SLIDE -> {
+            // A 2 × 2 of tiles with one gap and an arrow.
+            p.rr(3, 3, 8, 8, 2, tint, tint, 1.4); p.rr(13, 3, 8, 8, 2, tint, tint, 1.4); p.rr(3, 13, 8, 8, 2, tint, tint, 1.4)
+            p.stroke(tint, 1.6) { moveTo(14, 17); lineTo(20, 17); moveTo(17.5, 14.5); lineTo(20, 17); lineTo(17.5, 19.5) }
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

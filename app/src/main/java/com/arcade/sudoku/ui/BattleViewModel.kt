@@ -13,6 +13,8 @@ import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
 import com.arcade.sudoku.game.code.CodeBreaker
+import com.arcade.sudoku.game.slide.Slide
+import com.arcade.sudoku.game.slide.SlideLevel
 import com.arcade.sudoku.game.grid.LetterGrid
 import com.arcade.sudoku.game.grid.LetterGridGenerator
 import com.arcade.sudoku.game.hockey.Body
@@ -110,6 +112,9 @@ data class BattleUiState(
     val numberEntries: List<String>? = null,
     val numberSelected: Int? = null,
     val numbersRound: Int = -1,
+    /** Slide Race: your slides so far this round, and the round they belong to. */
+    val slideMoves: List<Int> = emptyList(),
+    val slideRound: Int = -1,
     /** Nearby hosts found while looking for a game. */
     val nearbyHosts: List<FoundHost> = emptyList(),
     val scanning: Boolean = false,
@@ -1013,6 +1018,37 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Slide Race: ready (or not). The host's phone shuffles the next puzzle and sends it with its Ready. */
+    fun readySlide() {
+        val room = _state.value.room ?: return
+        val ready = !room.me.ready
+        val tiles = if (ready && room.isHost) Slide.shuffle(room.slide?.level?.size ?: 3) else null
+        sendReady(room.copy(me = room.me.copy(ready = ready))) { b, id -> b.readySlide(room.code, id, ready, tiles) }
+    }
+
+    /** Slide Race: the host picks the size of the next puzzle; everyone gets ready again. */
+    fun setSlideLevel(level: SlideLevel) {
+        val room = _state.value.room ?: return
+        val slide = room.slide ?: return
+        if (!room.isHost || slide.level == level) return
+        sendReady(room.copy(slide = slide.copy(level = level, size = level.size), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("level", level.key))
+        }
+    }
+
+    /** Slide Race: tap a tile in line with the gap; it (and any tiles between) slide over at once. */
+    fun tapSlideTile(tile: Int) {
+        val s = _state.value
+        val slide = s.room?.slide ?: return
+        val start = slide.start ?: return
+        if (s.phase(s.serverNow()) != RoomStatus.PLAYING || s.slideRound != s.room?.round) return
+        val tiles = Slide.replay(start, slide.size, s.slideMoves)
+        val slides = Slide.slidesFor(tiles, slide.size, tile)
+        if (slides.isEmpty()) return
+        _state.update { it.copy(slideMoves = it.slideMoves + slides) }
+        syncNow.trySend(Unit)
+    }
+
     /** Number Cross: ready (or not). The host's phone builds the next puzzle and sends it with its Ready. */
     fun readyNumbers() {
         val room = _state.value.room ?: return
@@ -1151,6 +1187,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = s.room ?: return
         val id = playerId ?: return
         val board = when {
+            room.game == GameKind.SLIDE ->
+                s.slideMoves.takeIf { it.isNotEmpty() && s.phase(s.serverNow()) == RoomStatus.PLAYING && s.slideRound == room.round }?.joinToString(",")
             room.game == GameKind.NUMBERS ->
                 s.numberEntries?.takeIf { s.phase(s.serverNow()) == RoomStatus.PLAYING && s.numbersRound == room.round }?.joinToString(",")
             s.canEdit() -> Sudoku.encode(s.board!!.cells)
@@ -1233,6 +1271,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
+            room.slide?.takeIf { it.start != null && room.round != next.slideRound }?.let { sl ->
+                lastSentBoard = null
+                next = next.copy(slideMoves = sl.moves, slideRound = room.round)
+            }
             room.numbers?.board?.let { board ->
                 if (room.round != next.numbersRound) {
                     lastSentBoard = null

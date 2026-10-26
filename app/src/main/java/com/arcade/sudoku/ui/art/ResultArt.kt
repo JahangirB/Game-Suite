@@ -64,6 +64,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.GRID -> if (win) a.gridWin() else a.gridLose()
                     GameKind.BALLOON -> if (win) a.balloonWin() else a.balloonLose()
                     GameKind.CODE -> if (win) a.codeWin() else a.codeLose()
+                    GameKind.SLIDE -> if (win) a.slideWin() else a.slideLose()
                 }
             }
         }
@@ -753,6 +754,31 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         p.translate(shakeX(ph), 0) {
             for (i in 0 until 4) { p.circle(80 + i * 40, 120, 14, White); p.ring(80 + i * 40, 120, 14, Ink, 3) }
             p.text("?", 160, 120, 20, Ink)
+        }
+    }
+
+    // ---- Slide Race --------------------------------------------------------------------------
+
+    fun slideTile(x: Float, y: Float, n: String, fill: Color) {
+        p.rr(x - 20, y - 20, 40, 40, 8, fill, Ink, 3)
+        p.text(n, x, y, 20, Ink)
+    }
+
+    fun slideWin() {
+        // The last tile slides home and the board glows.
+        val ph = f(3f)
+        val home = kf(ph, 0f to 0f, .2f to 0f, .45f to 1f, 1f to 1f)
+        listOf("1", "2", "3", "4", "5", "6", "7").forEachIndexed { i, n -> slideTile(105f + (i % 3) * 45f, 40f + (i / 3) * 45f, n, if (home >= 1f) Gold else White) }
+        slideTile(150f + 45f * (1 - home), 130f, "8", if (home >= 1f) Gold else White)
+        if (home >= 1f) spark(260, 50, 6, Gold, 2f, .2f)
+    }
+
+    fun slideLose() {
+        // A tile rattles in the wrong place.
+        val ph = f(1.5f)
+        listOf("1", "3", "2", "4", "6", "5", "8", "7").forEachIndexed { i, n ->
+            val dx = if (i == 1 || i == 2) shakeX(ph) else 0f
+            slideTile(105f + (i % 3) * 45f + dx, 40f + (i / 3) * 45f, n, White)
         }
     }
 

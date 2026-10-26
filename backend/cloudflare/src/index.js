@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setOptions, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setOptions, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -205,6 +205,7 @@ export class Room extends DurableObject {
           else if (TURN_GAMES.includes(this.room.game)) setTurnReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'words') setWordsReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'draw') setDrawReady(this.room, role, msg.ready !== false, now);
+          else if (this.room.game === 'slide') setSlideReady(this.room, role, msg.ready !== false, msg.tiles, now);
           else if (this.room.game === 'code') setCodeReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'grid') setGridReady(this.room, role, msg.ready !== false, msg.letters, now);
           else if (this.room.game === 'hockey') setHockeyReady(this.room, role, msg.ready !== false, now);
@@ -252,7 +253,8 @@ export class Room extends DurableObject {
           break;
         case 'board':
           // Number Cross entries come one per blank, joined by commas.
-          if (this.room.game === 'numbers') submitNumbers(this.room, role, String(msg.board ?? '').split(','), now);
+          if (this.room.game === 'slide') slideMoves(this.room, role, msg.board, now);
+          else if (this.room.game === 'numbers') submitNumbers(this.room, role, String(msg.board ?? '').split(','), now);
           else submitBoard(this.room, role, msg.board, now);
           break;
         case 'emoji':

@@ -17,6 +17,7 @@ import * as ludo from './ludo.js';
 import * as grid from './grid.js';
 import * as balloon from './balloon.js';
 import * as codeGame from './code.js';
+import * as slideGame from './slide.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -36,11 +37,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code', 'slide'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4, slide: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -347,6 +348,7 @@ export function setOptions(room, role, options) {
   if (room.game === 'dominoes') room.options = dominoes.cleanOptions(options);
   else if (room.game === 'numbers') room.options = numbers.cleanOptions(options);
   else if (room.game === 'words') room.options = words.cleanOptions(options);
+  else if (room.game === 'slide') room.options = slideGame.cleanOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -612,6 +614,64 @@ function codeView(room, role, status) {
     theyDone: !!other?.finishedAt,
     // The code you were cracking, once it's over.
     theirCode: over ? other?.code || null : null,
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// Slide Race: the host's Ready carries the shuffled start; everyone slides the same puzzle.
+
+export function setSlideReady(room, role, ready, tiles, now) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  const size = slideGame.LEVELS[slideGame.cleanOptions(room.options).level];
+  if (role === 'host') {
+    if (ready === false) room.nextSlide = null;
+    else {
+      try {
+        room.nextSlide = slideGame.checkStart(tiles, size);
+      } catch (e) {
+        room.players[role].ready = false;
+        throw new GameError(e.message);
+      }
+    }
+  }
+  if (allReady(room) && room.nextSlide) {
+    const start = room.nextSlide;
+    room.nextSlide = null;
+    beginMatch(room, { startAt: now + COUNTDOWN_MS, slideStart: start, slideSize: Math.round(Math.sqrt(start.length)) }, { moves: [], progress: slideGame.progressOf(start, Math.round(Math.sqrt(start.length))) });
+  }
+  bump(room);
+}
+
+/** Slide Race: [role]'s whole list of moves so far, comma separated. Returns true if it changed. */
+export function slideMoves(room, role, text, now) {
+  const me = room.players[role];
+  if (room.game !== 'slide' || room.status !== 'started' || now < room.startAt || me.finishedAt) return false;
+  const moves = String(text || '').split(',').filter((x) => x !== '').map(Number);
+  if (moves.length === (me.moves || []).length) return false;
+  let tiles;
+  try {
+    tiles = slideGame.replay(room.slideStart, room.slideSize, moves);
+  } catch (e) {
+    throw new GameError(e.message);
+  }
+  me.moves = moves;
+  me.progress = slideGame.progressOf(tiles, room.slideSize);
+  if (slideGame.isSolved(tiles, room.slideSize)) {
+    me.finishedAt = now;
+    endMatch(room, role, 'solved');
+  }
+  bump(room);
+  return true;
+}
+
+function slideView(room, role, status) {
+  const show = status === 'playing' || status === 'finished';
+  return {
+    level: slideGame.cleanOptions(room.options).level,
+    size: room.slideSize || slideGame.LEVELS[slideGame.cleanOptions(room.options).level],
+    start: show ? room.slideStart || null : null,
+    moves: room.players[role].moves || [],
   };
 }
 
@@ -1043,7 +1103,7 @@ export function view(room, role, now) {
     winnerName: room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,
@@ -1057,6 +1117,7 @@ export function view(room, role, now) {
     hockey: room.game === 'hockey' ? hockeyView(room, role) : null,
     grid: room.game === 'grid' ? gridView(room, role, status) : null,
     code: room.game === 'code' ? codeView(room, role, status) : null,
+    slide: room.game === 'slide' ? slideView(room, role, status) : null,
   };
 }
 
