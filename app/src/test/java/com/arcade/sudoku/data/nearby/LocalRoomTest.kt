@@ -161,6 +161,8 @@ class LocalShipsTest {
     }
 
     @Test
+    private val T0 = 1_000_000L
+
     fun dominoesTeamsWinTogether() {
         val room = LocalRoom("DOM1", "Ann", null, com.arcade.sudoku.data.GameKind.DOMINOES)
         val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null) }
@@ -169,9 +171,9 @@ class LocalShipsTest {
             room.setOptions(guests[0], com.arcade.sudoku.game.dominoes.DominoOptions(teams = true))
         }
         room.setOptions(LocalRoom.HOST, com.arcade.sudoku.game.dominoes.DominoOptions(teams = true, target = 50))
-        assertEquals(true, parseRoom(room.view(guests[1], t0)).options?.teams)
-        for (r in roles) room.setTurnReady(r, true, t0)
-        var now = t0 + 10_000
+        assertEquals(true, parseRoom(room.view(guests[1], T0)).options?.teams)
+        for (r in roles) room.setTurnReady(r, true, T0)
+        var now = T0 + 10_000
         repeat(5000) {
             val view = roles.associateWith { parseRoom(room.view(it, now)) }
             if (view.values.first().status == RoomStatus.FINISHED) return@repeat
