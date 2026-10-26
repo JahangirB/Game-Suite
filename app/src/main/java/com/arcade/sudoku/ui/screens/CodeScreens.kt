@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,7 +64,10 @@ private fun Peg(c: Char?, size: Dp, modifier: Modifier = Modifier) {
     )
 }
 
-/** The small black and white score pegs. */
+/** A right colour in the right place. */
+private val RightPlace = Color(0xFFE8505B)
+
+/** The small score pins: red for right colour and place, white for right colour, wrong place. */
 @Composable
 private fun ScorePegs(black: Int, white: Int) {
     val p = AppTheme.palette
@@ -72,7 +76,7 @@ private fun ScorePegs(black: Int, white: Int) {
             for (col in 0 until 2) {
                 val i = row * 2 + col
                 val fill = when {
-                    i < black -> p.ink
+                    i < black -> RightPlace
                     i < black + white -> Color.White
                     else -> p.accent
                 }
@@ -93,6 +97,40 @@ private fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
                 ScorePegs(g.black, g.white)
             }
         }
+    }
+}
+
+/** How to read the pins: a secret code and a few guesses at it, scored by the game itself. */
+@Composable
+fun CodeExamples() {
+    val p = AppTheme.palette
+    val secret = "rygb"
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Secret:", color = p.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.width(64.dp))
+            secret.forEach { Peg(it, 22.dp) }
+        }
+        listOf("rybg", "gbry", "rrrr", "oppo", "rygb").forEach { guess ->
+            val (red, white) = CodeBreaker.score(guess, secret)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.width(64.dp))
+                guess.forEach { Peg(it, 22.dp) }
+                ScorePegs(red, white)
+            }
+            Text(
+                when {
+                    red == CodeBreaker.PEGS -> "4 red: cracked!"
+                    red + white == 0 -> "No pins: none of these colours is in the code."
+                    else -> listOfNotNull(
+                        "$red red".takeIf { red > 0 }, "$white white".takeIf { white > 0 },
+                    ).joinToString(" and ") + ": " + listOfNotNull(
+                        (if (red == 1) "one peg is" else "$red pegs are").takeIf { red > 0 }?.let { "$it the right colour in the right place" },
+                        (if (white == 1) "one more colour is" else "$white more colours are").takeIf { white > 0 }?.let { "$it in the code but somewhere else" },
+                    ).joinToString("; ") + ".",
+                color = p.muted, fontSize = 13.sp,
+            )
+        }
+        Text("Pins never say which peg they mean: work it out from guess to guess.", color = p.muted, fontSize = 13.sp)
     }
 }
 
@@ -129,7 +167,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val opponent = room.opponent
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE) { showRules = false }
+    if (showRules) RulesDialog(GameKind.CODE, onDismiss = { showRules = false }) { CodeExamples() }
     val name = opponent?.name ?: "Your opponent"
     GameFrame(
         title = "Code Breaker",
@@ -207,7 +245,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE) { showRules = false }
+    if (showRules) RulesDialog(GameKind.CODE, onDismiss = { showRules = false }) { CodeExamples() }
     GameFrame(
         title = "Code Breaker",
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
@@ -229,9 +267,10 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
         if (!state.started) {
             AppCard("Crack the code") {
                 Text(
-                    "The computer hides four coloured pegs (colours can repeat). After each guess: a black pin for each right colour in the right place, a white pin for a right colour in the wrong place. Ten guesses.",
+                    "The computer hides four coloured pegs (colours can repeat). After each guess: a red pin for each right colour in the right place, a white pin for a right colour in the wrong place. Ten guesses.",
                     color = p.muted, fontSize = 14.sp,
                 )
+                CodeExamples()
                 PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
             }
         } else {

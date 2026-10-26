@@ -245,13 +245,18 @@ fun battleDock(finished: Boolean, onLeave: () -> Unit, onReact: (() -> Unit)?, o
 
 /** How to play [kind], from the dock's Rules button. */
 @Composable
-fun RulesDialog(kind: GameKind, onDismiss: () -> Unit) {
+fun RulesDialog(kind: GameKind, onDismiss: () -> Unit, extra: (@Composable () -> Unit)? = null) {
     val p = AppTheme.palette
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.card,
         title = { Text(kind.label, color = p.text, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
-        text = { Text(kind.rules, color = p.text, fontSize = 15.sp) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(kind.rules, color = p.text, fontSize = 15.sp)
+                extra?.invoke()
+            }
+        },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primary, fontWeight = FontWeight.Bold) } },
     )
 }

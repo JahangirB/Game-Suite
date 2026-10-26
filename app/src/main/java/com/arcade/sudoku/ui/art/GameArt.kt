@@ -115,7 +115,7 @@ val GameKind.rules: String
             "last letter scores 3 more. Each wrong letter pops one of the seven balloons; if they all pop, the picker scores " +
             "5. Everyone picks once, and the most points wins."
         GameKind.CODE -> "Each of you hides a code of four coloured pegs (colours can repeat) for the other to crack. " +
-            "After each guess you get a black pin for every right colour in the right place and a white pin for every " +
+            "After each guess you get a red pin for every right colour in the right place and a white pin for every " +
             "right colour in the wrong place. You see each other's pins but never the guesses. Fewest guesses wins; " +
             "on a tie, the faster. Ten guesses each."
         GameKind.SLIDE -> "Put the numbered tiles back in order, 1 to the last, with the gap at the end. Tap a tile in line " +

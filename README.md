@@ -95,7 +95,7 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   others guess letters in turn; each miss pops one of seven balloons. Everyone picks once and
   the most points wins. On your own, guess the computer's word or give it one of yours.
 
-- **Code Breaker:** each of you hides four coloured pegs for the other to crack; black pins for
+- **Code Breaker:** each of you hides four coloured pegs for the other to crack; red pins for
   right colour and place, white for right colour wrong place. You see each other's pins, never
   the guesses. Fewest guesses wins (a tie goes to the faster). Or crack the computer's code.
 
