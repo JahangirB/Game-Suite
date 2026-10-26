@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.data.WordGuess
+import com.arcade.sudoku.game.words.WordLevel
 import com.arcade.sudoku.game.words.Words
 import com.arcade.sudoku.ui.BattleUiState
 import com.arcade.sudoku.ui.BattleViewModel
@@ -60,16 +61,16 @@ private fun tileColor(score: Char) = when (score) {
     else -> Grey
 }
 
-/** Six rows of five tiles: [guesses] with their colours, then [input] being typed. */
+/** Six rows of [length] tiles: [guesses] with their colours, then [input] being typed. */
 @Composable
-private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, modifier: Modifier = Modifier) {
+private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until tries) {
             val guess = guesses.getOrNull(row)
             val typed = if (row == guesses.size) input else ""
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (i in 0 until Words.LENGTH) {
+                for (i in 0 until length) {
                     val letter = guess?.word?.getOrNull(i) ?: typed.getOrNull(i)
                     val fill = guess?.let { tileColor(it.score[i]) }
                     Box(
@@ -84,7 +85,7 @@ private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, modifi
                         if (letter != null) {
                             Text(
                                 letter.uppercase(), color = if (fill != null) Color.White else p.text,
-                                fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                                fontSize = if (length > 6) 20.sp else 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
                             )
                         }
                     }
@@ -100,14 +101,14 @@ private fun otherRounds(words: com.arcade.sudoku.data.WordsView) =
 
 /** Another player's colours only: small squares, one row per guess. */
 @Composable
-private fun ColourRows(guesses: List<WordGuess>, tries: Int, small: Boolean = false) {
+private fun ColourRows(guesses: List<WordGuess>, tries: Int, length: Int, small: Boolean = false) {
     val p = AppTheme.palette
     val gap = if (small) 2.dp else 3.dp
     Column(verticalArrangement = Arrangement.spacedBy(gap)) {
         for (row in 0 until tries) {
             val guess = guesses.getOrNull(row)
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                for (i in 0 until Words.LENGTH) {
+                for (i in 0 until length) {
                     Box(
                         Modifier.size(if (small) 8.dp else 14.dp).clip(RoundedCornerShape(3.dp))
                             .background(guess?.let { tileColor(it.score[i]) } ?: p.accent)
@@ -260,9 +261,9 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
     val p = AppTheme.palette
     val room = state.room ?: return
     val opponent = room.opponent
-    BoardArea(0.95f) { size ->
+    BoardArea(0.95f * words.length / 5f) { size ->
         Row(size, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, Modifier.weight(1f))
+            WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, words.length, Modifier.weight(1f))
             // Everyone else's colours, stacked smaller when there are several of them.
             val rows = otherRounds(words)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -271,7 +272,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
                     if (name != null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(name, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            ColourRows(other.guesses, words.tries, small = rows.size > 1)
+                            ColourRows(other.guesses, words.tries, words.length, small = rows.size > 1 || words.length > 6)
                         }
                     }
                 }
@@ -283,7 +284,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
         finished -> WordKeyboard(words.mine, {}, {}, {})
         words.meDone -> AppCard {
             Text(
-                if (words.mine.lastOrNull()?.score == "ggggg") "Solved! Waiting for ${opponent?.name ?: "your opponent"}…" else "Out of tries. Waiting for ${opponent?.name ?: "your opponent"}…",
+                if (words.mine.lastOrNull()?.score == "g".repeat(words.length)) "Solved! Waiting for ${opponent?.name ?: "your opponent"}…" else "Out of tries. Waiting for ${opponent?.name ?: "your opponent"}…",
                 color = p.text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -320,7 +321,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
                 title = if (state.solved) "Found it in ${state.guesses.size}!" else "Out of tries",
                 detail = "The word was ${state.answer.uppercase()}." + if (daily) " Come back tomorrow for a new word." else "",
                 finish = PopupAction("Home", onHome),
-                again = PopupAction(if (daily) "Practice" else "Next word", vm::playPractice),
+                again = PopupAction(if (daily) "Practice" else "Next word", { vm.playPractice() }),
             )
         },
     ) {
@@ -328,7 +329,8 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
             AppCard("Pick a word") {
                 Text("Today's word is the same for everyone and changes every day. Practice gives you as many words as you like.", color = p.muted, fontSize = 14.sp)
                 PrimaryButton("Today's word", vm::playDaily)
-                SecondaryButton("Practice", vm::playPractice)
+                Text("Practice: pick the length of the word.", color = p.muted, fontSize = 14.sp)
+                WordLevel.entries.forEach { level -> SecondaryButton(level.label, { vm.playPractice(level) }) }
             }
         } else {
             SoloWordsRound(state, vm)
@@ -339,8 +341,25 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
 @Composable
 private fun ColumnScope.SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsViewModel) {
     val p = AppTheme.palette
-    BoardArea(0.82f) { size -> WordGrid(state.guesses, state.input, Words.TRIES, size) }
+    BoardArea(0.82f * state.length / 5f) { size -> WordGrid(state.guesses, state.input, Words.TRIES, state.length, size) }
     state.message?.let { Text(it, color = p.bad, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     // After the last guess the keyboard stays, showing what each letter turned out to be.
     WordKeyboard(state.guesses, if (state.done) ({}) else vm::type, if (state.done) ({}) else vm::delete, if (state.done) ({}) else vm::submit)
+}
+
+/** The host's level for Word Race (the length of the word); everyone else sees it. */
+@Composable
+fun WordLevelCard(room: com.arcade.sudoku.data.RoomState, busy: Boolean, onPick: (WordLevel) -> Unit) {
+    val p = AppTheme.palette
+    val level = room.words?.level ?: WordLevel.MEDIUM
+    AppCard("Level") {
+        if (room.isHost) {
+            WordLevel.entries.forEach { l ->
+                if (l == level) PrimaryButton(l.label, {}, Modifier.fillMaxWidth(), enabled = !busy)
+                else SecondaryButton(l.label, { onPick(l) }, Modifier.fillMaxWidth(), enabled = !busy)
+            }
+        } else {
+            Text("${level.label}: the host picks the length of the word.", color = p.muted, fontSize = 14.sp)
+        }
+    }
 }

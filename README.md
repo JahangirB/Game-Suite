@@ -41,11 +41,13 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   yours and you go again. Most pairs wins. Play alone (fewest flips) or with your partner; the
   server keeps the cards hidden, so neither phone can peek.
 
-- **Word Race:** find the secret five-letter word in six tries; letters turn green, yellow or
-  grey. Race your partner on the same word: you see each other's colours, never the letters, and
-  fewest tries wins (a tie goes to the faster). Alone: **today's word** (the same for everyone,
-  new each day) or unlimited **practice**. Word lists from SCOWL (see
-  `app/src/main/assets/words/SCOWL-Copyright.txt`).
+- **Word Race:** find the secret word in six tries; letters turn green, yellow or grey. Every
+  guess must be a real word. The level sets the length: easy 4 letters, medium 5, hard 6,
+  expert 7 or 8 (the host picks it for a race). Race on the same word: you see each other's
+  colours, never the letters, and fewest tries wins (a tie goes to the faster). Alone:
+  **today's word** (five letters, the same for everyone, new each day) or unlimited
+  **practice** at any level. Secret words are common words; guesses are checked against about
+  100,000 real words (SCOWL size 80, see `app/src/main/assets/words/SCOWL-Copyright.txt`).
 
 - **Draw & Guess:** a team game for two. One of you draws a secret word while the other watches
   the drawing appear live and types guesses; a right guess adds the seconds left (out of 80) to

@@ -18,7 +18,7 @@ class WordsTest {
     @Before
     fun loadLists() {
         // Unit tests run in the app module folder, next to the assets.
-        fun read(name: String) = File("src/main/assets/words/$name.txt").readLines().filter { it.length == 5 }
+        fun read(name: String) = File("src/main/assets/words/$name.txt").readLines().filter { it.isNotBlank() }
         WordList.install(read("answers"), read("allowed"))
     }
 
@@ -41,6 +41,30 @@ class WordsTest {
     }
 
     @Test
+    fun levelsSetTheLengthOfTheWord() {
+        repeat(30) {
+            assertEquals(4, WordList.random(WordLevel.EASY).length)
+            assertEquals(6, WordList.random(WordLevel.HARD).length)
+            assertTrue(WordList.random(WordLevel.EXPERT).length in 7..8)
+        }
+        assertEquals(5, WordList.daily().length)
+        assertEquals("ggggggg", Words.score("monster", "monster"))
+        assertTrue(WordList.isWord("aardvark"))
+    }
+
+    @Test
+    fun nearbyRaceUsesTheHostsLevel() {
+        val room = LocalRoom("WR02", "Alice", null, GameKind.WORDS)
+        room.join("Bob", null, null, GameKind.entries.map { it.key })
+        room.setOptions(LocalRoom.HOST, org.json.JSONObject().put("level", "hard"))
+        room.setWordsReady(LocalRoom.HOST, true, 0)
+        room.setWordsReady(LocalRoom.GUEST, true, 0)
+        val view = parseRoom(room.view(LocalRoom.GUEST, LocalRoom.COUNTDOWN_MS)).words!!
+        assertEquals(6, view.length)
+        assertEquals(WordLevel.HARD, view.level)
+    }
+
+    @Test
     fun nearbyRaceHidesTheOpponentsLetters() {
         val room = LocalRoom("WR01", "Alice", null, GameKind.WORDS)
         room.join("Bob", null, null, GameKind.entries.map { it.key })
@@ -49,11 +73,13 @@ class WordsTest {
         assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "slate", 0) }
         val go = LocalRoom.COUNTDOWN_MS
         assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "abc", go) }
-        // Any five letters count, word or not.
-        room.guessWord(LocalRoom.HOST, "zzzzz", go)
+        // Only real words count.
+        assertThrows(ApiException::class.java) { room.guessWord(LocalRoom.HOST, "zzzzz", go) }
+        room.guessWord(LocalRoom.HOST, "slate", go)
         room.guessWord(LocalRoom.GUEST, "slate", go)
         val guest = parseRoom(room.view(LocalRoom.HOST, go)).words!!
         assertEquals(1, guest.theirs.size)
+        assertEquals(5, guest.length)
         assertNull(guest.theirs[0].word)
         assertEquals(RoomStatus.PLAYING, parseRoom(room.view(LocalRoom.HOST, go)).status)
     }

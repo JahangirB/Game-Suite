@@ -25,6 +25,8 @@ import com.arcade.sudoku.game.numbers.NumberCrossGenerator
 import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.ttt.Ttt
 import com.arcade.sudoku.game.ttt.TttPosition
+import com.arcade.sudoku.game.words.WordLevel
+import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
 import com.arcade.sudoku.data.Hello
 import com.arcade.sudoku.data.SavedPartner
@@ -643,7 +645,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Word Race: type a letter of the next guess. */
     fun typeLetter(letter: Char) = _state.update {
-        if (it.wordInput.length < Words.LENGTH) it.copy(wordInput = it.wordInput + letter.lowercaseChar()) else it
+        if (it.wordInput.length < (it.room?.words?.length ?: 5)) it.copy(wordInput = it.wordInput + letter.lowercaseChar()) else it
     }
 
     fun deleteLetter() = _state.update { it.copy(wordInput = it.wordInput.dropLast(1)) }
@@ -655,7 +657,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val id = playerId ?: return
         val b = backend ?: return
         val word = s.wordInput
-        if (s.firing || word.length < Words.LENGTH) return
+        if (s.firing || word.length < (room.words?.length ?: 5)) return
+        // Only real words count: say so at once instead of after a trip to the server.
+        if (!WordList.isWord(word)) return showMessage("\"${word.uppercase()}\" isn't in the word list.")
         _state.update { it.copy(firing = true) }
         viewModelScope.launch {
             try {
@@ -991,6 +995,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val ready = !room.me.ready
         val puzzle = if (ready && room.isHost) NumberCrossGenerator().generate(room.numbers?.level ?: NumberLevel.EASY).toJson() else null
         sendReady(room.copy(me = room.me.copy(ready = ready))) { b, id -> b.readyNumbers(room.code, id, ready, puzzle) }
+    }
+
+    /** Word Race: the host picks the level (the length of the word); everyone gets ready again. */
+    fun setWordLevel(level: WordLevel) {
+        val room = _state.value.room ?: return
+        val words = room.words ?: return
+        if (!room.isHost || words.level == level) return
+        sendReady(room.copy(words = words.copy(level = level, length = level.lengths.first()), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("level", level.key))
+        }
     }
 
     /** Number Cross: the host picks the level of the next puzzle; everyone gets ready again. */

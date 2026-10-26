@@ -16,6 +16,7 @@ import com.arcade.sudoku.game.numbers.NumberCross
 import com.arcade.sudoku.game.numbers.NumberLevel
 import com.arcade.sudoku.game.numbers.NumberPuzzle
 import com.arcade.sudoku.game.turns.TurnMatch
+import com.arcade.sudoku.game.words.WordLevel
 import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
 import com.arcade.sudoku.game.ships.Fleet
@@ -86,6 +87,9 @@ class LocalRoom(
         private set
     /** Number Cross: the host's level, the puzzle being played, and the one sent with the host's Ready. */
     var numberLevel = NumberLevel.EASY
+        private set
+    /** Word Race: the host's level (the length of the word). */
+    var wordLevel = WordLevel.MEDIUM
         private set
     private var numbers: NumberPuzzle? = null
     private var nextPuzzle: NumberPuzzle? = null
@@ -307,6 +311,7 @@ class LocalRoom(
         when (game) {
             GameKind.DOMINOES -> this.options = DominoOptions.from(options)
             GameKind.NUMBERS -> numberLevel = NumberLevel.from(options.optString("level"))
+            GameKind.WORDS -> wordLevel = WordLevel.from(options.optString("level"))
             else -> throw ApiException("This game has no options.")
         }
         for (r in seated()) player(r).ready = false
@@ -339,7 +344,7 @@ class LocalRoom(
         checkCanReady()
         player(role).ready = ready
         if (allReady()) {
-            answer = WordList.random(random)
+            answer = WordList.random(wordLevel, random)
             beginMatch(now + COUNTDOWN_MS) {
                 it.guesses = emptyList()
                 it.solved = false
@@ -358,10 +363,11 @@ class LocalRoom(
         if (role !in playing()) throw ApiException("You are not in this round.")
         if (me.finishedAt != null) throw ApiException("You are done with this word.")
         val word = guess.lowercase()
-        if (!Regex("[a-z]{5}").matches(word)) throw ApiException("Guess a five-letter word.")
+        if (word.length != secret.length || !Regex("[a-z]+").matches(word)) throw ApiException("Guess a ${secret.length}-letter word.")
+        if (!WordList.isWord(word)) throw ApiException("\"${word.uppercase()}\" isn't in the word list.")
         val colours = Words.score(word, secret)
         me.guesses = me.guesses + (word to colours)
-        if (colours == "ggggg") {
+        if (colours == "g".repeat(secret.length)) {
             me.solved = true
             me.finishedAt = now
         } else if (me.guesses.size >= Words.TRIES) {
@@ -397,6 +403,8 @@ class LocalRoom(
         )
         return JSONObject()
             .put("tries", Words.TRIES)
+            .put("length", answer?.length ?: wordLevel.lengths.first())
+            .put("level", wordLevel.key)
             .put("mine", rows(me, true))
             .put("theirs", rows(opponent, over))
             .put("meDone", me.finishedAt != null)
@@ -835,6 +843,7 @@ class LocalRoom(
                 when (game) {
                     GameKind.DOMINOES -> options.toJson()
                     GameKind.NUMBERS -> JSONObject().put("level", numberLevel.key)
+                    GameKind.WORDS -> JSONObject().put("level", wordLevel.key)
                     else -> JSONObject.NULL
                 },
             )

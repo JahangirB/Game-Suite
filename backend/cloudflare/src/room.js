@@ -345,6 +345,7 @@ export function setOptions(room, role, options) {
   }
   if (room.game === 'dominoes') room.options = dominoes.cleanOptions(options);
   else if (room.game === 'numbers') room.options = numbers.cleanOptions(options);
+  else if (room.game === 'words') room.options = words.cleanOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -404,7 +405,7 @@ export function setWordsReady(room, role, ready, now, random = Math.random) {
   checkCanReady(room);
   room.players[role].ready = ready !== false;
   if (allReady(room)) {
-    beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random) }, { guesses: [], solved: false });
+    beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random, words.cleanOptions(room.options).level) }, { guesses: [], solved: false });
   }
   bump(room);
 }
@@ -527,10 +528,12 @@ export function guessWord(room, role, word, now) {
   if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
   if (me.finishedAt) throw new GameError('You are done with this word.');
   word = String(word || '').toLowerCase();
-  if (!/^[a-z]{5}$/.test(word)) throw new GameError('Guess a five-letter word.');
+  const n = room.answer.length;
+  if (word.length !== n || !/^[a-z]+$/.test(word)) throw new GameError(`Guess a ${n}-letter word.`);
+  if (!words.isWord(word)) throw new GameError(`"${word.toUpperCase()}" isn't in the word list.`);
   const colours = words.score(word, room.answer);
   me.guesses.push({ word, score: colours });
-  if (colours === 'ggggg') {
+  if (colours === 'g'.repeat(n)) {
     me.solved = true;
     me.finishedAt = now;
   } else if (me.guesses.length >= words.TRIES) {
@@ -668,6 +671,8 @@ function wordsView(room, role, status) {
   const showWords = status === 'playing' || over;
   return {
     tries: words.TRIES,
+    length: room.answer ? room.answer.length : words.LEVELS[words.cleanOptions(room.options).level][0],
+    level: words.cleanOptions(room.options).level,
     mine: showWords ? (me.guesses || []) : [],
     // The opponent's colours during the round; their words too once it is over.
     theirs: showWords && opponent ? (opponent.guesses || []).map((g) => (over ? g : { score: g.score })) : [],
@@ -966,7 +971,7 @@ export function view(room, role, now) {
     winnerName: room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

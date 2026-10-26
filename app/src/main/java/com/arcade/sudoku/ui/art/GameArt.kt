@@ -63,9 +63,10 @@ val GameKind.rules: String
             "to claim it, then draw again. When all 16 boxes are taken, the most boxes wins."
         GameKind.MEMORY -> "16 cards lie face down: 8 pairs of pictures. Flip two cards on your turn. A pair is yours " +
             "and you go again; otherwise they turn back and the next player goes. Most pairs wins."
-        GameKind.WORDS -> "Find the secret five-letter word in six tries. After each guess the letters turn green " +
-            "(right letter, right place), yellow (in the word, elsewhere) or grey (not in the word). In a race you both " +
-            "get the same word and see each other's colours, never the letters. Fewest tries wins; on a tie, the faster."
+        GameKind.WORDS -> "Find the secret word in six tries. Every guess must be a real word of the same length. After " +
+            "each guess the letters turn green (right letter, right place), yellow (in the word, elsewhere) or grey (not in " +
+            "the word). The level sets the length: easy 4 letters, medium 5, hard 6, expert 7 or 8. In a race everyone gets " +
+            "the same word and sees the others' colours, never their letters. Fewest tries wins; on a tie, the faster."
         GameKind.DRAW -> "You play as a team, four turns, taking turns to draw. The drawer gets a secret word and draws it; " +
             "the other watches the drawing appear and types guesses. A right guess adds the seconds left (out of 80) " +
             "to your team score. No letters or words in the drawing!"

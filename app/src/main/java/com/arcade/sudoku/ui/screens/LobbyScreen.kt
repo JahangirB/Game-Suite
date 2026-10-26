@@ -147,6 +147,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             } else if (room.game.readyOnly) {
                 if (room.game == GameKind.DOMINOES) DominoOptionsCard(room, state.busy, vm::setDominoOptions)
                 if (room.game == GameKind.NUMBERS) NumbersLevelCard(room, state.busy, vm::setNumberLevel)
+                if (room.game == GameKind.WORDS) WordLevelCard(room, state.busy, vm::setWordLevel)
                 TurnReadyCard(
                     room, state.busy,
                     when (room.game) {

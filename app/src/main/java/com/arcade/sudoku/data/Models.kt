@@ -6,6 +6,7 @@ import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.numbers.NumberLevel
+import com.arcade.sudoku.game.words.WordLevel
 import com.arcade.sudoku.game.ships.Ship
 import com.arcade.sudoku.game.ships.Shot
 import org.json.JSONArray
@@ -146,6 +147,9 @@ data class WordGuess(val word: String?, val score: String)
 /** A Word Race round as one player sees it. */
 data class WordsView(
     val tries: Int,
+    /** Letters in the secret word (the host's level sets it). */
+    val length: Int = 5,
+    val level: WordLevel = WordLevel.MEDIUM,
     val mine: List<WordGuess>,
     val theirs: List<WordGuess>,
     val meDone: Boolean,
@@ -359,6 +363,8 @@ private fun parseWords(json: JSONObject): WordsView {
     fun guesses(key: String) = json.optJSONArray(key).objects().map { WordGuess(it.stringOrNull("word"), it.optString("score")) }
     return WordsView(
         tries = json.optInt("tries", 6),
+        length = json.optInt("length", 5),
+        level = WordLevel.from(json.stringOrNull("level")),
         mine = guesses("mine"),
         theirs = guesses("theirs"),
         meDone = json.optBoolean("meDone"),
