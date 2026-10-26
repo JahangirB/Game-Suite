@@ -149,6 +149,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 if (room.game == GameKind.NUMBERS) NumbersLevelCard(room, state.busy, vm::setNumberLevel)
                 if (room.game == GameKind.WORDS) WordLevelCard(room, state.busy, vm::setWordLevel)
                 if (room.game == GameKind.SLIDE) SlideLevelCard(room, state.busy, vm::setSlideLevel)
+                if (room.game == GameKind.TTT) TttModeCard(room, state.busy, vm::setTttClassic)
                 TurnReadyCard(
                     room, state.busy,
                     when (room.game) {

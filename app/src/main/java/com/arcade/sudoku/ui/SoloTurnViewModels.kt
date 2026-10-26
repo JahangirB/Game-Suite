@@ -105,10 +105,11 @@ class SoloTttViewModel : ViewModel() {
     private val _state = MutableStateFlow(SoloTttUiState())
     val state: StateFlow<SoloTttUiState> = _state.asStateFlow()
 
-    fun newGame() {
+    /** A new game, normal ([classic]) or Ultimate; the same kind as before unless told. */
+    fun newGame(classic: Boolean = match.classic) {
         playerStarts = !playerStarts
-        match = TttMatch()
-        _state.value = SoloTttUiState(myTurn = playerStarts)
+        match = TttMatch(classic)
+        _state.value = SoloTttUiState(position = match.position, myTurn = playerStarts)
         if (!playerStarts) computerMoves()
     }
 

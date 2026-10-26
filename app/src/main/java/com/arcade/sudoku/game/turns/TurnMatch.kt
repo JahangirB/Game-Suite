@@ -44,6 +44,8 @@ interface TurnMatch {
             random: Random = Random.Default,
             marks: List<Char> = listOf('h', 'g'),
             options: DominoOptions = DominoOptions(),
+            /** Tic-Tac-Toe: normal 3 × 3 instead of Ultimate. */
+            tttClassic: Boolean = false,
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -53,7 +55,7 @@ interface TurnMatch {
             GameKind.BLOCKS -> BlocksMatch(marks)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
-            GameKind.TTT -> TttMatch()
+            GameKind.TTT -> TttMatch(tttClassic)
             else -> C4Match()
         }
 

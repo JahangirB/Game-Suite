@@ -98,6 +98,9 @@ class LocalRoom(
     /** Number Cross: the host's level, the puzzle being played, and the one sent with the host's Ready. */
     var numberLevel = NumberLevel.EASY
         private set
+    /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
+    var tttClassic = false
+        private set
     /** Word Race: the host's level (the length of the word). */
     var wordLevel = WordLevel.MEDIUM
         private set
@@ -279,7 +282,7 @@ class LocalRoom(
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options)
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic)
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
@@ -323,6 +326,7 @@ class LocalRoom(
             GameKind.NUMBERS -> numberLevel = NumberLevel.from(options.optString("level"))
             GameKind.WORDS -> wordLevel = WordLevel.from(options.optString("level"))
             GameKind.SLIDE -> slideLevel = SlideLevel.from(options.optString("level"))
+            GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
             else -> throw ApiException("This game has no options.")
         }
         for (r in seated()) player(r).ready = false
@@ -1039,6 +1043,7 @@ class LocalRoom(
                     GameKind.NUMBERS -> JSONObject().put("level", numberLevel.key)
                     GameKind.WORDS -> JSONObject().put("level", wordLevel.key)
                     GameKind.SLIDE -> JSONObject().put("level", slideLevel.key)
+                    GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     else -> JSONObject.NULL
                 },
             )

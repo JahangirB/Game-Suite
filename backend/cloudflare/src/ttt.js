@@ -3,6 +3,9 @@
 // board is already decided, they may play in any open board. Three in a row wins a small board;
 // three small boards in a row wins the game. A game with no line of boards is a draw.
 //
+// The host can choose normal Tic-Tac-Toe instead ({ mode: 'classic' }): one 3 × 3 board, three in
+// a row wins. It uses the same shape with a single board: 9 cells and one entry in `boards`.
+//
 // Cells are numbered board * 9 + cell, both 0-8 row by row. `boards` holds each small board's
 // owner: '.' open, a player's mark, or 'd' when it filled up with no winner.
 
@@ -15,13 +18,33 @@ export function lineOf(grid, mark) {
 
 const set = (s, i, c) => s.slice(0, i) + c + s.slice(i + 1);
 
-export function start() {
+export const cleanOptions = (o) => ({ mode: o?.mode === 'classic' ? 'classic' : 'ultimate' });
+
+export function start(random = Math.random, marks = ['h', 'g'], options = {}) {
+  if (cleanOptions(options).mode === 'classic') return { cells: '.'.repeat(9), boards: '.', next: -1, winLine: null, last: null };
   return { cells: '.'.repeat(81), boards: '.'.repeat(9), next: -1, winLine: null, last: null };
+}
+
+/** Normal Tic-Tac-Toe: { cell } 0-8. */
+function playClassic(state, mark, cell) {
+  if (!Number.isInteger(cell) || cell < 0 || cell >= 9) throw new Error('Pick a square on the board.');
+  if (state.cells[cell] !== '.') throw new Error('That square is taken.');
+  state.cells = set(state.cells, cell, mark);
+  state.last = { mark, cell };
+  const line = lineOf(state.cells, mark);
+  if (line) {
+    state.winLine = line;
+    state.boards = mark;
+    return { again: false, over: true, winner: mark, reason: 'three' };
+  }
+  if (!state.cells.includes('.')) state.boards = 'd';
+  return { again: false, over: !state.cells.includes('.'), winner: null, reason: 'draw' };
 }
 
 /** Marks { cell } for `mark`. Returns { again, over, winner, reason }. */
 export function play(state, mark, move) {
   const cell = Number(move?.cell);
+  if (state.cells.length === 9) return playClassic(state, mark, cell);
   if (!Number.isInteger(cell) || cell < 0 || cell >= 81) throw new Error('Pick a square on the board.');
   const board = Math.floor(cell / 9);
   if (state.boards[board] !== '.') throw new Error('That small board is already decided.');

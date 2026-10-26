@@ -352,6 +352,7 @@ export function setOptions(room, role, options) {
   else if (room.game === 'numbers') room.options = numbers.cleanOptions(options);
   else if (room.game === 'words') room.options = words.cleanOptions(options);
   else if (room.game === 'slide') room.options = slideGame.cleanOptions(options);
+  else if (room.game === 'ttt') room.options = ttt.cleanOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -1155,7 +1156,7 @@ export function view(room, role, now) {
     winnerName: room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

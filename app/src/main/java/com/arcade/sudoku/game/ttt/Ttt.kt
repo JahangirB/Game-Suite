@@ -16,7 +16,14 @@ data class TttPosition(
     val cells: String = ".".repeat(81),
     val boards: String = ".".repeat(9),
     val next: Int = -1,
-)
+) {
+    /** Normal Tic-Tac-Toe: a single board of 9 cells (and one entry in [boards]). */
+    val classic get() = cells.length == 9
+
+    companion object {
+        fun classic() = TttPosition(".".repeat(9), ".", -1)
+    }
+}
 
 object Ttt {
     val LINES = listOf(
@@ -28,15 +35,21 @@ object Ttt {
     fun lineOf(grid: CharSequence, mark: Char): List<Int>? = LINES.firstOrNull { line -> line.all { grid[it] == mark } }
 
     fun isLegal(pos: TttPosition, cell: Int): Boolean {
+        if (pos.classic) return cell in 0 until 9 && pos.boards[0] == '.' && pos.cells[cell] == '.'
         if (cell !in 0 until 81) return false
         val board = cell / 9
         return pos.boards[board] == '.' && (pos.next < 0 || pos.next == board) && pos.cells[cell] == '.'
     }
 
-    fun legalMoves(pos: TttPosition) = (0 until 81).filter { isLegal(pos, it) }
+    fun legalMoves(pos: TttPosition) = pos.cells.indices.filter { isLegal(pos, it) }
 
     /** [pos] after [mark] marks [cell], which must be legal. */
     fun play(pos: TttPosition, mark: Char, cell: Int): TttPosition {
+        if (pos.classic) {
+            val cells = pos.cells.replaceAt(cell, mark)
+            val decided = if (lineOf(cells, mark) != null) mark.toString() else if ('.' !in cells) "d" else "."
+            return TttPosition(cells, decided, -1)
+        }
         val board = cell / 9
         val cells = pos.cells.replaceAt(cell, mark)
         val small = cells.substring(board * 9, board * 9 + 9)
@@ -52,9 +65,9 @@ object Ttt {
     private fun String.replaceAt(i: Int, c: Char) = substring(0, i) + c + substring(i + 1)
 }
 
-/** One round, matching ttt.js for battles. */
-class TttMatch : TurnMatch {
-    var position = TttPosition()
+/** One round, matching ttt.js for battles; [classic] is normal 3 × 3 Tic-Tac-Toe. */
+class TttMatch(val classic: Boolean = false) : TurnMatch {
+    var position = if (classic) TttPosition.classic() else TttPosition()
         private set
     var winLine: List<Int>? = null
         private set
@@ -62,6 +75,17 @@ class TttMatch : TurnMatch {
 
     override fun play(mark: Char, move: JSONObject): TurnResult {
         val cell = move.optInt("cell", -1)
+        if (classic) {
+            require(cell in 0 until 9) { "Pick a square on the board." }
+            require(position.cells[cell] == '.') { "That square is taken." }
+            position = Ttt.play(position, mark, cell)
+            last = mark to cell
+            Ttt.lineOf(position.cells, mark)?.let {
+                winLine = it
+                return TurnResult(again = false, over = true, winner = mark, reason = "three")
+            }
+            return TurnResult(again = false, over = '.' !in position.cells, reason = "draw")
+        }
         require(cell in 0 until 81) { "Pick a square on the board." }
         require(position.boards[cell / 9] == '.') { "That small board is already decided." }
         require(position.next < 0 || position.next == cell / 9) { "Play in the highlighted board." }
@@ -93,6 +117,7 @@ class TttComputer(private val random: Random = Random.Default) {
         Ttt.legalMoves(pos).maxBy { score(pos, it, me, them) + random.nextDouble() }
 
     private fun score(pos: TttPosition, cell: Int, me: Char, them: Char): Double {
+        if (pos.classic) return classicScore(pos, cell, me, them)
         val after = Ttt.play(pos, me, cell)
         if (Ttt.lineOf(after.boards, me) != null) return 10_000.0
         var score = 0.0
@@ -114,5 +139,16 @@ class TttComputer(private val random: Random = Random.Default) {
         }
         if (board == 4) score += 2
         return score
+    }
+
+    /** Normal Tic-Tac-Toe: win, else block, else the middle, a corner, an edge. */
+    private fun classicScore(pos: TttPosition, cell: Int, me: Char, them: Char): Double {
+        if (Ttt.lineOf(pos.cells.replaceRange(cell, cell + 1, me.toString()), me) != null) return 1_000.0
+        if (Ttt.lineOf(pos.cells.replaceRange(cell, cell + 1, them.toString()), them) != null) return 500.0
+        return when (cell) {
+            4 -> 6.0
+            0, 2, 6, 8 -> 3.0
+            else -> 0.0
+        } * 1.5
     }
 }

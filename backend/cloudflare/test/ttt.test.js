@@ -62,3 +62,28 @@ test('a board that fills with no line is drawn, and all boards decided with no l
   assert.equal(s.next, -1);
   assert.deepEqual(result, { again: false, over: true, winner: null, reason: 'draw' });
 });
+
+test('normal tic-tac-toe: one board, three in a row wins', () => {
+  const s = ttt.start(Math.random, ['h', 'g'], { mode: 'classic' });
+  assert.equal(s.cells.length, 9);
+  assert.throws(() => ttt.play(s, 'h', { cell: 9 }), /square/);
+  ttt.play(s, 'h', { cell: 0 });
+  ttt.play(s, 'g', { cell: 3 });
+  ttt.play(s, 'h', { cell: 1 });
+  assert.throws(() => ttt.play(s, 'g', { cell: 1 }), /taken/);
+  ttt.play(s, 'g', { cell: 4 });
+  const r = ttt.play(s, 'h', { cell: 2 });
+  assert.equal(r.over, true);
+  assert.equal(r.winner, 'h');
+  assert.deepEqual(ttt.view(s, 'g').winLine, [0, 1, 2]);
+  assert.equal(ttt.view(s, 'g').board, 'ooomm....');
+});
+
+test('a full normal board with no line is a draw', () => {
+  const s = ttt.start(Math.random, ['h', 'g'], { mode: 'classic' });
+  let r;
+  // X O X / X O O / O X X
+  [[0, 'h'], [1, 'g'], [2, 'h'], [4, 'g'], [3, 'h'], [5, 'g'], [7, 'h'], [6, 'g'], [8, 'h']].forEach(([c, m]) => { r = ttt.play(s, m, { cell: c }); });
+  assert.equal(r.over, true);
+  assert.equal(r.winner, null);
+});

@@ -83,7 +83,8 @@ val GameKind.rules: String
         GameKind.TTT -> "Nine small tic-tac-toe boards make one big board. The square you mark sends your partner to " +
             "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +
             "Three in a row wins a small board; three small boards in a row wins the game. If you are sent to a " +
-            "board that is already won or full, play in any open board."
+            "board that is already won or full, play in any open board. Prefer the classic game? Pick Normal (one 3 × 3 " +
+            "board, three in a row wins) before you start."
         GameKind.DOMINOES -> "Two to four players, each with a hand of dominoes. On your turn put a tile on either end of " +
             "the line so its number matches that end. Can't play? In the draw game you take tiles from the boneyard " +
             "until you can; in the block game you pass. The first to play out their hand (or, if nobody can play, the " +

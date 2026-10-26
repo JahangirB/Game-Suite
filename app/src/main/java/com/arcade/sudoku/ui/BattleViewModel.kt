@@ -652,6 +652,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sendReady(room.copy(options = options, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, options.toJson()) }
     }
 
+    /** Tic-Tac-Toe: the host picks normal (3 × 3) or Ultimate; everyone gets ready again. */
+    fun setTttClassic(classic: Boolean) {
+        val room = _state.value.room ?: return
+        if (!room.isHost || room.tttClassic == classic) return
+        sendReady(room.copy(tttClassic = classic, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("mode", if (classic) "classic" else "ultimate"))
+        }
+    }
+
     /**
      * Turn games: send one move when it is this player's turn. [shown] is the board with the
      * move already made, so it appears at once instead of after a trip to the server; the
@@ -1072,7 +1081,6 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Slide Race: tap a tile in line with the gap; it (and any tiles between) slide over at once. */
     /** Bingo: dab (or un-dab) square [index] of your card; only called numbers take a dab. */
     fun dabBingo(index: Int) {
         val s = _state.value
@@ -1093,6 +1101,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     /** Bingo: claim a full line; the server checks it against the calls. */
     fun claimBingo() = sendCode(BINGO_CLAIM)
 
+    /** Slide Race: tap a tile in line with the gap; it (and any tiles between) slide over at once. */
     fun tapSlideTile(tile: Int) {
         val s = _state.value
         val slide = s.room?.slide ?: return

@@ -319,6 +319,8 @@ data class RoomState(
     val maxPlayers: Int = 2,
     /** Dominoes: the host's rules for the match. */
     val options: DominoOptions? = null,
+    /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
+    val tttClassic: Boolean = false,
 ) {
     val isHost get() = role == "host"
 
@@ -362,6 +364,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     winnerName = json.stringOrNull("winnerName"),
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
+    tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
 )
 
 private fun parsePlayer(json: JSONObject) = PlayerInfo(

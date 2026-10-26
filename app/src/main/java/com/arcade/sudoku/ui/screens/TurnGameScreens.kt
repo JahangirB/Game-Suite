@@ -183,6 +183,7 @@ fun TttBoard(
     onMark: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    if (board.length == 9) return ClassicTttBoard(board, winLine, lastCell, onMark, modifier)
     val p = AppTheme.palette
     val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
     LaunchedEffect(lastCell) { pop.animateTo(1f, tween(260)) }
@@ -255,6 +256,67 @@ fun TttBoard(
         if (winLine.size == 3) {
             val center = { b: Int -> Offset((b % 3 + 0.5f) * big, (b / 3 + 0.5f) * big) }
             drawLine(Color.White.copy(alpha = pulse), center(winLine.first()), center(winLine.last()), big * 0.09f, StrokeCap.Round)
+        }
+    }
+}
+
+/** Normal Tic-Tac-Toe: one 3 × 3 board; [board] holds 9 cells ('m' your X, 'o' their O). */
+@Composable
+private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, onMark: ((Int) -> Unit)?, modifier: Modifier) {
+    val p = AppTheme.palette
+    val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
+    LaunchedEffect(lastCell) { pop.animateTo(1f, tween(320)) }
+    val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
+        detectTapGestures { at ->
+            val step = size.width / 3f
+            onMark((at.y / step).toInt().coerceIn(0, 2) * 3 + (at.x / step).toInt().coerceIn(0, 2))
+        }
+    }
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).then(tap)) {
+        val step = size.width / 3f
+        val corner = CornerRadius(step * 0.2f)
+        drawRoundRect(p.ink, Offset(0f, 6f), Size(size.width, size.height - 6f), corner)
+        drawRoundRect(TttBlue, Offset.Zero, Size(size.width, size.height - 6f), corner)
+        drawRoundRect(p.ink, Offset.Zero, Size(size.width, size.height - 6f), corner, style = Stroke(4f))
+        for (i in 1..2) {
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(i * step, step * 0.15f), Offset(i * step, size.height - step * 0.15f), 7f, StrokeCap.Round)
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(step * 0.15f, i * step), Offset(size.width - step * 0.15f, i * step), 7f, StrokeCap.Round)
+        }
+        for (c in 0 until 9) {
+            val center = Offset((c % 3 + 0.5f) * step, (c / 3 + 0.5f) * step)
+            val k = step * 0.28f * (if (c == lastCell) pop.value else 1f)
+            when (board[c]) {
+                'm' -> for (color in listOf(p.ink, MyDisc)) {
+                    val w = if (color == MyDisc) step * 0.09f else step * 0.09f + 6f
+                    drawLine(color, center + Offset(-k, -k), center + Offset(k, k), w, StrokeCap.Round)
+                    drawLine(color, center + Offset(k, -k), center + Offset(-k, k), w, StrokeCap.Round)
+                }
+                'o' -> {
+                    drawCircle(p.ink, k, center, style = Stroke(step * 0.09f + 6f))
+                    drawCircle(TheirDisc, k, center, style = Stroke(step * 0.09f))
+                }
+            }
+        }
+        if (winLine.size == 3) {
+            val center = { c: Int -> Offset((c % 3 + 0.5f) * step, (c / 3 + 0.5f) * step) }
+            drawLine(Color.White, center(winLine.first()), center(winLine.last()), step * 0.1f, StrokeCap.Round)
+        }
+    }
+}
+
+/** Tic-Tac-Toe's mode: the host picks normal 3 × 3 or Ultimate; everyone else sees which. */
+@Composable
+fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("Which game?") {
+        val modes = listOf(false to "Ultimate: nine boards in one", true to "Normal: one 3 × 3 board")
+        if (room.isHost) {
+            modes.forEach { (classic, label) ->
+                if (room.tttClassic == classic) PrimaryButton(label, {}, Modifier.fillMaxWidth(), enabled = !busy)
+                else SecondaryButton(label, { onPick(classic) }, Modifier.fillMaxWidth(), enabled = !busy)
+            }
+        } else {
+            Text(modes.first { it.first == room.tttClassic }.second + ", picked by the host.", color = p.muted, fontSize = 14.sp)
         }
     }
 }
@@ -571,6 +633,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     again && game == GameKind.MEMORY && turns.faces.count { it != null } % 2 == 0 -> "A pair! Go again"
                     game == GameKind.DOTS -> "Your turn: draw a line between two dots"
                     game == GameKind.MEMORY -> "Your turn: flip two cards"
+                    game == GameKind.TTT && turns.board?.length == 9 -> "Your turn: three in a row wins"
                     game == GameKind.TTT -> if (turns.nextBoard == null) "Your turn: play in any open board" else "Your turn: play in the glowing board"
                     else -> "Your turn: slide to a column and let go"
                 },
@@ -613,14 +676,14 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 /** One line on how a turn game ended, for the result popup. */
 private fun turnResultDetail(game: GameKind, winner: String?, endReason: String?, name: String) = when (endReason) {
     "four" -> if (winner == "me") "Four in a row!" else "$name got four in a row."
-    "three" -> if (winner == "me") "Three boards in a row!" else "$name won three boards in a row."
+    "three" -> if (winner == "me") "Three in a row!" else "$name got three in a row."
     "most" -> {
         val what = if (game == GameKind.MEMORY) "pairs" else "boxes"
         if (winner == "me") "You found more $what." else "$name found more $what."
     }
     "draw" -> when (game) {
         GameKind.CONNECT4 -> "The board is full and nobody got four."
-        GameKind.TTT -> "Every board is decided and nobody has three in a row."
+        GameKind.TTT -> "Nobody got three in a row."
         else -> "You both have the same number."
     }
     "forfeit" -> if (winner == "me") "$name left the game." else "You left the game."
@@ -755,22 +818,22 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
     val pos = state.position
     GameFrame(
         title = "Tic-Tac-Toe",
-        subtitle = "Ultimate · against the computer",
+        subtitle = (if (pos.classic) "Normal" else "Ultimate") + " · against the computer",
         players = listOf(
-            ChipPlayer("You", null, MyDisc, "X · ${pos.boards.count { it == 'm' }} boards", active = state.myTurn && playing),
-            ChipPlayer("Computer", null, TheirDisc, "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
+            ChipPlayer("You", null, MyDisc, if (pos.classic) "X" else "X · ${pos.boards.count { it == 'm' }} boards", active = state.myTurn && playing),
+            ChipPlayer("Computer", null, TheirDisc, if (pos.classic) "O" else "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
         ),
         glow = GameKind.TTT.color,
-        dock = soloDock(onHome, { showRules = true }, vm::newGame),
+        dock = soloDock(onHome, { showRules = true }, { vm.newGame() }),
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.TTT, result,
                 when (result) {
-                    "me" -> "Three boards in a row!"
-                    "computer" -> "The computer won three boards in a row."
-                    else -> "Every board is decided and nobody has three in a row."
+                    "me" -> "Three in a row!"
+                    "computer" -> "The computer got three in a row."
+                    else -> "Nobody got three in a row."
                 },
-                onAgain = vm::newGame, onHome = onHome,
+                onAgain = { vm.newGame() }, onHome = onHome,
             )
         },
     ) {
@@ -778,12 +841,20 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             when {
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is thinking…"
+                pos.classic -> "Your turn: three in a row wins"
                 pos.next < 0 -> "Your turn: play in any open board"
                 else -> "Your turn: play in the glowing board"
             },
             state.myTurn && playing,
             GameKind.TTT.color,
         )
+        // Normal or Ultimate: switching starts a new game.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(true to "Normal 3 × 3", false to "Ultimate").forEach { (classic, label) ->
+                if (pos.classic == classic) PrimaryButton(label, {}, Modifier.weight(1f))
+                else SecondaryButton(label, { vm.newGame(classic) }, Modifier.weight(1f))
+            }
+        }
         BoardArea(1f) { size ->
             TttBoard(
                 board = pos.cells,
