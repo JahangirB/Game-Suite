@@ -97,8 +97,10 @@ class BlocksMatch(val marks: List<Char>) : TurnMatch {
     /** Every legal move for [mark] (or just the first, with [any]). */
     fun movesFor(mark: Char, any: Boolean = false): List<Placement> {
         val first = left.getValue(mark).size == Blocks.PIECES.size
+        val n = size
+        // (Inside buildList, size would be the list's own.)
         val targets = if (first) listOf(starts.getValue(mark)) else buildList {
-            for (y in 0 until size) for (x in 0 until size) {
+            for (y in 0 until n) for (x in 0 until n) {
                 if (at(x, y) != '.') continue
                 if (CORNERS.any { (dx, dy) -> at(x + dx, y + dy) == mark } && EDGES.none { (dx, dy) -> at(x + dx, y + dy) == mark }) add(x to y)
             }
