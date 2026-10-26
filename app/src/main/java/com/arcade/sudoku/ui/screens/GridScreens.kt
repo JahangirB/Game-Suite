@@ -88,8 +88,8 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                 path = emptyList()
             }
         }
+        val side = maxWidth / n - 6.dp
         Column(Modifier.then(touch), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val side = maxWidth / n - 6.dp
             for (r in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (c in 0 until n) {
                     val i = r * n + c
