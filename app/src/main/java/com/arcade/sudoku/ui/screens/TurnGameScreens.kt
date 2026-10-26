@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -111,7 +112,15 @@ private val TheirLine = Color(0xFFE0A21C)
 fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: ((Int) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     val fall = remember(lastCell, board) { Animatable(if (lastCell == null) 1f else 0f) }
-    LaunchedEffect(lastCell, board) { fall.animateTo(1f, tween(320, easing = FastOutLinearInEasing)) }
+    // It speeds up as it falls, then bounces once in its hole.
+    LaunchedEffect(lastCell, board) {
+        fall.animateTo(1f, keyframes {
+            durationMillis = 470
+            1f at 320 using FastOutLinearInEasing
+            0.93f at 395
+            1f at 470
+        })
+    }
     val glow by rememberInfiniteTransition(label = "win").animateFloat(
         0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "winGlow",
     )
