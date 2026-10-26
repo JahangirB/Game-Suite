@@ -12,11 +12,11 @@ class LudoTest {
         val ring = Ludo.ringCells
         assertEquals(52, ring.size)
         assertEquals(52, ring.toSet().size)
-        // Each square touches the next, all the way round.
+        // Each square touches the next, all the way round (corner to corner at the four inner corners).
         for (i in ring.indices) {
             val (x1, y1) = ring[i]
             val (x2, y2) = ring[(i + 1) % ring.size]
-            assertEquals("squares $i and ${i + 1}", 1, kotlin.math.abs(x1 - x2) + kotlin.math.abs(y1 - y2))
+            assertEquals("squares $i and ${i + 1}", 1, maxOf(kotlin.math.abs(x1 - x2), kotlin.math.abs(y1 - y2)))
         }
         // Each colour's start is next to its yard, and its home column leads off the ring.
         assertEquals(1 to 6, ring[0])
