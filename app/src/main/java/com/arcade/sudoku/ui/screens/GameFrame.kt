@@ -245,7 +245,7 @@ fun battleDock(finished: Boolean, onLeave: () -> Unit, onReact: (() -> Unit)?, o
 
 /** How to play [kind], from the dock's Rules button. */
 @Composable
-fun RulesDialog(kind: GameKind, onDismiss: () -> Unit, extra: (@Composable () -> Unit)? = null) {
+fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     AlertDialog(
         onDismissRequest = onDismiss,

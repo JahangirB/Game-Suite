@@ -118,20 +118,22 @@ fun CodeExamples() {
                 ScorePegs(red, white)
             }
             Text(
-                when {
-                    red == CodeBreaker.PEGS -> "4 red: cracked!"
-                    red + white == 0 -> "No pins: none of these colours is in the code."
-                    else -> listOfNotNull(
-                        "$red red".takeIf { red > 0 }, "$white white".takeIf { white > 0 },
-                    ).joinToString(" and ") + ": " + listOfNotNull(
-                        (if (red == 1) "one peg is" else "$red pegs are").takeIf { red > 0 }?.let { "$it the right colour in the right place" },
-                        (if (white == 1) "one more colour is" else "$white more colours are").takeIf { white > 0 }?.let { "$it in the code but somewhere else" },
-                    ).joinToString("; ") + ".",
+                pinsMeaning(red, white),
                 color = p.muted, fontSize = 13.sp,
             )
         }
         Text("Pins never say which peg they mean: work it out from guess to guess.", color = p.muted, fontSize = 13.sp)
     }
+}
+
+/** What [red] and [white] pins say about a guess, in words. */
+private fun pinsMeaning(red: Int, white: Int): String {
+    if (red == CodeBreaker.PEGS) return "4 red: cracked!"
+    if (red + white == 0) return "No pins: none of these colours is in the code."
+    val counts = listOfNotNull("$red red".takeIf { red > 0 }, "$white white".takeIf { white > 0 }).joinToString(" and ")
+    val reds = if (red == 1) "one peg is the right colour in the right place" else "$red pegs are the right colour in the right place"
+    val whites = if (white == 1) "one more colour is in the code but somewhere else" else "$white more colours are in the code but somewhere else"
+    return "$counts: " + listOfNotNull(reds.takeIf { red > 0 }, whites.takeIf { white > 0 }).joinToString("; ") + "."
 }
 
 /** Four holes to fill from the colour buttons, with Clear and the send button. */
@@ -167,7 +169,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val opponent = room.opponent
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE, onDismiss = { showRules = false }) { CodeExamples() }
+    if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     val name = opponent?.name ?: "Your opponent"
     GameFrame(
         title = "Code Breaker",
@@ -245,7 +247,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE, onDismiss = { showRules = false }) { CodeExamples() }
+    if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     GameFrame(
         title = "Code Breaker",
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
