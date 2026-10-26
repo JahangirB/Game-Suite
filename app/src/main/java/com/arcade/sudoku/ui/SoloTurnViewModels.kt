@@ -3,6 +3,10 @@ package com.arcade.sudoku.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arcade.sudoku.data.Avatar
+import com.arcade.sudoku.game.dominoes.DominoComputer
+import com.arcade.sudoku.game.dominoes.DominoMatch
+import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.dots.Dots
 import com.arcade.sudoku.game.dots.DotsComputer
 import com.arcade.sudoku.game.dots.DotsMatch
@@ -16,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -183,4 +188,94 @@ class SoloMemoryViewModel : ViewModel() {
         val up = i in match.up && !(hideMissed && match.up.size == 2)
         if (match.owners[i] != '.' || up) face else null
     }
+}
+
+/**
+ * Dominoes against one to three computer players. Marks: 'm' you, then 'o', 'p', 'q' for the
+ * computers in seat order (with teams, 'p' is your partner).
+ */
+data class SoloDominoesUiState(
+    /** Null while choosing the rules. */
+    val view: DominoView? = null,
+    val opponents: Int = 1,
+    val options: DominoOptions = DominoOptions(),
+    /** Whose turn: 'm' or a computer's mark. */
+    val turn: Char = 'm',
+    /** "me", "computer" or null while playing. */
+    val result: String? = null,
+)
+
+class SoloDominoesViewModel : ViewModel() {
+    private var match: DominoMatch? = null
+    private val computer = DominoComputer()
+    private var thinking: Job? = null
+    private val _state = MutableStateFlow(SoloDominoesUiState())
+    val state: StateFlow<SoloDominoesUiState> = _state.asStateFlow()
+
+    fun setOpponents(n: Int) = _state.update { it.copy(opponents = n.coerceIn(1, 3)) }
+
+    fun setOptions(options: DominoOptions) = _state.update { it.copy(options = options) }
+
+    /** Back to choosing the rules. */
+    fun changeRules() {
+        thinking?.cancel()
+        match = null
+        _state.update { it.copy(view = null, result = null, turn = 'm') }
+    }
+
+    fun start() {
+        thinking?.cancel()
+        val s = _state.value
+        val m = DominoMatch("mopq".take(s.opponents + 1).toList(), s.options)
+        match = m
+        _state.value = s.copy(view = viewOf(m), turn = m.firstMark, result = null)
+        if (m.firstMark != 'm') computersMove()
+    }
+
+    fun playTile(index: Int, end: String) = humanMove(JSONObject().put("tile", index).put("end", end))
+
+    fun drawTile() = humanMove(JSONObject().put("draw", true))
+
+    fun passTurn() = humanMove(JSONObject().put("pass", true))
+
+    private fun humanMove(move: JSONObject) {
+        val s = _state.value
+        if (s.turn != 'm' || s.result != null || match == null) return
+        try {
+            play('m', move)
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+        if (_state.value.result == null && _state.value.turn != 'm') computersMove()
+    }
+
+    private fun play(mark: Char, move: JSONObject) {
+        val m = match ?: return
+        val result = m.play(mark, move)
+        val next = when {
+            result.turn != null -> result.turn
+            result.again -> mark
+            else -> m.marks[(m.marks.indexOf(mark) + 1) % m.marks.size]
+        }
+        _state.update {
+            it.copy(
+                view = viewOf(m),
+                turn = next,
+                result = if (!result.over) null else if (result.winner != null && m.sameSide(result.winner, 'm')) "me" else "computer",
+            )
+        }
+    }
+
+    private fun computersMove() {
+        thinking = viewModelScope.launch {
+            while (_state.value.result == null && _state.value.turn != 'm') {
+                delay(800)
+                val m = match ?: return@launch
+                val mark = _state.value.turn
+                play(mark, computer.move(m, mark))
+            }
+        }
+    }
+
+    private fun viewOf(m: DominoMatch) = DominoView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
 }

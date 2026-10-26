@@ -7,6 +7,8 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.Reaction
 import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
+import com.arcade.sudoku.game.dominoes.DominoMatch
+import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.turns.TurnMatch
 import com.arcade.sudoku.game.words.WordList
 import com.arcade.sudoku.game.words.Words
@@ -69,6 +71,9 @@ class LocalRoom(
     // Turn games
     private var firstTurn: String? = null
     private var turnMatch: TurnMatch? = null
+    /** The host's Dominoes rules for the next match. */
+    var options = DominoOptions()
+        private set
     // Word Race
     private var answer: String? = null
     // Draw & Guess
@@ -245,9 +250,12 @@ class LocalRoom(
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            firstTurn = first
-            turn = first
-            turnMatch = TurnMatch.start(game, random)
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options)
+            // Dominoes picks its own first player (the highest double).
+            val starter = match.firstMark?.let { roleOfMark(it) } ?: first
+            firstTurn = starter
+            turn = starter
+            turnMatch = match
             beginMatch(now)
         }
         version++
@@ -267,11 +275,36 @@ class LocalRoom(
             val winnerRole = MARKS.entries.firstOrNull { it.value == result.winner }?.key
             winnerRole?.let { players.getValue(it)!!.finishedAt = now }
             endMatch(winnerRole, if (winnerRole != null) result.reason ?: "won" else "draw")
+        } else if (result.turn != null) {
+            turn = roleOfMark(result.turn)
         } else if (!result.again) {
             turn = nextOf(role, playing())
         }
         version++
     }
+
+    private fun roleOfMark(mark: Char) = MARKS.entries.first { it.value == mark }.key
+
+    /** The host's choices for the next match (Dominoes: teams, drawing, points target). Everyone gets ready again. */
+    fun setOptions(role: String, options: DominoOptions) {
+        if (role != HOST) throw ApiException("Only the host can change the rules.")
+        if (status != "waiting" && status != "lobby" && status != "finished") throw ApiException("The rules can only change between matches.")
+        if (game != GameKind.DOMINOES) throw ApiException("This game has no options.")
+        this.options = options
+        for (r in seated()) player(r).ready = false
+        version++
+    }
+
+    /** Whether [role] shares the win: they won, or (Dominoes teams) their partner did. */
+    private fun wonWith(role: String): Boolean {
+        val w = winner ?: return false
+        if (w == role) return true
+        val match = turnMatch as? DominoMatch ?: return false
+        return game == GameKind.DOMINOES && match.teams && match.sameSide(MARKS.getValue(w), MARKS.getValue(role))
+    }
+
+    /** The winner's name, or both partners' names for a Dominoes team. */
+    private fun winnerNames() = seated().filter { wonWith(it) }.joinToString(" & ") { player(it).name }.ifEmpty { null }
 
     /** The seat after [role], round the table, that is in [allowed]. */
     private fun nextOf(role: String, allowed: List<String>): String {
@@ -512,6 +545,8 @@ class LocalRoom(
         if (status != "started" || role !in playing()) return
         val rest = playing() - role
         if (rest.size < 2) return endMatch(rest.firstOrNull(), reason)
+        // A dominoes hand (or team) can't play on short: the match stops there.
+        if (game == GameKind.DOMINOES) return endMatch(null, "left")
         player(role).out = true
         if (game == GameKind.WORDS) decideWords()
         if (game.turnBased && turn == role) turn = nextOf(role, playing())
@@ -593,8 +628,9 @@ class LocalRoom(
             .put("startAt", start ?: JSONObject.NULL)
             .put("puzzle", if (showPuzzle) puzzle else JSONObject.NULL)
             .put("solution", if (shown == "finished") solution else JSONObject.NULL)
-            .put("winner", winner?.let { if (it == role) "me" else "opponent" } ?: JSONObject.NULL)
-            .put("winnerName", winner?.let { players[it]?.name } ?: JSONObject.NULL)
+            .put("winner", winner?.let { if (wonWith(role)) "me" else "opponent" } ?: JSONObject.NULL)
+            .put("winnerName", winner?.let { winnerNames() } ?: JSONObject.NULL)
+            .put("options", if (game == GameKind.DOMINOES) options.toJson() else JSONObject.NULL)
             .put("endReason", endReason ?: JSONObject.NULL)
             .put("maxPlayers", game.maxPlayers)
             // In Ship Battle both players' progress (share of the enemy fleet hit) is public.

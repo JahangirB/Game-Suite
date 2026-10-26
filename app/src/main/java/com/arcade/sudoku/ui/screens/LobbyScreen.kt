@@ -144,6 +144,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     onReady = vm::readyShips,
                 )
             } else if (room.game.readyOnly) {
+                if (room.game == GameKind.DOMINOES) DominoOptionsCard(room, state.busy, vm::setDominoOptions)
                 TurnReadyCard(room, state.busy, vm::readyTurns)
             } else {
                 AppCard("Choose the level") {

@@ -6,6 +6,7 @@ import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.BattleBackend
 import com.arcade.sudoku.data.Difficulty
 import com.arcade.sudoku.data.GameKind
+import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.data.Hello
 import com.arcade.sudoku.data.Reaction
 import com.arcade.sudoku.game.ships.Ship
@@ -94,6 +95,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun move(code: String, playerId: String, move: JSONObject) =
         local { move(LocalRoom.HOST, move, now()) }
+
+    override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
+        local { setOptions(LocalRoom.HOST, DominoOptions.from(options)) }
 
     override suspend fun guess(code: String, playerId: String, word: String) =
         local { if (game == GameKind.DRAW) drawGuess(LocalRoom.HOST, word, now()) else guessWord(LocalRoom.HOST, word, now()) }
@@ -212,6 +216,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 }
                 "fire" -> r.fire(role!!, msg.optInt("x", -1), msg.optInt("y", -1), now)
                 "move" -> r.move(role!!, msg.optJSONObject("move") ?: JSONObject(), now)
+                "options" -> r.setOptions(role!!, DominoOptions.from(msg.optJSONObject("options")))
                 "guess" -> if (r.game == GameKind.DRAW) {
                     r.drawGuess(role!!, msg.optString("word"), now)
                 } else {

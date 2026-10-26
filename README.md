@@ -55,14 +55,20 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   your partner to the small board in the same spot; three in a row wins a small board, three
   small boards in a row wins the game. Play against the computer, online or nearby.
 
-**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes and Memory Pairs rooms take up to four people, online
+- **Dominoes:** double-six dominoes for two to four. Match a tile to either end of the line;
+  the first to play out their hand (or the lightest hand when nobody can play) scores the pips
+  left in the others' hands. The host picks the rules in the lobby: the draw game (take from the
+  boneyard when stuck) or the block game (pass), a target of 50, 100 or 150 points, and with four
+  players two against two, partners opposite. Play one to three computers, online or nearby.
+
+**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes, Memory Pairs and Dominoes rooms take up to four people, online
 (Cloudflare server) or nearby: share the code, or let the others pick your name under Nearby.
 Everyone taps **Ready** to start. In Draw & Guess the drawer goes round the table and everyone
-else guesses; in Dots & Boxes and Memory Pairs turns go round the table. Someone leaving
-mid-match drops out and the rest play on. Nearby games need every
+else guesses; in Dots & Boxes, Memory Pairs and Dominoes turns go round the table. Someone leaving
+mid-match drops out and the rest play on (Dominoes stops the match: a hand can't be played out). Nearby games need every
 phone on this version or later. The other games are for two.
 
-**Play across time zones.** Connect Four, Dots & Boxes, Memory Pairs and Ultimate Tic-Tac-Toe
+**Play across time zones.** Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe and Dominoes
 don't need you both online at once: close the app after your move and your partner gets a **"Your turn"**
 notification (Cloudflare server with invitations set up). Tap it to make your move. Turn games
 are never lost for being away, and the room waits up to a week.
@@ -338,7 +344,7 @@ Requires Android 8.0 (API 26) or newer.
 | `backend/cloudflare/` | Cloudflare Worker: one Durable Object per room (`src/room.js`: Sudoku, Ship Battle and turn-game rules; `src/connect4.js`, `src/dots.js`, `src/memory.js`, `src/words.js`, `src/draw.js`) and a Directory object for invitations (`src/directory.js`, `src/push.js`), with unit and end-to-end tests |
 | `app/src/main/java/com/arcade/sudoku/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
 | `app/src/main/java/com/arcade/sudoku/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
-| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs and Ultimate Tic-Tac-Toe rules, the computer opponents, and the shared move interface |
+| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Ultimate Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
 | `app/src/main/java/com/arcade/sudoku/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |
 | `app/src/main/java/com/arcade/sudoku/push/` | Invitations: Firebase setup, notifications with Play/Decline, the invite endpoints |
 | `app/src/main/java/com/arcade/sudoku/data/nearby/` | Nearby battles: `LocalRoom` (the rules, run on the host phone), `NearbyHost`, `NearbyGuest` |

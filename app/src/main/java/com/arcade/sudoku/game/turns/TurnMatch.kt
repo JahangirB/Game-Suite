@@ -2,20 +2,28 @@ package com.arcade.sudoku.game.turns
 
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.C4Match
+import com.arcade.sudoku.game.dominoes.DominoMatch
+import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dots.DotsMatch
 import com.arcade.sudoku.game.memory.MemoryMatch
 import com.arcade.sudoku.game.ttt.TttMatch
 import org.json.JSONObject
 import kotlin.random.Random
 
-/** What a move did: [again] the same player moves next; [over] with [winner] null is a draw. */
-data class TurnResult(val again: Boolean, val over: Boolean = false, val winner: Char? = null, val reason: String? = null)
+/**
+ * What a move did: [again] the same player moves next; [over] with [winner] null is a draw;
+ * [turn], when set, is who moves next (Dominoes: the winner of a round starts the next).
+ */
+data class TurnResult(val again: Boolean, val over: Boolean = false, val winner: Char? = null, val reason: String? = null, val turn: Char? = null)
 
 /**
  * One round of a turn game, matching the server modules in backend/cloudflare/src
- * (connect4.js, dots.js, memory.js, ttt.js). A mark is a player's one-letter id.
+ * (connect4.js, dots.js, memory.js, ttt.js, dominoes.js). A mark is a player's one-letter id.
  */
 interface TurnMatch {
+    /** Who must move first, when the game decides it (Dominoes); null lets the room choose. */
+    val firstMark: Char? get() = null
+
     /** Plays [move] for [mark]; throws IllegalArgumentException for a move that isn't allowed. */
     fun play(mark: Char, move: JSONObject): TurnResult
 
@@ -26,7 +34,13 @@ interface TurnMatch {
     fun view(mark: Char, seats: Map<Char, Char> = emptyMap()): JSONObject
 
     companion object {
-        fun start(game: GameKind, random: Random = Random.Default): TurnMatch = when (game) {
+        fun start(
+            game: GameKind,
+            random: Random = Random.Default,
+            marks: List<Char> = listOf('h', 'g'),
+            options: DominoOptions = DominoOptions(),
+        ): TurnMatch = when (game) {
+            GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)
             GameKind.TTT -> TttMatch()

@@ -159,4 +159,39 @@ class LocalShipsTest {
         assertThrows(ApiException::class.java) { room.fire(LocalRoom.other(shooter), 0, 0, 0) }
         assertEquals(2, parseRoom(room.view(LocalRoom.other(shooter), 0)).ships!!.theirShots.size)
     }
+
+    @Test
+    fun dominoesTeamsWinTogether() {
+        val room = LocalRoom("DOM1", "Ann", null, com.arcade.sudoku.data.GameKind.DOMINOES)
+        val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null) }
+        val roles = listOf(LocalRoom.HOST) + guests
+        assertThrows(ApiException::class.java) {
+            room.setOptions(guests[0], com.arcade.sudoku.game.dominoes.DominoOptions(teams = true))
+        }
+        room.setOptions(LocalRoom.HOST, com.arcade.sudoku.game.dominoes.DominoOptions(teams = true, target = 50))
+        assertEquals(true, parseRoom(room.view(guests[1], t0)).options?.teams)
+        for (r in roles) room.setTurnReady(r, true, t0)
+        var now = t0 + 10_000
+        repeat(5000) {
+            val view = roles.associateWith { parseRoom(room.view(it, now)) }
+            if (view.values.first().status == RoomStatus.FINISHED) return@repeat
+            val (role, state) = view.entries.first { it.value.turns?.turn == "me" }
+            val d = state.turns!!.dominoes!!
+            val tile = d.hand.indexOfFirst { com.arcade.sudoku.game.dominoes.Dominoes.fits(d.line, it).isNotEmpty() }
+            val move = when {
+                tile >= 0 -> org.json.JSONObject().put("tile", tile)
+                d.draw && d.boneyard > 0 -> org.json.JSONObject().put("draw", true)
+                else -> org.json.JSONObject().put("pass", true)
+            }
+            room.move(role, move, now)
+            now += 10
+        }
+        val host = parseRoom(room.view(LocalRoom.HOST, now))
+        val partner = parseRoom(room.view(guests[1], now))
+        assertEquals(RoomStatus.FINISHED, host.status)
+        assertEquals("points", host.endReason)
+        // Ann and Cy sit opposite: they win or lose together.
+        assertEquals(host.winner, partner.winner)
+        assertTrue(host.winnerName!!.contains(" & "))
+    }
 }

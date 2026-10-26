@@ -1,5 +1,7 @@
 package com.arcade.sudoku.data
 
+import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.ships.Ship
 import com.arcade.sudoku.game.ships.Shot
 import org.json.JSONArray
@@ -14,13 +16,14 @@ enum class GameKind(val key: String, val label: String) {
     MEMORY("memory", "Memory Pairs"),
     WORDS("words", "Word Race"),
     DRAW("draw", "Draw & Guess"),
-    TTT("ttt", "Ultimate Tic-Tac-Toe");
+    TTT("ttt", "Ultimate Tic-Tac-Toe"),
+    DOMINOES("dominoes", "Dominoes");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW
@@ -93,6 +96,8 @@ data class TurnsView(
     /** Ultimate Tic-Tac-Toe: who won each small board ('d' drawn), and the board to play in next (null: any). */
     val smallBoards: String? = null,
     val nextBoard: Int? = null,
+    /** Dominoes: the line, your hand and everyone's counts and scores. */
+    val dominoes: DominoView? = null,
 )
 
 /** One Word Race guess: the word (hidden for the opponent until the round is over) and its colours. */
@@ -220,6 +225,8 @@ data class RoomState(
     /** The winner's name, whoever it is. */
     val winnerName: String? = null,
     val maxPlayers: Int = 2,
+    /** Dominoes: the host's rules for the match. */
+    val options: DominoOptions? = null,
 ) {
     val isHost get() = role == "host"
 
@@ -250,6 +257,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     others = json.optJSONArray("others")?.objects()?.map(::parsePlayer) ?: listOfNotNull(json.optJSONObject("opponent")?.let(::parsePlayer)),
     winnerName = json.stringOrNull("winnerName"),
     maxPlayers = json.optInt("maxPlayers", 2),
+    options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
 )
 
 private fun parsePlayer(json: JSONObject) = PlayerInfo(
@@ -331,6 +339,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         turnName = json.stringOrNull("turnName"),
         smallBoards = json.stringOrNull("boards"),
         nextBoard = json.optInt("next", -1).takeIf { it >= 0 },
+        dominoes = if (json.has("hand")) DominoView.from(json) else null,
     )
 }
 

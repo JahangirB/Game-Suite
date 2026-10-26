@@ -8,7 +8,7 @@
 //
 // Each room is one Durable Object, so a room's state lives in one place and every
 // change is pushed to both players at once. Messages are JSON:
-//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'sync' | 'leave', ... }
+//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'sync' | 'leave', ... }
 //   server -> app  { type: 'state', re?, serverTime, ...room view }   (re = id it answers)
 //                  { type: 'error', re?, error, fatal }
 //                  { type: 'stroke', turn, index, stroke }   (Draw & Guess, to the guesser)
@@ -19,7 +19,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setOptions, setTurnReady, setWordsReady,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -193,6 +193,9 @@ export class Room extends DurableObject {
           break;
         case 'move':
           makeMove(this.room, role, msg.move, now);
+          break;
+        case 'options':
+          setOptions(this.room, role, msg.options);
           break;
         case 'guess':
           if (this.room.game === 'draw') drawGuess(this.room, role, msg.word, now);

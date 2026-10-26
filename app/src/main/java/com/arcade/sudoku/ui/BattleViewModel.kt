@@ -10,6 +10,8 @@ import com.arcade.sudoku.data.DrawStroke
 import com.arcade.sudoku.data.DrawView
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
+import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.dominoes.Dominoes
 import com.arcade.sudoku.game.ttt.Ttt
 import com.arcade.sudoku.game.ttt.TttPosition
 import com.arcade.sudoku.game.words.Words
@@ -504,6 +506,36 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val turns = _state.value.room?.turns ?: return
         // The picture is the server's secret: the card starts turning and finishes when it arrives.
         if (turns.owners?.getOrNull(card) == '.' && turns.faces.getOrNull(card) == null) playMove(JSONObject().put("card", card), pendingCard = card)
+    }
+
+    /** Dominoes: put hand tile [index] on [end] ("left" or "right"). */
+    fun playTile(index: Int, end: String) {
+        val turns = _state.value.room?.turns ?: return
+        val view = turns.dominoes ?: return
+        val tile = view.hand.getOrNull(index) ?: return
+        if (end !in Dominoes.fits(view.line, tile)) return
+        val shown = view.copy(
+            line = Dominoes.place(view.line, tile, end),
+            hand = view.hand.filterIndexed { i, _ -> i != index },
+            counts = view.counts + ('m' to view.hand.size - 1),
+        )
+        playMove(JSONObject().put("tile", index).put("end", end), turns.copy(dominoes = shown, lastMoveByMe = true, turn = "opponent"))
+    }
+
+    /** Dominoes: take a tile from the boneyard (when nothing in your hand fits). */
+    fun drawTile() = playMove(JSONObject().put("draw", true))
+
+    /** Dominoes: pass (when nothing fits and there is nothing to draw). */
+    fun passTurn() {
+        val turns = _state.value.room?.turns ?: return
+        playMove(JSONObject().put("pass", true), turns.copy(lastMoveByMe = true, turn = "opponent"))
+    }
+
+    /** Dominoes: the host changes the rules of the next match; everyone gets ready again. */
+    fun setDominoOptions(options: DominoOptions) {
+        val room = _state.value.room ?: return
+        if (!room.isHost || room.options == options) return
+        sendReady(room.copy(options = options, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, options.toJson()) }
     }
 
     /**

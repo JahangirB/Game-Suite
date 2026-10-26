@@ -56,6 +56,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.WORDS -> if (win) a.wordsWin() else a.wordsLose()
                     GameKind.DRAW -> if (win) a.drawWin() else a.drawLose()
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
+                    GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
                 }
             }
         }
@@ -474,6 +475,59 @@ private class ResultScene(val d: DrawScope, val t: Float) {
         val ty = kf(ph, 0f to 0f, .25f to 0f, .75f to 130f, 1f to 130f)
         p.withAlpha(kf(ph, 0f to 1f, .25f to 1f, .75f to 0f, 1f to 0f)) {
             p.at(248, 40 + ty, rad(40f * ty / 130f), 1) { cross(248, 40 + ty, 10f, 5f) }
+        }
+    }
+
+    // ---- Dominoes -------------------------------------------------------------------------
+
+    /** An upright domino with its bottom-centre at (x, 140), tipped by [deg] about that point. */
+    fun domino(x: Float, deg: Float, top: Int, bottom: Int) {
+        p.at(x, 140, rad(deg), 1) {
+            p.rr(x - 13, 82, 26, 58, 6, White, Ink, 3)
+            p.stroke(Ink, 2.5) { moveTo(x - 9, 111); lineTo(x + 9, 111) }
+            pipsAt(x, 96.5f, top)
+            pipsAt(x, 125.5f, bottom)
+        }
+    }
+
+    fun pipsAt(cx: Float, cy: Float, n: Int) {
+        val d = 6.5f
+        val spots = when (n) {
+            0 -> emptyList<Pair<Float, Float>>()
+            1 -> listOf(0f to 0f)
+            2 -> listOf(-d to -d, d to d)
+            3 -> listOf(-d to -d, 0f to 0f, d to d)
+            4 -> listOf(-d to -d, d to -d, -d to d, d to d)
+            5 -> listOf(-d to -d, d to -d, 0f to 0f, -d to d, d to d)
+            else -> listOf(-d to -d, d to -d, -d to 0f, d to 0f, -d to d, d to d)
+        }
+        spots.forEach { (dx, dy) -> p.circle(cx + dx, cy + dy, 2.6, Ink) }
+    }
+
+    fun dominoesWin() {
+        // A row of dominoes topples one after another, then stands back up.
+        val ph = f(3f)
+        val faces = listOf(6 to 6, 5 to 3, 4 to 4, 2 to 6, 6 to 1)
+        faces.forEachIndexed { i, (top, bottom) ->
+            val start = .1f + i * .08f
+            val tip = kf(ph, 0f to 0f, start to 0f, start + .1f to 62f, .8f to 62f, .9f to 0f, 1f to 0f)
+            domino(70f + i * 40f, tip, top, bottom)
+        }
+        spark(258, 40, 6, Gold, 2f, 1.2f); spark(40, 46, 5, White, 2f, 1.5f)
+    }
+
+    fun dominoesLose() {
+        // A neat stack wobbles and the top tile slides off.
+        domino(150f, 0f, 3, 1)
+        val ph = f(3f)
+        val wobble = kf(ph, 0f to 0f, .2f to -6f, .3f to 6f, .4f to -3f, .5f to 0f, 1f to 0f)
+        val slide = kf(ph, 0f to 0f, .5f to 0f, .8f to 1f, 1f to 1f)
+        p.withAlpha(1f - slide * 0.8f) {
+            p.translate(slide * 70, slide * 40) {
+                p.at(150, 82, rad(wobble + slide * 80), 1) {
+                    p.translate(0, -58) { domino(150f, 0f, 0, 2) }
+                }
+            }
         }
     }
 

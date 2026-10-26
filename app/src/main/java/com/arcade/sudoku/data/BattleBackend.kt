@@ -36,6 +36,9 @@ interface BattleBackend {
     /** Turn games: play [move] ({"col": n} in Connect Four). Readiness goes through [ready]. */
     suspend fun move(code: String, playerId: String, move: JSONObject): JSONObject
 
+    /** Dominoes: the host sets the next match's rules (teams, drawing, target). */
+    suspend fun setOptions(code: String, playerId: String, options: JSONObject): JSONObject
+
     /** Word Race and Draw & Guess: guess [word]. Readiness goes through [ready]. */
     suspend fun guess(code: String, playerId: String, word: String): JSONObject
 

@@ -20,6 +20,7 @@ val GameKind.color: Color
         GameKind.WORDS -> Color(0xFF20A47B)
         GameKind.DRAW -> Color(0xFFE0569B)
         GameKind.TTT -> Color(0xFF4F46E5)
+        GameKind.DOMINOES -> Color(0xFF8B5E34)
     }
 
 /** One line describing each game, for its tile and play sheet. */
@@ -33,6 +34,7 @@ val GameKind.tagline: String
         GameKind.WORDS -> "Same word, who finds it first?"
         GameKind.DRAW -> "One draws, one guesses, as a team"
         GameKind.TTT -> "Nine boards, one big game"
+        GameKind.DOMINOES -> "Match the ends, play out your hand"
     }
 
 /** How to play, shown from the play sheet and the in-game Rules button. */
@@ -59,6 +61,11 @@ val GameKind.rules: String
             "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +
             "Three in a row wins a small board; three small boards in a row wins the game. If you are sent to a " +
             "board that is already won or full, play in any open board."
+        GameKind.DOMINOES -> "Two to four players, each with a hand of dominoes. On your turn put a tile on either end of " +
+            "the line so its number matches that end. Can't play? In the draw game you take tiles from the boneyard " +
+            "until you can; in the block game you pass. The first to play out their hand (or, if nobody can play, the " +
+            "lightest hand) wins the round and scores the pips left in the others' hands. First to the target wins. " +
+            "With four players you can play two against two, partners opposite."
     }
 
 /** The game's icon in white (or [tint]), drawn to fill this area. */
@@ -107,6 +114,13 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.stroke(tint, 1.8) { moveTo(3.8, 3.8); lineTo(7.2, 7.2); moveTo(7.2, 3.8); lineTo(3.8, 7.2) }
             p.ring(18, 18, 1.9, tint, 1.6)
             p.rr(10.2, 10.2, 3.6, 3.6, 0.8, tint)
+        }
+        GameKind.DOMINOES -> {
+            // An upright tile: three pips over two.
+            p.rr(7, 2.5, 10, 19, 2.5, null, tint, 1.8)
+            p.stroke(tint, 1.4) { moveTo(8.5, 12); lineTo(15.5, 12) }
+            p.circle(9.8, 5.6, 1.15, tint); p.circle(12, 7.4, 1.15, tint); p.circle(14.2, 9.2, 1.15, tint)
+            p.circle(9.8, 15.4, 1.15, tint); p.circle(14.2, 18.6, 1.15, tint)
         }
         GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.

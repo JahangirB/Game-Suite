@@ -430,7 +430,7 @@ private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<
 // ---- Shared pieces -----------------------------------------------------------------------
 
 @Composable
-private fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.palette.primary) {
+internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.palette.primary) {
     val p = AppTheme.palette
     Surface(
         color = if (highlight) color else p.accent,
@@ -477,7 +477,7 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
 }
 
 /** The dock for a game on your own: back home, the rules, and a fresh game. */
-private fun soloDock(onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) = listOfNotNull(
+internal fun soloDock(onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) = listOfNotNull(
     DockAction("Home", Icons.Filled.Home, onClick = onHome),
     DockAction("Rules", Icons.Filled.Info, onClick = onRules),
     onNew?.let { DockAction("New game", Icons.Filled.Refresh, onClick = it) },
@@ -613,7 +613,7 @@ private const val MEMORY_ASPECT = 0.75f
 
 /** The result popup of a game against the computer: "me", "computer" or "draw". */
 @Composable
-private fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome) {
+internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome) {
     ResultPopup(
         game = game,
         outcome = when (result) {
