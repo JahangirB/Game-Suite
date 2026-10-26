@@ -65,18 +65,32 @@ private fun tileColor(score: Char) = when (score) {
 @Composable
 private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    // Rows scored before this screen opened don't drop again; a new round starts over.
+    var seen by remember { mutableStateOf(guesses.size) }
+    if (guesses.size < seen) seen = 0
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until tries) {
             val guess = guesses.getOrNull(row)
             val typed = if (row == guesses.size) input else ""
+            val fresh = guess != null && row >= seen
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (i in 0 until length) {
                     val letter = guess?.word?.getOrNull(i) ?: typed.getOrNull(i)
                     val fill = guess?.let { tileColor(it.score[i]) }
+                    // A scored row: the letters drop in one after another, and one in the right
+                    // place gives a little shake as it lands. A typed letter pops in.
+                    val motion = when {
+                        fresh -> Modifier
+                            .dropIn(guess!!.score, delayMs = i * Motion.STAGGER_MS)
+                            .shake(guess.score.takeIf { it[i] == 'g' }, delayMs = i * Motion.STAGGER_MS + Motion.DROP_MS)
+                        guess == null -> Modifier.enterFrom(letter, scaleFrom = 0.7f, durationMs = 140)
+                        else -> Modifier
+                    }
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .weight(1f)
+                            .then(motion)
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(10.dp))
                             .background(fill ?: p.card)
