@@ -56,6 +56,8 @@ function deal(state, random, starter) {
   // In the block game the undealt tiles are out of play.
   state.boneyard = state.draw ? tiles : [];
   state.line = [];
+  // Where the first tile of the round sits in the line (tiles added on the left move it on).
+  state.start = 0;
   state.passes = 0;
   state.last = null;
   state.roundNo = (state.roundNo || 0) + 1;
@@ -126,6 +128,7 @@ export function play(state, mark, move, random = Math.random) {
   } else if (end === 'left') {
     const left = state.line[0][0];
     state.line.unshift(b === left ? [a, b] : [b, a]);
+    state.start = (state.start || 0) + 1;
   } else {
     const right = state.line[state.line.length - 1][1];
     state.line.push(a === right ? [a, b] : [b, a]);
@@ -175,6 +178,7 @@ export function view(state, mark, seats = {}) {
   const round = state.lastRound;
   return {
     line: state.line,
+    start: state.start || 0,
     hand: state.hands[mark] || [],
     // How many tiles each player holds, and their (or their team's) score, by letter.
     counts: Object.fromEntries(state.marks.map((m) => [who(m), state.hands[m].length])),

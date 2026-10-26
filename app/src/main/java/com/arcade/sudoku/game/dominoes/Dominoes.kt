@@ -70,6 +70,9 @@ class DominoMatch(
     var boneyard: MutableList<Tile> = mutableListOf()
         private set
     var line: MutableList<Tile> = mutableListOf()
+    /** Where the round's first tile sits in [line]. */
+    var start = 0
+        private set
         private set
     private var passes = 0
     private var last: JSONObject? = null
@@ -99,6 +102,7 @@ class DominoMatch(
         hands = marks.associateWith { m -> MutableList(each) { tiles.removeAt(0) } }.toMutableMap()
         boneyard = if (draw) tiles else mutableListOf()
         line = mutableListOf()
+        start = 0
         passes = 0
         last = null
         roundNo++
@@ -133,6 +137,7 @@ class DominoMatch(
         val ends = Dominoes.fits(line, tile)
         require(ends.isNotEmpty()) { "That tile doesn't match either end." }
         val end = move.optString("end").takeIf { it in ends } ?: ends.first()
+        if (line.isNotEmpty() && end == "left") start++
         line = Dominoes.place(line, tile, end).toMutableList()
         hand.removeAt(index)
         passes = 0
@@ -172,6 +177,7 @@ class DominoMatch(
         val round = lastRound
         return JSONObject()
             .put("line", tiles(line))
+            .put("start", start)
             .put("hand", tiles(hands[mark].orEmpty()))
             .put("counts", JSONObject().apply { for (m in marks) put(who(m).toString(), hands.getValue(m).size) })
             .put("scores", JSONObject().apply { for (m in marks) put(who(m).toString(), scores.getValue(sideOf(m))) })
@@ -229,6 +235,8 @@ data class DominoRound(val winner: Char?, val points: Int, val blocked: Boolean,
 /** A Dominoes match as one player sees it: the "turns" JSON from [DominoMatch.view] or the server. */
 data class DominoView(
     val line: List<Tile>,
+    /** Where the round's first tile sits in [line]: the board grows out from it. */
+    val start: Int = 0,
     val hand: List<Tile>,
     /** Tiles in each hand and each player's (or team's) score, by letter ('m' you). */
     val counts: Map<Char, Int>,
@@ -256,6 +264,7 @@ data class DominoView(
             val round = json.optJSONObject("lastRound")
             return DominoView(
                 line = tiles(json.optJSONArray("line")),
+                start = json.optInt("start"),
                 hand = tiles(json.optJSONArray("hand")),
                 counts = ints(json.optJSONObject("counts")),
                 scores = ints(json.optJSONObject("scores")),

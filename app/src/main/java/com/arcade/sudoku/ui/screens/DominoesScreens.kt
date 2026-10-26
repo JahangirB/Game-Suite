@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
+import com.arcade.sudoku.game.dominoes.DominoLayout
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.DominoView
 import com.arcade.sudoku.game.dominoes.Dominoes
@@ -93,38 +99,45 @@ private fun DrawScope.pips(c: Offset, side: Float, n: Int) {
 }
 
 /**
- * The line of play on the table, snaking left to right and back so it always fits. The tile
- * at [highlight] (the last one played) has a gold edge.
+ * The line of play on the table, laid out like a real one: the round's first tile ([start]
+ * in the line) in the middle, doubles across, turning near the edges, all scaled to fit. The
+ * tile at [highlight] (the last one played) has a gold edge and slides in when [incoming]
+ * changes: up from your hand ([fromBelow]) or down from the other side of the table.
  */
 @Composable
-fun DominoLine(line: List<Tile>, highlight: Int?, modifier: Modifier = Modifier) {
+fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true) {
     val shape = RoundedCornerShape(18.dp)
-    Canvas(modifier.clip(shape).background(Felt).border(2.dp, AppTheme.palette.ink, shape)) {
-        if (line.isEmpty()) return@Canvas
-        val pad = 10.dp.toPx()
-        val w = size.width - 2 * pad
-        val h = size.height - 2 * pad
-        // Each row is half a tile high plus a gap; take the biggest tiles that fit.
-        var len = 0f
-        var perRow = 1
-        for (per in 3..14) {
-            val rows = (line.size + per - 1) / per
-            val fit = minOf(w / per, h / (rows * 0.62f))
-            if (fit > len) { len = fit; perRow = per }
+    val slide = remember { Animatable(1f) }
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(incoming) {
+        if (!seen) {
+            seen = true
+            return@LaunchedEffect
         }
-        len = minOf(len, 64.dp.toPx())
-        val rows = (line.size + perRow - 1) / perRow
-        val rowHeight = len * 0.62f
-        val left = pad + (w - perRow * len) / 2
-        val top = pad + (h - rows * rowHeight + len * 0.12f) / 2
-        line.forEachIndexed { i, t ->
-            val row = i / perRow
-            val col = i % perRow
-            // Odd rows run right to left, so each tile is turned round to keep the numbers touching.
-            val back = row % 2 == 1
-            val x = left + (if (back) perRow - 1 - col else col) * len
-            val (a, b) = if (back) t.b to t.a else t.a to t.b
-            drawDomino(Offset(x + 1.5f, top + row * rowHeight), Size(len - 3f, len / 2), a, b, highlight = i == highlight)
+        if (incoming == null) return@LaunchedEffect
+        slide.snapTo(0f)
+        slide.animateTo(1f, tween(Motion.MOVE_MS + 150, easing = FastOutSlowInEasing))
+    }
+    val placed = remember(line, start) { DominoLayout.layout(line, start) }
+    Canvas(modifier.clip(shape).background(Felt).border(2.dp, AppTheme.palette.ink, shape)) {
+        if (placed.isEmpty()) return@Canvas
+        val pad = 12.dp.toPx()
+        val minX = placed.minOf { it.x }
+        val minY = placed.minOf { it.y }
+        val w = placed.maxOf { it.x + it.w } - minX
+        val h = placed.maxOf { it.y + it.h } - minY
+        // Half a tile is at most 32 dp, so the first few tiles don't fill the table.
+        val unit = minOf((size.width - 2 * pad) / w, (size.height - 2 * pad) / h, 32.dp.toPx())
+        val left = (size.width - w * unit) / 2 - minX * unit
+        val top = (size.height - h * unit) / 2 - minY * unit
+        placed.forEachIndexed { i, t ->
+            var offset = Offset(left + t.x * unit, top + t.y * unit)
+            if (i == highlight && slide.value < 1f) {
+                // From the bottom edge (your hand) or the top (everyone else), turning as it comes.
+                val k = 1f - slide.value
+                offset += Offset(0f, (if (fromBelow) size.height - offset.y else -offset.y - t.h * unit) * k)
+            }
+            drawDomino(offset + Offset(1f, 1f), Size(t.w * unit - 2f, t.h * unit - 2f), t.first, t.second, highlight = i == highlight)
         }
     }
 }
@@ -135,15 +148,19 @@ private fun DominoHand(hand: List<Tile>, line: List<Tile>, enabled: Boolean, sel
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             hand.forEachIndexed { i, t ->
-                val fits = enabled && Dominoes.fits(line, t).isNotEmpty()
-                Canvas(
-                    Modifier.size(30.dp, 60.dp)
-                        .graphicsLayer {
-                            alpha = if (!enabled || fits) 1f else 0.4f
-                            translationY = if (i == selected) -8.dp.toPx() else 0f
-                        }
-                        .clickable(enabled = fits) { onTap(i) },
-                ) { drawDomino(Offset.Zero, size, t.a, t.b, highlight = i == selected) }
+                // Tiles are all different, so each keeps its place; one just drawn slides in.
+                key(t) {
+                    val fits = enabled && Dominoes.fits(line, t).isNotEmpty()
+                    Canvas(
+                        Modifier.size(30.dp, 60.dp)
+                            .enterFrom(Unit, dy = (-120).dp, scaleFrom = 0.6f, delayMs = if (line.isEmpty()) i * Motion.STAGGER_MS else 0, onAppear = true)
+                            .graphicsLayer {
+                                alpha = if (!enabled || fits) 1f else 0.4f
+                                translationY = if (i == selected) -8.dp.toPx() else 0f
+                            }
+                            .clickable(enabled = fits) { onTap(i) },
+                    ) { drawDomino(Offset.Zero, size, t.a, t.b, highlight = i == selected) }
+                }
             }
         }
     }
@@ -201,7 +218,7 @@ private fun ColumnScope.DominoTable(
 
     val move = view.lastMove
     val lastIndex = move?.tile?.let { if (move.end == "left") 0 else view.line.lastIndex }
-    BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, lastIndex, size) }
+    BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm') }
 
     val chosen = selected
     if (canMove && chosen != null && view.line.isNotEmpty()) {
