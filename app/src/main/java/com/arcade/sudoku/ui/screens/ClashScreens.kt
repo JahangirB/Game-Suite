@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -114,6 +115,22 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
     }
 }
 
+/** The back of a card: the deck. */
+@Composable
+private fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    Surface(color = p.ink, shape = RoundedCornerShape(width * 0.18f), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(width, width * 1.45f)) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(width * 0.62f)) {
+                val r = size.minDimension / 2
+                Clash.COLOURS.forEachIndexed { i, c ->
+                    drawArc(clashColor(c), i * 90f + 45f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
+                }
+            }
+        }
+    }
+}
+
 /** Ask which colour a wild names. */
 @Composable
 private fun ColourPicker(onPick: (Char) -> Unit, onCancel: () -> Unit) {
@@ -183,12 +200,21 @@ private fun ColumnScope.ClashTable(
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ClashCard("W", 64.dp, Modifier.graphicsLayer { alpha = 0.35f })
+                ClashBack(64.dp)
                 Text("${view.deck} left", color = p.muted, fontSize = 12.sp)
             }
             Spacer(Modifier.width(28.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ClashCard(view.top, 108.dp, named = view.colour)
+                // A played card flies in from whoever played it: yours from your hand below,
+                // anyone else's from the top, turning face up on the way.
+                val played = view.lastMove?.takeIf { it.card != null }
+                val mine = played?.who == 'm'
+                FlipCard(
+                    faceUp = true,
+                    key = played,
+                    modifier = Modifier.enterFrom(played, dy = if (mine) 260.dp else (-260).dp, rotation = if (mine) -20f else 20f, scaleFrom = 0.6f),
+                    back = { ClashBack(108.dp) },
+                ) { ClashCard(view.top, 108.dp, named = view.colour) }
                 Text("Match ${colourName(view.colour)}", color = clashColor(view.colour), fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(28.dp))
@@ -199,17 +225,27 @@ private fun ColumnScope.ClashTable(
     // Your hand: cards you can play stand up; the rest are dimmed on your turn.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Keyed by card (and which copy), so a newly dealt or drawn card arrives from the
+            // deck face down and turns over, and the others keep their place.
+            val seen = mutableMapOf<String, Int>()
+            val dealing = view.hand.size >= 7 && view.lastMove == null
             view.hand.forEachIndexed { i, card ->
-                val ok = canMove && view.canPlay(i)
-                ClashCard(
-                    card, 50.dp,
-                    Modifier
-                        .graphicsLayer {
-                            translationY = if (ok) -10.dp.toPx() else 0f
-                            alpha = if (!canMove || ok) 1f else 0.5f
-                        }
-                        .clickable(enabled = ok) { if (Clash.isWild(card)) wildAt = i else onPlay(i, null) },
-                )
+                val copy = seen.getOrDefault(card, 0).also { seen[card] = it + 1 }
+                key(card, copy) {
+                    val ok = canMove && view.canPlay(i)
+                    FlipCard(
+                        faceUp = true,
+                        key = Unit,
+                        modifier = Modifier
+                            .enterFrom(Unit, dx = (-120).dp, dy = (-240).dp, rotation = -30f, scaleFrom = 0.7f, delayMs = if (dealing) i * Motion.STAGGER_MS else 0, onAppear = true)
+                            .graphicsLayer {
+                                translationY = if (ok) -10.dp.toPx() else 0f
+                                alpha = if (!canMove || ok) 1f else 0.5f
+                            }
+                            .clickable(enabled = ok) { if (Clash.isWild(card)) wildAt = i else onPlay(i, null) },
+                        back = { ClashBack(50.dp) },
+                    ) { ClashCard(card, 50.dp) }
+                }
             }
         }
     }
