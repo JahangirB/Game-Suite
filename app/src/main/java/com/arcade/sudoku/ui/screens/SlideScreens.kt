@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,24 +45,68 @@ import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
+import kotlin.math.sign
 
-/** The puzzle: tiles glide to their new place; tap a tile in line with the gap to slide. */
+/** The puzzle: tiles glide to their new place; tap a tile in line with the gap, or drag it there, to slide. */
 @Composable
 fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    BoxWithConstraints(modifier.clip(RoundedCornerShape(18.dp)).background(p.accent)) {
+    // A drag in progress: the tile grabbed, which way the gap is, and how far (in px, up to a cell).
+    var grabbed by remember { mutableStateOf<Int?>(null) }
+    var toward by remember { mutableStateOf(0 to 0) }
+    var pulled by remember { mutableStateOf(0f) }
+    val moving = grabbed?.let { Slide.slidesFor(tiles, size, it) }.orEmpty()
+    // (Inside pointerInput, size is the touch area's pixel size.)
+    val n = size
+    BoxWithConstraints(
+        modifier.clip(RoundedCornerShape(18.dp)).background(p.accent).then(
+            if (!enabled) Modifier else Modifier.pointerInput(tiles, size) {
+                val cellPx = this.size.width.toFloat() / n
+                detectDragGestures(
+                    onDragStart = { o ->
+                        val i = (o.y / cellPx).toInt().coerceIn(0, n - 1) * n + (o.x / cellPx).toInt().coerceIn(0, n - 1)
+                        val tile = tiles[i]
+                        if (tile != 0 && Slide.slidesFor(tiles, n, tile).isNotEmpty()) {
+                            val gap = tiles.indexOf(0)
+                            grabbed = tile
+                            toward = (gap % n - i % n).sign to (gap / n - i / n).sign
+                            pulled = 0f
+                        }
+                    },
+                    onDrag = { change, amount ->
+                        if (grabbed != null) {
+                            change.consume()
+                            pulled = (pulled + amount.x * toward.first + amount.y * toward.second).coerceIn(0f, cellPx)
+                        }
+                    },
+                    onDragEnd = {
+                        grabbed?.let { if (pulled > cellPx * 0.35f) onTap(it) }
+                        grabbed = null
+                        pulled = 0f
+                    },
+                    onDragCancel = {
+                        grabbed = null
+                        pulled = 0f
+                    },
+                )
+            },
+        ),
+    ) {
         val cell = maxWidth / size
         val goal = Slide.solved(size)
+        val density = LocalDensity.current
         for (tile in 1 until size * size) key(tile) {
             val at = tiles.indexOf(tile)
             val x by animateDpAsState(cell * (at % size), tween(120), label = "x")
             val y by animateDpAsState(cell * (at / size), tween(120), label = "y")
+            // Tiles being dragged follow the finger towards the gap.
+            val drag = if (tile in moving) with(density) { pulled.toDp() } else 0.dp
             val home = goal[at] == tile
             Surface(
                 color = if (home) GameKind.SLIDE.color else p.card,
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(2.dp, p.ink),
-                modifier = Modifier.offset(x, y).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
+                modifier = Modifier.offset(x + drag * toward.first, y + drag * toward.second).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(tile.toString(), color = if (home) Color.White else p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
