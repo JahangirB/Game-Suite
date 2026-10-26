@@ -45,6 +45,7 @@ import com.arcade.sudoku.ui.BattleViewModel
 import com.arcade.sudoku.ui.SoloDominoesUiState
 import com.arcade.sudoku.ui.SoloDominoesViewModel
 import com.arcade.sudoku.ui.art.Outcome
+import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 
 private val Felt = Color(0xFF2E7D5B)
