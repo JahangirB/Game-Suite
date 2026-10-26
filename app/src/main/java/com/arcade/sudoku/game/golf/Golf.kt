@@ -19,8 +19,22 @@ data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     operator fun contains(p: Pt) = p.x in x0..x1 && p.y in y0..y1
 }
 
-/** One hole: where you tee off, the cup, the walls you bounce off and the sand that slows you. */
-data class Hole(val par: Int, val tee: Pt, val cup: Pt, val walls: List<Box> = emptyList(), val sand: List<Box> = emptyList())
+/**
+ * One hole: where you tee off, the cup, the walls you bounce off and the sand that slows you.
+ * [cuts] are bites out of the course's edge (so it isn't a plain rectangle): the ball bounces
+ * off them just like walls, but they are drawn as the sky beyond the course.
+ */
+data class Hole(
+    val par: Int,
+    val tee: Pt,
+    val cup: Pt,
+    val walls: List<Box> = emptyList(),
+    val sand: List<Box> = emptyList(),
+    val cuts: List<Box> = emptyList(),
+) {
+    /** Everything the ball bounces off. */
+    val solid get() = walls + cuts
+}
 
 /** A shot's path (about 60 points a second) and whether it dropped in. */
 data class GolfShot(val path: List<Pt>, val holed: Boolean) {
@@ -46,10 +60,10 @@ object Golf {
     val HOLES = listOf(
         Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.25)),
         Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.25), walls = listOf(Box(0.3, 0.72, 0.7, 0.84))),
-        Hole(3, Pt(0.2, 1.4), Pt(0.2, 0.25), walls = listOf(Box(0.0, 0.78, 0.66, 0.88))),
-        Hole(3, Pt(0.8, 1.42), Pt(0.8, 0.22), walls = listOf(Box(0.38, 1.0, 1.0, 1.08), Box(0.0, 0.52, 0.62, 0.6))),
+        Hole(3, Pt(0.2, 1.4), Pt(0.2, 0.25), cuts = listOf(Box(0.0, 0.78, 0.66, 0.88))),
+        Hole(3, Pt(0.8, 1.42), Pt(0.8, 0.22), cuts = listOf(Box(0.38, 1.0, 1.0, 1.08), Box(0.0, 0.52, 0.62, 0.6))),
         Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.28), sand = listOf(Box(0.22, 0.42, 0.78, 0.66))),
-        Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.25), walls = listOf(Box(0.0, 0.76, 0.41, 0.84), Box(0.59, 0.76, 1.0, 0.84))),
+        Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.25), cuts = listOf(Box(0.0, 0.76, 0.41, 0.84), Box(0.59, 0.76, 1.0, 0.84))),
         Hole(
             3, Pt(0.5, 1.42), Pt(0.5, 0.2),
             walls = listOf(
@@ -57,10 +71,10 @@ object Golf {
                 Box(0.29, 0.95, 0.41, 1.07), Box(0.59, 0.95, 0.71, 1.07),
             ),
         ),
-        Hole(3, Pt(0.22, 1.4), Pt(0.78, 1.4), walls = listOf(Box(0.45, 0.5, 0.55, 1.6))),
+        Hole(3, Pt(0.22, 1.4), Pt(0.78, 1.4), cuts = listOf(Box(0.45, 0.5, 0.55, 1.6))),
         Hole(
             4, Pt(0.15, 1.45), Pt(0.2, 0.25),
-            walls = listOf(Box(0.0, 1.05, 0.7, 1.12), Box(0.3, 0.6, 1.0, 0.67)),
+            cuts = listOf(Box(0.0, 1.05, 0.7, 1.12), Box(0.3, 0.6, 1.0, 0.67)),
             sand = listOf(Box(0.45, 0.12, 0.95, 0.45)),
         ),
     )
@@ -86,7 +100,7 @@ object Golf {
             if (x > W - R) { x = W - R; vx = -abs(vx) * 0.75 }
             if (y < R) { y = R; vy = abs(vy) * 0.75 }
             if (y > H - R) { y = H - R; vy = -abs(vy) * 0.75 }
-            for (w in hole.walls) {
+            for (w in hole.solid) {
                 val cx = min(max(x, w.x0), w.x1)
                 val cy = min(max(y, w.y0), w.y1)
                 val d = hypot(x - cx, y - cy)
@@ -133,7 +147,7 @@ object Golf {
         fun blocked(c: Int, r: Int): Boolean {
             val x = (c + 0.5) * G
             val y = (r + 0.5) * G
-            return hole.walls.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R }
+            return hole.solid.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R }
         }
         val start = floor(hole.cup.y / G).toInt() * cols + floor(hole.cup.x / G).toInt()
         d[start] = 0.0

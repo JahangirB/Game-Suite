@@ -1,6 +1,18 @@
 package com.arcade.sudoku.ui.screens
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import kotlin.math.PI
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -48,10 +60,16 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
-private val Grass = Color(0xFF5DBB63)
-private val GrassDark = Color(0xFF4CA552)
+private val Grass = Color(0xFF8BCF5A)
+private val GrassDark = Color(0xFF79BE4B)
+private val Rim = Color(0xFFB5E27A)
+private val RimTop = Color(0xFFC9EC94)
+private val CourseSide = Color(0xFF4E9A3E)
 private val Sand = Color(0xFFF2D68A)
-private val Wood = Color(0xFF8B5E34)
+private val SandEdge = Color(0xFFD9B865)
+private val SkyTop = Color(0xFF7CCBF2)
+private val SkyBottom = Color(0xFFC6EBFB)
+private val FlagRed = Color(0xFFE23B4B)
 
 /**
  * The hole being played, with everyone's ball ([current] waits on the tee for its first shot).
@@ -80,6 +98,9 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         rolling = null
     }
     var aim by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    val flagWave by rememberInfiniteTransition(label = "flag").animateFloat(
+        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "flag",
+    )
     val roll = rolling
     val holeIndex = roll?.first ?: view.hole
     val hole = Golf.HOLES[holeIndex.coerceIn(0, Golf.HOLES.size - 1)]
@@ -106,26 +127,88 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
             },
         ),
     ) {
-        val s = size.width / Golf.W.toFloat()
-        fun o(p: Pt) = Offset((p.x * s).toFloat(), (p.y * s).toFloat())
-        fun box(b: Box, color: Color) {
-            drawRoundRect(color, Offset((b.x0 * s).toFloat(), (b.y0 * s).toFloat()), Size(((b.x1 - b.x0) * s).toFloat(), ((b.y1 - b.y0) * s).toFloat()), CornerRadius(s * 0.012f))
+        // The course sits raised on the sky, scaled to fit with room for its shaded side.
+        val margin = 0.05
+        val depth = 0.035
+        val s = minOf(size.width / (Golf.W + 2 * margin), size.height / (Golf.H + 2 * margin + depth)).toFloat()
+        val ox = (size.width - Golf.W.toFloat() * s) / 2
+        val oy = (size.height - (Golf.H + depth).toFloat() * s) / 2
+        fun o(p: Pt) = Offset(ox + (p.x * s).toFloat(), oy + (p.y * s).toFloat())
+        fun rect(b: Box, grow: Double = 0.0) = Rect(o(Pt(b.x0 - grow, b.y0 - grow)), o(Pt(b.x1 + grow, b.y1 + grow)))
+        fun rounded(r: Rect, radius: Double) = Path().apply { addRoundRect(RoundRect(r, CornerRadius((radius * s).toFloat()))) }
+        /** The course's shape, [inset] in from its edge (and round its cuts). */
+        fun course(inset: Double): Path {
+            val outer = rounded(rect(Box(0.0, 0.0, Golf.W, Golf.H), -inset), 0.07)
+            return hole.cuts.fold(outer) { shape, cut -> Path().apply { op(shape, rounded(rect(cut, inset), 0.025), PathOperation.Difference) } }
         }
-        drawRoundRect(Grass, cornerRadius = CornerRadius(s * 0.04f))
-        // Mowing stripes.
-        for (i in 0 until 8) if (i % 2 == 0) drawRect(GrassDark, Offset(0f, size.height * i / 8), Size(size.width, size.height / 8))
-        drawRoundRect(Wood, style = Stroke(s * 0.02f), cornerRadius = CornerRadius(s * 0.04f))
-        hole.sand.forEach { box(it, Sand) }
+        val rim = 0.028
+
+        // Sky and a few clouds.
+        drawRect(Brush.verticalGradient(listOf(SkyTop, SkyBottom)))
+        for ((cx, cy, r) in listOf(Triple(0.15f, 0.12f, 0.09f), Triple(0.85f, 0.35f, 0.07f), Triple(0.2f, 0.8f, 0.06f))) {
+            val c = Offset(size.width * cx, size.height * cy)
+            val w = size.width * r
+            for ((dx, dy, k) in listOf(Triple(-1f, 0.2f, 0.8f), Triple(0f, 0f, 1f), Triple(1.1f, 0.25f, 0.75f))) {
+                drawCircle(Color.White.copy(alpha = 0.55f), w * k, c + Offset(dx * w, dy * w))
+            }
+        }
+        // The side of the course, then its light rim and the grass inside.
+        translate(0f, (depth * s).toFloat()) { drawPath(course(0.0), CourseSide) }
+        drawPath(course(0.0), Rim)
+        val grass = course(rim)
+        drawPath(grass, Grass)
+        clipPath(grass) {
+            // Mowing stripes, and a few grassy mounds (just for looks).
+            for (i in 0 until 10) if (i % 2 == 0) drawRect(GrassDark.copy(alpha = 0.35f), o(Pt(0.0, Golf.H * i / 10)), Size(Golf.W.toFloat() * s, (Golf.H / 10 * s).toFloat()))
+            for ((mx, my) in listOf(0.12 to 0.62, 0.86 to 0.95, 0.15 to 1.2)) {
+                val c = o(Pt(mx, my))
+                drawOval(GrassDark.copy(alpha = 0.6f), c + Offset(-0.05f * s, 0f), Size(0.1f * s, 0.035f * s))
+                drawPath(Path().apply { moveTo(c.x - 0.045f * s, c.y + 0.015f * s); quadraticBezierTo(c.x, c.y - 0.05f * s, c.x + 0.045f * s, c.y + 0.015f * s); close() }, Rim)
+            }
+        }
+        hole.sand.forEach {
+            drawPath(rounded(rect(it), 0.05), Sand)
+            drawPath(rounded(rect(it), 0.05), SandEdge, style = Stroke(0.006f * s))
+        }
+        // Blocks standing on the course: a shaded side under a light top.
         hole.walls.forEach { b ->
-            box(b, Wood)
-            drawRoundRect(ink, Offset((b.x0 * s).toFloat(), (b.y0 * s).toFloat()), Size(((b.x1 - b.x0) * s).toFloat(), ((b.y1 - b.y0) * s).toFloat()), CornerRadius(s * 0.012f), style = Stroke(s * 0.005f))
+            translate(0f, (depth * 0.6 * s).toFloat()) { drawPath(rounded(rect(b), 0.02), CourseSide) }
+            drawPath(rounded(rect(b), 0.02), Rim)
+            drawPath(rounded(rect(b, -0.012), 0.015), RimTop)
         }
-        // Tee, cup and flag.
-        drawRoundRect(Color.White.copy(alpha = 0.5f), o(Pt(hole.tee.x - 0.05, hole.tee.y - 0.02)), Size(s * 0.1f, s * 0.04f), CornerRadius(s * 0.01f))
+        // The tee: white arcs behind where you start.
+        val tee = o(hole.tee)
+        for (k in 1..2) {
+            val r = (0.045 + 0.03 * k).toFloat() * s
+            drawArc(Color.White.copy(alpha = 0.8f), 180f, 180f, false, tee - Offset(r, r), Size(2 * r, 2 * r), style = Stroke(0.007f * s))
+        }
+        drawLine(Color.White.copy(alpha = 0.8f), tee + Offset(-0.12f * s, 0f), tee + Offset(0.12f * s, 0f), 0.007f * s)
+        // The cup with a ring round it, and the flag with the hole's number.
         val cup = o(hole.cup)
-        drawCircle(Color(0xFF1B1B1B), (Golf.CUP * s).toFloat(), cup)
-        drawLine(ink, cup, cup + Offset(0f, -s * 0.16f), s * 0.008f)
-        drawPath(Path().apply { moveTo(cup.x, cup.y - s * 0.16f); lineTo(cup.x + s * 0.09f, cup.y - s * 0.13f); lineTo(cup.x, cup.y - s * 0.1f); close() }, Color(0xFFE8505B))
+        drawCircle(Color.White.copy(alpha = 0.45f), (Golf.CUP * 2.4 * s).toFloat(), cup, style = Stroke(0.008f * s))
+        drawOval(Color(0xFF1B1B1B), cup - Offset((Golf.CUP * s).toFloat(), (Golf.CUP * 0.75 * s).toFloat()), Size((Golf.CUP * 2 * s).toFloat(), (Golf.CUP * 1.5 * s).toFloat()))
+        val top = cup + Offset(0f, -0.26f * s)
+        drawLine(ink, cup, top, 0.016f * s, StrokeCap.Round)
+        drawLine(Color.White, cup, top, 0.009f * s, StrokeCap.Round)
+        val wave = sin(flagWave) * 0.012f * s
+        val flag = Path().apply {
+            moveTo(top.x, top.y)
+            quadraticBezierTo(top.x + 0.07f * s, top.y - 0.02f * s + wave, top.x + 0.15f * s, top.y + 0.01f * s)
+            quadraticBezierTo(top.x + 0.1f * s, top.y + 0.045f * s - wave, top.x + 0.15f * s, top.y + 0.085f * s)
+            quadraticBezierTo(top.x + 0.07f * s, top.y + 0.06f * s + wave, top.x, top.y + 0.09f * s)
+            close()
+        }
+        drawPath(flag, FlagRed)
+        drawPath(flag, ink, style = Stroke(0.005f * s))
+        drawIntoCanvas {
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                textSize = 0.055f * s
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                textAlign = android.graphics.Paint.Align.CENTER
+            }
+            it.nativeCanvas.drawText("${holeIndex + 1}", top.x + 0.06f * s, top.y + 0.065f * s, paint)
+        }
 
         fun ball(p: Pt, mark: Char) {
             val c = o(p)
@@ -150,12 +233,14 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
     }
 }
 
+/** A trail of shrinking dots from the ball the way it will go; longer for a harder shot. */
 private fun DrawScope.aimLine(from: Offset, angle: Double, power: Double, s: Float) {
-    val len = (0.1 + power * 0.4).toFloat() * s
-    val to = from + Offset((cos(angle) * len).toFloat(), (sin(angle) * len).toFloat())
-    val heat = Color(red = min(1f, 0.3f + power.toFloat()), green = min(1f, 1.2f - power.toFloat()), blue = 0.2f)
-    drawLine(Color.White, from, to, s * 0.014f, StrokeCap.Round, PathEffect.dashPathEffect(floatArrayOf(s * 0.02f, s * 0.018f)))
-    drawCircle(heat, s * 0.018f, to)
+    val dir = Offset(cos(angle).toFloat(), sin(angle).toFloat())
+    val reach = (0.12 + power * 0.45).toFloat() * s
+    for (k in 1..6) {
+        val t = k / 6f
+        drawCircle(Color.White.copy(alpha = 1f - t * 0.5f), s * (0.022f - t * 0.012f), from + dir * (reach * t))
+    }
 }
 
 /** "Hole 3 of 9 · par 3" and everyone's total so far. */
