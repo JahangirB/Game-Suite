@@ -9,6 +9,7 @@ import com.arcade.sudoku.data.toJson
 import com.arcade.sudoku.game.Generator
 import com.arcade.sudoku.game.dominoes.DominoMatch
 import com.arcade.sudoku.game.dominoes.DominoOptions
+import com.arcade.sudoku.game.code.CodeBreaker
 import com.arcade.sudoku.game.grid.LetterGrid
 import com.arcade.sudoku.game.hockey.Hockey
 import org.json.JSONArray
@@ -60,6 +61,8 @@ class LocalRoom(
         var shots: List<Shot> = emptyList()
         // Word Race: (word, colours) per guess
         var guesses: List<Pair<String, String>> = emptyList()
+        // Code Breaker: the code this player set
+        var code: String? = null
         var solved = false
         /** Left or lost their connection during the match being played, which goes on without them. */
         var out = false
@@ -500,6 +503,77 @@ class LocalRoom(
             )
     }
 
+    // Code Breaker: "set" while the codes are being chosen, then "guess".
+    private var codePhase = "set"
+
+    /** Code Breaker: ready (or not); the match starts with both setting their codes. */
+    fun setCodeReady(role: String, ready: Boolean, now: Long) {
+        checkCanReady()
+        player(role).ready = ready
+        if (allReady()) {
+            codePhase = "set"
+            beginMatch(now) {
+                it.code = null
+                it.guesses = emptyList()
+                it.solved = false
+            }
+        }
+        version++
+    }
+
+    /** Code Breaker: [role] sets their code, or (once both are set) guesses the other's. */
+    fun codeMove(role: String, text: String, now: Long) {
+        if (game != GameKind.CODE || status != "started") throw ApiException("The game is not running.")
+        val me = player(role)
+        if (role !in playing()) throw ApiException("You are not in this round.")
+        val c = text.lowercase()
+        if (!CodeBreaker.isCode(c)) throw ApiException("A code is ${CodeBreaker.PEGS} pegs, each one of the six colours.")
+        if (codePhase == "set") {
+            if (me.code != null) throw ApiException("Your code is set.")
+            me.code = c
+            if (playing().all { player(it).code != null }) {
+                codePhase = "guess"
+                startAt = now + COUNTDOWN_MS
+            }
+            version++
+            return
+        }
+        if (now < (startAt ?: 0)) throw ApiException("Wait for the countdown.")
+        if (me.finishedAt != null) throw ApiException("You are done with this code.")
+        val target = others(role).firstOrNull { it in playing() }?.let { player(it).code } ?: throw ApiException("The game is not running.")
+        val (black, white) = CodeBreaker.score(c, target)
+        me.guesses = me.guesses + (c to "$black$white")
+        if (black == CodeBreaker.PEGS) {
+            me.solved = true
+            me.finishedAt = now
+        } else if (me.guesses.size >= CodeBreaker.TRIES) {
+            me.finishedAt = now
+        }
+        decideWords()
+        version++
+    }
+
+    private fun codeView(role: String, shown: String): JSONObject {
+        val me = player(role)
+        val other = others(role).firstOrNull()?.let { player(it) }
+        val over = shown == "finished"
+        fun rows(p: Player?, withCodes: Boolean) = JSONArray(
+            p?.guesses.orEmpty().map { (g, s) ->
+                JSONObject().put("black", s[0].digitToInt()).put("white", s[1].digitToInt()).apply { if (withCodes) put("word", g) }
+            },
+        )
+        return JSONObject()
+            .put("phase", codePhase)
+            .put("tries", CodeBreaker.TRIES)
+            .put("myCode", me.code ?: JSONObject.NULL)
+            .put("theySet", other?.code != null)
+            .put("mine", rows(me, true))
+            .put("theirs", rows(other, over))
+            .put("meDone", me.finishedAt != null)
+            .put("theyDone", other?.finishedAt != null)
+            .put("theirCode", if (over) other?.code ?: JSONObject.NULL else JSONObject.NULL)
+    }
+
     /** Air Hockey: the score [host, guest], kept by the host's phone. */
     private var hockeyGoals = listOf(0, 0)
 
@@ -860,6 +934,7 @@ class LocalRoom(
             .put("draw", if (game == GameKind.DRAW) drawView(role, shown) else JSONObject.NULL)
             .put("numbers", if (game == GameKind.NUMBERS) numbersView(role, shown) else JSONObject.NULL)
             .put("grid", if (game == GameKind.GRID) gridView(role, shown) else JSONObject.NULL)
+            .put("code", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
             .put(
                 "hockey",
                 if (game != GameKind.HOCKEY) JSONObject.NULL else {

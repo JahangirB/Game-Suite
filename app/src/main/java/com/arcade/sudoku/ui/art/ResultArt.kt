@@ -63,6 +63,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.LUDO -> if (win) a.ludoWin() else a.ludoLose()
                     GameKind.GRID -> if (win) a.gridWin() else a.gridLose()
                     GameKind.BALLOON -> if (win) a.balloonWin() else a.balloonLose()
+                    GameKind.CODE -> if (win) a.codeWin() else a.codeLose()
                 }
             }
         }
@@ -726,6 +727,32 @@ private class ResultScene(val d: DrawScope, val t: Float) {
                 p.circle(150 + d * cos(a), 70 + d * kotlin.math.sin(a), 5, Red)
             }
             p.text("POP!", 150, 70, 22, White)
+        }
+    }
+
+    // ---- Code Breaker ------------------------------------------------------------------------
+
+    fun codeWin() {
+        // The pegs light up one by one and the lock springs open.
+        val ph = f(3f)
+        listOf(Red, Green, Yellow, BoardBlue).forEachIndexed { i, c ->
+            val on = ph > .1f + i * .1f
+            p.circle(80 + i * 40, 120, 14, if (on) c else White); p.ring(80 + i * 40, 120, 14, Ink, 3)
+        }
+        val open = kf(ph, 0f to 0f, .5f to 0f, .6f to 14f, .9f to 14f, 1f to 0f)
+        p.rr(125, 45, 50, 40, 8, Gold, Ink, 3)
+        p.stroke(Ink, 6) { moveTo(135, 45 - open); lineTo(135, 30 - open); quadTo(150, 15 - open, 165, 30 - open); lineTo(165, 45) }
+        spark(240, 40, 6, Gold, 2f, .5f)
+    }
+
+    fun codeLose() {
+        // Wrong pegs shake under a closed lock.
+        val ph = f(1.5f)
+        p.rr(125, 45, 50, 40, 8, Grey, Ink, 3)
+        p.stroke(Ink, 6) { moveTo(135, 45); lineTo(135, 30); quadTo(150, 15, 165, 30); lineTo(165, 45) }
+        p.translate(shakeX(ph), 0) {
+            for (i in 0 until 4) { p.circle(80 + i * 40, 120, 14, White); p.ring(80 + i * 40, 120, 14, Ink, 3) }
+            p.text("?", 160, 120, 20, Ink)
         }
     }
 

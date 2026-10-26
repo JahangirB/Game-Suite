@@ -12,6 +12,7 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.game.connect4.ConnectFour
 import com.arcade.sudoku.game.dominoes.DominoOptions
 import com.arcade.sudoku.game.dominoes.Dominoes
+import com.arcade.sudoku.game.code.CodeBreaker
 import com.arcade.sudoku.game.grid.LetterGrid
 import com.arcade.sudoku.game.grid.LetterGridGenerator
 import com.arcade.sudoku.game.hockey.Body
@@ -985,6 +986,29 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: IOException) {
                 undo(shown, room)
                 showMessage("Network problem, try again.")
+            }
+        }
+    }
+
+    /** Code Breaker: set your code, or (once both are set) guess theirs. */
+    fun sendCode(code: String) {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (_state.value.firing || !CodeBreaker.isCode(code)) return
+        _state.update { it.copy(firing = true) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.guess(room.code, id, code), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                if (e.fatal) endSession(e.message) else showMessage(e.message)
+            } catch (e: IOException) {
+                showMessage("Network problem, try again.")
+            } finally {
+                _state.update { it.copy(firing = false) }
             }
         }
     }

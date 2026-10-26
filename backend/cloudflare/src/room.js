@@ -16,6 +16,7 @@ import * as clash from './clash.js';
 import * as ludo from './ludo.js';
 import * as grid from './grid.js';
 import * as balloon from './balloon.js';
+import * as codeGame from './code.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -35,7 +36,7 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
@@ -543,6 +544,77 @@ export function guessWord(room, role, word, now) {
   bump(room);
 }
 
+// ---------------------------------------------------------------------------------------
+// Code Breaker: two players. After both are ready, each sets a secret code for the other; when
+// both codes are in, a countdown starts and both race to crack the code they were given.
+
+/** Code Breaker: ready (or not). The match starts with both setting their codes. */
+export function setCodeReady(room, role, ready, now) {
+  checkCanReady(room);
+  room.players[role].ready = ready !== false;
+  if (allReady(room)) {
+    // No countdown yet: it starts once both codes are set.
+    beginMatch(room, { startAt: now, codePhase: 'set' }, { code: null, guesses: [], solved: false });
+  }
+  bump(room);
+}
+
+/** Code Breaker: [role] sets their code, or (once both are set) guesses the other's. */
+export function codeMove(room, role, text, now) {
+  if (room.game !== 'code' || room.status !== 'started') throw new GameError('The game is not running.');
+  const me = room.players[role];
+  if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
+  let c;
+  try {
+    c = codeGame.cleanCode(text);
+  } catch (e) {
+    throw new GameError(e.message);
+  }
+  if (room.codePhase === 'set') {
+    if (me.code) throw new GameError('Your code is set.');
+    me.code = c;
+    if (playing(room).every((r) => room.players[r].code)) {
+      room.codePhase = 'guess';
+      room.startAt = now + COUNTDOWN_MS;
+    }
+    bump(room);
+    return;
+  }
+  if (now < room.startAt) throw new GameError('Wait for the countdown.');
+  if (me.finishedAt) throw new GameError('You are done with this code.');
+  const target = room.players[others(room, role).find((r) => playing(room).includes(r))]?.code;
+  if (!target) throw new GameError('The game is not running.');
+  const pegs = codeGame.score(c, target);
+  me.guesses.push({ word: c, ...pegs });
+  if (pegs.black === codeGame.PEGS) {
+    me.solved = true;
+    me.finishedAt = now;
+  } else if (me.guesses.length >= codeGame.TRIES) {
+    me.finishedAt = now;
+  }
+  decideWords(room);
+  bump(room);
+}
+
+function codeView(room, role, status) {
+  const me = room.players[role];
+  const other = room.players[others(room, role)[0]];
+  const over = status === 'finished';
+  const rows = (p, withWords) => (p?.guesses || []).map((g) => (withWords ? g : { black: g.black, white: g.white }));
+  return {
+    phase: room.codePhase || 'set',
+    tries: codeGame.TRIES,
+    myCode: me.code || null,
+    theySet: !!other?.code,
+    mine: rows(me, true),
+    theirs: rows(other, over),
+    meDone: !!me.finishedAt,
+    theyDone: !!other?.finishedAt,
+    // The code you were cracking, once it's over.
+    theirCode: over ? other?.code || null : null,
+  };
+}
+
 /** Ends the round once nobody can change the result any more. */
 function decideWords(room) {
   const roles = playing(room);
@@ -984,6 +1056,7 @@ export function view(room, role, now) {
     numbers: room.game === 'numbers' ? numbersView(room, role, status) : null,
     hockey: room.game === 'hockey' ? hockeyView(room, role) : null,
     grid: room.game === 'grid' ? gridView(room, role, status) : null,
+    code: room.game === 'code' ? codeView(room, role, status) : null,
   };
 }
 

@@ -40,6 +40,8 @@ import com.arcade.sudoku.ui.screens.ClashGameScreen
 import com.arcade.sudoku.ui.screens.LudoGameScreen
 import com.arcade.sudoku.ui.screens.GridGameScreen
 import com.arcade.sudoku.ui.screens.BalloonGameScreen
+import com.arcade.sudoku.ui.screens.CodeGameScreen
+import com.arcade.sudoku.ui.screens.SoloCodeScreen
 import com.arcade.sudoku.ui.screens.SoloBalloonScreen
 import com.arcade.sudoku.ui.screens.SoloGridScreen
 import com.arcade.sudoku.ui.screens.SoloLudoScreen
@@ -62,7 +64,7 @@ import com.arcade.sudoku.ui.art.ReactionBurst
 import com.arcade.sudoku.ui.screens.LocalShipStyle
 import com.arcade.sudoku.ui.theme.AppTheme
 
-private enum class Dest { HOME, PROFILE, BATTLE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON }
+private enum class Dest { HOME, PROFILE, BATTLE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE }
 
 @Composable
 fun ArcadeSudokuApp(
@@ -83,6 +85,7 @@ fun ArcadeSudokuApp(
     ludo: SoloLudoViewModel = viewModel(),
     grid: SoloGridViewModel = viewModel(),
     balloon: SoloBalloonViewModel = viewModel(),
+    codeBreaker: SoloCodeViewModel = viewModel(),
 ) {
     val p = AppTheme.palette
     val profile by app.profile.collectAsStateWithLifecycle()
@@ -102,6 +105,7 @@ fun ArcadeSudokuApp(
     val ludoState by ludo.state.collectAsStateWithLifecycle()
     val gridState by grid.state.collectAsStateWithLifecycle()
     val balloonState by balloon.state.collectAsStateWithLifecycle()
+    val codeState by codeBreaker.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
@@ -148,6 +152,7 @@ fun ArcadeSudokuApp(
                     room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
                         LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
                     room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
+                    room != null && room.game == GameKind.CODE -> CodeGameScreen(battleState, battle, onLeave = requestLeave)
                     room != null && room.game == GameKind.BALLOON -> BalloonGameScreen(battleState, battle, onLeave = requestLeave)
                     room != null && room.game == GameKind.GRID -> GridGameScreen(battleState, battle, onLeave = requestLeave)
                     room != null && room.game == GameKind.LUDO -> LudoGameScreen(battleState, battle, onLeave = requestLeave)
@@ -172,6 +177,7 @@ fun ArcadeSudokuApp(
                     dest == Dest.LUDO -> SoloLudoScreen(ludoState, ludo, onHome = { dest = Dest.HOME })
                     dest == Dest.GRID -> SoloGridScreen(gridState, grid, onHome = { dest = Dest.HOME })
                     dest == Dest.BALLOON -> SoloBalloonScreen(balloonState, balloon, onHome = { dest = Dest.HOME })
+                    dest == Dest.CODE -> SoloCodeScreen(codeState, codeBreaker, onHome = { dest = Dest.HOME })
                     dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = { dest = Dest.HOME })
                     dest == Dest.PROFILE -> ProfileScreen(
                         profile, battleState.busy, app, battle, updateState,
@@ -213,6 +219,7 @@ fun ArcadeSudokuApp(
                                 GameKind.LUDO -> Dest.LUDO
                                 GameKind.GRID -> Dest.GRID
                                 GameKind.BALLOON -> Dest.BALLOON
+                                GameKind.CODE -> Dest.CODE
                                 // Draw & Guess needs two players; its sheet offers no solo game.
                                 GameKind.DRAW -> Dest.HOME
                                 GameKind.SUDOKU -> Dest.SOLO

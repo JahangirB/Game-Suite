@@ -28,7 +28,8 @@ enum class GameKind(val key: String, val label: String) {
     CLASH("clash", "Colour Clash"),
     LUDO("ludo", "Ludo"),
     GRID("grid", "Letter Grid"),
-    BALLOON("balloon", "Balloon Words");
+    BALLOON("balloon", "Balloon Words"),
+    CODE("code", "Code Breaker");
 
     /** Played in turns with moves, sharing the server's turn rules. */
     val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON
@@ -37,7 +38,7 @@ enum class GameKind(val key: String, val label: String) {
     val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
-    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID
+    val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: SUDOKU
@@ -125,6 +126,25 @@ data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blan
 
 /** A Number Cross round: the host's level, the board (once playing), your entries and, at the end, the solved grid. */
 data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
+
+/** One Code Breaker guess: its pegs (hidden for the other player until the end) and the black and white score. */
+data class CodeGuess(val code: String?, val black: Int, val white: Int)
+
+/**
+ * A Code Breaker round: "set" while codes are being chosen, then "guess". Your own code, your
+ * guesses at theirs, their scores (their guesses once it's over) and their code at the end.
+ */
+data class CodeView(
+    val phase: String,
+    val tries: Int,
+    val myCode: String?,
+    val theySet: Boolean,
+    val mine: List<CodeGuess>,
+    val theirs: List<CodeGuess>,
+    val meDone: Boolean,
+    val theyDone: Boolean,
+    val theirCode: String?,
+)
 
 /** One word in a Letter Grid result: unique words (found by nobody else) score double. */
 data class GridWord(val word: String, val unique: Boolean, val points: Int)
@@ -267,6 +287,8 @@ data class RoomState(
     /** Air Hockey: the score as the server last heard it from the host. */
     val hockey: HockeyScore? = null,
     val grid: GridView? = null,
+    /** Code Breaker ("code" in the JSON; [code] is the room's code). */
+    val codeGame: CodeView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -302,6 +324,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     draw = json.optJSONObject("draw")?.let(::parseDraw),
     numbers = json.optJSONObject("numbers")?.let(::parseNumbers),
     grid = json.optJSONObject("grid")?.let(::parseGrid),
+    codeGame = json.optJSONObject("code")?.let(::parseCode),
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
@@ -373,6 +396,21 @@ private fun parseWords(json: JSONObject): WordsView {
         others = json.optJSONArray("others").objects().map { o ->
             OtherWords(o.optJSONArray("guesses").objects().map { WordGuess(it.stringOrNull("word"), it.optString("score")) }, o.optBoolean("done"))
         },
+    )
+}
+
+private fun parseCode(json: JSONObject): CodeView {
+    fun rows(key: String) = json.optJSONArray(key).objects().map { CodeGuess(it.stringOrNull("word"), it.optInt("black"), it.optInt("white")) }
+    return CodeView(
+        phase = json.optString("phase", "set"),
+        tries = json.optInt("tries", 10),
+        myCode = json.stringOrNull("myCode"),
+        theySet = json.optBoolean("theySet"),
+        mine = rows("mine"),
+        theirs = rows("theirs"),
+        meDone = json.optBoolean("meDone"),
+        theyDone = json.optBoolean("theyDone"),
+        theirCode = json.stringOrNull("theirCode"),
     )
 }
 
