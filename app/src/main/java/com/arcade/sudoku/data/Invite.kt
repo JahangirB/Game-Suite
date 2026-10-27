@@ -2,18 +2,21 @@ package com.arcade.sudoku.data
 
 import kotlin.random.Random
 
-/** The server link, optional server password and secret code the host shares with the opponent. */
+/**
+ * What one player sends another to join an online room: the room code, and the link for
+ * someone who hasn't played online yet. A password is never put in the message; one read
+ * from an older message is still filled in.
+ */
 data class Invite(val scriptUrl: String?, val code: String?, val password: String? = null) {
     fun toShareText() = buildString {
-        append("Let's play in Game Suite!\n")
-        append("Server link: $scriptUrl\n")
-        if (!password.isNullOrBlank()) append("Server password: $password\n")
-        append("Secret code: $code")
+        append("Let's play in Game Suite! Code: $code")
+        if (!scriptUrl.isNullOrBlank()) append("\nLink: $scriptUrl")
     }
 
     companion object {
         private val URL_REGEX = Regex("""https://\S+""")
-        private val CODE_REGEX = Regex("""(?i)secret\s*code\s*[:=]?\s*([A-Z0-9]{4,12})""")
+        // "Code: K7Q2XM", and "Secret code: …" from older messages.
+        private val CODE_REGEX = Regex("""(?i)\bcode\b\s*[:=]?\s*([A-Z0-9]{4,12})""")
         private val PASSWORD_REGEX = Regex("""(?i)server\s*password\s*[:=]\s*(\S+)""")
 
         /** Pulls the link, password and code out of a shared invite message; any may be missing. */

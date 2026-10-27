@@ -73,6 +73,7 @@ import com.arcade.sudoku.data.SavedPartner
 import com.arcade.sudoku.ui.art.AvatarImage
 import com.arcade.sudoku.ui.theme.OpponentColor
 import com.arcade.sudoku.data.PlayMode
+import com.arcade.sudoku.data.Invite
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import com.arcade.sudoku.data.RoomState
@@ -142,7 +143,7 @@ fun HomeScreen(
             }
 
             if (room != null) {
-                ConnectedCard(room, nearby, partnerBusy, onOpenGame, onLeaveRoom)
+                ConnectedCard(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
             } else {
                 ConnectionCard(profile, connected, onPlayMode, onConnectNearby, onStartRoom, onJoinRoom, onProfile)
                 profile.partner?.let { PartnerCard(it) }
@@ -276,7 +277,7 @@ private fun ConnectionCard(
                 SecondaryButton("Join with code", onJoinRoom)
             }
             else -> {
-                Text("Online play needs a server link. Paste an invite, or add the link in your profile.", color = p.muted, fontSize = TextSize.Body)
+                Text("To play online, join with the message you were sent: it has the link. Or add the link in your profile.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Join with code", onJoinRoom)
                 SecondaryButton("Open profile", onProfile)
             }
@@ -289,7 +290,7 @@ private fun ConnectionCard(
  * with a Join button; picking any game opens it for everyone. Leave is the only way out.
  */
 @Composable
-private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, onOpenGame: (GameKind) -> Unit, onLeave: () -> Unit) {
+private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, shareText: String, onOpenGame: (GameKind) -> Unit, onLeave: () -> Unit) {
     val p = AppTheme.palette
     val context = LocalContext.current
     val others = room.present
@@ -321,7 +322,7 @@ private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, onOpe
                 Text("Send the code. The game list stays here; you pick one together once they're in.", color = p.muted, fontSize = TextSize.Body)
                 SecondaryButton("Send the code", {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, "Let's play in Game Suite! Code: ${room.code}")
+                        .putExtra(Intent.EXTRA_TEXT, shareText)
                     context.startActivity(Intent.createChooser(send, "Send the code"))
                 })
             }

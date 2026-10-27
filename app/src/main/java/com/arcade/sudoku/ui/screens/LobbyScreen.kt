@@ -102,7 +102,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                                 .setType("text/plain")
                                 .putExtra(
                                     Intent.EXTRA_TEXT,
-                                    Invite(profile.scriptUrl, room.code, profile.serverPassword).toShareText(),
+                                    Invite(profile.scriptUrl, room.code).toShareText(),
                                 )
                             context.startActivity(Intent.createChooser(send, "Invite your opponent"))
                         },
@@ -110,7 +110,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Share link + code")
+                        Text("Send the code")
                     }
                 }
             }

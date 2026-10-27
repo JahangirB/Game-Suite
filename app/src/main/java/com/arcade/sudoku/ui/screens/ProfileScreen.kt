@@ -106,18 +106,17 @@ fun ProfileScreen(
                 AvatarPicker(selected = profile.avatar, onPick = app::setAvatar)
             }
 
-            AppCard("Battle server") {
+            AppCard("Online link") {
                 Text(
-                    "For online battles, one player hosts the battle server (a Google Script or a " +
-                        "Cloudflare Worker) and shares its link and a secret code. Paste the link here, " +
-                        "or paste the whole invite. Nearby battles need no server.",
+                    "Online play goes through a link one of you set up (see the README). Joining with a " +
+                        "message you were sent fills it in. Nearby play needs no link.",
                     color = p.muted,
                     fontSize = TextSize.Body,
                 )
                 OutlinedTextField(
                     value = profile.scriptUrl,
                     onValueChange = app::setScriptUrl,
-                    label = { Text("Server link") },
+                    label = { Text("Online link") },
                     placeholder = { Text("https://…workers.dev or https://script.google.com/…") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
@@ -125,14 +124,14 @@ fun ProfileScreen(
                 OutlinedTextField(
                     value = profile.serverPassword,
                     onValueChange = app::setServerPassword,
-                    label = { Text("Server password (only if the host set one)") },
+                    label = { Text("Password (only if the link has one; ask whoever set it up)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     SecondaryButton(
-                        "Paste invite",
+                        "Paste message",
                         { battle.pasteInvite(clipboard.getText()?.text) },
                         Modifier.weight(1f),
                         enabled = !busy,
@@ -155,7 +154,7 @@ fun ProfileScreen(
                     Text(
                         when {
                             !Push.available -> "Invitations are off in this build (see the README to switch them on)."
-                            !PushApi.supports(partner.serverUrl) -> "Invitations need the Cloudflare server."
+                            !PushApi.supports(partner.serverUrl) -> "This online link can't send invitations."
                             partner.deviceId == null -> "Play one online battle together to switch on invitations."
                             else -> "You can invite ${partner.name} from the home screen."
                         },

@@ -267,11 +267,12 @@ server; a password keeps it to people you invite. In the Cloudflare dashboard op
 *Workers & Pages → arcade-sudoku → Settings → Variables and Secrets*, add a **Secret**
 named `SERVER_PASSWORD`, or run `npx wrangler secret put SERVER_PASSWORD`.
 
-**In the app:** *Profile → Battle server*: paste the link (and the password), tap
-**Test link**; it should say "Connected to the Cloudflare battle server". Then host a
-battle as usual. **Share link + code** puts the link, password and code in one message,
-and the guest's **Paste invite** fills in all three. Anyone who sees that message can
-also open rooms on your server, so send the password separately if that matters to you.
+**In the app:** *Profile → Online link*: paste the link (and the password), tap
+**Test link**; it should say "Connected to the Cloudflare battle server". Then start a
+room as usual. **Send the code** puts the room code and the link in one message, and the
+other player's **Join with code → Paste the message instead** fills in both. The password
+is never in that message: tell it separately to anyone who should be able to use your
+server, and they add it once in *Profile → Online link*.
 
 **Updating the server:** the deploy button makes a separate *copy* of the code in your
 GitHub, which never receives updates. To get updates automatically, connect the Worker to

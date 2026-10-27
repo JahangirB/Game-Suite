@@ -43,11 +43,29 @@ class InvitePasswordTest {
     private val url = "https://game-suite.example.workers.dev"
 
     @Test
-    fun cloudflareInviteWithPasswordParsesBack() {
-        val parsed = Invite.parse(Invite(url, "K7PQ2M", "s3cret!").toShareText())
+    fun thePasswordIsNeverInTheMessage() {
+        val text = Invite(url, "K7PQ2M", "s3cret!").toShareText()
+        assertTrue("s3cret" !in text)
+        assertTrue("server" !in text.lowercase())
+        val parsed = Invite.parse(text)
+        assertEquals(url, parsed.scriptUrl)
+        assertEquals("K7PQ2M", parsed.code)
+        assertNull(parsed.password)
+    }
+
+    @Test
+    fun anOlderMessageWithAPasswordStillFillsItIn() {
+        val parsed = Invite.parse("Let's play in Game Suite!\nServer link: $url\nServer password: s3cret!\nSecret code: K7PQ2M")
         assertEquals(url, parsed.scriptUrl)
         assertEquals("K7PQ2M", parsed.code)
         assertEquals("s3cret!", parsed.password)
+    }
+
+    @Test
+    fun justTheCodeIsEnough() {
+        val parsed = Invite.parse("Let's play in Game Suite! Code: k7pq2m")
+        assertNull(parsed.scriptUrl)
+        assertEquals("K7PQ2M", parsed.code)
     }
 
     @Test

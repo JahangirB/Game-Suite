@@ -204,13 +204,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun pasteInvite(text: String?) {
         val invite = Invite.parse(text.orEmpty())
         if (invite.scriptUrl == null && invite.code == null) {
-            showMessage("No invite found on the clipboard.")
+            showMessage("No room code in the copied message.")
             return
         }
-        invite.scriptUrl?.let {
-            store.setScriptUrl(it)
-            // A new server link comes with its own password, or none.
-            store.setServerPassword(invite.password.orEmpty())
+        invite.scriptUrl?.let { url ->
+            // Messages no longer carry a password: keep the one you have for the same link.
+            if (url != store.profile.value.scriptUrl || invite.password != null) store.setServerPassword(invite.password.orEmpty())
+            store.setScriptUrl(url)
         }
         invite.code?.let { code -> _state.update { it.copy(joinCode = code) } }
     }
@@ -262,7 +262,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun playWithPartner(game: GameKind = _state.value.hostGame) {
         val partner = store.profile.value.partner ?: return
         if (game != GameKind.SUDOKU && BattleBackend.isAppsScript(partner.serverUrl)) {
-            return showMessage("${game.label} needs a Cloudflare server or a nearby battle.")
+            return showMessage("${game.label} can't be played on this online link. Play it nearby, or see \"Choosing a battle server\" in the README.")
         }
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
@@ -306,7 +306,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val partner = store.profile.value.partner ?: return
         val to = partner.deviceId
             ?: return showMessage("Play one online battle together with the new app first, then you can invite.")
-        if (!PushApi.supports(partner.serverUrl)) return showMessage("Invitations need the Cloudflare server.")
+        if (!PushApi.supports(partner.serverUrl)) return showMessage("This online link can't send invitations. See \"Choosing a battle server\" in the README.")
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(hostGame = game) }
@@ -452,7 +452,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private fun checkedUrl(): String? {
         val url = store.profile.value.scriptUrl
         if (!url.startsWith("https://")) {
-            showMessage("Add the host's server link in your profile (top-right icon).")
+            showMessage("To play online, paste the message you were sent: it has the link.")
             return null
         }
         return url
