@@ -47,7 +47,7 @@ import com.arcade.sudoku.ui.theme.Tracking
 enum class ConnectKind { NEARBY, JOIN_ONLINE }
 
 /** What Android asks for before two phones may find each other directly. */
-private fun nearbyPermissions(): Array<String> = buildList {
+internal fun nearbyPermissions(): Array<String> = buildList {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.NEARBY_WIFI_DEVICES)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         add(Manifest.permission.BLUETOOTH_SCAN)

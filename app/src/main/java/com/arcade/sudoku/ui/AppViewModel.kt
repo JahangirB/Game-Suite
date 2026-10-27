@@ -33,4 +33,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
     fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
+    fun finishFirstRun() = store.finishFirstRun()
 }

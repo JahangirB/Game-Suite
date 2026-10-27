@@ -45,7 +45,7 @@ import com.arcade.sudoku.ui.theme.AppTheme
 
 /** The pictures players can choose; tapping the chosen one again clears it. */
 @Composable
-private fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
+internal fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
     val p = AppTheme.palette
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Avatar.entries.chunked(6).forEach { row ->

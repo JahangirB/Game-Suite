@@ -60,6 +60,8 @@ data class Profile(
     val playMode: PlayMode = PlayMode.OFFLINE,
     /** The games in the order this player arranged them on the home. */
     val gameOrder: List<GameKind> = GameKind.entries,
+    /** Whether the first-run screens have been seen (or skipped, by someone set up before them). */
+    val firstRunDone: Boolean = false,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -121,6 +123,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setGameOrder(order: List<GameKind>?) {
         prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
         _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
+    }
+
+    fun finishFirstRun() {
+        prefs.edit { putBoolean(KEY_FIRST_RUN_DONE, true) }
+        _profile.update { it.copy(firstRunDone = true) }
     }
 
     fun setPlayMode(mode: PlayMode) {
@@ -192,6 +199,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
             gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
+            // Someone who set a name before the first-run screens existed has nothing to learn there.
+            firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -220,6 +229,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_PLAY_MODE = "play_mode"
         private const val KEY_GAME_ORDER = "game_order"
+        private const val KEY_FIRST_RUN_DONE = "first_run_done"
 
         /** The saved order, with games added since (or not known any more) put right. */
         fun orderOf(saved: String?): List<GameKind> {

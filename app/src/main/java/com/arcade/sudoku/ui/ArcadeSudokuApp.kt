@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.ui.screens.ArrangeGamesScreen
+import com.arcade.sudoku.ui.screens.FirstRunScreen
 import com.arcade.sudoku.ui.screens.ConnectKind
 import com.arcade.sudoku.ui.screens.ConnectSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -183,6 +184,7 @@ fun ArcadeSudokuApp(
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             CompositionLocalProvider(LocalShipStyle provides profile.shipStyle) {
                 when {
+                    !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
                     inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
                         LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
                     inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
