@@ -167,28 +167,33 @@ The **profile icon** (top right of the home screen) holds all setup:
 
 ## How a battle works
 
-1. **Host** opens *Battle a friend → Host*. The app suggests a random secret code (or
-   type your own) and starts the lobby. In the lobby tap **Share link + code** and send
-   the invite (WhatsApp, SMS, etc.).
-2. **Guest** copies the invite, opens *Battle a friend → Join* and taps *Paste the invite
-   message instead* (it fills in the link and code), then **Join battle**. The server link
-   is saved in the profile, so you only do this once per host.
-3. **Both players choose a level in the lobby.** Tapping a level means "I'm ready for
+1. **One connection, many games.** Set the switch at the top of the home to **Online**
+   and tap **Start a room**. The room waits on the home, connected; tap **Send the code**
+   and send it (WhatsApp, SMS, etc.).
+2. **The other player** taps **Join with code** on their home and types the code, or
+   pastes the whole message (it fills in the server link too). The server link is saved
+   in the profile, so you only do this once.
+3. **Pick a game together.** Whoever taps a game and **Play with …** opens its lobby and
+   sets its options; the others see "Alex is waiting in Connect Four" with a **Join**
+   button. **Games** (or back) from a lobby or result returns to the home and keeps the
+   connection; only **Leave** disconnects. Hold a game on the home to arrange the games
+   in your own order.
+4. **Sudoku: both players choose a level in the lobby.** Tapping a level means "I'm ready for
    this level" (tap it again to cancel). You can see your opponent's pick. The game only
    starts when **both players have picked the same level**. If the levels differ, both
    players see a message ("Levels don't match: you chose Hard, Sam chose Easy…") and the
    game waits until someone changes their pick.
-4. When the levels match, the server creates one puzzle and sets a start time 5 seconds
+5. When the levels match, the server creates one puzzle and sets a start time 5 seconds
    ahead. Both phones count down to that same instant: the app corrects for clock
    differences between the phones and the server, and the grid stays hidden until the
    countdown ends.
-5. During the match:
+6. During the match:
    - your bar shows how much of the board you have **filled**;
    - the opponent's bar shows the percentage of cells they have **solved
      correctly**. The server checks this, and never tells you your own
      correctness, so you can't use it to test guesses;
    - repeated digits in a row, column or box turn red.
-6. The first correct board wins. The result screen shows times and the loser
+7. The first correct board wins. The result screen shows times and the loser
    can reveal the solution. For a **rematch**, both players choose a level again.
 
 Leaving a running match counts as a loss. If a player stops syncing for 45
@@ -196,9 +201,9 @@ seconds (app closed, no network), the opponent wins by timeout.
 
 ## Nearby battles (same room, no internet)
 
-1. Both players open *Battle a friend → Nearby (no internet)*.
-2. Both use the same **room code**. One taps **Open nearby room** and reads the code out;
-   the other types it and taps **Join nearby room**. The code is never broadcast, so only a
+1. Both players set the home's switch to **Offline · nearby** and tap **Connect nearby**.
+2. Both use the same **room code**. One taps **Start a nearby room** and reads the code out;
+   the other types it and taps **Join with this code**. The code is never broadcast, so only a
    phone given it can join. Both phones keep the code, so next time you just tap.
 3. Android asks once for the Bluetooth / nearby devices permissions (on Android 12 and
    older also location, which Android requires for Bluetooth scanning).

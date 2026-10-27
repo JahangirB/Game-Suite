@@ -73,6 +73,8 @@ import com.arcade.sudoku.data.SavedPartner
 import com.arcade.sudoku.ui.art.AvatarImage
 import com.arcade.sudoku.ui.theme.OpponentColor
 import com.arcade.sudoku.data.PlayMode
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.ui.theme.SeatColors
@@ -98,8 +100,8 @@ fun HomeScreen(
     onProfile: () -> Unit,
     /** Against the computer or alone, for every game but Sudoku. */
     onSolo: (GameKind) -> Unit,
-    /** Online with a secret code, or nearby. */
-    onBattle: (GameKind) -> Unit,
+    /** The Arrange games screen (also a long press on a game). */
+    onArrange: () -> Unit,
     partnerBusy: Boolean,
     onPlayWithPartner: (GameKind) -> Unit,
     onInvitePartner: (GameKind) -> Unit,
@@ -146,11 +148,22 @@ fun HomeScreen(
                 profile.partner?.let { PartnerCard(it) }
             }
 
-            // Two tiles per row.
-            GameKind.entries.chunked(2).forEach { pair ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                    Text("Hold a game to move it", color = p.muted, fontSize = TextSize.Label)
+                }
+                TextButton(onClick = onArrange) { Text("Arrange", color = p.primaryText, fontWeight = FontWeight.Bold) }
+            }
+
+            // Two tiles per row, in your order.
+            profile.gameOrder.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     pair.forEach { kind ->
-                        GameTile(kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null) { sheetGame = kind }
+                        GameTile(
+                            kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
+                            onLongClick = onArrange,
+                        ) { sheetGame = kind }
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
@@ -185,7 +198,6 @@ fun HomeScreen(
                 onSolo = { close(); onSolo(kind) },
                 onPartner = { close(); onPlayWithPartner(kind) },
                 onInvite = { close(); onInvitePartner(kind) },
-                onBattle = { close(); onBattle(kind) },
             )
         }
     }
@@ -204,14 +216,15 @@ fun HomeScreen(
 
 /** A game on the shelf: its coloured icon, name and one line about it. */
 @Composable
-private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onClick: () -> Unit) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onLongClick: () -> Unit, onClick: () -> Unit) {
     val p = AppTheme.palette
     Surface(
-        onClick = onClick,
         color = p.card,
         shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, Radius.L),
+        modifier = modifier.pressedEdge(p.ink, Radius.L).clip(Shapes.L)
+            .combinedClickable(onClickLabel = "Open", onLongClickLabel = "Arrange games", onLongClick = onLongClick, onClick = onClick),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
@@ -312,7 +325,7 @@ private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, onOpe
                     context.startActivity(Intent.createChooser(send, "Send the code"))
                 })
             }
-            others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join nearby room.", color = p.muted, fontSize = TextSize.Body)
+            others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join with this code.", color = p.muted, fontSize = TextSize.Body)
             here.isNotEmpty() && playing -> {
                 StatusLine("${here.joinToString(" & ") { it.name }} ${if (here.size == 1) "is" else "are"} playing ${room.game.label}.", Tone.Neutral)
             }
@@ -369,7 +382,6 @@ private fun GameSheet(
     onSolo: () -> Unit,
     onPartner: () -> Unit,
     onInvite: () -> Unit,
-    onBattle: () -> Unit,
 ) {
     val p = AppTheme.palette
     var showRules by rememberSaveable(kind) { mutableStateOf(false) }
@@ -420,12 +432,8 @@ private fun GameSheet(
             kind == GameKind.DRAW -> Text("Draw & Guess needs two players: play with your partner, online or nearby.", color = p.muted, fontSize = TextSize.Body)
             else -> SecondaryButton("Play the computer", onSolo)
         }
-        if (room == null) SecondaryButton("Online with a code or nearby", onBattle)
-        if (partner == null && room == null) {
-            Text(
-                "Play one online game with your partner and they are saved here, ready for one-tap games and invitations.",
-                color = p.muted, fontSize = TextSize.Body,
-            )
+        if (room == null && kind != GameKind.DRAW) {
+            Text("To play together, connect first: nearby or online, at the top of the home.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

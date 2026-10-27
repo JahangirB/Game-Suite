@@ -74,7 +74,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 AppCard("Nearby battle") {
                     Text(
                         if (room.isHost) {
-                            "Room code ${room.code}: the other phone types it and taps Join nearby room. " +
+                            "Room code ${room.code}: the other phone types it and taps Join with this code. " +
                                 "Keep Bluetooth and Wi‑Fi on; no internet is needed."
                         } else {
                             "Connected directly to ${opponent?.name ?: "the host"}'s phone."

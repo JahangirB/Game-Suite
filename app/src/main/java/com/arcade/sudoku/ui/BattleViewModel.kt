@@ -229,15 +229,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * "Start a room": opens an online room with [BattleUiState.hostCode] and waits in the menu
+     * for the others; you pick a game together once they're in. (The room is made with Sudoku,
+     * the one game a server that can't switch games plays.)
+     */
     fun host() {
         val code = _state.value.hostCode
-        if (code.length < 4) return showMessage("The secret code needs at least 4 letters or digits.")
+        if (code.length < 4) return showMessage("The room code needs at least 4 letters or digits.")
         val url = checkedUrl() ?: return
-        val game = _state.value.hostGame
-        if (game != GameKind.SUDOKU && BattleBackend.isAppsScript(url)) {
-            return showMessage("${game.label} needs a Cloudflare server or a nearby battle.")
-        }
-        startOnline(url) { b, me -> b.create(code, me, game).also { checkGame(it, game) } }
+        startOnline(url) { b, me -> b.create(code, me, GameKind.SUDOKU) }
     }
 
     /** A server from before [game] existed opens a Sudoku room instead; say so rather than play the wrong game. */
@@ -356,8 +357,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         store.setNearbyCode(code)
         val p = store.profile.value
         val host = NearbyHost(getApplication(), displayName(p.name), p.avatar)
-        val game = _state.value.hostGame
-        startSession(host, BattleMode.NEARBY) { b, me -> b.create(code, me, game) }
+        // The room waits in the menu; you pick a game together once the others are in.
+        startSession(host, BattleMode.NEARBY) { b, me -> b.create(code, me, GameKind.SUDOKU) }
     }
 
     /** Finds the nearby room with [BattleUiState.nearbyCode] and joins it. */

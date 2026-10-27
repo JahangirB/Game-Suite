@@ -58,6 +58,8 @@ data class Profile(
     val nearbyCode: String = "",
     /** The home's Online/Offline switch, as last set. */
     val playMode: PlayMode = PlayMode.OFFLINE,
+    /** The games in the order this player arranged them on the home. */
+    val gameOrder: List<GameKind> = GameKind.entries,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -113,6 +115,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             }
         }
         _profile.update { it.copy(partner = partner) }
+    }
+
+    /** Saves the home's game order; null puts the games back in the default order. */
+    fun setGameOrder(order: List<GameKind>?) {
+        prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
+        _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
     }
 
     fun setPlayMode(mode: PlayMode) {
@@ -183,6 +191,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 .getOrDefault(ShipStyle.TOY),
             stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
+            gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -210,6 +219,13 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_PASSWORD = "server_password"
         private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_PLAY_MODE = "play_mode"
+        private const val KEY_GAME_ORDER = "game_order"
+
+        /** The saved order, with games added since (or not known any more) put right. */
+        fun orderOf(saved: String?): List<GameKind> {
+            val known = saved.orEmpty().split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.distinct()
+            return known + (GameKind.entries - known.toSet())
+        }
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
 

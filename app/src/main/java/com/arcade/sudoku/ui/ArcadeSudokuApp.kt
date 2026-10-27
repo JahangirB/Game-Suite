@@ -26,9 +26,11 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.arcade.sudoku.data.RoomStatus
-import com.arcade.sudoku.ui.screens.BattleMenuScreen
-import com.arcade.sudoku.ui.screens.BattleTab
-import com.arcade.sudoku.data.PlayMode
+import com.arcade.sudoku.ui.screens.ArrangeGamesScreen
+import com.arcade.sudoku.ui.screens.ConnectKind
+import com.arcade.sudoku.ui.screens.ConnectSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import com.arcade.sudoku.ui.screens.SoloConnectFourScreen
 import com.arcade.sudoku.ui.screens.SoloDotsScreen
 import com.arcade.sudoku.ui.screens.SoloMemoryScreen
@@ -74,8 +76,9 @@ import com.arcade.sudoku.ui.art.ReactionBurst
 import com.arcade.sudoku.ui.screens.LocalShipStyle
 import com.arcade.sudoku.ui.theme.AppTheme
 
-private enum class Dest { HOME, PROFILE, BATTLE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, ARRANGE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArcadeSudokuApp(
     app: AppViewModel = viewModel(),
@@ -126,11 +129,8 @@ fun ArcadeSudokuApp(
     val blocksState by blocks.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
-    var battleTab by rememberSaveable { mutableStateOf(BattleTab.JOIN) }
-    val openBattle = { tab: BattleTab ->
-        battleTab = tab
-        dest = Dest.BATTLE
-    }
+    // The home's connect sheet: a nearby room, or joining an online one.
+    var connectSheet by rememberSaveable { mutableStateOf<ConnectKind?>(null) }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     // Leaving the room altogether (from the home, while connected).
     var confirmDisconnect by rememberSaveable { mutableStateOf(false) }
@@ -142,9 +142,9 @@ fun ArcadeSudokuApp(
         }
     }
 
-    // Once connected from the battle screen, the games are where you go next.
+    // Once connected, the sheet has done its job: the home shows who you're with.
     LaunchedEffect(battleState.room?.code) {
-        if (battleState.room?.inSession == true && dest == Dest.BATTLE) dest = Dest.HOME
+        if (battleState.room != null) connectSheet = null
     }
 
     LaunchedEffect(updateState.message) {
@@ -227,14 +227,7 @@ fun ArcadeSudokuApp(
                         onUpdate = updates::update,
                         onBack = { dest = Dest.HOME },
                     )
-                    dest == Dest.BATTLE -> BattleMenuScreen(
-                        state = battleState,
-                        profile = profile,
-                        vm = battle,
-                        onProfile = { dest = Dest.PROFILE },
-                        onBack = { dest = Dest.HOME },
-                        initialTab = battleTab,
-                    )
+                    dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
                     else -> HomeScreen(
                         solo = soloState,
                         profile = profile,
@@ -272,18 +265,15 @@ fun ArcadeSudokuApp(
                                 GameKind.SUDOKU -> Dest.SOLO
                             }
                         },
-                        onBattle = { game ->
-                            battle.setHostGame(game)
-                            openBattle(if (profile.playMode == PlayMode.OFFLINE) BattleTab.NEARBY else BattleTab.HOST)
-                        },
+                        onArrange = { dest = Dest.ARRANGE },
                         partnerBusy = battleState.busy,
                         onPlayWithPartner = battle::playWithPartner,
                         onInvitePartner = battle::invitePartner,
                         onPlayMode = app::setPlayMode,
                         connected = room != null,
-                        onConnectNearby = { openBattle(BattleTab.NEARBY) },
-                        onStartRoom = { openBattle(BattleTab.HOST) },
-                        onJoinRoom = { openBattle(BattleTab.JOIN) },
+                        onConnectNearby = { connectSheet = ConnectKind.NEARBY },
+                        onStartRoom = battle::host,
+                        onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
                         room = room,
                         nearby = battleState.mode == BattleMode.NEARBY,
                         onOpenGame = battle::openGame,
@@ -293,6 +283,12 @@ fun ArcadeSudokuApp(
             }
             // A reaction from your opponent plays large over the battle screen.
             if (inRoomGame) ReactionBurst(battleState.opponentReaction)
+        }
+    }
+
+    connectSheet?.let { kind ->
+        ModalBottomSheet(onDismissRequest = { connectSheet = null }, containerColor = p.card) {
+            ConnectSheet(kind, battleState, battle)
         }
     }
 

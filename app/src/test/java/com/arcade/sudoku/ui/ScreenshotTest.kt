@@ -65,7 +65,7 @@ class ScreenshotTest {
         onNewGame = {},
         onProfile = {},
         onSolo = {},
-        onBattle = {},
+        onArrange = {},
         partnerBusy = false,
         onPlayWithPartner = {},
         onInvitePartner = {},

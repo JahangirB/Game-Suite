@@ -3,6 +3,7 @@ package com.arcade.sudoku.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.arcade.sudoku.data.Avatar
+import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.PlayMode
 import com.arcade.sudoku.data.Profile
 import com.arcade.sudoku.data.ProfileStore
@@ -31,4 +32,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setTheme(mode: ThemeMode) = store.setTheme(mode)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
+    fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
 }
