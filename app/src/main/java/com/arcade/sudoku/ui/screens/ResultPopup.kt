@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -75,7 +77,7 @@ fun BoxScope.ResultPopup(
         Surface(
             onClick = { folded = false },
             color = p.primary,
-            shape = RoundedCornerShape(50),
+            shape = Shapes.Full,
             border = BorderStroke(2.dp, p.ink),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).pressedEdge(p.ink, 24.dp),
         ) {
@@ -95,7 +97,7 @@ fun BoxScope.ResultPopup(
     )
     Surface(
         color = p.card,
-        shape = RoundedCornerShape(26.dp),
+        shape = Shapes.L,
         border = BorderStroke(3.dp, p.ink),
         modifier = Modifier
             .align(Alignment.Center)
@@ -107,7 +109,7 @@ fun BoxScope.ResultPopup(
                 scaleX = 0.92f + 0.08f * enter.value
                 scaleY = scaleX
             }
-            .pressedEdge(p.ink, 26.dp, 5.dp),
+            .pressedEdge(p.ink, Radius.L, 5.dp),
     ) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(18.dp),
@@ -116,7 +118,7 @@ fun BoxScope.ResultPopup(
         ) {
             Text(
                 game.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(game.color).padding(horizontal = 14.dp, vertical = 4.dp),
+                modifier = Modifier.clip(Shapes.Full).background(game.color).padding(horizontal = 14.dp, vertical = 4.dp),
             )
             Text(title, color = p.text, fontSize = 34.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 36.sp, textAlign = TextAlign.Center)
             ResultAnimation(game, outcome)
@@ -126,7 +128,7 @@ fun BoxScope.ResultPopup(
                     scores.forEach {
                         Text(
                             it, color = p.text, fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(p.background).padding(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.clip(Shapes.Full).background(p.background).padding(horizontal = 12.dp, vertical = 6.dp),
                         )
                     }
                 }

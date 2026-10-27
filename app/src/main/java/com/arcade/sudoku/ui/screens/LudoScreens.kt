@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -62,16 +65,16 @@ import kotlin.math.hypot
 
 /** A Ludo colour (0 red, 1 green, 2 yellow, 3 blue). */
 fun ludoColor(c: Int): Color = when (c) {
-    0 -> Color(0xFFE8505B)
-    1 -> Color(0xFF20A47B)
-    2 -> Color(0xFFFFC93C)
-    else -> Color(0xFF3D7BF7)
+    0 -> Pieces.Red
+    1 -> Pieces.Green
+    2 -> Pieces.Yellow
+    else -> Pieces.Blue
 }
 
-private val Ink = Color(0xFF2B2440)
+private val Ink = Board.Ink
 
 /** The die's face: white in both themes, like the board, so the dark pips always show. */
-private val DieWhite = Color(0xFFFFFDF7)
+private val DieWhite = Board.DieWhite
 
 private fun DrawScope.drawStar(c: Offset, r: Float, color: Color) {
     val path = Path()
@@ -129,7 +132,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
             }
         }
     }
-    Canvas(modifier.clip(RoundedCornerShape(16.dp)).then(touch)) {
+    Canvas(modifier.clip(Shapes.L).then(touch)) {
         val cell = size.width / 15f
         fun sq(x: Int, y: Int, color: Color) {
             drawRect(color, Offset(x * cell, y * cell), Size(cell, cell))
@@ -228,7 +231,7 @@ internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null
         face = n
     }
     Surface(
-        color = DieWhite, shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, Ink),
+        color = DieWhite, shape = Shapes.M, border = BorderStroke(2.dp, Ink),
         modifier = modifier.size(52.dp).graphicsLayer { rotationZ = spin.value * 360f; scaleX = 1f + 0.2f * sin(spin.value * PI.toFloat()); scaleY = scaleX },
     ) {
         Canvas(Modifier.size(52.dp)) {

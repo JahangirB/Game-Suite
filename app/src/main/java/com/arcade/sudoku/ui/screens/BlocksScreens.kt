@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -114,7 +116,7 @@ private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previe
         preview?.forEach { (x, y) ->
             if (x in 0 until n && y in 0 until n) {
                 drawRoundRect(
-                    (if (previewOk) Color(0xFF20A47B) else Color(0xFFE8505B)).copy(alpha = 0.75f),
+                    (if (previewOk) Pieces.Green else Pieces.Red).copy(alpha = 0.75f),
                     Offset(x * c + c * 0.06f, y * c + c * 0.06f), Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f),
                 )
             }
@@ -129,7 +131,7 @@ private fun PieceIcon(piece: Int, orient: Int, color: Color, selected: Boolean, 
     val cells = Blocks.shape(piece, orient)
     Surface(
         color = if (selected) p.accent else p.card,
-        shape = RoundedCornerShape(10.dp),
+        shape = Shapes.S,
         border = BorderStroke(if (selected) 3.dp else 2.dp, if (selected) p.primary else p.ink),
         modifier = Modifier.size(52.dp).clickable(onClick = onClick),
     ) {

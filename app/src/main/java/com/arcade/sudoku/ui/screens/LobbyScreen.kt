@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.SeatColors
+import com.arcade.sudoku.ui.theme.Warning
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -213,7 +216,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                         Surface(
                             onClick = { onPick(level) },
                             enabled = canPick,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = Shapes.M,
                             color = if (mine) p.primary else p.accent,
                             border = if (theirs && !mine) BorderStroke(2.dp, OpponentColor) else null,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -244,7 +247,6 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
     }
 }
 
-private val Warning = Color(0xFFE08A00)
 
 /** The level line with three or four players: everyone's choice, and what is still needed. */
 @Composable

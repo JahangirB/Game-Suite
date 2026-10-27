@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -52,14 +54,14 @@ import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
 
-private val Wild = Color(0xFF2B2440)
+private val Wild = Board.Ink
 
 /** A card colour's paint. */
 fun clashColor(c: Char): Color = when (c) {
-    'r' -> Color(0xFFE8505B)
-    'y' -> Color(0xFFFFC93C)
-    'g' -> Color(0xFF20A47B)
-    'b' -> Color(0xFF3D7BF7)
+    'r' -> Pieces.Red
+    'y' -> Pieces.Yellow
+    'g' -> Pieces.Green
+    'b' -> Pieces.Blue
     else -> Wild
 }
 

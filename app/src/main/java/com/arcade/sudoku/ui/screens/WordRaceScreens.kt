@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
+import com.arcade.sudoku.ui.theme.GameColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,9 +54,9 @@ import com.arcade.sudoku.ui.theme.DisplayFont
 import com.arcade.sudoku.ui.theme.OpponentColor
 import kotlinx.coroutines.delay
 
-private val Green = Color(0xFF3BAA5C)
-private val Yellow = Color(0xFFE2B021)
-private val Grey = Color(0xFF8C87A3)
+private val Green = GameColors.LetterRight
+private val Yellow = GameColors.LetterClose
+private val Grey = GameColors.LetterOut
 
 private fun tileColor(score: Char) = when (score) {
     'g' -> Green
@@ -92,9 +95,9 @@ private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length
                             .weight(1f)
                             .then(motion)
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(Shapes.S)
                             .background(fill ?: p.card)
-                            .border(if (fill == null && letter != null) 3.dp else 2.dp, if (fill == null) p.ink else fill, RoundedCornerShape(10.dp)),
+                            .border(if (fill == null && letter != null) 3.dp else 2.dp, if (fill == null) p.ink else fill, Shapes.S),
                     ) {
                         if (letter != null) {
                             Text(
@@ -124,9 +127,9 @@ private fun ColourRows(guesses: List<WordGuess>, tries: Int, length: Int, small:
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (i in 0 until length) {
                     Box(
-                        Modifier.size(if (small) 8.dp else 14.dp).clip(RoundedCornerShape(3.dp))
+                        Modifier.size(if (small) 8.dp else 14.dp).clip(Shapes.XS)
                             .background(guess?.let { tileColor(it.score[i]) } ?: p.accent)
-                            .border(1.dp, p.ink.copy(alpha = 0.4f), RoundedCornerShape(3.dp)),
+                            .border(1.dp, p.ink.copy(alpha = 0.4f), Shapes.XS),
                     )
                 }
             }
@@ -159,10 +162,10 @@ private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onD
                         modifier = Modifier
                             .weight(if (wide) 1.5f else 1f)
                             .height(48.dp)
-                            .pressedEdge(p.ink, 8.dp, 2.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .pressedEdge(p.ink, Radius.S, 2.dp)
+                            .clip(Shapes.S)
                             .background(state?.let(::tileColor) ?: p.card)
-                            .border(2.dp, p.ink, RoundedCornerShape(8.dp))
+                            .border(2.dp, p.ink, Shapes.S)
                             .clickable {
                                 when (key) {
                                     '+' -> onEnter()

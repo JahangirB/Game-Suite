@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.GameColors
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -87,19 +91,19 @@ import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
 
 /** Your discs and lines are red and your opponent's yellow, on both phones. */
-val MyDisc = Color(0xFFE8505B)
-val TheirDisc = Color(0xFFFFC93C)
+val MyDisc = Pieces.Red
+val TheirDisc = Pieces.Yellow
 
 /** A board mark's colour: yours red, then the others yellow, green and blue in seat order. */
 fun markColor(mark: Char): Color = when (mark) {
     'm' -> MyDisc
     'o' -> TheirDisc
-    'p' -> Color(0xFF20A47B)
-    'q' -> Color(0xFF3D7BF7)
+    'p' -> Pieces.Green
+    'q' -> Pieces.Blue
     else -> Color.Gray
 }
-private val BoardBlue = Color(0xFF2F6FD1)
-private val TheirLine = Color(0xFFE0A21C)
+private val BoardBlue = Board.ConnectBlue
+private val TheirLine = GameColors.TheirLine
 
 // ---- Connect Four -------------------------------------------------------------------------
 
@@ -173,8 +177,8 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
 
 // ---- Ultimate Tic-Tac-Toe -----------------------------------------------------------------
 
-private val TttBlue = Color(0xFF4F46E5)
-private val Target = Color(0xFFFFD23F)
+private val TttBlue = Board.TttBlue
+private val Target = Board.Glow
 
 /**
  * An Ultimate Tic-Tac-Toe board: [board] holds 81 cells ('m' your X, 'o' their O, '.'), small
@@ -470,12 +474,12 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
         modifier
             .aspectRatio(0.78f)
             .graphicsLayer { rotationY = turn; cameraDistance = 14 * density }
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Shapes.M)
             .clickable(enabled = onFlip != null && face == null) { onFlip?.invoke() },
     ) {
         if (turn < 90f) {
             // The back: the Game Suite grid pattern on Memory amber.
-            Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, RoundedCornerShape(12.dp))) {
+            Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
                 val s = size.width / 4
                 for (r in 0 until 6) for (c in 0 until 4) {
                     if ((r + c) % 2 == 0) drawRoundRect(Color.White.copy(alpha = 0.22f), Offset(c * s + s * 0.2f, r * s + s * 0.2f), Size(s * 0.6f, s * 0.6f), CornerRadius(s * 0.15f))
@@ -488,7 +492,7 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
                     .fillMaxSize()
                     .graphicsLayer { rotationY = 180f }
                     .background(p.card)
-                    .border(if (owner == '.') 2.dp else 4.dp, edge, RoundedCornerShape(12.dp)),
+                    .border(if (owner == '.') 2.dp else 4.dp, edge, Shapes.M),
             ) { shown?.let { AvatarImage(it, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) } }
         }
     }
@@ -519,7 +523,7 @@ internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.
     val p = AppTheme.palette
     Surface(
         color = if (highlight) color else p.accent,
-        shape = RoundedCornerShape(16.dp),
+        shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
         modifier = Modifier.fillMaxWidth(),
     ) {

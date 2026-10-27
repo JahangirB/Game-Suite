@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.GameColors
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,8 +58,8 @@ import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
 import kotlinx.coroutines.delay
 
-private val Right = Color(0xFF20A47B)
-private val Wrong = Color(0xFFE8505B)
+private val Right = Pieces.Green
+private val Wrong = Pieces.Red
 
 /** The puzzle a player sees, from the generator's solved puzzle (on your own). */
 private fun NumberPuzzle.toBoard(): NumberBoard {
@@ -114,8 +117,8 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
         val cell = minOf(maxWidth / cols.count(), maxHeight / rows.count())
         val fontSize = with(LocalDensity.current) { (cell * 0.42f).toSp() }
         Column(
-            Modifier.align(Alignment.Center).clip(RoundedCornerShape(10.dp)).background(GridFrame)
-                .border(2.dp, p.ink, RoundedCornerShape(10.dp)).padding(3.dp),
+            Modifier.align(Alignment.Center).clip(Shapes.S).background(GridFrame)
+                .border(2.dp, p.ink, Shapes.S).padding(3.dp),
         ) {
             for (r in rows) Row {
                 for (c in cols) {
@@ -134,7 +137,7 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
                                 }
                                 Surface(
                                     color = tint,
-                                    shape = RoundedCornerShape(6.dp),
+                                    shape = Shapes.S,
                                     border = BorderStroke(if (pick) 3.dp else 1.5.dp, if (pick) p.ink else p.ink.copy(alpha = 0.6f)),
                                     modifier = Modifier.fillMaxWidth().height(cell).clickable(enabled = enabled) { onSelect(k) },
                                 ) {
@@ -145,13 +148,13 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
                             }
                             NumberCross.isNumber(token) -> Surface(
                                 color = p.card,
-                                shape = RoundedCornerShape(6.dp),
+                                shape = Shapes.S,
                                 border = BorderStroke(1.5.dp, (verdict[i]?.let { if (it) Right else Wrong }) ?: p.ink),
                                 modifier = Modifier.fillMaxWidth().height(cell),
                             ) {
                                 Box(contentAlignment = Alignment.Center) { Text(token, color = p.text, fontSize = fontSize, fontWeight = FontWeight.Bold) }
                             }
-                            else -> Box(Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)).background(OperatorTile), contentAlignment = Alignment.Center) {
+                            else -> Box(Modifier.fillMaxSize().clip(Shapes.S).background(OperatorTile), contentAlignment = Alignment.Center) {
                                 Text(shown(token), color = p.muted, fontSize = fontSize, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -162,16 +165,16 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
     }
 }
 
-private val GridFrame = Color(0xFF6E6A7C)
-private val OperatorTile = Color(0xFFEDE8F7)
-private val Stone = Color(0xFF9C98A8)
-private val StoneLight = Color(0xFFB9B5C4)
-private val StoneDark = Color(0xFF6F6B7D)
+private val GridFrame = GameColors.GridFrame
+private val OperatorTile = GameColors.OperatorTile
+private val Stone = GameColors.Stone
+private val StoneLight = GameColors.StoneLight
+private val StoneDark = GameColors.StoneDark
 
 /** An unused square: a stone block with a bevel and a crack or two, different square to square. */
 @Composable
 private fun StoneBlock(seed: Int, modifier: Modifier) {
-    Canvas(modifier.clip(RoundedCornerShape(5.dp))) {
+    Canvas(modifier.clip(Shapes.S)) {
         val w = size.width
         drawRect(Stone)
         // Light top-left edge, dark bottom-right edge.
@@ -210,7 +213,7 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
                     val on = enabled && (clear || left > 0)
                     Surface(
                         color = if (clear) p.card else if (left > 0) p.card else p.accent,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = Shapes.M,
                         border = BorderStroke(2.dp, if (on) p.ink else p.muted),
                         modifier = Modifier.weight(1f).height(46.dp).clickable(enabled = on) { onPlace(if (clear) "" else value.toString()) },
                     ) {

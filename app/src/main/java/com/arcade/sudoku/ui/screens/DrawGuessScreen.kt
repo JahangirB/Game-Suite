@@ -1,5 +1,10 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
+import com.arcade.sudoku.ui.theme.GameColors
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,7 +66,7 @@ import com.arcade.sudoku.ui.theme.OpponentColor
 import kotlinx.coroutines.delay
 
 /** The six pen colours; the last one is white, for rubbing out. Indexes match the server. */
-private val PenColors = listOf(Color(0xFF2B2440), Color(0xFFE8505B), Color(0xFF3D7BF7), Color(0xFF35BD88), Color(0xFFF2A33A), Color.White)
+private val PenColors = listOf(Board.Ink, Pieces.Red, Pieces.Blue, GameColors.PenGreen, GameColors.PenOrange, Color.White)
 
 /** Points per stroke message: small enough that the drawing appears on the other phone as it is drawn. */
 private const val CHUNK_POINTS = 12
@@ -119,8 +124,8 @@ private fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStro
         }
     }
     Box(
-        modifier.fillMaxWidth().aspectRatio(1f).pressedEdge(p.ink, 18.dp).clip(RoundedCornerShape(18.dp))
-            .background(Color.White).border(2.dp, p.ink, RoundedCornerShape(18.dp)),
+        modifier.fillMaxWidth().aspectRatio(1f).pressedEdge(p.ink, Radius.L).clip(Shapes.L)
+            .background(Color.White).border(2.dp, p.ink, Shapes.L),
     ) {
         Canvas(Modifier.fillMaxSize().then(input)) {
             strokes.forEach { drawStroke(it.points, it.color, it.width) }
@@ -236,11 +241,11 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
         Box(Modifier.weight(1f))
         Text(
             if (width == 2) "Thick" else "Thin", color = p.text, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { width = 3 - width }.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.clip(Shapes.S).border(2.dp, p.ink, Shapes.S).clickable { width = 3 - width }.padding(horizontal = 10.dp, vertical = 6.dp),
         )
         Text(
             "Clear", color = p.bad, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, p.ink, RoundedCornerShape(10.dp)).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.clip(Shapes.S).border(2.dp, p.ink, Shapes.S).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
     if (draw.guesses.isNotEmpty()) {

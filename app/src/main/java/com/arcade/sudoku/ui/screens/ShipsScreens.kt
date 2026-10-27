@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.GameColors
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -124,7 +128,7 @@ fun ShipsSea(
             onTap(x, y)
         }
     }
-    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).then(tapModifier)) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clip(Shapes.M).then(tapModifier)) {
         val cell = size.width / Sea.SIZE
         drawSeaArt(style, Sea.SIZE, cell)
         wavelets(time, cell)
@@ -179,19 +183,19 @@ private fun DrawScope.boom(shot: Shot, t: Float, cell: Float) {
     val fade = 1f - t
     if (shot.hit) {
         val r = cell * (0.25f + 0.9f * minOf(1f, t * 2.2f))
-        drawCircle(Color(0xFFFF8A3D).copy(alpha = fade), r, c)
-        drawCircle(Color(0xFFFFD23F).copy(alpha = fade), r * 0.6f, c)
+        drawCircle(Pieces.Orange.copy(alpha = fade), r, c)
+        drawCircle(Board.Glow.copy(alpha = fade), r * 0.6f, c)
         drawCircle(Color.White.copy(alpha = fade * fade), r * 0.25f, c)
         for (k in 0 until 10) {
             val a = k * PI.toFloat() / 5 + 0.3f
             val d = cell * (0.3f + 1.4f * t)
             val end = c + Offset(cos(a) * d, sin(a) * d + cell * t * t)
-            drawLine(Color(0xFFFFB13D).copy(alpha = fade), end - Offset(cos(a), sin(a)) * (cell * 0.18f), end, cell * 0.07f, StrokeCap.Round)
+            drawLine(GameColors.Spark.copy(alpha = fade), end - Offset(cos(a), sin(a)) * (cell * 0.18f), end, cell * 0.07f, StrokeCap.Round)
         }
         // Smoke rising after the flash.
         if (t > 0.3f) {
             val k = (t - 0.3f) / 0.7f
-            drawCircle(Color(0xFF6B6B7A).copy(alpha = 0.45f * (1f - k)), cell * (0.3f + 0.4f * k), c - Offset(0f, cell * 0.9f * k))
+            drawCircle(GameColors.Smoke.copy(alpha = 0.45f * (1f - k)), cell * (0.3f + 0.4f * k), c - Offset(0f, cell * 0.9f * k))
         }
     } else {
         for (ring in 0..1) {
@@ -201,7 +205,7 @@ private fun DrawScope.boom(shot: Shot, t: Float, cell: Float) {
         for (k in 0 until 6) {
             val a = k * PI.toFloat() / 3
             val d = cell * 0.6f * t
-            drawCircle(Color(0xFFBFE6FF).copy(alpha = fade), cell * 0.07f, c + Offset(cos(a) * d, sin(a) * d - cell * 0.8f * t * (1f - t)))
+            drawCircle(GameColors.Spray.copy(alpha = fade), cell * 0.07f, c + Offset(cos(a) * d, sin(a) * d - cell * 0.8f * t * (1f - t)))
         }
     }
 }
@@ -335,7 +339,7 @@ private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = fa
     val p = AppTheme.palette
     Surface(
         color = if (myTurn) p.primary else p.accent,
-        shape = RoundedCornerShape(14.dp),
+        shape = Shapes.M,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
@@ -482,7 +486,7 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
         drag?.let { (_, ship, ok) ->
             Canvas(Modifier.fillMaxSize()) {
                 val cell = size.width / Sea.SIZE
-                val tint = if (ok) p.good else Color(0xFFE8505B)
+                val tint = if (ok) p.good else Pieces.Red
                 for (c in ship.cells.filter { it in 0 until Sea.SIZE * Sea.SIZE }) {
                     drawRect(tint.copy(alpha = 0.35f), Offset((c % Sea.SIZE) * cell, (c / Sea.SIZE) * cell), Size(cell, cell))
                 }

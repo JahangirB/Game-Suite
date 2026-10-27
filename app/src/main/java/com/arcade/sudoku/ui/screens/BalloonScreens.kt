@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -59,8 +62,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private val BalloonColors = listOf(
-    Color(0xFFE8505B), Color(0xFFFFC93C), Color(0xFF20A47B), Color(0xFF3D7BF7),
-    Color(0xFF7B6CF0), Color(0xFFFF8A3D), Color(0xFFEC6FA9),
+    Pieces.Red, Pieces.Yellow, Pieces.Green, Pieces.Blue,
+    Pieces.Purple, Pieces.Orange, Pieces.Pink,
 )
 
 /**
@@ -114,7 +117,7 @@ fun BalloonRow(total: Int, popped: Int, modifier: Modifier = Modifier) {
                             val from = r * (0.4f + f)
                             val to = r * (0.9f + 1.2f * f)
                             drawLine(
-                                Color(0xFFFFE08A).copy(alpha = 1f - f), Offset(cx + (from * cos(a)).toFloat(), cy + (from * sin(a)).toFloat()),
+                                Board.GlowSoft.copy(alpha = 1f - f), Offset(cx + (from * cos(a)).toFloat(), cy + (from * sin(a)).toFloat()),
                                 Offset(cx + (to * cos(a)).toFloat(), cy + (to * sin(a)).toFloat()), 4f,
                             )
                         }
@@ -173,7 +176,7 @@ private fun WordTiles(pattern: String, reveal: String? = null) {
             val shown = if (c != '_') c else reveal?.getOrNull(i)
             Surface(
                 color = if (c != '_') p.card else if (shown != null) p.accent else p.card,
-                shape = RoundedCornerShape(8.dp), border = BorderStroke(2.dp, p.ink),
+                shape = Shapes.S, border = BorderStroke(2.dp, p.ink),
                 // A letter found drops into its tile.
                 modifier = Modifier.weight(1f, fill = false).height(44.dp).then(if (c != '_') Modifier.dropIn(c, delayMs = 150) else Modifier),
             ) {
@@ -201,7 +204,7 @@ private fun LetterKeys(guessed: List<Char>, word: String, enabled: Boolean, onLe
                             tried -> p.accent
                             else -> p.card
                         },
-                        shape = RoundedCornerShape(10.dp), border = BorderStroke(2.dp, if (tried) p.muted else p.ink),
+                        shape = Shapes.S, border = BorderStroke(2.dp, if (tried) p.muted else p.ink),
                         modifier = Modifier.weight(1f).height(42.dp).clickable(enabled = enabled && !tried) { onLetter(c) },
                     ) {
                         Box(contentAlignment = Alignment.Center) {

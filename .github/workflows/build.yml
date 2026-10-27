@@ -44,6 +44,8 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - name: Design tokens only (no raw colours or corner radii in screens)
+        run: scripts/check-tokens.sh
       # Your private signing key and Firebase config come from repository secrets (Settings →
       # Secrets and variables → Actions). Forks and pull requests don't see them and build an
       # unsigned-for-release app without invitations.

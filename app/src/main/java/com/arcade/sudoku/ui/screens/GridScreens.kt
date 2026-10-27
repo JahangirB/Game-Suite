@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -96,9 +98,9 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                     val on = i in path
                     Surface(
                         color = if (on) p.primary else p.card,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = Shapes.M,
                         border = BorderStroke(2.dp, p.ink),
-                        modifier = Modifier.size(side).pressedEdge(p.ink, 14.dp),
+                        modifier = Modifier.size(side).pressedEdge(p.ink, Radius.M),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(letters[i].uppercase(), color = if (on) Color.White else p.text, fontSize = (side.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -78,7 +79,7 @@ private fun Tool(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .offset(x = 8.dp, y = (-2).dp)
-                        .background(if (highlighted && enabled) p.primary else p.accent, RoundedCornerShape(8.dp))
+                        .background(if (highlighted && enabled) p.primary else p.accent, Shapes.S)
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }
@@ -130,7 +131,7 @@ fun Pill(text: String, color: Color) {
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .background(color.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.14f), Shapes.S)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }

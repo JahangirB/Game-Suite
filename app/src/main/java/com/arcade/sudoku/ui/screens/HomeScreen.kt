@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
 import com.arcade.sudoku.ui.theme.DisplayFont
 import com.arcade.sudoku.ui.art.tagline
 import com.arcade.sudoku.ui.art.rules
@@ -180,21 +182,21 @@ private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onClick
     Surface(
         onClick = onClick,
         color = p.card,
-        shape = RoundedCornerShape(20.dp),
+        shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, 20.dp),
+        modifier = modifier.pressedEdge(p.ink, Radius.L),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(kind.color).border(2.dp, p.ink, RoundedCornerShape(14.dp)),
+                    modifier = Modifier.size(46.dp).clip(Shapes.M).background(kind.color).border(2.dp, p.ink, Shapes.M),
                 ) { GameIcon(kind, Modifier.size(28.dp)) }
                 Spacer(Modifier.weight(1f))
                 if (badge != null) {
                     Text(
                         badge, color = p.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(p.primary).padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.clip(Shapes.Full).background(p.primary).padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
             }
@@ -211,14 +213,14 @@ private fun CodeTile(modifier: Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         color = p.accent,
-        shape = RoundedCornerShape(20.dp),
+        shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, 20.dp),
+        modifier = modifier.pressedEdge(p.ink, Radius.L),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(p.card).border(2.dp, p.ink, RoundedCornerShape(14.dp)),
+                modifier = Modifier.size(46.dp).clip(Shapes.M).background(p.card).border(2.dp, p.ink, Shapes.M),
             ) { Text("#", color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) }
             Text("Join with a code", color = p.text, fontSize = 19.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 20.sp)
             Text("Battle online with a secret code, or nearby", color = p.muted, fontSize = 13.sp, lineHeight = 16.sp, minLines = 2)
@@ -249,7 +251,7 @@ private fun GameSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(kind.color).border(2.dp, p.ink, RoundedCornerShape(16.dp)),
+                modifier = Modifier.size(52.dp).clip(Shapes.L).background(kind.color).border(2.dp, p.ink, Shapes.L),
             ) { GameIcon(kind, Modifier.size(32.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -305,7 +307,7 @@ private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficult
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .clip(Shapes.M)
                             .clickable { onPick(level) }
                             .padding(horizontal = 8.dp, vertical = 10.dp),
                     ) {

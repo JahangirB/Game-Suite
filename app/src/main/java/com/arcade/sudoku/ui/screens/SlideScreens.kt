@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -59,7 +60,7 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
     // (Inside pointerInput, size is the touch area's pixel size.)
     val n = size
     BoxWithConstraints(
-        modifier.clip(RoundedCornerShape(18.dp)).background(p.accent).then(
+        modifier.clip(Shapes.L).background(p.accent).then(
             if (!enabled) Modifier else Modifier.pointerInput(tiles, size) {
                 val cellPx = this.size.width.toFloat() / n
                 detectDragGestures(
@@ -104,7 +105,7 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
             val home = goal[at] == tile
             Surface(
                 color = if (home) GameKind.SLIDE.color else p.card,
-                shape = RoundedCornerShape(12.dp),
+                shape = Shapes.M,
                 border = BorderStroke(2.dp, p.ink),
                 modifier = Modifier.offset(x + drag * toward.first, y + drag * toward.second).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
             ) {

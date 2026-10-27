@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.art
 
+import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -41,7 +42,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
     val time by rememberInfiniteTransition(label = "result").animateFloat(
         0f, 12f, infiniteRepeatable(tween(12_000, easing = LinearEasing)), label = "resultTime",
     )
-    Canvas(modifier.fillMaxWidth().aspectRatio(W / H).clip(RoundedCornerShape(16.dp))) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(W / H).clip(Shapes.L)) {
         drawRect(background(game, outcome))
         scale(size.width / W, size.height / H, Offset.Zero) {
             val a = ResultScene(this, time)

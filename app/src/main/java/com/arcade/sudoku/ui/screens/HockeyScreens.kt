@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Board
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -40,10 +42,10 @@ import com.arcade.sudoku.ui.SoloHockeyViewModel
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 
-private val Ice = Color(0xFFEAF6FF)
-private val Line = Color(0xFFB9D9F2)
-private val Goal = Color(0xFF2B2440)
-private val Puck = Color(0xFF2B2440)
+private val Ice = Board.Ice
+private val Line = Board.IceLine
+private val Goal = Board.Ink
+private val Puck = Board.Ink
 
 /**
  * The table, you at the bottom. Put a finger anywhere and your paddle follows it (it stays in
@@ -66,7 +68,7 @@ fun HockeyRink(frame: HockeyFrame, myColor: Color, theirColor: Color, onMove: ((
             }
         }
     }
-    Canvas(modifier.clip(RoundedCornerShape(22.dp)).then(touch)) {
+    Canvas(modifier.clip(Shapes.L).then(touch)) {
         val k = size.width / Hockey.W
         fun at(b: Body) = Offset(b.x * k, b.y * k)
         drawRect(Ice)

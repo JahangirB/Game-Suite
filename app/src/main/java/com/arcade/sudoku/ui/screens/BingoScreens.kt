@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +44,7 @@ import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
 
-private val ColumnColours = listOf(Color(0xFFE8505B), Color(0xFFFF8A3D), Color(0xFF20A47B), Color(0xFF3D7BF7), Color(0xFF7B6CF0))
+private val ColumnColours = listOf(Pieces.Red, Pieces.Orange, Pieces.Green, Pieces.Blue, Pieces.Purple)
 
 /** A number's column colour. */
 private fun ballColour(n: Int) = ColumnColours[((n - 1) / 15).coerceIn(0, 4)]
@@ -58,7 +61,7 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
         Column(Modifier.align(Alignment.Center)) {
             Row {
                 "BINGO".forEachIndexed { c, ch ->
-                    Box(Modifier.size(cell).padding(3.dp).clip(RoundedCornerShape(10.dp)).background(ColumnColours[c]), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(cell).padding(3.dp).clip(Shapes.S).background(ColumnColours[c]), contentAlignment = Alignment.Center) {
                         Text(ch.toString(), color = Color.White, fontSize = (cell.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
                     }
                 }
@@ -71,8 +74,8 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
                     val dabbed = free || i in dabs
                     val inLine = line?.contains(i) == true
                     Surface(
-                        color = if (inLine) Color(0xFFFFE08A) else p.card,
-                        shape = RoundedCornerShape(10.dp),
+                        color = if (inLine) Board.GlowSoft else p.card,
+                        shape = Shapes.S,
                         border = BorderStroke(if (inLine) 3.dp else 2.dp, p.ink),
                         modifier = Modifier.size(cell).padding(3.dp).clickable(enabled = enabled && !free) { onTap(i) },
                     ) {

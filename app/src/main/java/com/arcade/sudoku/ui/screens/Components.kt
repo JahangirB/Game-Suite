@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -74,8 +76,8 @@ private fun ToyButton(
     val p = AppTheme.palette
     val press = remember { MutableInteractionSource() }
     val pressed by press.collectIsPressedAsState()
-    val shape = RoundedCornerShape(16.dp)
-    Box(modifier.fillMaxWidth().height(54.dp).pressedEdge(p.ink.copy(alpha = if (enabled) 1f else 0.3f), 16.dp)) {
+    val shape = Shapes.L
+    Box(modifier.fillMaxWidth().height(54.dp).pressedEdge(p.ink.copy(alpha = if (enabled) 1f else 0.3f), Radius.L)) {
         Button(
             onClick = onClick,
             enabled = enabled,
@@ -136,9 +138,9 @@ fun AppCard(
     val p = AppTheme.palette
     Surface(
         color = p.card,
-        shape = RoundedCornerShape(20.dp),
+        shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.fillMaxWidth().pressedEdge(p.ink, 20.dp),
+        modifier = modifier.fillMaxWidth().pressedEdge(p.ink, Radius.L),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (title != null) Text(title, color = p.text, fontSize = 21.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -224,7 +226,7 @@ private fun ProgressBar(label: String, percent: Int, color: Color, trailing: Str
             strokeCap = StrokeCap.Round,
             gapSize = 0.dp,
             drawStopIndicator = {},
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(Shapes.XS),
         )
     }
 }

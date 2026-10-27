@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,12 +47,12 @@ import com.arcade.sudoku.ui.theme.AppTheme
 
 /** A peg colour. */
 fun pegColor(c: Char): Color = when (c) {
-    'r' -> Color(0xFFE8505B)
-    'y' -> Color(0xFFFFC93C)
-    'g' -> Color(0xFF20A47B)
-    'b' -> Color(0xFF3D7BF7)
-    'p' -> Color(0xFF7B6CF0)
-    'o' -> Color(0xFFFF8A3D)
+    'r' -> Pieces.Red
+    'y' -> Pieces.Yellow
+    'g' -> Pieces.Green
+    'b' -> Pieces.Blue
+    'p' -> Pieces.Purple
+    'o' -> Pieces.Orange
     else -> Color.LightGray
 }
 
@@ -65,7 +66,7 @@ private fun Peg(c: Char?, size: Dp, modifier: Modifier = Modifier) {
 }
 
 /** A right colour in the right place. */
-private val RightPlace = Color(0xFFE8505B)
+private val RightPlace = Pieces.Red
 
 /** The small score pins: red for right colour and place, white for right colour, wrong place. */
 @Composable

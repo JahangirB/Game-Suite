@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Board
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -54,10 +56,10 @@ import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 
-private val Felt = Color(0xFF2E7D5B)
-private val Bone = Color(0xFFFFFBF2)
-private val Ink = Color(0xFF2B2440)
-private val Glow = Color(0xFFFFD23F)
+private val Felt = Board.Felt
+private val Bone = Board.Bone
+private val Ink = Board.Ink
+private val Glow = Board.Glow
 
 /** The line board's width per unit of height. */
 private const val LINE_ASPECT = 1.25f
@@ -106,7 +108,7 @@ private fun DrawScope.pips(c: Offset, side: Float, n: Int) {
  */
 @Composable
 fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = Shapes.L
     val slide = remember { Animatable(1f) }
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(incoming) {

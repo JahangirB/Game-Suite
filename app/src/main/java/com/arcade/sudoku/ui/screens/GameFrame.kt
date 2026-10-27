@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Shapes
+import com.arcade.sudoku.ui.theme.Radius
+import com.arcade.sudoku.ui.theme.SeatColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -139,7 +142,7 @@ fun GameFrame(
             popup?.invoke(this)
         }
         if (trayVisible) {
-            Surface(color = p.card, border = BorderStroke(2.dp, p.ink), shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+            Surface(color = p.card, border = BorderStroke(2.dp, p.ink), shape = Shapes.Top) {
                 Box(Modifier.fillMaxWidth().padding(12.dp)) { tray() }
             }
         }
@@ -165,9 +168,9 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
     val edge = if (player.active) glow else p.ink
     Surface(
         color = p.card,
-        shape = RoundedCornerShape(18.dp),
+        shape = Shapes.L,
         border = BorderStroke(if (player.active) 3.dp else 2.dp, edge),
-        modifier = modifier.pressedEdge(edge, 18.dp),
+        modifier = modifier.pressedEdge(edge, Radius.L),
     ) {
         if (compact) {
             // Avatar over name and detail, so four fit across a phone.
@@ -197,8 +200,6 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
     }
 }
 
-/** Colours for the other players, in seat order: the first is the classic opponent orange. */
-val SeatColors = listOf(OpponentColor, Color(0xFF7B6CF0), Color(0xFF20A47B))
 
 /**
  * Chips for you and everyone else in a battle. [detail] gives the line under each name;
@@ -241,7 +242,7 @@ private fun GameDock(actions: List<DockAction>) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Shapes.M)
                         .clickable(enabled = action.enabled, onClick = action.onClick)
                         .alpha(if (action.enabled) 1f else 0.4f)
                         .padding(horizontal = 10.dp, vertical = 4.dp),

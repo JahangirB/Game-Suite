@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.GameColors
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -60,16 +61,16 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
-private val Grass = Color(0xFF8BCF5A)
-private val GrassDark = Color(0xFF79BE4B)
-private val Rim = Color(0xFFB5E27A)
-private val RimTop = Color(0xFFC9EC94)
-private val CourseSide = Color(0xFF4E9A3E)
-private val Sand = Color(0xFFF2D68A)
-private val SandEdge = Color(0xFFD9B865)
-private val SkyTop = Color(0xFF7CCBF2)
-private val SkyBottom = Color(0xFFC6EBFB)
-private val FlagRed = Color(0xFFE23B4B)
+private val Grass = GameColors.Grass
+private val GrassDark = GameColors.GrassDark
+private val Rim = GameColors.Rim
+private val RimTop = GameColors.RimTop
+private val CourseSide = GameColors.CourseSide
+private val Sand = GameColors.Sand
+private val SandEdge = GameColors.SandEdge
+private val SkyTop = GameColors.SkyTop
+private val SkyBottom = GameColors.SkyBottom
+private val FlagRed = GameColors.Flag
 
 /**
  * The hole being played, with everyone's ball ([current] waits on the tee for its first shot).
@@ -186,7 +187,7 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         // The cup with a ring round it, and the flag with the hole's number.
         val cup = o(hole.cup)
         drawCircle(Color.White.copy(alpha = 0.45f), (Golf.CUP * 2.4 * s).toFloat(), cup, style = Stroke(0.008f * s))
-        drawOval(Color(0xFF1B1B1B), cup - Offset((Golf.CUP * s).toFloat(), (Golf.CUP * 0.75 * s).toFloat()), Size((Golf.CUP * 2 * s).toFloat(), (Golf.CUP * 1.5 * s).toFloat()))
+        drawOval(GameColors.Cup, cup - Offset((Golf.CUP * s).toFloat(), (Golf.CUP * 0.75 * s).toFloat()), Size((Golf.CUP * 2 * s).toFloat(), (Golf.CUP * 1.5 * s).toFloat()))
         val top = cup + Offset(0f, -0.26f * s)
         drawLine(ink, cup, top, 0.016f * s, StrokeCap.Round)
         drawLine(Color.White, cup, top, 0.009f * s, StrokeCap.Round)
