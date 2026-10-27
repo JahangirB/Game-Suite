@@ -56,6 +56,7 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name-${if (dark) "dark" else "light"}.png")
     }
 
+    @Composable
     private fun home() = HomeScreen(
         solo = SoloUiState(),
         profile = Profile(name = "Sam"),
