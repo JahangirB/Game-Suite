@@ -1,11 +1,10 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.GameColors
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
@@ -100,9 +99,7 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         rolling = null
     }
     var aim by remember { mutableStateOf<Pair<Double, Double>?>(null) }
-    val flagWave by rememberInfiniteTransition(label = "flag").animateFloat(
-        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "flag",
-    )
+    val flagWave by loopingFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1600, easing = LinearEasing)), still = 0f, label = "flag")
     val roll = rolling
     val holeIndex = roll?.first ?: view.hole
     val hole = Golf.HOLES[holeIndex.coerceIn(0, Golf.HOLES.size - 1)]

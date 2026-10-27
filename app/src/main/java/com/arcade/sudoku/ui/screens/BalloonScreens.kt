@@ -1,14 +1,13 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -75,9 +74,7 @@ private val BalloonColors = listOf(
 @Composable
 fun BalloonRow(total: Int, popped: Int, modifier: Modifier = Modifier) {
     val ink = AppTheme.palette.ink
-    val sway by rememberInfiniteTransition(label = "sway").animateFloat(
-        0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(3200, easing = LinearEasing)), label = "sway",
-    )
+    val sway by loopingFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(3200, easing = LinearEasing)), still = 0f, label = "sway")
     // The pop being played: which balloon, and how far along (0 to 1).
     var before by remember { mutableStateOf(popped) }
     var bursting by remember { mutableStateOf<Int?>(null) }

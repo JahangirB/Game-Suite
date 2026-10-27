@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.GameColors
@@ -8,10 +9,8 @@ import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -126,9 +125,7 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
             1f at 470
         })
     }
-    val glow by rememberInfiniteTransition(label = "win").animateFloat(
-        0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "winGlow",
-    )
+    val glow by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), still = 1f, label = "winGlow")
     var hover by remember { mutableStateOf<Int?>(null) }
     val pick = if (onDrop == null) Modifier else Modifier.pointerInput(onDrop) {
         val colAt = { x: Float -> (x / (size.width / ConnectFour.COLS.toFloat())).toInt().coerceIn(0, ConnectFour.COLS - 1) }
@@ -201,9 +198,7 @@ fun TttBoard(
     val p = AppTheme.palette
     val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
     LaunchedEffect(lastCell) { pop.animateTo(1f, tween(260)) }
-    val pulse by rememberInfiniteTransition(label = "target").animateFloat(
-        0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "targetPulse",
-    )
+    val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
             val big = size.width / 3f

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.GameColors
@@ -7,9 +8,7 @@ import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import kotlin.math.sin
 import kotlin.math.cos
@@ -105,9 +104,7 @@ fun ShipsSea(
     val p = AppTheme.palette
     val style = LocalShipStyle.current
     // The sea moves: wavelets drift and ships bob. [time] goes round once every few seconds.
-    val time by rememberInfiniteTransition(label = "sea").animateFloat(
-        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4200, easing = LinearEasing)), label = "sea",
-    )
+    val time by loopingFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4200, easing = LinearEasing)), still = 0f, label = "sea")
     // A new shot lands with a blast (hit) or a splash (miss); shots already there when the
     // screen opened stay still.
     val blast = remember { Animatable(1f) }

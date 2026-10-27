@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import com.arcade.sudoku.ui.theme.LocalReduceMotion
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -50,6 +51,7 @@ fun Modifier.enterFrom(
     delayMs: Int = 0,
     onAppear: Boolean = false,
 ): Modifier = composed {
+    if (LocalReduceMotion.current) return@composed Modifier
     val t = remember { Animatable(if (onAppear) 0f else 1f) }
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(key) {
@@ -76,6 +78,7 @@ fun Modifier.enterFrom(
 
 /** Drops this in from above with a little bounce, [delayMs] after [key] changes or it appears. */
 fun Modifier.dropIn(key: Any?, delayMs: Int = 0, height: Dp = 36.dp): Modifier = composed {
+    if (LocalReduceMotion.current) return@composed Modifier
     val y = remember { Animatable(-1f) }
     LaunchedEffect(key) {
         y.snapTo(-1f)
@@ -91,6 +94,7 @@ fun Modifier.dropIn(key: Any?, delayMs: Int = 0, height: Dp = 36.dp): Modifier =
 
 /** Gives this a short side-to-side shake [delayMs] after [key] changes to something non-null. */
 fun Modifier.shake(key: Any?, delayMs: Int = 0, strength: Dp = 4.dp): Modifier = composed {
+    if (LocalReduceMotion.current) return@composed Modifier
     val x = remember { Animatable(0f) }
     LaunchedEffect(key) {
         if (key == null) return@LaunchedEffect
@@ -114,8 +118,11 @@ fun Modifier.shake(key: Any?, delayMs: Int = 0, strength: Dp = 4.dp): Modifier =
 @Composable
 fun FlipCard(faceUp: Boolean, modifier: Modifier = Modifier, key: Any? = null, back: @Composable () -> Unit, front: @Composable () -> Unit) {
     val turn = remember { Animatable(if (faceUp) 180f else 0f) }
+    val reduce = LocalReduceMotion.current
     LaunchedEffect(faceUp, key) {
-        if (faceUp) {
+        if (reduce) {
+            turn.snapTo(if (faceUp) 180f else 0f)
+        } else if (faceUp) {
             if (turn.value >= 180f) turn.snapTo(0f)
             turn.animateTo(180f, tween(Motion.FLIP_MS, easing = FastOutSlowInEasing))
         } else {

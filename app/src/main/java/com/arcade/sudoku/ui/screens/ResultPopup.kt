@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.LocalReduceMotion
 import com.arcade.sudoku.ui.theme.LineHeight
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
@@ -93,7 +94,8 @@ fun BoxScope.ResultPopup(
         return
     }
     val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(320)) }
+    val reduce = LocalReduceMotion.current
+    LaunchedEffect(Unit) { if (reduce) enter.snapTo(1f) else enter.animateTo(1f, tween(320)) }
     // The dim layer also swallows taps, so the game underneath can't be played by accident.
     Box(
         Modifier.matchParentSize().background(p.scrim.copy(alpha = 0.55f * enter.value))

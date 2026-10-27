@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.loopingFloat
+import com.arcade.sudoku.ui.theme.LocalReduceMotion
 import com.arcade.sudoku.ui.theme.markOf
 import com.arcade.sudoku.ui.theme.drawMark
 import com.arcade.sudoku.ui.theme.TextSize
@@ -7,9 +9,7 @@ import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -99,12 +99,13 @@ private fun DrawScope.drawStar(c: Offset, r: Float, color: Color) {
 @Composable
 fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    val bob by rememberInfiniteTransition(label = "ludo").animateFloat(0f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "bob")
+    val bob by loopingFloat(0f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), still = 1f, label = "bob")
     val tap by rememberUpdatedState(onToken)
     val current by rememberUpdatedState(view)
     // The last token moved hops square by square from where it was; [steps] counts the squares.
     val move = view.lastMove?.takeIf { it.token != null && it.from != null && it.to != null && it.to > it.from }
     val steps = remember { Animatable(0f) }
+    val reduce = LocalReduceMotion.current
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(move) {
         val m = move
@@ -116,7 +117,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         // Coming out of the yard is a single step onto the start square.
         val count = if (m.from!! < 0) 1 else m.to!! - m.from
         steps.snapTo(0f)
-        steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
+        if (reduce) steps.snapTo(count.toFloat()) else steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
     }
     val touch = if (onToken == null) Modifier else Modifier.pointerInput(Unit) {
         detectTapGestures { pos ->

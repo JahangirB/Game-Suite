@@ -1,10 +1,9 @@
 package com.arcade.sudoku.ui.art
 
+import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
@@ -39,9 +38,8 @@ enum class Outcome { WIN, LOSE, TIE }
 @Composable
 fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modifier) {
     // One 12-second clock; every loop's period (3, 2, 1.5, 1 or 0.8 s) divides it evenly.
-    val time by rememberInfiniteTransition(label = "result").animateFloat(
-        0f, 12f, infiniteRepeatable(tween(12_000, easing = LinearEasing)), label = "resultTime",
-    )
+    // With motion reduced the scene holds at one moment, two seconds in.
+    val time by loopingFloat(0f, 12f, infiniteRepeatable(tween(12_000, easing = LinearEasing)), still = 2f, label = "resultTime")
     Canvas(modifier.fillMaxWidth().aspectRatio(W / H).clip(Shapes.L)) {
         drawRect(background(game, outcome))
         scale(size.width / W, size.height / H, Offset.Zero) {

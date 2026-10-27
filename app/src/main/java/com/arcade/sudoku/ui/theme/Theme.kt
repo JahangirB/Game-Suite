@@ -176,7 +176,7 @@ fun ArcadeSudokuTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
             outline = p.lineThin, error = p.bad,
         )
     }
-    CompositionLocalProvider(LocalPalette provides p) {
+    CompositionLocalProvider(LocalPalette provides p, LocalReduceMotion provides reduceMotionSetting()) {
         MaterialTheme(colorScheme = scheme, typography = AppTypography, content = content)
     }
 }
