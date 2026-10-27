@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -74,7 +75,7 @@ private fun Tool(
                 Text(
                     badge,
                     color = if (highlighted && enabled) p.onPrimary else p.muted,
-                    fontSize = 10.sp,
+                    fontSize = TextSize.Micro,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -84,7 +85,7 @@ private fun Tool(
                 )
             }
         }
-        Text(label, color = tint, fontSize = 12.sp)
+        Text(label, color = tint, fontSize = TextSize.Label)
     }
 }
 
@@ -112,7 +113,7 @@ fun NumberPad(remaining: (Int) -> Int, enabled: Boolean, onDigit: (Int) -> Unit)
                 if (!done) {
                     Text(
                         digit.toString(),
-                        fontSize = 36.sp,
+                        fontSize = TextSize.DisplayL,
                         fontWeight = FontWeight.Normal,
                         color = if (enabled) p.primaryText else p.primaryText.copy(alpha = 0.4f),
                     )
@@ -128,7 +129,7 @@ fun Pill(text: String, color: Color) {
     Text(
         text,
         color = color,
-        fontSize = 12.sp,
+        fontSize = TextSize.Label,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .background(color.copy(alpha = 0.14f), Shapes.S)

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -93,7 +94,7 @@ private fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         guesses.forEachIndexed { i, g ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${i + 1}", color = AppTheme.palette.muted, fontSize = 12.sp, modifier = Modifier.width(18.dp))
+                Text("${i + 1}", color = AppTheme.palette.muted, fontSize = TextSize.Label, modifier = Modifier.width(18.dp))
                 for (k in 0 until CodeBreaker.PEGS) Peg(g.code?.getOrNull(k), 26.dp)
                 ScorePegs(g.black, g.white)
             }
@@ -108,7 +109,7 @@ fun CodeExamples() {
     val secret = "rygb"
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Secret:", color = p.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.width(64.dp))
+            Text("Secret:", color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, modifier = Modifier.width(64.dp))
             secret.forEach { Peg(it, 22.dp) }
         }
         listOf("rybg", "gbry", "rrrr", "oppo", "rygb").forEach { guess ->
@@ -120,10 +121,10 @@ fun CodeExamples() {
             }
             Text(
                 pinsMeaning(red, white),
-                color = p.muted, fontSize = 13.sp,
+                color = p.muted, fontSize = TextSize.Body,
             )
         }
-        Text("Pins never say which peg they mean: work it out from guess to guess.", color = p.muted, fontSize = 13.sp)
+        Text("Pins never say which peg they mean: work it out from guess to guess.", color = p.muted, fontSize = TextSize.Body)
     }
 }
 
@@ -198,7 +199,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             ) {
                 code.theirCode?.let { c ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Their code:", color = p.muted, fontSize = 13.sp)
+                        Text("Their code:", color = p.muted, fontSize = TextSize.Body)
                         c.forEach { Peg(it, 22.dp) }
                     }
                 }
@@ -214,7 +215,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             code.phase == "set" -> {
                 TurnLine("Waiting for $name to set their code…", false)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth()) {
-                    Text("Your code:", color = p.muted, fontSize = 14.sp)
+                    Text("Your code:", color = p.muted, fontSize = TextSize.Body)
                     code.myCode.orEmpty().forEach { Peg(it, 24.dp) }
                 }
             }
@@ -232,7 +233,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     GuessRows(code.mine, Modifier.weight(1f))
                     // Their progress: only the scores, never their guesses.
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(name, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(name, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                         code.theirs.forEach { ScorePegs(it.black, it.white) }
                     }
                 }
@@ -271,7 +272,7 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
             AppCard("Crack the code") {
                 Text(
                     "The computer hides four coloured pegs (colours can repeat). After each guess: a red pin for each right colour in the right place, a white pin for a right colour in the wrong place. Ten guesses.",
-                    color = p.muted, fontSize = 14.sp,
+                    color = p.muted, fontSize = TextSize.Body,
                 )
                 CodeExamples()
                 PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())

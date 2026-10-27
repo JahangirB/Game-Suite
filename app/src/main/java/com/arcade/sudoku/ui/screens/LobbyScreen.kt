@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
+import com.arcade.sudoku.ui.theme.Tracking
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.SeatColors
 import android.content.Intent
@@ -77,21 +79,21 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                             "Connected directly to ${opponent?.name ?: "the host"}'s phone."
                         },
                         color = p.muted,
-                        fontSize = 14.sp,
+                        fontSize = TextSize.Body,
                     )
                 }
             } else AppCard("Secret code") {
                 Text(
                     room.code,
                     color = p.primaryText,
-                    fontSize = 36.sp,
+                    fontSize = TextSize.DisplayL,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    letterSpacing = 6.sp,
+                    letterSpacing = Tracking.Code,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(profile.scriptUrl, color = p.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(profile.scriptUrl, color = p.muted, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (room.isHost) {
                     OutlinedButton(
                         onClick = {
@@ -131,7 +133,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     val free = room.maxPlayers - 1 - joined
                     Text(
                         "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They pick your name under Nearby." else "Share the code to invite them.",
-                        color = p.muted, fontSize = 13.sp,
+                        color = p.muted, fontSize = TextSize.Body,
                     )
                 }
             }
@@ -225,14 +227,14 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                                     (if (mine) "✓ " else "") + level.label,
                                     color = if (mine) p.onPrimary else if (canPick) p.primaryText else p.muted,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp,
+                                    fontSize = TextSize.BodyL,
                                 )
                             }
                         }
                         Text(
                             if (theirs) pickers.joinToString(", ") { it.name } + if (pickers.size == 1) "'s pick" else "" else " ",
                             color = p.opponentText,
-                            fontSize = 11.sp,
+                            fontSize = TextSize.Micro,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -242,7 +244,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
         }
 
         val (message, color) = if (room.present.size > 1) groupLevelStatus(room) else levelStatus(room, opponent)
-        Text(message, color = color, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(message, color = color, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
 

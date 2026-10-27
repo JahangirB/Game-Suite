@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
@@ -181,7 +182,7 @@ private fun WordTiles(pattern: String, reveal: String? = null) {
                 modifier = Modifier.weight(1f, fill = false).height(44.dp).then(if (c != '_') Modifier.dropIn(c, delayMs = 150) else Modifier),
             ) {
                 Box(Modifier.height(44.dp), contentAlignment = Alignment.Center) {
-                    Text((shown ?: ' ').toString(), color = if (c == '_') p.muted else p.text, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    Text((shown ?: ' ').toString(), color = if (c == '_') p.muted else p.text, fontSize = TextSize.Title, fontWeight = FontWeight.Black, fontFamily = DisplayFont, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 }
             }
         }
@@ -208,7 +209,7 @@ private fun LetterKeys(guessed: List<Char>, word: String, enabled: Boolean, onLe
                         modifier = Modifier.weight(1f).height(42.dp).clickable(enabled = enabled && !tried) { onLetter(c) },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(c.toString(), color = if (hit) Color.White else if (tried) p.muted else p.text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                            Text(c.toString(), color = if (hit) Color.White else if (tried) p.muted else p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL)
                         }
                     }
                 }
@@ -233,7 +234,7 @@ private fun PickWord(prompt: String, onPick: (String) -> Unit) {
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
             modifier = Modifier.fillMaxWidth(),
         )
-        Text("Any word works: names and in-jokes too. Nobody else sees it.", color = p.muted, fontSize = 13.sp)
+        Text("Any word works: names and in-jokes too. Nobody else sees it.", color = p.muted, fontSize = TextSize.Body)
         PrimaryButton("Hide it in the balloons", { onPick(word); word = "" }, Modifier.fillMaxWidth(), enabled = word.length >= 3)
     }
 }
@@ -295,7 +296,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         view.lastRound?.takeIf { view.phase == "pick" }?.let { (word, picker, by) ->
             Text(
                 if (by != null) "${name(by)} finished $word!" else "The balloons popped: it was $word. ${name(picker)} scores 5.",
-                color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
             )
         }
         when {
@@ -348,11 +349,11 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
     ) {
         if (!state.started) {
             AppCard("Guess the computer's word") {
-                Text("Pick letters before the seven balloons pop.", color = p.muted, fontSize = 14.sp)
+                Text("Pick letters before the seven balloons pop.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Play", vm::guessTheirs, Modifier.fillMaxWidth())
             }
             PickWord("Or give the computer one of yours", vm::giveYours)
-            state.message?.let { Text(it, color = p.bad, fontSize = 13.sp) }
+            state.message?.let { Text(it, color = p.bad, fontSize = TextSize.Body) }
         } else {
             TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)
             BalloonRow(7, state.misses)

@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
@@ -121,12 +123,12 @@ private fun CallStrip(calls: List<Int>, called: Int) {
     val p = AppTheme.palette
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (called == 0) {
-            Text("Get ready…", color = p.muted, fontSize = 16.sp)
+            Text("Get ready…", color = p.muted, fontSize = TextSize.BodyL)
         } else {
             // Each new call rolls in from the side, turning as it rolls.
             Box(Modifier.enterFrom(called, dx = 260.dp, rotation = 360f, durationMs = 600)) { Ball(calls[called - 1], 76.dp) }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Call $called of ${Bingo.NUMBERS}", color = p.muted, fontSize = 13.sp)
+                Text("Call $called of ${Bingo.NUMBERS}", color = p.muted, fontSize = TextSize.Body)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (k in (called - 2) downTo maxOf(0, called - 6)) Ball(calls[k], 36.dp)
                 }
@@ -191,9 +193,9 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         if (card == null || calls == null) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Get ready", color = p.muted, fontSize = 18.sp)
+                    Text("Get ready", color = p.muted, fontSize = TextSize.Title)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text(((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(style = Digits, text = ((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -234,7 +236,7 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
     ) {
         if (!playing) {
             AppCard("How many computer cards?") {
-                Text("Numbers are called every few seconds. Dab the ones on your card and shout Bingo when you fill a row, a column or a diagonal. The computers never miss a number, but they're slow to shout.", color = p.muted, fontSize = 14.sp)
+                Text("Numbers are called every few seconds. Dab the ones on your card and shout Bingo when you fill a row, a column or a diagonal. The computers never miss a number, but they're slow to shout.", color = p.muted, fontSize = TextSize.Body)
                 for (k in 1..3) PrimaryButton("Against $k", { vm.start(k) }, Modifier.fillMaxWidth())
             }
         } else {

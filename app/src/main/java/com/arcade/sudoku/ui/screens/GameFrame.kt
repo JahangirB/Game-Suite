@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.LineHeight
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import com.arcade.sudoku.ui.theme.SeatColors
@@ -121,12 +124,12 @@ fun GameFrame(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (swipeToFocus && focused) {
-                    Text("⌄  swipe down for the players", color = p.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable { focused = false })
+                    Text("⌄  swipe down for the players", color = p.muted, fontSize = TextSize.Label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable { focused = false })
                 }
                 if (!(swipeToFocus && focused)) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(title, color = p.text, fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 26.sp)
-                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = 13.sp)
+                        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
+                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = TextSize.Body)
                     }
                     trailing()
                 }
@@ -179,9 +182,9 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
                     PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar)
                     if (player.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
                 }
-                Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
-                    Text(player.detail, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             return@Surface
@@ -190,9 +193,9 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
             PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar)
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
-                    Text(player.detail, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                    Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Label, maxLines = 1)
                 }
             }
             if (player.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
@@ -251,7 +254,7 @@ private fun GameDock(actions: List<DockAction>) {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.size(46.dp).pressedEdge(p.ink, 23.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape),
                     ) { Icon(action.icon, contentDescription = null, tint = p.text, modifier = Modifier.size(22.dp)) }
-                    Text(action.label, color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(action.label, color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -275,7 +278,7 @@ fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismi
         title = { Text(kind.label, color = p.text, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(kind.rules, color = p.text, fontSize = 15.sp)
+                Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
                 extra?.invoke()
             }
         },

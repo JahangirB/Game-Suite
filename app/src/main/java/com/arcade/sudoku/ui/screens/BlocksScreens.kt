@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.animation.core.Animatable
@@ -279,14 +280,14 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
     ) {
         if (view == null) {
             AppCard("Corner Blocks") {
-                Text("Lay your 21 pieces. Your first covers your start square; after that each piece must touch yours only corner to corner. Most squares placed wins.", color = p.muted, fontSize = 14.sp)
-                Text("Computers", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Lay your 21 pieces. Your first covers your start square; after that each piece must touch yours only corner to corner. Most squares placed wins.", color = p.muted, fontSize = TextSize.Body)
+                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (n in 1..3) {
                         if (state.opponents == n) PrimaryButton("$n", {}, Modifier.weight(1f)) else SecondaryButton("$n", { vm.setOpponents(n) }, Modifier.weight(1f))
                     }
                 }
-                Text("How good", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
                         if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))
@@ -306,7 +307,7 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
                     myTurn, GameKind.BLOCKS.color,
                 )
             }
-            Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = 13.sp)
+            Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
             BlocksPlay(view, myTurn, vm::place)
         }
     }

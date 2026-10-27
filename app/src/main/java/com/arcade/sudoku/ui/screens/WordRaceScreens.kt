@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import com.arcade.sudoku.ui.theme.GameColors
@@ -102,7 +104,7 @@ private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length
                         if (letter != null) {
                             Text(
                                 letter.uppercase(), color = if (fill != null) Color.White else p.text,
-                                fontSize = if (length > 6) 20.sp else 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                                fontSize = if (length > 6) TextSize.Title else TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
                             )
                         }
                     }
@@ -182,7 +184,7 @@ private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onD
                             },
                             color = if (state != null) Color.White else p.text,
                             fontWeight = FontWeight.Bold,
-                            fontSize = if (wide) 13.sp else 17.sp,
+                            fontSize = if (wide) TextSize.Body else TextSize.BodyL,
                         )
                     }
                 }
@@ -249,13 +251,13 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 onRematch = vm::readyTurns, onFinish = onLeave,
             ) {
                 words.answer?.let {
-                    Text("The word was ${it.uppercase()}", color = GameKind.WORDS.color, fontWeight = FontWeight.Bold, fontSize = 18.sp, textAlign = TextAlign.Center)
+                    Text("The word was ${it.uppercase()}", color = GameKind.WORDS.color, fontWeight = FontWeight.Bold, fontSize = TextSize.Title, textAlign = TextAlign.Center)
                 }
                 otherRounds(words).forEachIndexed { i, other ->
                     val guessed = other.guesses.mapNotNull { it.word }
                     val who = room.others.getOrNull(i)?.name ?: name
                     if (guessed.isNotEmpty()) {
-                        Text("$who guessed: " + guessed.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                        Text("$who guessed: " + guessed.joinToString(", ") { it.uppercase() }, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -264,8 +266,8 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         if (phase == RoomStatus.COUNTDOWN) {
             val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
             AppCard {
-                Text("Get ready", color = p.muted, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Text(seconds.toString(), color = GameKind.WORDS.color, fontSize = 80.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text("Get ready", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(style = Digits, text = seconds.toString(), color = GameKind.WORDS.color, fontSize = TextSize.Countdown, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         } else {
             WordRaceRound(state, vm, words, finished)
@@ -288,7 +290,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
                     val name = room.others.getOrNull(i)?.name ?: opponent?.name
                     if (name != null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(name, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(name, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold, maxLines = 1)
                             ColourRows(other.guesses, words.tries, words.length, small = rows.size > 1 || words.length > 6)
                         }
                     }
@@ -344,9 +346,9 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
     ) {
         if (daily == null) {
             AppCard("Pick a word") {
-                Text("Today's word is the same for everyone and changes every day. Practice gives you as many words as you like.", color = p.muted, fontSize = 14.sp)
+                Text("Today's word is the same for everyone and changes every day. Practice gives you as many words as you like.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Today's word", vm::playDaily)
-                Text("Practice: pick the length of the word.", color = p.muted, fontSize = 14.sp)
+                Text("Practice: pick the length of the word.", color = p.muted, fontSize = TextSize.Body)
                 WordLevel.entries.forEach { level -> SecondaryButton(level.label, { vm.playPractice(level) }) }
             }
         } else {
@@ -376,7 +378,7 @@ fun WordLevelCard(room: com.arcade.sudoku.data.RoomState, busy: Boolean, onPick:
                 else SecondaryButton(l.label, { onPick(l) }, Modifier.fillMaxWidth(), enabled = !busy)
             }
         } else {
-            Text("${level.label}: the host picks the length of the word.", color = p.muted, fontSize = 14.sp)
+            Text("${level.label}: the host picks the length of the word.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

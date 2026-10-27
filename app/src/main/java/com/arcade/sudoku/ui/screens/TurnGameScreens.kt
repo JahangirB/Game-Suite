@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.GameColors
 import com.arcade.sudoku.ui.theme.Board
@@ -329,7 +330,7 @@ fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
                 else SecondaryButton(label, { onPick(classic) }, Modifier.fillMaxWidth(), enabled = !busy)
             }
         } else {
-            Text(modes.first { it.first == room.tttClassic }.second + ", picked by the host.", color = p.muted, fontSize = 14.sp)
+            Text(modes.first { it.first == room.tttClassic }.second + ", picked by the host.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }
@@ -506,8 +507,8 @@ private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<
     fun line(label: String, mark: Char, color: Color) {
         val found = faces.indices.filter { owners.getOrNull(it) == mark }.mapNotNull { faces[it] }.distinct()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
-            if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = 12.sp)
+            Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
+            if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = TextSize.Label)
             found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
         }
     }
@@ -566,7 +567,7 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
                 else -> "The game starts when you are both ready. Starting player swaps every round."
             },
             color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,
-            fontSize = 14.sp,
+            fontSize = TextSize.Body,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -762,7 +763,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
     ) {
         if (level == null) {
             AppCard("Choose the computer's level") {
-                Text("Line up four of your discs across, down or diagonally before the computer does.", color = p.muted, fontSize = 14.sp)
+                Text("Line up four of your discs across, down or diagonally before the computer does.", color = p.muted, fontSize = TextSize.Body)
                 C4Level.entries.forEach { PrimaryButton(it.label, { vm.start(it) }) }
             }
         } else {
@@ -898,8 +899,8 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
         dock = soloDock(onHome, { showRules = true }, vm::newGame),
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
-                Text("${state.flips} flips", color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                state.bestFlips?.let { Text("Best: $it", color = p.muted, fontSize = 13.sp) }
+                Text("${state.flips} flips", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                state.bestFlips?.let { Text("Best: $it", color = p.muted, fontSize = TextSize.Body) }
             }
         },
         popup = if (finished == null) null else popupContent {
@@ -915,9 +916,9 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
         },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Found", color = p.muted, fontSize = 13.sp, modifier = Modifier.width(52.dp))
+            Text("Found", color = p.muted, fontSize = TextSize.Body, modifier = Modifier.width(52.dp))
             val found = state.faces.indices.filter { state.found[it] != '.' }.mapNotNull { state.faces[it] }.distinct()
-            if (found.isEmpty()) Text("Find all 8 pairs in as few flips as you can.", color = p.muted, fontSize = 13.sp)
+            if (found.isEmpty()) Text("Find all 8 pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
             found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
             Spacer(Modifier.width(4.dp))
         }

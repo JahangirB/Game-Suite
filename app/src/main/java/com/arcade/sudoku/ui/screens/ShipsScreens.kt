@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.GameColors
 import com.arcade.sudoku.ui.theme.Board
@@ -237,7 +238,7 @@ fun FleetCard(
                 else -> "Drag ships to move them, tap one to turn it, or shuffle. Tap Ready when you like your fleet."
             },
             color = if (opponent?.ready == true && !ready) p.good else p.muted,
-            fontSize = 14.sp,
+            fontSize = TextSize.Body,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -291,7 +292,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             ) {
                 // The fleet for the next round, ready to shuffle before tapping Rematch.
                 if (opponent != null && !opponent.left) {
-                    Text("Your next fleet", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Your next fleet", color = p.muted, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
                     FleetEditor(if (room.me.ready) ships.myFleet else state.fleetDraft, if (room.me.ready) null else vm::setFleet, Modifier.fillMaxWidth(0.6f))
                     if (!room.me.ready) SecondaryButton("Shuffle", vm::shuffleFleet)
                 }
@@ -395,7 +396,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
                     "Sink the computer's five ships before it sinks yours. A hit lets you fire again. " +
                         "Drag your ships to move them, tap one to turn it.",
                     color = p.muted,
-                    fontSize = 14.sp,
+                    fontSize = TextSize.Body,
                 )
                 FleetEditor(state.draft, vm::setDraft)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

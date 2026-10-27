@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,7 +102,7 @@ fun ProfileScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                Text("Avatar", color = p.muted, fontSize = 13.sp)
+                Text("Avatar", color = p.muted, fontSize = TextSize.Body)
                 AvatarPicker(selected = profile.avatar, onPick = app::setAvatar)
             }
 
@@ -111,7 +112,7 @@ fun ProfileScreen(
                         "Cloudflare Worker) and shares its link and a secret code. Paste the link here, " +
                         "or paste the whole invite. Nearby battles need no server.",
                     color = p.muted,
-                    fontSize = 13.sp,
+                    fontSize = TextSize.Body,
                 )
                 OutlinedTextField(
                     value = profile.scriptUrl,
@@ -147,7 +148,7 @@ fun ProfileScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(partner.name, color = p.text, fontWeight = FontWeight.SemiBold)
-                            Text("Code ${partner.code}", color = p.muted, fontSize = 13.sp)
+                            Text("Code ${partner.code}", color = p.muted, fontSize = TextSize.Body)
                         }
                         TextButton(onClick = battle::forgetPartner) { Text("Forget", color = p.bad) }
                     }
@@ -159,7 +160,7 @@ fun ProfileScreen(
                             else -> "You can invite ${partner.name} from the home screen."
                         },
                         color = p.muted,
-                        fontSize = 13.sp,
+                        fontSize = TextSize.Body,
                     )
                 }
             }
@@ -174,7 +175,7 @@ fun ProfileScreen(
                         )
                     }
                 }
-                Text("Ship Battle style", color = p.muted, fontSize = 13.sp)
+                Text("Ship Battle style", color = p.muted, fontSize = TextSize.Body)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ShipStyle.entries.forEach { style ->
                         FilterChip(
@@ -213,7 +214,7 @@ fun ProfileScreen(
                             if (stats == null || stats.wins == 0) "—"
                             else "${stats.wins} won · best ${formatDuration(stats.bestMs ?: 0L)}",
                             color = p.muted,
-                            fontSize = 14.sp,
+                            fontSize = TextSize.Body,
                         )
                     }
                 }
@@ -222,7 +223,7 @@ fun ProfileScreen(
                     Text(
                         "${profile.stats.battlesWon} won · ${profile.stats.battlesLost} lost",
                         color = p.muted,
-                        fontSize = 14.sp,
+                        fontSize = TextSize.Body,
                     )
                 }
             }

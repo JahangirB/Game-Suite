@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
+import com.arcade.sudoku.ui.theme.Tracking
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -90,7 +92,7 @@ fun BattleMenuScreen(
                         "Share the server link and this secret code with your opponent. " +
                             "You both choose the level in the lobby.",
                         color = p.muted,
-                        fontSize = 13.sp,
+                        fontSize = TextSize.Body,
                     )
                     OutlinedTextField(
                         value = state.hostCode,
@@ -112,7 +114,7 @@ fun BattleMenuScreen(
                 }
             } else {
                 AppCard("Join a battle") {
-                    Text("Enter the secret code from the host.", color = p.muted, fontSize = 13.sp)
+                    Text("Enter the secret code from the host.", color = p.muted, fontSize = TextSize.Body)
                     OutlinedTextField(
                         value = state.joinCode,
                         onValueChange = vm::setJoinCode,
@@ -135,13 +137,13 @@ fun BattleMenuScreen(
 
             AppCard("Server") {
                 if (hasLink) {
-                    Text(profile.scriptUrl, color = p.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(profile.scriptUrl, color = p.text, fontSize = TextSize.Body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     TextButton(onClick = onProfile) { Text("Change in profile", color = p.primaryText) }
                 } else {
                     Text(
                         "No server link yet. Add the host's link in your profile, or paste the invite message.",
                         color = p.bad,
-                        fontSize = 14.sp,
+                        fontSize = TextSize.Body,
                     )
                     SecondaryButton("Open profile", onProfile)
                 }
@@ -172,7 +174,7 @@ fun GameChooser(selected: GameKind, onSelect: (GameKind) -> Unit) {
 private fun codeStyle() = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontWeight = FontWeight.Bold,
-    fontSize = 22.sp,
-    letterSpacing = 4.sp,
+    fontSize = TextSize.Title,
+    letterSpacing = Tracking.CodeSmall,
     color = AppTheme.palette.text,
 )

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import androidx.compose.animation.core.Animatable
@@ -216,7 +217,7 @@ private fun ColumnScope.DominoTable(
         myTurn,
         GameKind.DOMINOES.color,
     )
-    dominoNews(view, name)?.let { Text(it, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    dominoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
 
     val move = view.lastMove
     val lastIndex = move?.tile?.let { if (move.end == "left") 0 else view.line.lastIndex }
@@ -321,7 +322,7 @@ fun DominoOptionsCard(room: RoomState, busy: Boolean, onChange: (DominoOptions) 
         if (room.isHost) {
             DominoOptionChips(o, fourPlayers = room.present.size == 3, enabled = !busy, onChange = onChange)
         } else {
-            Text(dominoRulesLine(o), color = p.muted, fontSize = 14.sp)
+            Text(dominoRulesLine(o), color = p.muted, fontSize = TextSize.Body)
         }
     }
 }
@@ -340,7 +341,7 @@ private fun DominoOptionChips(o: DominoOptions, fourPlayers: Boolean, enabled: B
     }
     Text(
         if (o.draw) "Stuck? Take tiles from the boneyard until one fits." else "Stuck? Pass. Nobody can play: the lightest hand wins the round.",
-        color = p.muted, fontSize = 13.sp,
+        color = p.muted, fontSize = TextSize.Body,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DominoOptions.TARGETS.forEach { t ->
@@ -351,7 +352,7 @@ private fun DominoOptionChips(o: DominoOptions, fourPlayers: Boolean, enabled: B
         FilterChip(selected = !o.teams, onClick = { onChange(o.copy(teams = false)) }, enabled = enabled, label = { Text("Each for themselves") })
         FilterChip(selected = o.teams, onClick = { onChange(o.copy(teams = true)) }, enabled = enabled, label = { Text("2 v 2") })
     }
-    if (o.teams && !fourPlayers) Text("Teams need four players; with fewer everyone plays for themselves.", color = p.muted, fontSize = 13.sp)
+    if (o.teams && !fourPlayers) Text("Teams need four players; with fewer everyone plays for themselves.", color = p.muted, fontSize = TextSize.Body)
 }
 
 // ---- On your own ----------------------------------------------------------------------------
@@ -384,12 +385,12 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
     ) {
         if (view == null) {
             AppCard("Set up the table") {
-                Text("Computer players", color = p.text, fontSize = 15.sp)
+                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
                 }
                 DominoOptionChips(state.options, fourPlayers = state.opponents == 3, enabled = true, onChange = vm::setOptions)
-                if (state.options.teams && state.opponents == 3) Text("Your partner is Computer 2, sitting opposite.", color = p.muted, fontSize = 13.sp)
+                if (state.options.teams && state.opponents == 3) Text("Your partner is Computer 2, sitting opposite.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Deal", vm::start, Modifier.fillMaxWidth())
             }
         } else {

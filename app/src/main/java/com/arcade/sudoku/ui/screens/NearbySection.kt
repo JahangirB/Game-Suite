@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -80,21 +81,21 @@ fun NearbySection(state: BattleUiState, vm: BattleViewModel) {
             "Two phones connect directly over Bluetooth and Wi‑Fi. No internet and no server needed. " +
                 "Keep both phones close together with Bluetooth on.",
             color = p.muted,
-            fontSize = 14.sp,
+            fontSize = TextSize.Body,
         )
         if (denied) {
             Text(
                 "Nearby battles need the Bluetooth, location, and nearby devices permissions (precise location). " +
                     "You can allow them in the app's settings.",
                 color = p.bad,
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
             )
         }
     }
 
     AppCard("Host") {
         GameChooser(state.hostGame, vm::setHostGame)
-        Text("Wait here for your friend to find you.", color = p.muted, fontSize = 13.sp)
+        Text("Wait here for your friend to find you.", color = p.muted, fontSize = TextSize.Body)
         PrimaryButton("Host nearby battle", { withPermissions(vm::hostNearby) }, loading = state.busy)
     }
 
@@ -108,7 +109,7 @@ fun NearbySection(state: BattleUiState, vm: BattleViewModel) {
                 Text("Looking for players nearby…", color = p.muted)
             }
             if (state.nearbyHosts.isEmpty()) {
-                Text("Ask your friend to tap Host nearby battle.", color = p.muted, fontSize = 13.sp)
+                Text("Ask your friend to tap Host nearby battle.", color = p.muted, fontSize = TextSize.Body)
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 state.nearbyHosts.forEach { host ->

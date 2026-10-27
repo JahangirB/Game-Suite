@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,7 +52,7 @@ fun UpdateDialog(state: UpdateUiState, onUpdate: () -> Unit, onAllow: () -> Unit
                         trackColor = p.accent,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Text("Downloading… ${(state.progress * 100).toInt()}%", color = p.muted)
+                    Text(style = Digits, text = "Downloading… ${(state.progress * 100).toInt()}%", color = p.muted)
                 }
             }
         },

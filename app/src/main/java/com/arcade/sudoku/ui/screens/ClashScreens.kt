@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
@@ -196,14 +197,14 @@ private fun ColumnScope.ClashTable(
         myTurn,
         clashColor(view.colour),
     )
-    clashNews(view, name)?.let { Text(it, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    clashNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
 
     // The pile with the colour to match, and the deck.
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ClashBack(64.dp)
-                Text("${view.deck} left", color = p.muted, fontSize = 12.sp)
+                Text("${view.deck} left", color = p.muted, fontSize = TextSize.Label)
             }
             Spacer(Modifier.width(28.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -217,10 +218,10 @@ private fun ColumnScope.ClashTable(
                     modifier = Modifier.enterFrom(played, dy = if (mine) 260.dp else (-260).dp, rotation = if (mine) -20f else 20f, scaleFrom = 0.6f),
                     back = { ClashBack(108.dp) },
                 ) { ClashCard(view.top, 108.dp, named = view.colour) }
-                Text("Match ${colourName(view.colour)}", color = clashColor(view.colour), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Match ${colourName(view.colour)}", color = clashColor(view.colour), fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
             }
             Spacer(Modifier.width(28.dp))
-            Text(if (view.direction > 0) "↻" else "↺", color = p.muted, fontSize = 34.sp)
+            Text(if (view.direction > 0) "↻" else "↺", color = p.muted, fontSize = TextSize.DisplayL)
         }
     }
 
@@ -348,8 +349,8 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
     ) {
         if (view == null) {
             AppCard("Set up the table") {
-                Text("Match the colour or the number; first to empty their hand wins.", color = p.muted, fontSize = 14.sp)
-                Text("Computer players", color = p.text, fontSize = 15.sp)
+                Text("Match the colour or the number; first to empty their hand wins.", color = p.muted, fontSize = TextSize.Body)
+                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
                 }

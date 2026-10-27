@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.GameColors
 import com.arcade.sudoku.ui.theme.Pieces
@@ -218,8 +220,8 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
                         modifier = Modifier.weight(1f).height(46.dp).clickable(enabled = on) { onPlace(if (clear) "" else value.toString()) },
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Text(if (clear) "Clear" else value.toString(), color = if (on) p.text else p.muted, fontWeight = FontWeight.Bold, fontSize = if (clear) 13.sp else 17.sp)
-                            if (!clear && counts.getValue(value) > 1) Text("×$left", color = p.muted, fontSize = 10.sp)
+                            Text(if (clear) "Clear" else value.toString(), color = if (on) p.text else p.muted, fontWeight = FontWeight.Bold, fontSize = if (clear) TextSize.Body else TextSize.BodyL)
+                            if (!clear && counts.getValue(value) > 1) Text("×$left", color = p.muted, fontSize = TextSize.Micro)
                         }
                     }
                 }
@@ -249,9 +251,9 @@ fun NumbersLevelCard(room: RoomState, busy: Boolean, onPick: (NumberLevel) -> Un
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumberLevel.entries.forEach { l -> FilterChip(selected = level == l, onClick = { onPick(l) }, enabled = !busy, label = { Text(l.label) }) }
             }
-            Text("Your phone builds a new puzzle each round and sends it to everyone.", color = p.muted, fontSize = 13.sp)
+            Text("Your phone builds a new puzzle each round and sends it to everyone.", color = p.muted, fontSize = TextSize.Body)
         } else {
-            Text("${level.label}: the host's phone builds the puzzle.", color = p.muted, fontSize = 14.sp)
+            Text("${level.label}: the host's phone builds the puzzle.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }
@@ -296,7 +298,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         }),
         glow = GameKind.NUMBERS.color,
         dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
-        trailing = { Text(formatDuration(elapsed), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -318,9 +320,9 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
             // The puzzle arrives when the countdown ends.
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Get ready", color = p.muted, fontSize = 18.sp)
+                    Text("Get ready", color = p.muted, fontSize = TextSize.Title)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text(((startAt - now + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(style = Digits, text = ((startAt - now + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -349,7 +351,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
         glow = GameKind.NUMBERS.color,
         dock = soloDock(onHome, { showRules = true }, if (puzzle != null) vm::again else null),
         trailing = {
-            if (puzzle != null) Text(formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            if (puzzle != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
         scrollable = puzzle == null,
         popup = if (puzzle == null || done == null) null else popupContent {
@@ -362,7 +364,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
     ) {
         if (board == null) {
             AppCard("Choose the level") {
-                Text("Fill the blanks from the bank so every sum works, across and down. Every puzzle is new.", color = p.muted, fontSize = 14.sp)
+                Text("Fill the blanks from the bank so every sum works, across and down. Every puzzle is new.", color = p.muted, fontSize = TextSize.Body)
                 NumberLevel.entries.forEach { level ->
                     PrimaryButton(level.label + (state.best[level]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(level) })
                 }

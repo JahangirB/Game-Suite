@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,7 +87,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         glow = GameKind.SUDOKU.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trailing = {
-            Text(formatDuration(elapsedMs(room, phase, now, startAt)), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            Text(style = Digits, text = formatDuration(elapsedMs(room, phase, now, startAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -107,8 +109,8 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                 if (phase == RoomStatus.COUNTDOWN) {
                     val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Get ready", color = p.muted, fontSize = 18.sp)
-                        Text(seconds.toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text("Get ready", color = p.muted, fontSize = TextSize.Title)
+                        Text(style = Digits, text = seconds.toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                         opponent?.let { Text("vs ${it.name}", color = OpponentColor, fontWeight = FontWeight.SemiBold) }
                     }
                 }
@@ -176,7 +178,7 @@ private fun BoxScope.SudokuPopup(
             }
         }
         if (opponent != null && !opponent.left) {
-            Text("Rematch: both choose the same level", color = p.muted, fontSize = 13.sp)
+            Text("Rematch: both choose the same level", color = p.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)
         }
     }

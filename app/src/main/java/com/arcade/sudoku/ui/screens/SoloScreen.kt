@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,7 +99,7 @@ fun SoloScreen(
             DockAction("Rules", Icons.Filled.Info) { showRules = true },
         ),
         trailing = {
-            Text(formatDuration(game.elapsedMs), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            Text(style = Digits, text = formatDuration(game.elapsedMs), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
         popup = when (game.status) {
             SoloStatus.WON -> popupContent {
@@ -134,7 +136,7 @@ fun SoloScreen(
             )
             if (paused) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Paused", color = p.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text("Paused", color = p.text, fontSize = TextSize.DisplayM, fontWeight = FontWeight.Bold)
                     PrimaryButton("Resume", vm::resume, Modifier.padding(horizontal = 48.dp))
                 }
             }

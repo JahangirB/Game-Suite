@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.LineHeight
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.textFill
 import com.arcade.sudoku.ui.theme.Shapes
@@ -84,7 +86,7 @@ fun BoxScope.ResultPopup(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).pressedEdge(p.ink, 24.dp),
         ) {
             Text(
-                "Show result", color = p.onPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                "Show result", color = p.onPrimary, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
             )
         }
@@ -119,17 +121,17 @@ fun BoxScope.ResultPopup(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                game.label, color = readableOn(textFill(game.color)), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                game.label, color = readableOn(textFill(game.color)), fontWeight = FontWeight.Bold, fontSize = TextSize.Body,
                 modifier = Modifier.clip(Shapes.Full).background(textFill(game.color)).padding(horizontal = 14.dp, vertical = 4.dp),
             )
-            Text(title, color = p.text, fontSize = 34.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 36.sp, textAlign = TextAlign.Center)
+            Text(title, color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayL, textAlign = TextAlign.Center)
             ResultAnimation(game, outcome)
-            if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             if (scores.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     scores.forEach {
                         Text(
-                            it, color = p.text, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                            it, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body,
                             modifier = Modifier.clip(Shapes.Full).background(p.background).padding(horizontal = 12.dp, vertical = 6.dp),
                         )
                     }
@@ -138,7 +140,7 @@ fun BoxScope.ResultPopup(
             if (status != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (statusGood) Box(Modifier.size(10.dp).clip(CircleShape).background(p.good))
-                    Text(status, color = if (statusGood) p.good else p.muted, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.Center)
+                    Text(status, color = if (statusGood) p.good else p.muted, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, textAlign = TextAlign.Center)
                 }
             }
             extra()

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
@@ -111,7 +112,7 @@ fun PrimaryButton(
         if (loading) {
             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = content)
         } else {
-            Text(text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -125,7 +126,7 @@ fun SecondaryButton(
 ) {
     val p = AppTheme.palette
     ToyButton(onClick, modifier, enabled, p.card, p.text) {
-        Text(text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -144,7 +145,7 @@ fun AppCard(
         modifier = modifier.fillMaxWidth().pressedEdge(p.ink, Radius.L),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (title != null) Text(title, color = p.text, fontSize = 21.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            if (title != null) Text(title, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             content()
         }
     }
@@ -160,7 +161,7 @@ fun ScreenTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text)
         }
-        Text(title, color = p.text, fontSize = 24.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         actions()
     }
 }
@@ -216,8 +217,8 @@ private fun ProgressBar(label: String, percent: Int, color: Color, trailing: Str
     val p = AppTheme.palette
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text(trailing, color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(label, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Body, modifier = Modifier.weight(1f))
+            Text(trailing, color = color, fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
@@ -234,7 +235,7 @@ private fun ProgressBar(label: String, percent: Int, color: Color, trailing: Str
 
 @Composable
 fun CenteredMessage(text: String, color: Color = AppTheme.palette.muted) {
-    Text(text, color = color, textAlign = TextAlign.Center, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
+    Text(text, color = color, textAlign = TextAlign.Center, fontSize = TextSize.Body, modifier = Modifier.fillMaxWidth())
 }
 
 /** One-line description of how demanding each level is. */

@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import com.arcade.sudoku.ui.theme.GameColors
@@ -175,7 +177,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trailing = {
             if (playing && secondsLeft != null) {
-                Text("${secondsLeft}s", color = if (secondsLeft <= 10) p.bad else p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                Text(style = Digits, text = "${secondsLeft}s", color = if (secondsLeft <= 10) p.bad else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             }
         },
         trayVisible = reacting,
@@ -213,8 +215,8 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             phase == RoomStatus.COUNTDOWN -> {
                 val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
                 AppCard {
-                    Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Text(seconds.toString(), color = GameKind.DRAW.color, fontSize = 80.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text(style = Digits, text = seconds.toString(), color = GameKind.DRAW.color, fontSize = TextSize.Countdown, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }
             finished -> BoardArea(1f) { size -> DrawingPad(state.drawStrokes, 0, 1, null, size) }
@@ -229,7 +231,7 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
     val p = AppTheme.palette
     var color by rememberSaveable { mutableStateOf(0) }
     var width by rememberSaveable { mutableStateOf(1) }
-    Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     BoardArea(1f) { size -> DrawingPad(strokes, color, width, vm::sendStroke, size) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         PenColors.forEachIndexed { i, c ->
@@ -249,7 +251,7 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
         )
     }
     if (draw.guesses.isNotEmpty()) {
-        Text("Guesses: " + guessList(draw), color = p.muted, fontSize = 14.sp)
+        Text("Guesses: " + guessList(draw), color = p.muted, fontSize = TextSize.Body)
     }
 }
 
@@ -262,7 +264,7 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         guess = ""
     }
     Text(
-        draw.hint.orEmpty().map { it }.joinToString(" "), color = p.text, fontSize = 28.sp, fontFamily = DisplayFont,
+        draw.hint.orEmpty().map { it }.joinToString(" "), color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
     )
     BoardArea(1f) { size -> DrawingPad(strokes, 0, 1, null, size) }
@@ -279,7 +281,7 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         PrimaryButton("Guess", send, Modifier.weight(0.45f), enabled = guess.isNotBlank())
     }
     if (draw.guesses.isNotEmpty()) {
-        Text("Not it: " + guessList(draw), color = p.muted, fontSize = 14.sp)
+        Text("Not it: " + guessList(draw), color = p.muted, fontSize = TextSize.Body)
     }
 }
 

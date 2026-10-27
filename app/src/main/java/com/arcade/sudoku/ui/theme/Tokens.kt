@@ -4,7 +4,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * The app's named design values. Screens use these (and [SudokuPalette]) instead of typing
@@ -30,6 +32,45 @@ object Shapes {
     /** A sheet or tray rising from the bottom: only its top corners round. */
     val Top = RoundedCornerShape(topStart = Radius.L, topEnd = Radius.L)
 }
+
+/**
+ * Text sizes. The display steps use [DisplayFont], the rest [BodyFont]. [Countdown] is the
+ * big 3-2-1 before a race.
+ */
+object TextSize {
+    val Countdown = 96.sp
+    val Score = 64.sp
+    val DisplayL = 34.sp
+    val DisplayM = 26.sp
+    val Title = 20.sp
+    val BodyL = 16.sp
+    val Body = 14.sp
+    val Label = 12.sp
+    val Micro = 11.sp
+}
+
+/** The line height that goes with each [TextSize]. */
+object LineHeight {
+    val DisplayL = 36.sp
+    val DisplayM = 28.sp
+    val Title = 24.sp
+    val BodyL = 22.sp
+    val Body = 20.sp
+    val Label = 16.sp
+    val Micro = 14.sp
+}
+
+/** Letter spacing for game codes, so each character stands apart. */
+object Tracking {
+    val Code = 6.sp
+    val CodeSmall = 4.sp
+}
+
+/**
+ * Digits of equal width, for timers, scores and percentages: "1:11" and "1:08" take the
+ * same room, so the text doesn't shift as it counts.
+ */
+val Digits = TextStyle(fontFeatureSettings = "tnum")
 
 /** Gaps and padding. */
 object Space {

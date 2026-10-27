@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.LineHeight
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import com.arcade.sudoku.ui.theme.DisplayFont
@@ -102,8 +104,8 @@ fun HomeScreen(
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    if (profile.name.isNotBlank()) Text("Hi, ${profile.name}", color = p.muted, fontSize = 15.sp)
-                    Text("Game Suite", color = p.text, fontSize = 34.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                    if (profile.name.isNotBlank()) Text("Hi, ${profile.name}", color = p.muted, fontSize = TextSize.BodyL)
+                    Text("Game Suite", color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
                 }
                 Box(
                     contentAlignment = Alignment.Center,
@@ -195,13 +197,13 @@ private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onClick
                 Spacer(Modifier.weight(1f))
                 if (badge != null) {
                     Text(
-                        badge, color = p.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        badge, color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clip(Shapes.Full).background(p.primary).padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
             }
-            Text(kind.label, color = p.text, fontSize = 19.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 20.sp)
-            Text(kind.tagline, color = p.muted, fontSize = 13.sp, lineHeight = 16.sp, minLines = 2)
+            Text(kind.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.Body)
+            Text(kind.tagline, color = p.muted, fontSize = TextSize.Body, lineHeight = LineHeight.Label, minLines = 2)
         }
     }
 }
@@ -221,9 +223,9 @@ private fun CodeTile(modifier: Modifier, onClick: () -> Unit) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(46.dp).clip(Shapes.M).background(p.card).border(2.dp, p.ink, Shapes.M),
-            ) { Text("#", color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) }
-            Text("Join with a code", color = p.text, fontSize = 19.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 20.sp)
-            Text("Battle online with a secret code, or nearby", color = p.muted, fontSize = 13.sp, lineHeight = 16.sp, minLines = 2)
+            ) { Text("#", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) }
+            Text("Join with a code", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.Body)
+            Text("Battle online with a secret code, or nearby", color = p.muted, fontSize = TextSize.Body, lineHeight = LineHeight.Label, minLines = 2)
         }
     }
 }
@@ -255,12 +257,12 @@ private fun GameSheet(
             ) { GameIcon(kind, Modifier.size(32.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(kind.label, color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 28.sp)
-                Text(kind.tagline, color = p.muted, fontSize = 14.sp)
+                Text(kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
+                Text(kind.tagline, color = p.muted, fontSize = TextSize.Body)
             }
             TextButton(onClick = { showRules = !showRules }) { Text(if (showRules) "Hide rules" else "How to play", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
-        if (showRules) Text(kind.rules, color = p.text, fontSize = 15.sp)
+        if (showRules) Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
 
         if (partner != null) {
             val canInvite = Push.available && partner.deviceId != null && PushApi.supports(partner.serverUrl)
@@ -280,14 +282,14 @@ private fun GameSheet(
             kind == GameKind.SUDOKU -> SecondaryButton("Play solo", onNewSudoku)
             kind == GameKind.MEMORY || kind == GameKind.NUMBERS || kind == GameKind.GRID || kind == GameKind.BALLOON || kind == GameKind.CODE || kind == GameKind.SLIDE || kind == GameKind.BINGO || kind == GameKind.GOLF -> SecondaryButton("Play alone", onSolo)
             kind == GameKind.WORDS -> SecondaryButton("Today's word or practice", onSolo)
-            kind == GameKind.DRAW -> Text("Draw & Guess needs two players: play with your partner, online or nearby.", color = p.muted, fontSize = 13.sp)
+            kind == GameKind.DRAW -> Text("Draw & Guess needs two players: play with your partner, online or nearby.", color = p.muted, fontSize = TextSize.Body)
             else -> SecondaryButton("Play the computer", onSolo)
         }
         SecondaryButton("Online with a code or nearby", onBattle)
         if (partner == null) {
             Text(
                 "Play one online game with your partner and they are saved here, ready for one-tap games and invitations.",
-                color = p.muted, fontSize = 13.sp,
+                color = p.muted, fontSize = TextSize.Body,
             )
         }
     }
@@ -312,8 +314,8 @@ private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficult
                             .padding(horizontal = 8.dp, vertical = 10.dp),
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(level.label, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Text(level.tagline(), color = p.muted, fontSize = 13.sp)
+                            Text(level.label, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
+                            Text(level.tagline(), color = p.muted, fontSize = TextSize.Body)
                         }
                         Text("${level.ordinal + 1}", color = p.primaryText, fontWeight = FontWeight.Bold)
                     }
@@ -334,8 +336,8 @@ private fun PartnerCard(partner: SavedPartner) {
             PlayerAvatar(partner.name, OpponentColor, size = 46, avatar = partner.avatar)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("You & ${partner.name}", color = p.text, fontSize = 20.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                Text("Tap a game to play together", color = p.muted, fontSize = 13.sp)
+                Text("You & ${partner.name}", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                Text("Tap a game to play together", color = p.muted, fontSize = TextSize.Body)
             }
         }
     }

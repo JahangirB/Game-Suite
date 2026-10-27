@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -129,7 +131,7 @@ fun SlideLevelCard(room: RoomState, busy: Boolean, onPick: (SlideLevel) -> Unit)
                 else SecondaryButton(l.label, { onPick(l) }, Modifier.fillMaxWidth(), enabled = !busy)
             }
         } else {
-            Text("${level.label}: the host's phone shuffles the puzzle.", color = p.muted, fontSize = 14.sp)
+            Text("${level.label}: the host's phone shuffles the puzzle.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }
@@ -164,7 +166,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         }),
         glow = GameKind.SLIDE.color,
         dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
-        trailing = { Text(formatDuration(elapsed), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -184,9 +186,9 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         if (tiles == null) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Get ready", color = p.muted, fontSize = 18.sp)
+                    Text("Get ready", color = p.muted, fontSize = TextSize.Title)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text(((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(style = Digits, text = ((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -213,7 +215,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
         players = emptyList(),
         glow = GameKind.SLIDE.color,
         dock = soloDock(onHome, { showRules = true }, if (level != null) vm::again else null),
-        trailing = { if (level != null) Text(formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        trailing = { if (level != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         scrollable = level == null,
         popup = if (level == null || done == null) null else popupContent {
             SoloPopup(
@@ -225,7 +227,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
     ) {
         if (level == null) {
             AppCard("Choose the size") {
-                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap.", color = p.muted, fontSize = 14.sp)
+                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap.", color = p.muted, fontSize = TextSize.Body)
                 SlideLevel.entries.forEach { l ->
                     PrimaryButton(l.label + (state.best[l]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(l) }, Modifier.fillMaxWidth())
                 }

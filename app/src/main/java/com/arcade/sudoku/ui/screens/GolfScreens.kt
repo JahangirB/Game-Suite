@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.GameColors
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloat
@@ -250,8 +251,8 @@ private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
     val p = AppTheme.palette
     val hole = Golf.HOLES[view.hole]
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("Hole ${view.hole + 1} of ${view.holes} · par ${hole.par}", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Text(names.joinToString("  ") { (m, n) -> "$n ${view.total(m)}" }, color = p.muted, fontSize = 13.sp)
+        Text("Hole ${view.hole + 1} of ${view.holes} · par ${hole.par}", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+        Text(names.joinToString("  ") { (m, n) -> "$n ${view.total(m)}" }, color = p.muted, fontSize = TextSize.Body)
     }
 }
 
@@ -356,8 +357,8 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
     ) {
         if (view == null) {
             AppCard("Nine holes") {
-                Text("Pull back from the ball like a slingshot and let go: the further you pull, the harder the shot. Fewest strokes over nine holes wins.", color = p.muted, fontSize = 14.sp)
-                Text("Computers", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Pull back from the ball like a slingshot and let go: the further you pull, the harder the shot. Fewest strokes over nine holes wins.", color = p.muted, fontSize = TextSize.Body)
+                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (n in 0..3) {
                         val label = if (n == 0) "None" else "$n"
@@ -365,7 +366,7 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
                     }
                 }
                 if (state.computers > 0) {
-                    Text("How good", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
                             if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))

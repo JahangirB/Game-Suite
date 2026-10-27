@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import androidx.compose.foundation.Canvas
@@ -138,8 +140,8 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
                 if (phase == RoomStatus.COUNTDOWN) {
                     val seconds = (((room.startAt ?: 0L) - state.serverNow() + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Get ready", color = p.muted, fontSize = 18.sp)
-                        Text(seconds.toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text("Get ready", color = p.muted, fontSize = TextSize.Title)
+                        Text(style = Digits, text = seconds.toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -178,7 +180,7 @@ fun SoloHockeyScreen(state: SoloHockeyUiState, vm: SoloHockeyViewModel, onHome: 
     ) {
         if (level == null) {
             AppCard("Choose the computer's level") {
-                Text("Drag your paddle to knock the puck into the computer's goal. First to ${Hockey.GOALS} wins.", color = p.muted, fontSize = 14.sp)
+                Text("Drag your paddle to knock the puck into the computer's goal. First to ${Hockey.GOALS} wins.", color = p.muted, fontSize = TextSize.Body)
                 levels.forEachIndexed { i, label -> PrimaryButton(label, { vm.start(i) }, Modifier.fillMaxWidth()) }
             }
         } else {

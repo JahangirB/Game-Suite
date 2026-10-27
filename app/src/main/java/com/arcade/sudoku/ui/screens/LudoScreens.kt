@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
@@ -289,7 +290,7 @@ private fun ColumnScope.LudoTable(
         myTurn,
         ludoColor(myColour),
     )
-    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
@@ -386,8 +387,8 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
     ) {
         if (view == null) {
             AppCard("Set up the board") {
-                Text("Roll, bring your tokens out with a 6, race them round and home. Land on others to send them back.", color = p.muted, fontSize = 14.sp)
-                Text("Computer players", color = p.text, fontSize = 15.sp)
+                Text("Roll, bring your tokens out with a 6, race them round and home. Land on others to send them back.", color = p.muted, fontSize = TextSize.Body)
+                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
                 }

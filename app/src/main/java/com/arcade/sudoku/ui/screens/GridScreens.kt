@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Digits
+import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.foundation.BorderStroke
@@ -120,7 +122,7 @@ private fun FoundWords(words: List<String>) {
         if (words.isEmpty()) "Drag through touching letters to spell words of three letters or more."
         else words.reversed().joinToString("  ·  ") { it.uppercase() },
         color = if (words.isEmpty()) p.muted else p.text,
-        fontSize = 14.sp, fontWeight = if (words.isEmpty()) FontWeight.Normal else FontWeight.SemiBold,
+        fontSize = TextSize.Body, fontWeight = if (words.isEmpty()) FontWeight.Normal else FontWeight.SemiBold,
         maxLines = 3, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -135,10 +137,10 @@ private fun timeLeft(endsAt: Long, now: Long): String {
 private fun ColumnScope.GridResults(results: List<GridResult>) {
     val p = AppTheme.palette
     for (r in results) {
-        Text("${if (r.mine) "You" else r.name}: ${r.score} points", color = p.text, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("${if (r.mine) "You" else r.name}: ${r.score} points", color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
         Text(
             r.words.joinToString("  ") { (if (it.unique) "★" else "") + it.word.uppercase() }.ifEmpty { "No words" },
-            color = p.muted, fontSize = 12.sp, maxLines = 3,
+            color = p.muted, fontSize = TextSize.Label, maxLines = 3,
         )
     }
 }
@@ -169,7 +171,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         }),
         glow = GameKind.GRID.color,
         dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
-        trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -189,9 +191,9 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         if (letters == null) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Get ready", color = p.muted, fontSize = 18.sp)
+                    Text("Get ready", color = p.muted, fontSize = TextSize.Title)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text((((room.startAt ?: 0L) - now + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(style = Digits, text = (((room.startAt ?: 0L) - now + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -219,7 +221,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         glow = GameKind.GRID.color,
         dock = soloDock(onHome, { showRules = true }, if (letters != null) vm::start else null),
         trailing = {
-            if (letters != null && !state.over) Text(timeLeft(state.endsAt, now), color = p.text, fontSize = 22.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            if (letters != null && !state.over) Text(timeLeft(state.endsAt, now), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
         scrollable = letters == null,
         popup = if (!state.over) null else popupContent {
@@ -236,7 +238,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
     ) {
         if (letters == null) {
             AppCard("Two minutes, one grid") {
-                Text("Spell words by dragging through touching letters, sideways or corner to corner. Longer words score more.", color = p.muted, fontSize = 14.sp)
+                Text("Spell words by dragging through touching letters, sideways or corner to corner. Longer words score more.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
             }
         } else {
