@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.Sfx
 import com.arcade.sudoku.ui.Sound
 import com.arcade.sudoku.ui.SoundOnChange
@@ -531,18 +532,21 @@ private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<
 @Composable
 internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.palette.primary) {
     val p = AppTheme.palette
+    // When the turn is yours the line becomes a banner in the game's colour and pops in, so it
+    // can't be missed; otherwise it sits quietly in grey.
     Surface(
         color = if (highlight) color else p.accent,
         shape = Shapes.L,
-        border = BorderStroke(2.dp, p.ink),
-        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(if (highlight) 3.dp else 2.dp, p.ink),
+        modifier = Modifier.fillMaxWidth().enterFrom(highlight.takeIf { it }, scaleFrom = 0.9f, durationMs = 220),
     ) {
         Text(
-            text,
-            color = if (highlight) Color.White else p.text,
+            (if (highlight) "● " else "") + text,
+            color = if (highlight) readableOn(color) else p.text,
             fontWeight = FontWeight.Bold,
+            fontSize = if (highlight) TextSize.Title else TextSize.BodyL,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = if (highlight) 14.dp else 12.dp),
         )
     }
 }

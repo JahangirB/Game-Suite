@@ -66,6 +66,12 @@ data class Profile(
     val vibration: Boolean = true,
     /** Sound effects (the phone on silent mutes them too). */
     val sound: Boolean = true,
+    /**
+     * The notification question: due once an invitation has been sent or received, and
+     * answered (allowed or "Not now") for good, so it is never asked again on every launch.
+     */
+    val notificationsDue: Boolean = false,
+    val notificationsAsked: Boolean = false,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -127,6 +133,18 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setGameOrder(order: List<GameKind>?) {
         prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
         _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
+    }
+
+    /** An invitation went out or came in: from now on the home offers to turn on notifications. */
+    fun notificationsNeeded() {
+        if (_profile.value.notificationsDue) return
+        prefs.edit { putBoolean(KEY_NOTIFY_DUE, true) }
+        _profile.update { it.copy(notificationsDue = true) }
+    }
+
+    fun notificationsAnswered() {
+        prefs.edit { putBoolean(KEY_NOTIFY_ASKED, true) }
+        _profile.update { it.copy(notificationsAsked = true) }
     }
 
     fun setSound(on: Boolean) {
@@ -217,6 +235,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
             sound = prefs.getBoolean(KEY_SOUND, true),
+            notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
+            notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -248,6 +268,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
         private const val KEY_SOUND = "sound"
+        private const val KEY_NOTIFY_DUE = "notifications_due"
+        private const val KEY_NOTIFY_ASKED = "notifications_asked"
 
         /** The saved order, with games added since (or not known any more) put right. */
         fun orderOf(saved: String?): List<GameKind> {

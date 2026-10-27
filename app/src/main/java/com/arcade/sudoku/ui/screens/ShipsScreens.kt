@@ -283,6 +283,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         title = "Ship Battle",
         subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         swipeToFocus = true,
+        focusWhen = myTurn && !finished,
         players = players,
         glow = GameKind.SHIPS.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
@@ -378,6 +379,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         title = "Ship Battle",
         subtitle = "Against the computer",
         swipeToFocus = game != null,
+        focusWhen = game?.let { it.myTurn && it.winner == null } == true,
         players = if (game == null) emptyList() else listOf(
             ChipPlayer("You", null, p.primary, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
             ChipPlayer("Computer", null, OpponentColor, "${game.theirProgress}% of fleet hit", active = !game.myTurn && game.winner == null),

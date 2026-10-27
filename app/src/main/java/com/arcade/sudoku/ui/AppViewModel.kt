@@ -36,4 +36,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun finishFirstRun() = store.finishFirstRun()
     fun setVibration(on: Boolean) = store.setVibration(on)
     fun setSound(on: Boolean) = store.setSound(on)
+    fun notificationsAnswered() = store.notificationsAnswered()
 }

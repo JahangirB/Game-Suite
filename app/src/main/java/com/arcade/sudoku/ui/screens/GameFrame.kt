@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.runtime.LaunchedEffect
 import com.arcade.sudoku.ui.theme.Mark
 import com.arcade.sudoku.ui.theme.seatMark
 import com.arcade.sudoku.ui.theme.Digits
@@ -106,12 +107,18 @@ fun GameFrame(
     tray: @Composable () -> Unit = {},
     scrollable: Boolean = false,
     popup: (@Composable BoxScope.() -> Unit)? = null,
-    /** Swiping up hides the title and players to give the board more room; down brings them back. */
+    /**
+     * The players can fold into one bar to give the board more room: by a swipe up, the "Hide
+     * players" button, or by itself when [focusWhen] turns true (your turn to fire). Tapping
+     * the bar or swiping down brings them back.
+     */
     swipeToFocus: Boolean = false,
+    focusWhen: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
     var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(focusWhen) { if (focusWhen && swipeToFocus) focused = true }
     val swipe = if (!swipeToFocus) Modifier else Modifier.pointerInput(Unit) {
         var pulled = 0f
         detectVerticalDragGestures(
@@ -127,9 +134,7 @@ fun GameFrame(
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (swipeToFocus && focused) {
-                    Text("⌄  swipe down for the players", color = p.muted, fontSize = TextSize.Label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable { focused = false })
-                }
+                if (swipeToFocus && focused) FoldedPlayers(players, glow) { focused = false }
                 if (!(swipeToFocus && focused)) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
@@ -140,8 +145,16 @@ fun GameFrame(
                 if (players.isNotEmpty() && !(swipeToFocus && focused)) {
                     // Three or four players share the row as smaller chips.
                     val compact = players.size > 2
+                    // While someone plays, everyone else's chip dims, so whose turn it is reads at a glance.
+                    val someoneActive = players.any { it.active }
                     Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth()) {
-                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f), compact) }
+                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f).alpha(if (someoneActive && !it.active) 0.55f else 1f), compact) }
+                    }
+                    if (swipeToFocus) {
+                        Text(
+                            "⌃  Hide players", color = p.primaryText, fontSize = TextSize.Label, fontWeight = FontWeight.Bold, textAlign = TextAlign.End,
+                            modifier = Modifier.fillMaxWidth().clickable { focused = true },
+                        )
                     }
                 }
                 content()
@@ -166,6 +179,28 @@ fun ColumnScope.BoardArea(aspect: Float, weight: Float = 1f, content: @Composabl
     BoxWithConstraints(Modifier.weight(weight).fillMaxWidth(), contentAlignment = Alignment.Center) {
         val width = if (maxHeight == Dp.Infinity) maxWidth else minOf(maxWidth, maxHeight * aspect)
         content(Modifier.width(width).height(width / aspect))
+    }
+}
+
+/** The players folded into one bar: each with their score, and a way back to the full row. */
+@Composable
+private fun FoldedPlayers(players: List<ChipPlayer>, glow: Color, onOpen: () -> Unit) {
+    val p = AppTheme.palette
+    Surface(
+        onClick = onOpen,
+        color = p.card,
+        shape = Shapes.Full,
+        border = BorderStroke(2.dp, p.ink),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                players.joinToString("  ·  ") { listOfNotNull(it.name, it.detail).joinToString(" ") },
+                style = Digits, color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Text("Players ⌄", color = if (players.any { it.active }) glow else p.primaryText, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
+        }
     }
 }
 

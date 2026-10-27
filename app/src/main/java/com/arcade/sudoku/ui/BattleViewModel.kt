@@ -317,6 +317,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 PushApi(partner.serverUrl, partner.password).invite(me.deviceId, to, partner.code, game)
                 showMessage("Invitation sent to ${partner.name}.")
+                store.notificationsNeeded()
             } catch (e: Exception) {
                 // The room is open either way; the partner can still tap Play.
                 showMessage(e.message ?: "Could not send the invitation.")
@@ -327,6 +328,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     /** "Play" on an invitation: join the partner's room with the code from the notification. */
     fun acceptInvite(code: String, game: GameKind) {
+        // Invitations work both ways: offer notifications so the next one reaches this phone too.
+        store.notificationsNeeded()
         // Tapping "your turn" while already in that room needs nothing more.
         if (_state.value.room?.code == code) return
         val partner = store.profile.value.partner

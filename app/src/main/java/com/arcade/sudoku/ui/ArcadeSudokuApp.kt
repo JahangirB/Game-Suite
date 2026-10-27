@@ -280,6 +280,7 @@ fun ArcadeSudokuApp(
                         nearby = battleState.mode == BattleMode.NEARBY,
                         onOpenGame = battle::openGame,
                         onLeaveRoom = { confirmDisconnect = true },
+                        onNotificationsAnswered = app::notificationsAnswered,
                     )
                 }
             }

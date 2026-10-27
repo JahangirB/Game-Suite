@@ -117,11 +117,11 @@ fun HomeScreen(
     nearby: Boolean = false,
     onOpenGame: (GameKind) -> Unit = {},
     onLeaveRoom: () -> Unit = {},
+    onNotificationsAnswered: () -> Unit = {},
 ) {
     val p = AppTheme.palette
     var pickingLevel by rememberSaveable { mutableStateOf(false) }
     var sheetGame by rememberSaveable { mutableStateOf<GameKind?>(null) }
-    AskForNotifications(enabled = profile.partner != null)
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -141,6 +141,8 @@ fun HomeScreen(
                     if (avatar != null) AvatarImage(avatar, Modifier.fillMaxSize()) else Icon(Icons.Filled.Person, contentDescription = "Profile", tint = p.text)
                 }
             }
+
+            NotificationPrimer(profile, onNotificationsAnswered)
 
             if (room != null) {
                 ConnectedCard(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
@@ -487,19 +489,25 @@ private fun PartnerCard(partner: SavedPartner) {
     }
 }
 
-/** Invitations only show with the notification permission (Android 13+); ask once per launch. */
+/**
+ * Invitations and "your turn" only show with the notification permission (Android 13 and
+ * later). Asked once, after the first invitation was sent or received, with the reason first;
+ * either answer is saved, so the question never comes back on every launch.
+ */
 @Composable
-private fun AskForNotifications(enabled: Boolean) {
-    if (!enabled || !Push.available || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+private fun NotificationPrimer(profile: Profile, onAnswered: () -> Unit) {
+    if (!profile.notificationsDue || profile.notificationsAsked || !Push.available || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     val context = LocalContext.current
-    var asked by rememberSaveable { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(Unit) {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!granted && !asked) {
-            asked = true
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onAnswered() }
+    if (granted) return
+    val p = AppTheme.palette
+    val who = profile.partner?.name ?: "your partner"
+    AppCard("Get a buzz when it's your turn") {
+        Text("Allow notifications to hear when $who invites you or plays their turn while the app is closed.", color = p.muted, fontSize = TextSize.Body)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+            PrimaryButton("Allow", { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) }, Modifier.weight(1f))
+            SecondaryButton("Not now", onAnswered, Modifier.weight(1f))
         }
     }
 }
