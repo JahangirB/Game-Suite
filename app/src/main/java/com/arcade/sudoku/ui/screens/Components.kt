@@ -1,5 +1,10 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Buzz
+import com.arcade.sudoku.ui.rememberHaptics
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.font.FontFamily
+import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.Mark
 import com.arcade.sudoku.ui.theme.MarkIcon
 import com.arcade.sudoku.ui.theme.Board
@@ -315,4 +320,20 @@ fun formatDuration(ms: Long): String {
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
     return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%02d:%02d".format(minutes, seconds)
+}
+
+/** A countdown's big number; the phone ticks as each one shows. */
+@Composable
+fun CountdownText(
+    seconds: Number,
+    color: Color,
+    modifier: Modifier = Modifier,
+    fontFamily: FontFamily? = null,
+    fontWeight: FontWeight? = FontWeight.Bold,
+    textAlign: TextAlign? = null,
+) {
+    val haptics = rememberHaptics()
+    val n = seconds.toInt()
+    LaunchedEffect(n) { haptics.play(Buzz.COUNTDOWN) }
+    Text(style = Digits, text = n.toString(), color = color, fontSize = TextSize.Countdown, fontFamily = fontFamily, fontWeight = fontWeight, textAlign = textAlign, modifier = modifier)
 }

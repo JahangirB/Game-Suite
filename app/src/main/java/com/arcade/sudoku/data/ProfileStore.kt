@@ -62,6 +62,8 @@ data class Profile(
     val gameOrder: List<GameKind> = GameKind.entries,
     /** Whether the first-run screens have been seen (or skipped, by someone set up before them). */
     val firstRunDone: Boolean = false,
+    /** Buzz for game moments (your turn, a move, a win). */
+    val vibration: Boolean = true,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -123,6 +125,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setGameOrder(order: List<GameKind>?) {
         prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
         _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
+    }
+
+    fun setVibration(on: Boolean) {
+        prefs.edit { putBoolean(KEY_VIBRATION, on) }
+        _profile.update { it.copy(vibration = on) }
     }
 
     fun finishFirstRun() {
@@ -201,6 +208,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
             // Someone who set a name before the first-run screens existed has nothing to learn there.
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
+            vibration = prefs.getBoolean(KEY_VIBRATION, true),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -230,6 +238,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_PLAY_MODE = "play_mode"
         private const val KEY_GAME_ORDER = "game_order"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
+        private const val KEY_VIBRATION = "vibration"
 
         /** The saved order, with games added since (or not known any more) put right. */
         fun orderOf(saved: String?): List<GameKind> {

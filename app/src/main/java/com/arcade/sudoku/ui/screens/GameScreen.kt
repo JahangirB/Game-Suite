@@ -110,7 +110,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                     val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Get ready", color = p.muted, fontSize = TextSize.Title)
-                        Text(style = Digits, text = seconds.toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
+                        CountdownText(seconds, p.primaryText, fontWeight = FontWeight.Bold)
                         opponent?.let { Text("vs ${it.name}", color = OpponentColor, fontWeight = FontWeight.SemiBold) }
                     }
                 }

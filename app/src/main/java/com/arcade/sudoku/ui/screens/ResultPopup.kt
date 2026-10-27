@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Buzz
+import com.arcade.sudoku.ui.rememberHaptics
 import com.arcade.sudoku.ui.theme.LocalReduceMotion
 import com.arcade.sudoku.ui.theme.LineHeight
 import com.arcade.sudoku.ui.theme.TextSize
@@ -78,6 +80,8 @@ fun BoxScope.ResultPopup(
 ) {
     val p = AppTheme.palette
     var folded by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
+    LaunchedEffect(Unit) { haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE) }
     if (folded) {
         Surface(
             onClick = { folded = false },

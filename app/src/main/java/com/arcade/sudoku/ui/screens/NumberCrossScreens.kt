@@ -320,7 +320,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Get ready", color = p.muted, fontSize = TextSize.Title)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text(style = Digits, text = ((startAt - now + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = TextSize.Countdown, fontWeight = FontWeight.Bold)
+                        CountdownText(((startAt - now + 999) / 1000).coerceAtLeast(1), p.primaryText, fontWeight = FontWeight.Bold)
                     }
                 }
             }

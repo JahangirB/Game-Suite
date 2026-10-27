@@ -216,7 +216,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
                 AppCard {
                     Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Text(style = Digits, text = seconds.toString(), color = GameKind.DRAW.color, fontSize = TextSize.Countdown, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    CountdownText(seconds, GameKind.DRAW.color, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }
             finished -> BoardArea(1f) { size -> DrawingPad(state.drawStrokes, 0, 1, null, size) }

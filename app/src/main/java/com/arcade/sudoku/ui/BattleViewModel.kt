@@ -146,6 +146,7 @@ data class BattleUiState(
 
 class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private val store = ProfileStore.get(app)
+    private val haptics = Haptics.get(app)
 
     private val _state = MutableStateFlow(
         // The last partner's code stays filled in, so reconnecting needs no typing.
@@ -711,6 +712,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (s.firing || room.turns?.turn != "me") return
         val guess = shown?.let { room.copy(turns = it) }
         _state.update { it.copy(firing = true, room = guess ?: it.room, pendingCard = pendingCard) }
+        haptics.play(Buzz.MOVE)
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
@@ -719,6 +721,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(guess, room)
+                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 undo(guess, room)
@@ -757,6 +760,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
+                // Not a word, or the wrong length: it stays typed, and the phone says no.
+                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 showMessage("Network problem, try again.")
@@ -866,6 +871,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val ships = room.ships ?: return
         if (s.firing || ships.turn != "me" || ships.myShots.any { it.x == x && it.y == y }) return
         _state.update { it.copy(firing = true, pendingShot = x to y) }
+        haptics.play(Buzz.MOVE)
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
@@ -873,6 +879,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
+                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 showMessage("Network problem, try again.")
@@ -1351,6 +1358,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     /** [sentAt] is when the request went out; null for pushed updates, which can't time the clock. */
     private fun applyResponse(json: JSONObject, sentAt: Long?, record: Boolean = true): RoomState {
         val room = parseRoom(json)
+        // Your turn just came round in a turn game or Ship Battle.
+        val before = _state.value.room
+        fun myTurn(r: RoomState?) = r != null && r.atGame && r.status == RoomStatus.PLAYING && (r.turns?.turn == "me" || r.ships?.turn == "me")
+        if (myTurn(room) && !myTurn(before)) haptics.play(Buzz.YOUR_TURN)
         val offset = sentAt?.let { clockOffset(room.serverTime, it) } ?: _state.value.clockOffsetMs
         lastVersion = json.optInt("version", -1)
         if (room.others.map { it.progress } != _state.value.room?.others?.map { it.progress }) {

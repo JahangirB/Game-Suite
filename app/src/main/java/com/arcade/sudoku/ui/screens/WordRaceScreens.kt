@@ -267,7 +267,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
             AppCard {
                 Text("Get ready", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Text(style = Digits, text = seconds.toString(), color = GameKind.WORDS.color, fontSize = TextSize.Countdown, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                CountdownText(seconds, GameKind.WORDS.color, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         } else {
             WordRaceRound(state, vm, words, finished)

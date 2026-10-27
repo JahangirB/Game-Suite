@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -183,6 +184,16 @@ fun ProfileScreen(
                             label = { Text(style.label) },
                         )
                     }
+                }
+            }
+
+            AppCard("Sound and touch") {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Vibration", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
+                        Text("A buzz for your turn, your moves and the result.", color = p.muted, fontSize = TextSize.Body)
+                    }
+                    Switch(checked = profile.vibration, onCheckedChange = app::setVibration)
                 }
             }
 
