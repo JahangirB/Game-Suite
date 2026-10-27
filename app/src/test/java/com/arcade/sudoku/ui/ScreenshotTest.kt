@@ -1,5 +1,10 @@
 package com.arcade.sudoku.ui
 
+import com.arcade.sudoku.ui.screens.tutorialFor
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Row
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -116,6 +121,20 @@ class ScreenshotTest {
     @Test fun resultLight() = shot("result", dark = false) { result() }
 
     @Test fun resultDark() = shot("result", dark = true) { result() }
+
+    // Every step of the first ten tutorials on its board: one row per game, in one picture.
+    @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")
+    fun tutorials() = shot("tutorials", dark = false) {
+        Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (kind in GameKind.entries.take(10)) {
+                val steps = tutorialFor(kind) ?: continue
+                Text(kind.label, color = AppTheme.palette.text)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    steps.forEach { step -> Box(Modifier.size(78.dp)) { step.board(Modifier.fillMaxSize()) } }
+                }
+            }
+        }
+    }
 
     // The design-system gallery is long: a tall screen fits it all in one picture.
     @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")

@@ -97,7 +97,7 @@ private fun DrawScope.drawStroke(points: FloatArray, color: Int, width: Int) {
  * are drawing is sent in short pieces so your partner sees it appear.
  */
 @Composable
-private fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier = Modifier) {
+internal fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     val current = remember { mutableStateListOf<Float>() }
     val pen = rememberUpdatedState(color to width)

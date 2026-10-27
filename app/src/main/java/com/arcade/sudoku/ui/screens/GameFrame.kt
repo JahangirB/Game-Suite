@@ -313,6 +313,9 @@ fun battleDock(finished: Boolean, onLeave: () -> Unit, onReact: (() -> Unit)?, o
 @Composable
 fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
     val p = AppTheme.palette
+    // "Show me how" plays the game's tutorial again, then comes back to the rules.
+    var showing by remember { mutableStateOf(false) }
+    if (showing) return TutorialDialog(kind) { showing = false }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.card,
@@ -324,5 +327,6 @@ fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismi
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primaryText, fontWeight = FontWeight.Bold) } },
+        dismissButton = if (hasTutorial(kind)) ({ TextButton(onClick = { showing = true }) { Text("Show me how", color = p.primaryText) } }) else null,
     )
 }

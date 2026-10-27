@@ -118,10 +118,20 @@ fun HomeScreen(
     onOpenGame: (GameKind) -> Unit = {},
     onLeaveRoom: () -> Unit = {},
     onNotificationsAnswered: () -> Unit = {},
+    onTutorialSeen: (GameKind) -> Unit = {},
 ) {
     val p = AppTheme.palette
     var pickingLevel by rememberSaveable { mutableStateOf(false) }
     var sheetGame by rememberSaveable { mutableStateOf<GameKind?>(null) }
+    // The first time a game is opened, its tutorial plays before its sheet.
+    var tutorial by rememberSaveable { mutableStateOf<GameKind?>(null) }
+    tutorial?.let { kind ->
+        TutorialDialog(kind) {
+            onTutorialSeen(kind)
+            tutorial = null
+            sheetGame = kind
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -166,7 +176,7 @@ fun HomeScreen(
                         GameTile(
                             kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
                             onLongClick = onArrange,
-                        ) { sheetGame = kind }
+                        ) { if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind }
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }

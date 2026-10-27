@@ -72,6 +72,8 @@ data class Profile(
      */
     val notificationsDue: Boolean = false,
     val notificationsAsked: Boolean = false,
+    /** Games whose tutorial has been seen (it plays the first time a game is opened). */
+    val tutorialsSeen: Set<GameKind> = emptySet(),
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -145,6 +147,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun notificationsAnswered() {
         prefs.edit { putBoolean(KEY_NOTIFY_ASKED, true) }
         _profile.update { it.copy(notificationsAsked = true) }
+    }
+
+    fun tutorialSeen(kind: GameKind) {
+        val seen = _profile.value.tutorialsSeen + kind
+        prefs.edit { putString(KEY_TUTORIALS, seen.joinToString(",") { it.key }) }
+        _profile.update { it.copy(tutorialsSeen = seen) }
     }
 
     fun setSound(on: Boolean) {
@@ -237,6 +245,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             sound = prefs.getBoolean(KEY_SOUND, true),
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
+            tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -270,6 +279,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_SOUND = "sound"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
+        private const val KEY_TUTORIALS = "tutorials_seen"
 
         /** The saved order, with games added since (or not known any more) put right. */
         fun orderOf(saved: String?): List<GameKind> {

@@ -299,6 +299,7 @@ fun ArcadeSudokuApp(
                         onOpenGame = battle::openGame,
                         onLeaveRoom = { confirmDisconnect = true },
                         onNotificationsAnswered = app::notificationsAnswered,
+                        onTutorialSeen = app::tutorialSeen,
                     )
                 }
             }

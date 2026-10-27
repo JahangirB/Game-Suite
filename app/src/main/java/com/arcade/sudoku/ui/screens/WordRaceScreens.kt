@@ -72,7 +72,7 @@ private fun tileColor(score: Char) = when (score) {
 
 /** Six rows of [length] tiles: [guesses] with their colours, then [input] being typed. */
 @Composable
-private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier) {
+internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     // Rows scored before this screen opened don't drop again; a new round starts over.
     var seen by remember { mutableStateOf(guesses.size) }

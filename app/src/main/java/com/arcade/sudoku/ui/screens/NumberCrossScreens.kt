@@ -102,7 +102,7 @@ private fun shown(token: String) = when (token) {
  * filled in and right, red when filled in and wrong. Tap a blank to pick it.
  */
 @Composable
-private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, modifier: Modifier) {
+internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, modifier: Modifier) {
     val p = AppTheme.palette
     val used = board.cells.indices.filter { board.cells[it] != "" }
     if (used.isEmpty()) return
