@@ -7,6 +7,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -23,15 +24,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.arcade.sudoku.game.BoardState
 import com.arcade.sudoku.game.Sudoku
 import com.arcade.sudoku.ui.theme.AppTheme
+import com.arcade.sudoku.ui.theme.Radius
+import com.arcade.sudoku.ui.theme.Shapes
 import kotlin.math.abs
 
 /**
@@ -66,7 +71,11 @@ fun SudokuGrid(
         modifier
             .fillMaxWidth()
             .aspectRatio(1f)
+            // The Toy Box board: rounded, outlined in ink, standing on its edge.
+            .pressedEdge(p.lineThick, Radius.M, 4.dp)
+            .clip(Shapes.M)
             .background(p.boardBackground)
+            .border(3.dp, p.lineThick, Shapes.M)
     ) {
         val cellSize = maxWidth / 9
         val density = LocalDensity.current
@@ -119,6 +128,8 @@ fun SudokuGrid(
                                     text = digit.toString(),
                                     fontSize = digitSize,
                                     fontWeight = if (given) FontWeight.Medium else FontWeight.Normal,
+                                    // A clash is underlined as well as red, so it shows without colour.
+                                    textDecoration = if (isError) TextDecoration.Underline else null,
                                     color = when {
                                         revealed -> p.good
                                         isError -> p.wrong
@@ -136,11 +147,12 @@ fun SudokuGrid(
 
         Canvas(Modifier.fillMaxSize()) {
             val step = size.width / 9
-            for (i in 0..9) {
+            // The outside edge is the board's border.
+            for (i in 1..8) {
                 val thick = i % 3 == 0
-                val stroke = if (thick) 2.dp.toPx() else 1.dp.toPx()
+                val stroke = if (thick) 2.5.dp.toPx() else 1.dp.toPx()
                 val color = if (thick) p.lineThick else p.lineThin
-                val position = (i * step).coerceIn(stroke / 2, size.width - stroke / 2)
+                val position = i * step
                 drawLine(color, Offset(position, 0f), Offset(position, size.height), stroke)
                 drawLine(color, Offset(0f, position), Offset(size.width, position), stroke)
             }

@@ -19,7 +19,8 @@ import com.arcade.sudoku.data.ThemeMode
 
 /**
  * Colours of the app in the Toy Box look: lavender background, white cards with bold ink
- * outlines and a coral accent. The Sudoku board keeps its clean blue-on-white colours.
+ * outlines and a coral accent. The Sudoku board uses them too: ink lines, a coral selected
+ * square with its row, column and box in lavender, and your digits in deep blue.
  */
 data class SudokuPalette(
     val dark: Boolean,
@@ -77,16 +78,16 @@ val LightPalette = SudokuPalette(
     ink = Color(0xFF2B2440),
     hairline = Color(0xFFD9D2EE),
     boardBackground = Color(0xFFFFFFFF),
-    lineThick = Color(0xFF344861),
+    lineThick = Color(0xFF2B2440),
     lineThin = Color(0xFF8A95A8),
-    cellSelected = Color(0xFFBBDEFB),
-    cellSameDigit = Color(0xFFC3D7EA),
-    cellPeer = Color(0xFFE2EBF3),
+    cellSelected = Color(0xFFFFD9D2),
+    cellSameDigit = Color(0xFFE2DAFF),
+    cellPeer = Color(0xFFF4F0FF),
     cellWrong = Color(0xFFF7CFD6),
-    given = Color(0xFF344861),
-    entry = Color(0xFF0072E3),
+    given = Color(0xFF2B2440),
+    entry = Color(0xFF2B5FCC),
     wrong = Color(0xFFE55C6C),
-    note = Color(0xFF6E7C91),
+    note = Color(0xFF6F6688),
 )
 
 val DarkPalette = SudokuPalette(
@@ -107,17 +108,17 @@ val DarkPalette = SudokuPalette(
     // A light ink, so outlines and pressed edges show on the dark background (5:1).
     ink = Color(0xFF8A80B8),
     hairline = Color(0xFF3A3360),
-    boardBackground = Color(0xFF1C2230),
-    lineThick = Color(0xFF9FB3CF),
-    lineThin = Color(0xFF6B7893),
-    cellSelected = Color(0xFF2B5C98),
-    cellSameDigit = Color(0xFF2E4A70),
-    cellPeer = Color(0xFF252E40),
+    boardBackground = Color(0xFF1F1A36),
+    lineThick = Color(0xFFB9B0E0),
+    lineThin = Color(0xFF6E66A0),
+    cellSelected = Color(0xFF5E3434),
+    cellSameDigit = Color(0xFF3D3470),
+    cellPeer = Color(0xFF2A2448),
     cellWrong = Color(0xFF5A2A35),
-    given = Color(0xFFE6EAF2),
-    entry = Color(0xFF5CB0FF),
+    given = Color(0xFFF1EDFF),
+    entry = Color(0xFF8FB4FF),
     wrong = Color(0xFFFF6B7D),
-    note = Color(0xFF8A98B0),
+    note = Color(0xFFA49CC4),
 )
 
 /** Body text: Figtree. */
