@@ -101,7 +101,7 @@ class SessionTest {
         assertSame(room, room.openGame(LocalRoom.GUEST, GameKind.CONNECT4))
         room.setTurnReady(LocalRoom.HOST, true, 6)
         room.setTurnReady(LocalRoom.GUEST, true, 6)
-        assertEquals("playing", room.status(LocalRoom.HOST))
+        assertEquals("playing", room.view(LocalRoom.HOST, 6).getString("status"))
     }
 
     @Test
