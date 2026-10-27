@@ -108,3 +108,8 @@ Fixes asked for along the way, outside the numbered steps.
   - **A swipe is never a tap.** Once the finger moves past a small distance it is a swipe,
     even if it started or ended on a tile, and that touch does nothing else. Only a touch that
     stays put counts as a tap.
+- **Ship Battle against the computer: the game gets stuck at some point.** Not looked into
+  yet. The computer's choice of shot has been ruled out: 20,000 simulated games all finish
+  without a repeated or impossible shot. Look next at the screen and turn handling: whether a
+  tap on the enemy sea is lost to the swipe that folds the players, and whether the
+  computer's turn can stop without anything restarting it.
