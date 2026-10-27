@@ -42,6 +42,8 @@ data class SudokuPalette(
     val scrim: Color,
     /** Outlines and the pressed edge under cards and buttons. */
     val ink: Color,
+    /** The thin border of flat information cards. */
+    val hairline: Color,
     // Board
     val boardBackground: Color,
     val lineThick: Color,
@@ -73,6 +75,7 @@ val LightPalette = SudokuPalette(
     opponentText = Color(0xFFB4530A),
     scrim = Color(0xFF0B0816),
     ink = Color(0xFF2B2440),
+    hairline = Color(0xFFD9D2EE),
     boardBackground = Color(0xFFFFFFFF),
     lineThick = Color(0xFF344861),
     lineThin = Color(0xFF8A95A8),
@@ -103,6 +106,7 @@ val DarkPalette = SudokuPalette(
     scrim = Color(0xFF0B0816),
     // A light ink, so outlines and pressed edges show on the dark background (5:1).
     ink = Color(0xFF8A80B8),
+    hairline = Color(0xFF3A3360),
     boardBackground = Color(0xFF1C2230),
     lineThick = Color(0xFF9FB3CF),
     lineThin = Color(0xFF6B7893),

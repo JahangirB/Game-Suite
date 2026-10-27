@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Space
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.Shapes
@@ -130,23 +131,65 @@ fun SecondaryButton(
     }
 }
 
-/** A white card with an ink outline and a pressed edge; [title] in the rounded heading font. */
+/**
+ * A card holding information; [title] in the rounded heading font. It is flat, with a thin
+ * border, so the chunky outline and pressed edge stay for things you press. [raised] gives
+ * it the chunky look anyway, for a card that is itself a button.
+ */
 @Composable
 fun AppCard(
     title: String? = null,
     modifier: Modifier = Modifier,
+    raised: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val p = AppTheme.palette
     Surface(
         color = p.card,
         shape = Shapes.L,
-        border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.fillMaxWidth().pressedEdge(p.ink, Radius.L),
+        border = if (raised) BorderStroke(2.dp, p.ink) else BorderStroke(1.dp, p.hairline),
+        modifier = modifier.fillMaxWidth().then(if (raised) Modifier.pressedEdge(p.ink, Radius.L) else Modifier),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             if (title != null) Text(title, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             content()
+        }
+    }
+}
+
+/** How a [StatusLine] reads: each tone has its own colour and its own mark. */
+enum class Tone { Neutral, Good, Warning, Bad }
+
+/** One line of status ("Starting…", "Levels don't match"), marked so it doesn't rely on colour. */
+@Composable
+fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    val (color, mark) = when (tone) {
+        Tone.Neutral -> p.muted to null
+        Tone.Good -> p.good to "✓"
+        Tone.Warning -> p.warning to "!"
+        Tone.Bad -> p.bad to "✕"
+    }
+    Text(
+        if (mark == null) text else "$mark  $text",
+        color = color,
+        fontSize = TextSize.Body,
+        fontWeight = FontWeight.Medium,
+        textAlign = TextAlign.Center,
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * A choice among a few [options] (value to label): the chosen one is the main button, the
+ * rest secondary. Without [enabled] nothing can be picked.
+ */
+@Composable
+fun <T> OptionGroup(options: List<Pair<T, String>>, selected: T, enabled: Boolean, onPick: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.S)) {
+        options.forEach { (value, label) ->
+            if (value == selected) PrimaryButton(label, {}, Modifier.fillMaxWidth(), enabled = enabled)
+            else SecondaryButton(label, { onPick(value) }, Modifier.fillMaxWidth(), enabled = enabled)
         }
     }
 }

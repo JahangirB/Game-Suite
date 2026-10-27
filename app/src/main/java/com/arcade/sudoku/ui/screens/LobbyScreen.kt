@@ -243,41 +243,39 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
             }
         }
 
-        val (message, color) = if (room.present.size > 1) groupLevelStatus(room) else levelStatus(room, opponent)
-        Text(message, color = color, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        val (message, tone) = if (room.present.size > 1) groupLevelStatus(room) else levelStatus(room, opponent)
+        StatusLine(message, tone)
     }
 }
 
 
 /** The level line with three or four players: everyone's choice, and what is still needed. */
 @Composable
-private fun groupLevelStatus(room: RoomState): Pair<String, Color> {
-    val p = AppTheme.palette
+private fun groupLevelStatus(room: RoomState): Pair<String, Tone> {
     val everyone = listOf(room.me) + room.present
     val chosen = everyone.mapNotNull { it.difficulty?.takeIf { _ -> it.ready } }
     val choices = everyone.joinToString(" · ") { (if (it === room.me) "You" else it.name) + ": " + (it.difficulty?.takeIf { _ -> it.ready }?.label ?: "…") }
     return when {
-        chosen.size == everyone.size && chosen.toSet().size == 1 -> "Everyone chose ${chosen[0].label}. Starting…" to p.good
-        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to p.warning
-        else -> "$choices. The game starts when everyone picks the same level." to p.muted
+        chosen.size == everyone.size && chosen.toSet().size == 1 -> "Everyone chose ${chosen[0].label}. Starting…" to Tone.Good
+        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to Tone.Warning
+        else -> "$choices. The game starts when everyone picks the same level." to Tone.Neutral
     }
 }
 
 @Composable
-private fun levelStatus(room: RoomState, opponent: PlayerInfo?): Pair<String, Color> {
-    val p = AppTheme.palette
+private fun levelStatus(room: RoomState, opponent: PlayerInfo?): Pair<String, Tone> {
     val mine = room.me.difficulty?.takeIf { room.me.ready }
     val theirs = opponent?.difficulty?.takeIf { opponent.ready }
     return when {
-        opponent == null -> "Waiting for an opponent to join before you can choose a level." to p.muted
+        opponent == null -> "Waiting for an opponent to join before you can choose a level." to Tone.Neutral
         mine != null && theirs != null && mine != theirs ->
             "Levels don't match: you chose ${mine.label}, ${opponent.name} chose ${theirs.label}. " +
-                "Both players must choose the same level before the game can start." to p.warning
-        mine != null && theirs != null -> "Both chose ${mine.label}. Starting…" to p.good
+                "Both players must choose the same level before the game can start." to Tone.Warning
+        mine != null && theirs != null -> "Both chose ${mine.label}. Starting…" to Tone.Good
         mine != null -> "You chose ${mine.label}. Waiting for ${opponent.name} to choose a level… " +
-            "(tap it again to cancel)" to p.muted
+            "(tap it again to cancel)" to Tone.Neutral
         theirs != null -> "${opponent.name} chose ${theirs.label}. Choose ${theirs.label} too to start, " +
-            "or pick another level." to p.muted
-        else -> "Both players choose a level. The game starts when you both pick the same one." to p.muted
+            "or pick another level." to Tone.Neutral
+        else -> "Both players choose a level. The game starts when you both pick the same one." to Tone.Neutral
     }
 }

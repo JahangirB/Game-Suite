@@ -248,9 +248,7 @@ fun NumbersLevelCard(room: RoomState, busy: Boolean, onPick: (NumberLevel) -> Un
     val level = room.numbers?.level ?: NumberLevel.EASY
     AppCard("Level") {
         if (room.isHost) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberLevel.entries.forEach { l -> FilterChip(selected = level == l, onClick = { onPick(l) }, enabled = !busy, label = { Text(l.label) }) }
-            }
+            OptionGroup(NumberLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
             Text("Your phone builds a new puzzle each round and sends it to everyone.", color = p.muted, fontSize = TextSize.Body)
         } else {
             Text("${level.label}: the host's phone builds the puzzle.", color = p.muted, fontSize = TextSize.Body)

@@ -373,10 +373,7 @@ fun WordLevelCard(room: com.arcade.sudoku.data.RoomState, busy: Boolean, onPick:
     val level = room.words?.level ?: WordLevel.MEDIUM
     AppCard("Level") {
         if (room.isHost) {
-            WordLevel.entries.forEach { l ->
-                if (l == level) PrimaryButton(l.label, {}, Modifier.fillMaxWidth(), enabled = !busy)
-                else SecondaryButton(l.label, { onPick(l) }, Modifier.fillMaxWidth(), enabled = !busy)
-            }
+            OptionGroup(WordLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
         } else {
             Text("${level.label}: the host picks the length of the word.", color = p.muted, fontSize = TextSize.Body)
         }

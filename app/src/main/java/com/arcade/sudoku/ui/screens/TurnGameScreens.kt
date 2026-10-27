@@ -325,10 +325,7 @@ fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
     AppCard("Which game?") {
         val modes = listOf(false to "Ultimate: nine boards in one", true to "Normal: one 3 × 3 board")
         if (room.isHost) {
-            modes.forEach { (classic, label) ->
-                if (room.tttClassic == classic) PrimaryButton(label, {}, Modifier.fillMaxWidth(), enabled = !busy)
-                else SecondaryButton(label, { onPick(classic) }, Modifier.fillMaxWidth(), enabled = !busy)
-            }
+            OptionGroup(modes, room.tttClassic, enabled = !busy, onPick = onPick)
         } else {
             Text(modes.first { it.first == room.tttClassic }.second + ", picked by the host.", color = p.muted, fontSize = TextSize.Body)
         }
