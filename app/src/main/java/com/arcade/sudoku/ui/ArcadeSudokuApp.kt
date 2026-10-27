@@ -30,6 +30,13 @@ import com.arcade.sudoku.ui.screens.ArrangeGamesScreen
 import com.arcade.sudoku.ui.screens.FirstRunScreen
 import com.arcade.sudoku.ui.screens.ConnectKind
 import com.arcade.sudoku.ui.screens.ConnectSheet
+import com.arcade.sudoku.ui.screens.ConnectionBanners
+import com.arcade.sudoku.data.PlayMode
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import com.arcade.sudoku.ui.screens.SoloConnectFourScreen
@@ -286,7 +293,38 @@ fun ArcadeSudokuApp(
             }
             // A reaction from your opponent plays large over the battle screen.
             if (inRoomGame) ReactionBurst(battleState.opponentReaction)
+            if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter))
         }
+    }
+
+    battleState.problem?.let { problem ->
+        val context = LocalContext.current
+        AlertDialog(
+            onDismissRequest = battle::dismissProblem,
+            containerColor = p.card,
+            title = { Text(problem.title, color = p.text) },
+            text = { Text(problem.why, color = p.muted) },
+            confirmButton = {
+                val fix = problem.fix
+                if (fix != null) {
+                    TextButton(onClick = {
+                        battle.dismissProblem()
+                        when (fix) {
+                            Fix.BLUETOOTH -> context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                            Fix.PERMISSION -> context.startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                            )
+                            Fix.GO_OFFLINE -> {
+                                app.setPlayMode(PlayMode.OFFLINE)
+                                connectSheet = ConnectKind.NEARBY
+                            }
+                            Fix.EDIT_CODE -> connectSheet = if (battleState.mode == BattleMode.NEARBY || profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.JOIN_ONLINE
+                        }
+                    }) { Text(fix.label, color = p.primary) }
+                }
+            },
+            dismissButton = { TextButton(onClick = battle::dismissProblem) { Text(if (problem.fix == null) "OK" else "Not now", color = p.muted) } },
+        )
     }
 
     connectSheet?.let { kind ->

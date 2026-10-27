@@ -127,6 +127,8 @@ data class BattleUiState(
      * kept, so the same two phones meet again without typing.
      */
     val nearbyCode: String = "",
+    /** Something that went wrong, with its fix; shown until dismissed or fixed. */
+    val problem: Problem? = null,
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -200,6 +202,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun setNearbyCode(value: String) = _state.update { it.copy(nearbyCode = cleanCode(value)) }
     fun newNearbyCode() = _state.update { it.copy(nearbyCode = Invite.randomCode()) }
     fun dismissMessage() = _state.update { it.copy(message = null) }
+    fun dismissProblem() = _state.update { it.copy(problem = null) }
+    fun showProblem(problem: Problem) = _state.update { it.copy(problem = problem) }
     fun setHostGame(game: GameKind) = _state.update { it.copy(hostGame = game) }
 
     /** Fills in the server link and password (saved to the profile) and the secret code from an invite. */
@@ -254,7 +258,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val code = _state.value.joinCode
         if (code.length < 4) return showMessage("Enter the secret code from the host.")
         val url = checkedUrl() ?: return
-        startOnline(url) { b, me -> b.join(code, me) }
+        startOnline(url, code = code) { b, me -> b.join(code, me) }
     }
 
     /**
@@ -269,7 +273,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(joinCode = partner.code, hostCode = partner.code, hostGame = game) }
-        startOnline(partner.serverUrl, partner.password, then = game) { b, me ->
+        startOnline(partner.serverUrl, partner.password, then = game, code = partner.code) { b, me ->
             openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
         }
     }
@@ -312,7 +316,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(hostGame = game) }
-        startOnline(partner.serverUrl, partner.password, then = game) { b, me ->
+        startOnline(partner.serverUrl, partner.password, then = game, code = partner.code) { b, me ->
             val json = openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
             try {
                 PushApi(partner.serverUrl, partner.password).invite(me.deviceId, to, partner.code, game)
@@ -345,9 +349,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         url: String,
         password: String = store.profile.value.serverPassword,
         then: GameKind? = null,
+        code: String = "",
         open: suspend (BattleBackend, Hello) -> JSONObject,
     ) {
-        startSession(BattleBackend.forUrl(url, password), BattleMode.ONLINE, server = url to password, then = then, open = open)
+        startSession(BattleBackend.forUrl(url, password), BattleMode.ONLINE, server = url to password, then = then, code = code, open = open)
     }
 
     // --- Nearby (offline) battles -------------------------------------------------------------
@@ -359,6 +364,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun hostNearby() {
         val code = _state.value.nearbyCode
         if (code.length < 4) return showMessage("The room code needs at least 4 letters or digits.")
+        if (Problems.bluetoothOff(getApplication())) return showProblem(Problems.bluetooth)
         store.setNearbyCode(code)
         val p = store.profile.value
         val host = NearbyHost(getApplication(), displayName(p.name), p.avatar)
@@ -370,8 +376,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun joinNearby() {
         val code = _state.value.nearbyCode
         if (code.length < 4) return showMessage("Enter the room code from the other phone.")
+        if (Problems.bluetoothOff(getApplication())) return showProblem(Problems.bluetooth)
         store.setNearbyCode(code)
-        startSession(NearbyGuest(getApplication()), BattleMode.NEARBY) { b, me -> b.join(code, me) }
+        startSession(NearbyGuest(getApplication()), BattleMode.NEARBY, code = code) { b, me -> b.join(code, me) }
     }
 
     // --- Sessions -----------------------------------------------------------------------------
@@ -386,6 +393,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         mode: BattleMode,
         server: Pair<String, String>? = null,
         then: GameKind? = null,
+        /** The code being joined, for a message that says which room wasn't found. */
+        code: String = "",
         open: suspend (BattleBackend, Hello) -> JSONObject,
     ) = runBusy {
         val p = store.profile.value
@@ -394,6 +403,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             open(newBackend, Hello(displayName(p.name), p.avatar, p.deviceId))
         } catch (e: Exception) {
             newBackend.close()
+            if (e is CancellationException) throw e
+            // A failure with a known fix shows that fix instead of a bare message.
+            val problem = Problems.connecting(e, getApplication(), mode == BattleMode.NEARBY, code, p.partner?.name)
+            if (problem != null) {
+                _state.update { it.copy(problem = problem) }
+                return@runBusy
+            }
             throw e
         }
         backend = newBackend
@@ -1490,7 +1506,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: IOException) {
                 showMessage("Network problem: ${e.message ?: "no connection"}")
             } catch (e: Exception) {
-                showMessage(e.message ?: "Something went wrong.")
+                showMessage(e.message ?: "That didn't work. Try again in a moment.")
             } finally {
                 _state.update { it.copy(busy = false) }
             }

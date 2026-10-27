@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Problems
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -85,7 +86,7 @@ private fun NearbyConnect(state: BattleUiState, vm: BattleViewModel) {
     val askPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         val granted = result.values.all { it }
         denied = !granted
-        if (granted) pending?.invoke()
+        if (granted) pending?.invoke() else vm.showProblem(Problems.noPermission)
         pending = null
     }
 
@@ -111,12 +112,7 @@ private fun NearbyConnect(state: BattleUiState, vm: BattleViewModel) {
     PrimaryButton("Start a nearby room", { withPermissions(vm::hostNearby) }, loading = state.busy)
     SecondaryButton("Join with this code", { withPermissions(vm::joinNearby) }, enabled = !state.busy)
     Text("Keep Bluetooth and Wi‑Fi on and the phones close together. No internet needed.", color = p.muted, fontSize = TextSize.Body)
-    if (denied) {
-        StatusLine(
-            "Nearby play needs the Bluetooth, location and nearby devices permissions. Allow them in the app's settings.",
-            Tone.Bad,
-        )
-    }
+    if (denied) StatusLine("Nearby play needs the nearby devices permission.", Tone.Bad)
 }
 
 @Composable

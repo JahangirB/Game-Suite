@@ -258,13 +258,14 @@ fun battleChips(
 ): List<ChipPlayer> = listOf(
     ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0)),
 ) + room.others.mapIndexed { i, other ->
-    val status = when {
-        other.left -> " (left)"
-        other.online == false -> " (away)"
-        else -> ""
+    // Presence shows in the chip's detail line, not glued onto the name where it truncates.
+    val presence = when {
+        other.left -> "Left"
+        other.online == false -> "Away"
+        else -> null
     }
     ChipPlayer(
-        other.name + status, other.avatar, otherColor(i), detail(other, false),
+        other.name, other.avatar, otherColor(i), presence ?: detail(other, false),
         visibleReaction(state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }, now),
         active(other, false),
         seatMark(i + 1),

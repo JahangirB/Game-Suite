@@ -273,8 +273,8 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         ChipPlayer("You", room.me.avatar, p.primary, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
         opponent?.let {
             ChipPlayer(
-                it.name + if (it.online == false) " (offline)" else "", it.avatar, OpponentColor,
-                "${it.progress ?: 0}% of fleet hit", visibleReaction(state.opponentReaction, now), active = ships.turn == "opponent",
+                it.name, it.avatar, OpponentColor,
+                if (it.online == false) "Away" else "${it.progress ?: 0}% of fleet hit", visibleReaction(state.opponentReaction, now), active = ships.turn == "opponent",
             )
         },
     )
