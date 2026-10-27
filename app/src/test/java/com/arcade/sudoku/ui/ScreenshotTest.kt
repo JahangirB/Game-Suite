@@ -21,6 +21,8 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.Profile
 import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.ui.art.Outcome
+import com.arcade.sudoku.ui.art.KeyArt
+import com.arcade.sudoku.ui.art.hasKeyArt
 import com.arcade.sudoku.ui.screens.DieFace
 import com.arcade.sudoku.ui.screens.HomeScreen
 import com.arcade.sudoku.ui.screens.LudoBoard
@@ -131,6 +133,18 @@ class ScreenshotTest {
                 Text(kind.label, color = AppTheme.palette.text)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     steps.forEach { step -> Box(Modifier.size(72.dp * step.aspect, 72.dp)) { step.board(Modifier.fillMaxSize()) } }
+                }
+            }
+        }
+    }
+
+    // Every game's key art at the game sheet's size.
+    @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")
+    fun keyArt() = shot("key-art", dark = false) {
+        Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            GameKind.entries.filter(::hasKeyArt).chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    pair.forEach { KeyArt(it, Modifier.size(196.dp, 119.dp)) }
                 }
             }
         }
