@@ -223,7 +223,7 @@ private fun LetterKeys(guessed: List<Char>, word: String, enabled: Boolean, onLe
                             else -> p.card
                         },
                         shape = Shapes.S, border = BorderStroke(2.dp, if (tried) p.muted else p.ink),
-                        modifier = Modifier.weight(1f).height(42.dp).clickable(enabled = enabled && !tried) {
+                        modifier = Modifier.weight(1f).height(48.dp).clickable(enabled = enabled && !tried) {
                             sfx.play(Sound.LETTER_TYPE)
                             onLetter(c)
                         },

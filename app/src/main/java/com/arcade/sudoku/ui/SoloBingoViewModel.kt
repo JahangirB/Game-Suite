@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui
 
+import kotlinx.coroutines.channels.Channel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arcade.sudoku.game.bingo.Bingo
@@ -16,7 +17,15 @@ import kotlin.random.Random
  * Bingo against one to three computer cards. The computers dab every call and shout a little
  * after their line fills, so a quick eye on your own card wins.
  */
+/** How fast numbers are called on your own: Relaxed waits for you to tap Next. */
+enum class BingoPace(val label: String, val line: String, val callMs: Long?) {
+    RELAXED("Relaxed", "The next number comes when you tap Next", null),
+    NORMAL("Normal", "Every 3.5 seconds", Bingo.CALL_MS),
+    FAST("Fast", "Every 2.5 seconds", 2500L),
+}
+
 data class SoloBingoUiState(
+    val pace: BingoPace = BingoPace.NORMAL,
     /** 0 before the first game. */
     val computers: Int = 0,
     val card: List<Int> = emptyList(),
@@ -38,6 +47,15 @@ class SoloBingoViewModel : ViewModel() {
     private val _state = MutableStateFlow(SoloBingoUiState())
     val state: StateFlow<SoloBingoUiState> = _state.asStateFlow()
     private var caller: Job? = null
+    /** Relaxed pace: each tap on Next lets one more number be called. */
+    private val nextCall = Channel<Unit>(Channel.CONFLATED)
+
+    fun setPace(pace: BingoPace) = _state.update { it.copy(pace = pace) }
+
+    /** Relaxed pace: call the next number now. */
+    fun next() {
+        nextCall.trySend(Unit)
+    }
 
     fun start(computers: Int) {
         caller?.cancel()
@@ -49,13 +67,18 @@ class SoloBingoViewModel : ViewModel() {
                 computerCards = List(computers) { Bingo.dealCard(random) },
                 calls = Bingo.shuffledCalls(random),
                 wins = it.wins,
+                pace = it.pace,
             )
         }
+        val pace = _state.value.pace
+        // A Next tapped during the last game must not call this one's first number.
+        nextCall.tryReceive()
         caller = viewModelScope.launch {
             // A computer shouts this many calls after its line fills.
             val shoutAfter = IntArray(computers) { -1 }
             while (true) {
-                delay(if (_state.value.called == 0) 1500 else Bingo.CALL_MS)
+                val wait = pace.callMs
+                if (_state.value.called == 0) delay(1500) else if (wait == null) nextCall.receive() else delay(wait)
                 if (_state.value.winner != null) return@launch
                 _state.update { it.copy(called = it.called + 1) }
                 val s = _state.value
@@ -80,7 +103,7 @@ class SoloBingoViewModel : ViewModel() {
 
     fun changePlayers() {
         caller?.cancel()
-        _state.update { SoloBingoUiState(wins = it.wins) }
+        _state.update { SoloBingoUiState(wins = it.wins, pace = it.pace) }
     }
 
     /** Dab (or un-dab) a called number on your card. */

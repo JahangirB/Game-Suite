@@ -50,6 +50,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -361,19 +362,25 @@ fun DotsBoard(
     SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
     // A box closed: a stamp and a chime, and the same player goes again.
     SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
+    // Under the finger now, and the line chosen by the last tap: a tap lights up the nearest free
+    // line, and a second tap on it draws it, so a stray touch never plays a line.
     var preview by remember { mutableStateOf<Int?>(null) }
+    var chosen by remember(lines) { mutableStateOf<Int?>(null) }
+    val free by rememberUpdatedState(lines)
     val pick = if (onLine == null) Modifier else Modifier.pointerInput(onLine) {
-        fun lineAt(at: Offset): Int {
+        /** The free line whose middle is nearest [at], within most of a box. */
+        fun lineAt(at: Offset): Int? {
             val margin = size.width * 0.08f
             val step = (size.width - 2 * margin) / Dots.BOXES
-            val gx = (at.x - margin) / step
-            val gy = (at.y - margin) / step
-            // The nearest horizontal line and the nearest vertical one; take the closer.
-            val hr = Math.round(gy).coerceIn(0, Dots.BOXES)
-            val hc = gx.toInt().coerceIn(0, Dots.BOXES - 1)
-            val vr = gy.toInt().coerceIn(0, Dots.BOXES - 1)
-            val vc = Math.round(gx).coerceIn(0, Dots.BOXES)
-            return if (Math.abs(gy - hr) <= Math.abs(gx - vc)) hr * 4 + hc else 20 + vr * 5 + vc
+            fun middle(line: Int) = if (line < 20) {
+                Offset(margin + (line % 4 + 0.5f) * step, margin + (line / 4) * step)
+            } else {
+                val l = line - 20
+                Offset(margin + (l % 5) * step, margin + (l / 5 + 0.5f) * step)
+            }
+            return (0 until Dots.LINES).filter { free.getOrNull(it) == '.' }
+                .minByOrNull { (middle(it) - at).getDistance() }
+                ?.takeIf { (middle(it) - at).getDistance() < step * 0.75f }
         }
         awaitEachGesture {
             preview = lineAt(awaitFirstDown().position)
@@ -382,8 +389,16 @@ fun DotsBoard(
                 if (!change.pressed) break
                 preview = lineAt(change.position)
             }
-            preview?.takeIf { lines.getOrNull(it) == '.' }?.let(onLine)
+            val line = preview
             preview = null
+            when {
+                line == null -> chosen = null
+                line == chosen -> {
+                    chosen = null
+                    onLine(line)
+                }
+                else -> chosen = line
+            }
         }
     }
     Canvas(modifier.fillMaxWidth().aspectRatio(1f).then(pick)) {
@@ -424,7 +439,12 @@ fun DotsBoard(
                 )
             }
         }
-        preview?.takeIf { lines.getOrNull(it) == '.' }?.let { line ->
+        // The chosen line glows, ready for the second tap; one under the finger shows faintly.
+        chosen?.takeIf { lines.getOrNull(it) == '.' }?.let { line ->
+            val (a, b) = ends(line)
+            drawLine(MyDisc, a, b, step * 0.1f, cap = StrokeCap.Round)
+        }
+        preview?.takeIf { it != chosen && lines.getOrNull(it) == '.' }?.let { line ->
             val (a, b) = ends(line)
             drawLine(MyDisc.copy(alpha = 0.45f), a, b, step * 0.08f, cap = StrokeCap.Round)
         }
@@ -658,7 +678,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     !myTurn -> "$name is thinking…"
                     again && game == GameKind.DOTS -> "Box! Go again"
                     again && game == GameKind.MEMORY && turns.faces.count { it != null } % 2 == 0 -> "A pair! Go again"
-                    game == GameKind.DOTS -> "Your turn: draw a line between two dots"
+                    game == GameKind.DOTS -> "Your turn: tap a line, then tap it again to draw it"
                     game == GameKind.MEMORY -> "Your turn: flip two cards"
                     game == GameKind.TTT && turns.board?.length == 9 -> "Your turn: three in a row wins"
                     game == GameKind.TTT -> if (turns.nextBoard == null) "Your turn: play in any open board" else "Your turn: play in the glowing board"
@@ -824,7 +844,7 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is drawing…"
                 again -> "Box! Go again"
-                else -> "Your turn: draw a line between two dots"
+                else -> "Your turn: tap a line, then tap it again to draw it"
             },
             state.myTurn && playing,
             if (again && playing) p.good else GameKind.DOTS.color,

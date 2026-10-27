@@ -229,7 +229,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         glow = GameKind.GRID.color,
         dock = soloDock(onHome, { showRules = true }, if (letters != null) vm::start else null),
         trailing = {
-            if (letters != null && !state.over) Text(timeLeft(state.endsAt, now), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            if (letters != null && !state.over && state.timed) Text(timeLeft(state.endsAt, now), style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
         scrollable = letters == null,
         popup = if (!state.over) null else popupContent {
@@ -245,15 +245,16 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         },
     ) {
         if (letters == null) {
-            AppCard("Two minutes, one grid") {
+            AppCard("One grid, as many words as you can") {
                 Text("Spell words by dragging through touching letters, sideways or corner to corner. Longer words score more.", color = p.muted, fontSize = TextSize.Body)
+                OptionGroup(listOf(false to "No time limit", true to "2 minutes"), state.timed, enabled = true, onPick = vm::setTimed)
                 PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
             }
         } else {
             TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
             BoardArea(1f) { size -> LetterGridBoard(letters, !state.over, vm::find, size) }
             FoundWords(state.found)
-            if (!state.over) SecondaryButton("Finish now", vm::finish, Modifier.fillMaxWidth())
+            if (!state.over) SecondaryButton(if (state.timed) "Finish now" else "I'm done", vm::finish, Modifier.fillMaxWidth())
         }
     }
 }

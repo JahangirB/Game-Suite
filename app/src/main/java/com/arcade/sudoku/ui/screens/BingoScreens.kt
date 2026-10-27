@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.BingoPace
+import com.arcade.sudoku.ui.theme.Space
 import com.arcade.sudoku.ui.Sound
 import com.arcade.sudoku.ui.SoundOnChange
 import com.arcade.sudoku.ui.rememberSfx
@@ -243,15 +245,26 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
         },
     ) {
         if (!playing) {
+            AppCard("How fast are numbers called?") {
+                OptionGroup(BingoPace.entries.map { it to it.label }, state.pace, enabled = true, onPick = vm::setPace)
+                Text(state.pace.line + ".", color = p.muted, fontSize = TextSize.Body)
+            }
             AppCard("How many computer cards?") {
-                Text("Numbers are called every few seconds. Dab the ones on your card and shout Bingo when you fill a row, a column or a diagonal. The computers never miss a number, but they're slow to shout.", color = p.muted, fontSize = TextSize.Body)
+                Text("Dab the called numbers on your card and shout Bingo when you fill a row, a column or a diagonal. The computers never miss a number, but they're slow to shout.", color = p.muted, fontSize = TextSize.Body)
                 for (k in 1..3) PrimaryButton("Against $k", { vm.start(k) }, Modifier.fillMaxWidth())
             }
         } else {
             CallStrip(state.calls, state.called)
             BingoCard(state.card, state.dabs, if (state.winner == "me") state.line else null, state.winner == null && state.called > 0, vm::dab, Modifier.fillMaxWidth().weight(1f))
             val sfx = rememberSfx()
-            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
+            if (state.pace == BingoPace.RELAXED) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton("Next number", vm::next, Modifier.weight(1f), enabled = state.winner == null && state.called > 0 && state.called < Bingo.NUMBERS)
+                    PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.weight(1f), enabled = state.winner == null && state.myLine != null)
+                }
+            } else {
+                PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
+            }
         }
     }
 }

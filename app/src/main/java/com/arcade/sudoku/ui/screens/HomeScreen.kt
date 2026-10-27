@@ -355,7 +355,7 @@ private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> U
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 44.dp)
+                    .heightIn(min = 48.dp)
                     .background(if (on) p.primary else Color.Transparent)
                     .selectable(selected = on, enabled = enabled, role = Role.Tab) { onPick(value) },
             ) {

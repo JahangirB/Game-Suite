@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import androidx.compose.ui.geometry.CornerRadius
+import com.arcade.sudoku.ui.theme.Space
 import com.arcade.sudoku.ui.Sound
 import com.arcade.sudoku.ui.SoundOnChange
 import kotlinx.coroutines.delay
@@ -245,7 +247,7 @@ fun FleetCard(
                 ready && opponent.ready -> "Both fleets are in. Starting…"
                 ready -> "Your fleet is ready. Waiting for ${opponent.name}…"
                 opponent.ready -> "${opponent.name} is ready. Place your fleet and tap Ready."
-                else -> "Drag ships to move them, tap one to turn it, or shuffle. Tap Ready when you like your fleet."
+                else -> "Tap a ship, then tap where it goes (or drag it); Turn rotates it. Tap Ready when you like your fleet."
             },
             color = if (opponent?.ready == true && !ready) p.good else p.muted,
             fontSize = TextSize.Body,
@@ -406,7 +408,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
             AppCard("Your fleet") {
                 Text(
                     "Sink the computer's five ships before it sinks yours. A hit lets you fire again. " +
-                        "Drag your ships to move them, tap one to turn it.",
+                        "Tap a ship, then tap where it goes, or drag it. Turn rotates it.",
                     color = p.muted,
                     fontSize = TextSize.Body,
                 )
@@ -458,6 +460,15 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
     val p = AppTheme.palette
     // The ship being dragged: its index, where it would land, and whether it may.
     var drag by remember { mutableStateOf<Triple<Int, Ship, Boolean>?>(null) }
+    // Tap to pick a ship up, tap a square to put it down there; [refused] flashes a spot it can't go.
+    var picked by remember { mutableStateOf<Int?>(null) }
+    var refused by remember { mutableStateOf<Ship?>(null) }
+    LaunchedEffect(refused) {
+        if (refused != null) {
+            delay(600)
+            refused = null
+        }
+    }
     val current by rememberUpdatedState(fleet)
     val report by rememberUpdatedState(onChange)
     val shown = drag?.let { (i, ship, _) -> fleet.toMutableList().also { it[i] = ship } } ?: fleet
@@ -469,17 +480,16 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
             val (gx, gy) = cellAt(down.position)
             val fleetNow = current
             val index = fleetNow.indexOfFirst { Sea.cell(gx, gy) in it.cells }
-            if (index < 0) return@awaitEachGesture
             down.consume()
-            val ship = fleetNow[index]
             var moved = false
             while (true) {
                 val event = awaitPointerEvent()
                 val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
                 if (!pointer.pressed) break
                 if (!moved && (pointer.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
-                if (moved) {
+                if (moved && index >= 0) {
                     pointer.consume()
+                    val ship = fleetNow[index]
                     val (cx, cy) = cellAt(pointer.position)
                     val target = ship.copy(x = ship.x + cx - gx, y = ship.y + cy - gy)
                     drag = Triple(index, target, Fleet.canPlace(fleetNow, index, target))
@@ -487,23 +497,71 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
             }
             val landed = drag
             drag = null
-            if (moved) {
-                if (landed != null && landed.third) report?.invoke(fleetNow.toMutableList().also { it[index] = landed.second })
-            } else {
-                Fleet.rotate(fleetNow, index)?.let { report?.invoke(it) }
-            }
-        }
-    }
-    Box(modifier.fillMaxWidth().aspectRatio(1f).then(gestures)) {
-        ShipsSea(ships = shown, shots = emptyList())
-        drag?.let { (_, ship, ok) ->
-            Canvas(Modifier.fillMaxSize()) {
-                val cell = size.width / Sea.SIZE
-                val tint = if (ok) p.good else Pieces.Red
-                for (c in ship.cells.filter { it in 0 until Sea.SIZE * Sea.SIZE }) {
-                    drawRect(tint.copy(alpha = 0.35f), Offset((c % Sea.SIZE) * cell, (c / Sea.SIZE) * cell), Size(cell, cell))
+            val holding = picked
+            when {
+                moved && index >= 0 -> {
+                    picked = null
+                    if (landed != null && landed.third) report?.invoke(fleetNow.toMutableList().also { it[index] = landed.second })
+                }
+                moved -> Unit
+                // A tap on a ship picks it up, or puts it back down if it's the one picked.
+                index >= 0 -> picked = if (holding == index) null else index
+                // A tap on the sea puts the picked ship there, starting at that square.
+                holding != null -> {
+                    val target = fleetNow[holding].copy(x = gx, y = gy)
+                    if (Fleet.canPlace(fleetNow, holding, target)) {
+                        report?.invoke(fleetNow.toMutableList().also { it[holding] = target })
+                        picked = null
+                    } else {
+                        refused = target
+                    }
                 }
             }
         }
     }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.S)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).then(gestures)) {
+            ShipsSea(ships = shown, shots = emptyList())
+            val ghost = drag ?: refused?.let { Triple(-1, it, false) }
+            val holding = picked?.let { fleet.getOrNull(it) }
+            if (ghost != null || holding != null) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val cell = size.width / Sea.SIZE
+                    ghost?.let { (_, ship, ok) ->
+                        val tint = if (ok) p.good else Pieces.Red
+                        for (c in ship.cells.filter { it in 0 until Sea.SIZE * Sea.SIZE }) {
+                            drawRect(tint.copy(alpha = 0.35f), Offset((c % Sea.SIZE) * cell, (c / Sea.SIZE) * cell), Size(cell, cell))
+                        }
+                    }
+                    // The picked ship gets a thick outline, so it's clear which one moves.
+                    holding?.takeIf { drag == null }?.let { ship ->
+                        val w = (if (ship.horizontal) ship.len else 1) * cell
+                        val h = (if (ship.horizontal) 1 else ship.len) * cell
+                        drawRoundRect(p.primary, Offset(ship.x * cell, ship.y * cell), Size(w, h), CornerRadius(cell * 0.25f), style = Stroke(cell * 0.12f))
+                    }
+                }
+            }
+        }
+        if (onChange != null) {
+            val holding = picked?.let { fleet.getOrNull(it) }
+            Text(
+                if (holding == null) "Tap a ship to pick it up, or drag it." else "${shipName(holding.len)} picked up (${holding.len} squares). Tap where it should go.",
+                color = AppTheme.palette.muted, fontSize = TextSize.Body,
+            )
+            if (holding != null) {
+                SecondaryButton("Turn", {
+                    val i = picked ?: return@SecondaryButton
+                    Fleet.rotate(fleet, i)?.let { report?.invoke(it) } ?: run { refused = fleet[i].copy(horizontal = !fleet[i].horizontal) }
+                }, Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+/** What a ship of [len] squares is called. */
+private fun shipName(len: Int) = when (len) {
+    5 -> "Carrier"
+    4 -> "Battleship"
+    3 -> "Cruiser"
+    else -> "Destroyer"
 }

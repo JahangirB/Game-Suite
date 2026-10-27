@@ -174,12 +174,13 @@ private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> U
     var code by remember { mutableStateOf("") }
     val sfx = rememberSfx()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        // 48 dp pegs: big enough to hit with a thumb.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (k in 0 until CodeBreaker.PEGS) Peg(code.getOrNull(k), 40.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
+            for (k in 0 until CodeBreaker.PEGS) Peg(code.getOrNull(k), 48.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             CodeBreaker.COLOURS.forEach { c ->
-                Peg(c, 40.dp, Modifier.clickable(enabled = enabled && code.length < CodeBreaker.PEGS) {
+                Peg(c, 48.dp, Modifier.clickable(enabled = enabled && code.length < CodeBreaker.PEGS) {
                     sfx.play(Sound.CODE_PEG)
                     code += c
                 })
