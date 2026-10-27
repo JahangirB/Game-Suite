@@ -207,10 +207,10 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
-    val name = opponent?.name ?: "Your opponent"
+    val name = opponent?.name ?: "The other player"
     GameFrame(
         title = "Code Breaker",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, now, p.primary, detail = { _, isMe ->
             val n = if (isMe) code.mine.size else code.theirs.size
             if (code.phase == "set") (if (isMe) (if (code.myCode != null) "Code set" else "Setting…") else if (code.theySet) "Code set" else "Setting…")

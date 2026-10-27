@@ -24,7 +24,7 @@ enum class GameKind(val key: String, val label: String) {
     MEMORY("memory", "Memory Pairs"),
     WORDS("words", "Word Race"),
     DRAW("draw", "Draw & Guess"),
-    TTT("ttt", "Ultimate Tic-Tac-Toe"),
+    TTT("ttt", "Tic-Tac-Toe"),
     DOMINOES("dominoes", "Dominoes"),
     NUMBERS("numbers", "Number Cross"),
     HOCKEY("hockey", "Air Hockey"),

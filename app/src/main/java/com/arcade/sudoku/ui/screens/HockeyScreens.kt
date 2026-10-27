@@ -144,7 +144,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = opponent?.name ?: "Your opponent"
+            val name = opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.HOCKEY, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 when (room.endReason) {

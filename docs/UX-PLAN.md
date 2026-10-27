@@ -88,7 +88,8 @@ In-game:
 
 Copy and polish:
 
-29. Copy pass: one word per idea, shorter instructions, labels that tell the truth.
+29. Copy pass: one word per idea, shorter instructions, labels that tell the truth. The word
+    list is in [COPY.md](COPY.md).
 30. Key art for the first 10 games.
 31. Key art for the other 10.
 32. Sudoku in the Toy Box look.

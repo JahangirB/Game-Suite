@@ -138,7 +138,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         }
 
     override suspend fun stroke(code: String, playerId: String, stroke: JSONObject): JSONObject = withContext(Dispatchers.Main.immediate) {
-        val r = room ?: throw ApiException("The battle is over.", fatal = true)
+        val r = room ?: throw ApiException("The game is over.", fatal = true)
         val added = r.addStroke(LocalRoom.HOST, stroke, now())
         guests.keys.forEach { send(it, added) }
         JSONObject().put("type", "ack")
@@ -148,7 +148,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         local { clearDrawing(LocalRoom.HOST, now()) }
 
     override suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject = withContext(Dispatchers.Main.immediate) {
-        val r = room ?: throw ApiException("The battle is over.", fatal = true)
+        val r = room ?: throw ApiException("The game is over.", fatal = true)
         room = r.openGame(LocalRoom.HOST, game)
         pushToGuests()
         room!!.view(LocalRoom.HOST, now())
@@ -160,7 +160,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun leave(code: String, playerId: String) {
         withContext(Dispatchers.Main.immediate) {
             room?.leave(LocalRoom.HOST)
-            guests.keys.forEach { send(it, errorJson(null, "The host closed this battle.", fatal = true)) }
+            guests.keys.forEach { send(it, errorJson(null, "The host closed this game.", fatal = true)) }
         }
         // Give the message a moment to leave before the connection drops.
         delay(300)
@@ -176,7 +176,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     /** Applies the host's own change and returns the host's view; the guests get theirs pushed. */
     private suspend fun local(change: LocalRoom.() -> Unit): JSONObject = withContext(Dispatchers.Main.immediate) {
-        val r = room ?: throw ApiException("The battle is over.", fatal = true)
+        val r = room ?: throw ApiException("The game is over.", fatal = true)
         r.change()
         pushToGuests()
         r.view(LocalRoom.HOST, now())
@@ -190,7 +190,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         client.startAdvertising(advertisedName(tag, hostName, hostAvatar), SERVICE_ID, lifecycle, options)
             .addOnFailureListener { e ->
                 advertising = false
-                _pushes.tryEmit(errorJson(null, "Could not start the nearby battle: ${e.message}", fatal = true))
+                _pushes.tryEmit(errorJson(null, "Couldn't start the nearby room: ${e.message}", fatal = true))
             }
     }
 

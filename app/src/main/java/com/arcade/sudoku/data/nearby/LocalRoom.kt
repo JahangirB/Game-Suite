@@ -157,16 +157,16 @@ class LocalRoom(
      * [games] lists the games the joining app knows (null for apps that predate the list).
      */
     fun join(name: String, avatar: Avatar?, playerId: String?, games: List<String>? = null): String {
-        if (status == "closed") throw ApiException("The host closed this battle.", fatal = true, reason = "closed")
+        if (status == "closed") throw ApiException("The host closed this game.", fatal = true, reason = "closed")
         if (game.key !in (games ?: OLD_APP_GAMES)) {
             throw ApiException("This game needs the latest Game Suite. Update the app to join.", fatal = true, reason = "update_needed")
         }
         players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { return it.key }
-        if (playerId != null) throw ApiException("You are not part of this battle.", fatal = true, reason = "not_member")
+        if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")
         val max = game.maxPlayers
         val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
-            ?: throw ApiException(if (max == 2) "This battle already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
-        if (status == "started") throw ApiException("A match is being played. Join when it ends.", fatal = true, reason = "busy")
+            ?: throw ApiException(if (max == 2) "This game already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
+        if (status == "started") throw ApiException("A game is being played. Join when it ends.", fatal = true, reason = "busy")
         players[seat] = newPlayer(name, avatar)
         // Everyone gets ready again, so the newcomer is part of the next round.
         for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
@@ -178,11 +178,11 @@ class LocalRoom(
     /** Throws unless there is someone to play with; used by every "ready". */
     private fun checkCanReady() {
         if (status != "lobby" && status != "finished") {
-            throw ApiException("You can only get ready in the lobby or after a match.")
+            throw ApiException("You can only get ready in the lobby or after a game.")
         }
         if (present().size < 2) {
             if (inRoom().size > 1) throw ApiException("Waiting for the others to come to this game.")
-            throw ApiException(if (seated().size > 1) "Your opponent has left the battle." else "Waiting for an opponent to join.")
+            throw ApiException(if (seated().size > 1) "The other player has left." else "Waiting for someone to join.")
         }
     }
 
@@ -263,7 +263,7 @@ class LocalRoom(
 
     /** Ship Battle: fire at the other player's sea; a hit fires again. */
     fun fire(role: String, x: Int, y: Int, now: Long) {
-        if (game != GameKind.SHIPS || status != "started") throw ApiException("The battle is not running.")
+        if (game != GameKind.SHIPS || status != "started") throw ApiException("The game isn't running.")
         if (turn != role) throw ApiException("It's not your turn.")
         if (x !in 0 until Sea.SIZE || y !in 0 until Sea.SIZE) throw ApiException("Fire inside the sea.")
         val me = players.getValue(role)!!
@@ -995,7 +995,7 @@ class LocalRoom(
                 version++
                 return this
             }
-            throw ApiException("A match is being played. Join when it ends.", reason = "busy")
+            throw ApiException("A game is being played. Join when it ends.", reason = "busy")
         }
         // Two-player games use the first two seats (their rules know only host and guest).
         if (next.maxPlayers == 2 && role != HOST && role != GUEST) {

@@ -244,7 +244,7 @@ fun BoxScope.MatchPopup(
         outcome = outcome,
         title = title,
         detail = detail,
-        finish = PopupAction(if (room.inSession) "Back to games" else "Finish", onFinish),
+        finish = PopupAction(if (room.inSession) "Back to games" else "Done", onFinish),
         again = onRematch?.let { PopupAction(if (room.me.ready) "Waiting for $waitingFor… · Cancel" else "Rematch", it, enabled = !gone) },
         scores = listOfNotNull(session?.let { tonightLine(it.tally, present.map { o -> o.name }) }) + scores,
         status = status,

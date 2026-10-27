@@ -71,19 +71,18 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (state.mode == BattleMode.NEARBY) {
-                AppCard("Nearby battle") {
+                AppCard("Nearby game") {
                     Text(
                         if (room.isHost) {
-                            "Room code ${room.code}: the other phone types it and taps Join with this code. " +
-                                "Keep Bluetooth and Wi‑Fi on; no internet is needed."
+                            "Room code ${room.code}. The other phone types it in and joins."
                         } else {
-                            "Connected directly to ${opponent?.name ?: "the host"}'s phone."
+                            opponent?.let { "Connected to ${it.name}'s phone." } ?: "Connected to the other phone."
                         },
                         color = p.muted,
                         fontSize = TextSize.Body,
                     )
                 }
-            } else AppCard("Secret code") {
+            } else AppCard("Game code") {
                 Text(
                     room.code,
                     color = p.primaryText,
@@ -94,7 +93,6 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(profile.scriptUrl, color = p.muted, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (room.isHost) {
                     OutlinedButton(
                         onClick = {
@@ -104,7 +102,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                                     Intent.EXTRA_TEXT,
                                     Invite(profile.scriptUrl, room.code).toShareText(),
                                 )
-                            context.startActivity(Intent.createChooser(send, "Invite your opponent"))
+                            context.startActivity(Intent.createChooser(send, "Send the code"))
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -128,12 +126,12 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = p.primary)
                         Spacer(Modifier.width(12.dp))
-                        Text(if (room.maxPlayers > 2) "Waiting for others to join…" else "Waiting for your opponent to join…", color = p.muted)
+                        Text(if (room.maxPlayers > 2) "Waiting for others to join…" else "Waiting for someone to join…", color = p.muted)
                     }
                 } else if (joined < room.maxPlayers - 1) {
                     val free = room.maxPlayers - 1 - joined
                     Text(
-                        "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They join with the room code ${room.code}." else "Share the code to invite them.",
+                        "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They join with code ${room.code}." else "Send them the code.",
                         color = p.muted, fontSize = TextSize.Body,
                     )
                 }
@@ -261,8 +259,8 @@ private fun groupLevelStatus(room: RoomState): Pair<String, Tone> {
     val choices = everyone.joinToString(" · ") { (if (it === room.me) "You" else it.name) + ": " + (it.difficulty?.takeIf { _ -> it.ready }?.label ?: "…") }
     return when {
         chosen.size == everyone.size && chosen.toSet().size == 1 -> "Everyone chose ${chosen[0].label}. Starting…" to Tone.Good
-        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to Tone.Warning
-        else -> "$choices. The game starts when everyone picks the same level." to Tone.Neutral
+        chosen.toSet().size > 1 -> "$choices. Pick the same level to start." to Tone.Warning
+        else -> "$choices. It starts when you all pick the same level." to Tone.Neutral
     }
 }
 
@@ -271,15 +269,12 @@ private fun levelStatus(room: RoomState, opponent: PlayerInfo?): Pair<String, To
     val mine = room.me.difficulty?.takeIf { room.me.ready }
     val theirs = opponent?.difficulty?.takeIf { opponent.ready }
     return when {
-        opponent == null -> "Waiting for an opponent to join before you can choose a level." to Tone.Neutral
+        opponent == null -> "Waiting for someone to join." to Tone.Neutral
         mine != null && theirs != null && mine != theirs ->
-            "Levels don't match: you chose ${mine.label}, ${opponent.name} chose ${theirs.label}. " +
-                "Both players must choose the same level before the game can start." to Tone.Warning
+            "${opponent.name} picked ${theirs.label}. Pick ${theirs.label} too to start." to Tone.Warning
         mine != null && theirs != null -> "Both chose ${mine.label}. Starting…" to Tone.Good
-        mine != null -> "You chose ${mine.label}. Waiting for ${opponent.name} to choose a level… " +
-            "(tap it again to cancel)" to Tone.Neutral
-        theirs != null -> "${opponent.name} chose ${theirs.label}. Choose ${theirs.label} too to start, " +
-            "or pick another level." to Tone.Neutral
-        else -> "Both players choose a level. The game starts when you both pick the same one." to Tone.Neutral
+        mine != null -> "Waiting for ${opponent.name}… Tap ${mine.label} again to cancel." to Tone.Neutral
+        theirs != null -> "${opponent.name} picked ${theirs.label}. Pick it too to start." to Tone.Neutral
+        else -> "Pick a level. It starts when you both pick the same one." to Tone.Neutral
     }
 }

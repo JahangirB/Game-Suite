@@ -173,7 +173,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 
     GameFrame(
         title = "Letter Grid",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, rememberTicker(), p.primary, detail = { player, isMe ->
             if (isMe) "${grid.mine.size} words" else "${grid.counts.getOrNull(room.others.indexOf(player)) ?: 0} words"
         }),
@@ -184,12 +184,12 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
             MatchPopup(
-                room, GameKind.GRID, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: "Your opponent"),
+                room, GameKind.GRID, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: "The other player"),
                 when (room.endReason) {
                     "score" -> "★ words only one of you found score double."
                     "draw" -> "Top scores are level."
                     "forfeit" -> if (room.winner == "me") "Everyone else left the game." else "You left the game."
-                    "timeout" -> if (room.winner == "me") "Your opponent lost connection." else "You were disconnected for too long."
+                    "timeout" -> if (room.winner == "me") "The other player lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
                 onRematch = vm::readyGrid, onFinish = onLeave,

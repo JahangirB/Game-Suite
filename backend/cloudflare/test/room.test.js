@@ -124,7 +124,7 @@ test('leaving mid-match forfeits; host leaving closes the room', () => {
   leave(room, 'guest');
   assert.equal(room.winner, 'host');
   assert.equal(room.endReason, 'forfeit');
-  assert.throws(() => setReady(room, 'host', true, 'easy', room.startAt), /opponent has left/);
+  assert.throws(() => setReady(room, 'host', true, 'easy', room.startAt), /other player has left/);
   leave(room, 'host');
   assert.equal(room.status, 'closed');
   assert.throws(() => joinRoom(room, 'Bob', null, T0, uuid), /closed/);

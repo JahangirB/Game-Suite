@@ -440,13 +440,14 @@ private fun GameSheet(
                 SecondaryButton("New solo game", onNewSudoku)
             }
             kind == GameKind.SUDOKU -> SecondaryButton("Play solo", onNewSudoku)
-            kind == GameKind.MEMORY || kind == GameKind.NUMBERS || kind == GameKind.GRID || kind == GameKind.BALLOON || kind == GameKind.CODE || kind == GameKind.SLIDE || kind == GameKind.BINGO || kind == GameKind.GOLF -> SecondaryButton("Play alone", onSolo)
-            kind == GameKind.WORDS -> SecondaryButton("Today's word or practice", onSolo)
-            kind == GameKind.DRAW -> Text("Draw & Guess needs two players: play with your partner, online or nearby.", color = p.muted, fontSize = TextSize.Body)
-            else -> SecondaryButton("Play the computer", onSolo)
+            kind == GameKind.DRAW -> {
+                SecondaryButton("Play solo", {}, enabled = false)
+                Text("Needs 2 or more players.", color = p.muted, fontSize = TextSize.Body)
+            }
+            else -> SecondaryButton("Play solo", onSolo)
         }
         if (room == null && kind != GameKind.DRAW) {
-            Text("To play together, connect first: nearby or online, at the top of the home.", color = p.muted, fontSize = TextSize.Body)
+            Text("To play together, connect first, at the top of the home.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

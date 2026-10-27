@@ -172,7 +172,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 
     GameFrame(
         title = "Draw & Guess",
-        subtitle = (if (finished) "Match over" else "Turn ${draw.turn} of ${draw.turns}") + " · Team score ${draw.score}" +
+        subtitle = (if (finished) "Game over" else "Turn ${draw.turn} of ${draw.turns}") + " · Team score ${draw.score}" +
             if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.DRAW.color,
@@ -185,7 +185,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = opponent?.name ?: "Your partner"
+            val name = opponent?.name ?: "The other player"
             // A team game: the score decides the picture, not a winner.
             val good = draw.score >= GOOD_TEAM_SCORE
             MatchPopup(
@@ -207,7 +207,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             val who = when {
                 last.guessedIt -> "You"
                 last.guesserName != null -> last.guesserName
-                last.drewIt -> opponent?.name ?: "Your partner"
+                last.drewIt -> opponent?.name ?: "The other player"
                 else -> "You"
             }
             Text(
@@ -219,7 +219,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             phase == RoomStatus.COUNTDOWN -> {
                 val seconds = (((room.startAt ?: now) - now + 999) / 1000).coerceAtLeast(1)
                 AppCard {
-                    Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "Your partner"} draws first", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text(if (drawing) "You draw first" else "${draw.drawerName ?: opponent?.name ?: "The other player"} draws first", color = p.muted, fontSize = TextSize.Title, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     CountdownText(seconds, GameKind.DRAW.color, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }

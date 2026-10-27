@@ -239,15 +239,15 @@ fun FleetCard(
         FleetEditor(fleet, if (ready || busy) null else onMove)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SecondaryButton("Shuffle", onShuffle, Modifier.weight(1f), enabled = !ready && !busy)
-            PrimaryButton(if (ready) "Not ready" else "Ready", onReady, Modifier.weight(1f), enabled = opponent != null, loading = busy)
+            PrimaryButton(if (ready) "Cancel" else "Ready", onReady, Modifier.weight(1f), enabled = opponent != null, loading = busy)
         }
         Text(
             when {
-                opponent == null -> "Waiting for an opponent to join."
+                opponent == null -> "Waiting for someone to join."
                 ready && opponent.ready -> "Both fleets are in. Starting…"
-                ready -> "Your fleet is ready. Waiting for ${opponent.name}…"
+                ready -> "Waiting for ${opponent.name}…"
                 opponent.ready -> "${opponent.name} is ready. Place your fleet and tap Ready."
-                else -> "Tap a ship, then tap where it goes (or drag it); Turn rotates it. Tap Ready when you like your fleet."
+                else -> "Tap a ship, then where it goes. Turn rotates it. Tap Ready when you're happy."
             },
             color = if (opponent?.ready == true && !ready) p.good else p.muted,
             fontSize = TextSize.Body,
@@ -283,7 +283,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 
     GameFrame(
         title = "Ship Battle",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         swipeToFocus = true,
         focusWhen = myTurn && !finished,
         players = players,
@@ -292,12 +292,12 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = opponent?.name ?: "Your opponent"
+            val name = opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.SHIPS, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 when (room.endReason) {
                     "sunk" -> if (room.winner == "me") "You sank $name's whole fleet." else "$name sank your whole fleet."
-                    "forfeit" -> if (room.winner == "me") "$name left the battle." else "You left the battle."
+                    "forfeit" -> if (room.winner == "me") "$name left the game." else "You left the game."
                     "timeout" -> if (room.winner == "me") "$name lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
@@ -312,7 +312,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             }
         },
     ) {
-        TurnBanner(myTurn && !finished, opponent?.name ?: "Your opponent", finished)
+        TurnBanner(myTurn && !finished, opponent?.name ?: "The other player", finished)
         SeaPair(
             enemy = {
                 ShipsSea(
@@ -358,7 +358,7 @@ private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = fa
     ) {
         Text(
             when {
-                over -> "Battle over"
+                over -> "Game over"
                 myTurn -> "Your turn: tap the enemy sea to fire"
                 else -> "$opponentName is aiming…"
             },
@@ -390,7 +390,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         dock = listOf(
             DockAction("Home", Icons.Filled.Home, onClick = onHome),
             DockAction("Rules", Icons.Filled.Info) { showRules = true },
-            DockAction("New battle", Icons.Filled.Refresh, enabled = game != null, onClick = vm::newBattle),
+            DockAction("New game", Icons.Filled.Refresh, enabled = game != null, onClick = vm::newBattle),
         ),
         scrollable = game == null,
         popup = game?.winner?.let { winner -> popupContent {
@@ -400,7 +400,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
                 title = if (winner == "me") "You win!" else "The computer wins",
                 detail = if (winner == "me") "You sank the whole fleet." else "The computer sank your fleet.",
                 finish = PopupAction("Home", onHome),
-                again = PopupAction("New battle", vm::newBattle),
+                again = PopupAction("New game", vm::newBattle),
             )
         } },
     ) {
@@ -415,7 +415,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
                 FleetEditor(state.draft, vm::setDraft)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SecondaryButton("Shuffle", vm::shuffle, Modifier.weight(1f))
-                    PrimaryButton("Start battle", vm::start, Modifier.weight(1f))
+                    PrimaryButton("Start", vm::start, Modifier.weight(1f))
                 }
             }
         } else {

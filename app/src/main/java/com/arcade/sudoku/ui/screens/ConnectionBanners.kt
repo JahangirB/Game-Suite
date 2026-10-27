@@ -67,7 +67,7 @@ fun ConnectionBanners(state: BattleUiState, onBack: () -> Unit, modifier: Modifi
         } else {
             val left = ((LocalRoom.FORFEIT_MS - goneFor) / 1000).coerceAtLeast(0)
             BannerLine("Waiting for ${quiet.name} to come back… ${left / 60}:${"%02d".format(left % 60)}", digits = true)
-            BannerLine("If they're not back in time, they lose this match.")
+            BannerLine("If they're not back in time, they lose this game.")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.S)) {
             TextButton(onClick = { dismissed = true }) { Text("Keep waiting", color = AppTheme.palette.primaryText, fontWeight = FontWeight.Bold) }

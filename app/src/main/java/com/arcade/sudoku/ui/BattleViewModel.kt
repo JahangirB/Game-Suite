@@ -232,7 +232,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             // Timed on a second call, once the connection is set up: about what each move waits.
             val start = System.currentTimeMillis()
             server.ping()
-            showMessage("Connected to the $kind battle server. Round trip: ${System.currentTimeMillis() - start} ms.")
+            showMessage("Connected to the $kind server. Round trip: ${System.currentTimeMillis() - start} ms.")
         } finally {
             server.close()
         }
@@ -253,13 +253,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     /** A server from before [game] existed opens a Sudoku room instead; say so rather than play the wrong game. */
     private fun checkGame(room: JSONObject, game: GameKind) {
         if (GameKind.from(room.optString("game")) != game) {
-            throw ApiException("The battle server needs an update to play ${game.label}. See \"Updating the server\" in the README.", fatal = true)
+            throw ApiException("The online server needs an update to play ${game.label}. See \"Updating the server\" in the README.", fatal = true)
         }
     }
 
     fun join() {
         val code = _state.value.joinCode
-        if (code.length < 4) return showMessage("Enter the secret code from the host.")
+        if (code.length < 4) return showMessage("Type the code you were sent.")
         val url = checkedUrl() ?: return
         startOnline(url, code = code) { b, me -> b.join(code, me) }
     }
@@ -271,7 +271,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun playWithPartner(game: GameKind = _state.value.hostGame) {
         val partner = store.profile.value.partner ?: return
         if (game != GameKind.SUDOKU && BattleBackend.isAppsScript(partner.serverUrl)) {
-            return showMessage("${game.label} can't be played on this online link. Play it nearby, or see \"Choosing a battle server\" in the README.")
+            return showMessage("${game.label} can't be played on this online link. Play it nearby, or see \"Choosing a server\" in the README.")
         }
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
@@ -305,7 +305,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 if (e.reason != "code_taken") throw e
             }
         }
-        throw ApiException("Could not reach your partner's battle. Try again.")
+        throw ApiException("Couldn't open the game. Try again in a moment.")
     }
 
     fun forgetPartner() = store.setPartner(null)
@@ -314,8 +314,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun invitePartner(game: GameKind) {
         val partner = store.profile.value.partner ?: return
         val to = partner.deviceId
-            ?: return showMessage("Play one online battle together with the new app first, then you can invite.")
-        if (!PushApi.supports(partner.serverUrl)) return showMessage("This online link can't send invitations. See \"Choosing a battle server\" in the README.")
+            ?: return showMessage("Play one online game together first, then you can invite.")
+        if (!PushApi.supports(partner.serverUrl)) return showMessage("This online link can't send invitations. See \"Choosing a server\" in the README.")
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(hostGame = game) }
@@ -1512,7 +1512,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun requireBackend() = backend ?: throw ApiException("Not connected to a battle.", fatal = true)
+    private fun requireBackend() = backend ?: throw ApiException("Not connected to a game.", fatal = true)
 
     private fun runBusy(block: suspend () -> Unit) {
         if (_state.value.busy) return

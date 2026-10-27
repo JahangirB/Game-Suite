@@ -332,7 +332,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 
     GameFrame(
         title = "Ludo",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(
             room, state, now, ludoColor(view.colours['m'] ?: 0),
             detail = { player, isMe -> "${homeCount(view, if (isMe) 'm' else letterOf(room.others.indexOf(player).coerceAtLeast(0)))}/4 home" },
@@ -347,12 +347,12 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             MatchPopup(
                 room, GameKind.LUDO,
                 if (room.winner == null) Outcome.TIE else outcomeOf(room.winner),
-                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "Your opponent"),
+                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "The other player"),
                 when (room.endReason) {
                     "home" -> if (room.winner == "me") "All four of your tokens are home!" else "${room.winnerName} got all four tokens home."
                     "left" -> "A player left, so the game stopped."
                     "forfeit" -> if (room.winner == "me") "Everyone else left the game." else "You left the game."
-                    "timeout" -> if (room.winner == "me") "Your opponent lost connection." else "You were disconnected for too long."
+                    "timeout" -> if (room.winner == "me") "The other player lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
                 onRematch = vm::readyTurns, onFinish = onLeave,
@@ -363,7 +363,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         val waitingOn = room.others.firstOrNull { it.name == turnName }
         LudoTable(
             view, myTurn, enabled = !state.firing,
-            waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "Your opponent"} is playing…",
+            waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "The other player"} is playing…",
             name = ::name,
             onRoll = vm::rollDie, onToken = vm::moveToken,
         )

@@ -295,7 +295,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
 
     GameFrame(
         title = "Number Cross",
-        subtitle = "Round ${room.round} · ${numbers.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round} · ${numbers.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
             if (isMe) "$mine% right" else "${player.progress ?: 0}% right"
         }),
@@ -305,13 +305,13 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = room.winnerName ?: room.opponent?.name ?: "Your opponent"
+            val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.NUMBERS, outcomeOf(room.winner), resultTitle(room.winner, name),
                 when (room.endReason) {
                     "solved" -> if (room.winner == "me") "You solved it first!" else "$name solved it first."
                     "forfeit" -> if (room.winner == "me") "Everyone else left the game." else "You left the game."
-                    "timeout" -> if (room.winner == "me") "Your opponent lost connection." else "You were disconnected for too long."
+                    "timeout" -> if (room.winner == "me") "The other player lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
                 onRematch = vm::readyNumbers, onFinish = onLeave,

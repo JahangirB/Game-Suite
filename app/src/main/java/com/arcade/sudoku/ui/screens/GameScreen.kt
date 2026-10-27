@@ -82,7 +82,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
 
     GameFrame(
         title = "Sudoku",
-        subtitle = "Round ${room.round} · ${room.difficulty?.label.orEmpty()}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round} · ${room.difficulty?.label.orEmpty()}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.SUDOKU.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
@@ -159,7 +159,7 @@ private fun BoxScope.SudokuPopup(
     val p = AppTheme.palette
     val won = room.winner == "me"
     val opponent = room.opponent
-    val opponentName = opponent?.name ?: "Your opponent"
+    val opponentName = opponent?.name ?: "The other player"
     val detail = when (room.endReason) {
         "solved" -> if (won) {
             "You solved it in ${formatDuration(room.me.finishMs ?: 0L)}!"
@@ -167,7 +167,7 @@ private fun BoxScope.SudokuPopup(
             "$opponentName solved it in ${formatDuration(opponent?.finishMs ?: 0L)}. " +
                 "You had ${room.me.progress ?: 0}% correct."
         }
-        "forfeit" -> if (won) "$opponentName left the battle." else "You left the battle."
+        "forfeit" -> if (won) "$opponentName left the game." else "You left the game."
         "timeout" -> if (won) "$opponentName lost connection." else "You were disconnected for too long."
         else -> ""
     }

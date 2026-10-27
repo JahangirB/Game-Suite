@@ -44,7 +44,7 @@ val GameKind.tagline: String
         GameKind.MEMORY -> "Find the pairs"
         GameKind.WORDS -> "Same word, who finds it first?"
         GameKind.DRAW -> "One draws, one guesses, as a team"
-        GameKind.TTT -> "Nine boards, one big game"
+        GameKind.TTT -> "Three in a row, or nine boards"
         GameKind.DOMINOES -> "Match the ends, play out your hand"
         GameKind.NUMBERS -> "A crossword made of sums"
         GameKind.HOCKEY -> "Fast paddles, one puck"
@@ -63,7 +63,7 @@ val GameKind.tagline: String
 val GameKind.rules: String
     get() = when (this) {
         GameKind.SUDOKU -> "Fill every row, column and 3 × 3 box with the digits 1 to 9, each exactly once. " +
-            "In a battle you both get the same puzzle at the same moment; the first to solve it wins. " +
+            "Against each other you get the same puzzle at the same moment; the first to solve it wins. " +
             "Three mistakes end a solo game."
         GameKind.SHIPS -> "Each player hides five ships (5, 4, 3, 3 and 2 squares) on a 10 × 10 sea. Take turns " +
             "firing at the other sea. A hit lets you fire again. Sink the whole enemy fleet to win."
@@ -80,11 +80,11 @@ val GameKind.rules: String
         GameKind.DRAW -> "You play as a team, four turns, taking turns to draw. The drawer gets a secret word and draws it; " +
             "the other watches the drawing appear and types guesses. A right guess adds the seconds left (out of 80) " +
             "to your team score. No letters or words in the drawing!"
-        GameKind.TTT -> "Nine small tic-tac-toe boards make one big board. The square you mark sends your partner to " +
+        GameKind.TTT -> "Pick Normal or Ultimate before you start. Normal is one 3 × 3 board: three in a row wins. " +
+            "In Ultimate, nine small boards make one big board. The square you mark sends the other player to " +
             "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +
             "Three in a row wins a small board; three small boards in a row wins the game. If you are sent to a " +
-            "board that is already won or full, play in any open board. Prefer the classic game? Pick Normal (one 3 × 3 " +
-            "board, three in a row wins) before you start."
+            "board that is already won or full, play in any open board."
         GameKind.DOMINOES -> "Two to four players, each with a hand of dominoes. On your turn put a tile on either end of " +
             "the line so its number matches that end. Can't play? In the draw game you take tiles from the boneyard " +
             "until you can; in the block game you pass. The first to play out their hand (or, if nobody can play, the " +

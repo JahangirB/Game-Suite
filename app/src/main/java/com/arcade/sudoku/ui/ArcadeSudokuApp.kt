@@ -371,7 +371,7 @@ fun ArcadeSudokuApp(
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
             containerColor = p.card,
-            title = { Text("Give up this match?", color = p.text) },
+            title = { Text("Give up this game?", color = p.text) },
             text = { Text("It counts as a loss. You stay connected and go back to the games.", color = p.muted) },
             confirmButton = {
                 TextButton(onClick = {
@@ -388,13 +388,13 @@ fun ArcadeSudokuApp(
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
             containerColor = p.card,
-            title = { Text("Leave the battle?", color = p.text) },
+            title = { Text("Leave the game?", color = p.text) },
             text = {
                 Text(
                     when {
                         inMatch -> "Leaving now counts as a loss."
-                        room.isHost -> "Your opponent will be disconnected."
-                        else -> "You can join again with the same secret code."
+                        room.isHost -> "Everyone else is disconnected."
+                        else -> "You can join again with the same code."
                     },
                     color = p.muted,
                 )

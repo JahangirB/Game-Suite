@@ -249,14 +249,14 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 
     GameFrame(
         title = "Word Race",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.WORDS.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = opponent?.name ?: "Your opponent"
+            val name = opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.WORDS, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 when (room.endReason) {
@@ -321,7 +321,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
         finished -> WordKeyboard(words.mine, {}, {}, {})
         words.meDone -> AppCard {
             Text(
-                if (words.mine.lastOrNull()?.score == "g".repeat(words.length)) "Solved! Waiting for ${opponent?.name ?: "your opponent"}…" else "Out of tries. Waiting for ${opponent?.name ?: "your opponent"}…",
+                if (words.mine.lastOrNull()?.score == "g".repeat(words.length)) "Solved! Waiting for ${opponent?.name ?: "the other player"}…" else "Out of tries. Waiting for ${opponent?.name ?: "the other player"}…",
                 color = p.text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
             )
         }

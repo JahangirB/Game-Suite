@@ -301,7 +301,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
             MatchPopup(
                 room, GameKind.BALLOON,
                 if (room.winner == null) Outcome.TIE else outcomeOf(room.winner),
-                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "Your opponent"),
+                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "The other player"),
                 when (room.endReason) {
                     "points" -> "Everyone has picked a word: the most points wins."
                     "draw" -> "Top scores are level."

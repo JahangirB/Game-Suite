@@ -578,17 +578,17 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
     val others = room.present
     val waiting = others.filter { !it.ready }
     AppCard(if (room.round == 0) "Ready to play?" else "Rematch") {
-        PrimaryButton(if (room.me.ready) "Not ready" else "Ready", onReady, enabled = others.isNotEmpty(), loading = busy)
+        PrimaryButton(if (room.me.ready) "Cancel" else "Ready", onReady, enabled = others.isNotEmpty(), loading = busy)
         Text(
             when {
-                others.isEmpty() && room.others.isNotEmpty() -> "${room.others[0].name} has left. Exit to start a new game."
-                others.isEmpty() -> "Waiting for an opponent to join."
+                others.isEmpty() && room.others.isNotEmpty() -> "${room.others[0].name} has left. Leave to start a new game."
+                others.isEmpty() -> "Waiting for someone to join."
                 room.me.ready && waiting.isEmpty() -> "Starting…"
                 room.me.ready -> "Waiting for " + waiting.joinToString(" and ") { it.name } + "…"
                 waiting.size < others.size -> others.filter { it.ready }.joinToString(" and ") { it.name } +
                     (if (others.size - waiting.size == 1) " is" else " are") + " ready. Tap Ready to start."
                 room.game == GameKind.WORDS -> "The race starts when everyone is ready: same word, same moment."
-                room.game == GameKind.DRAW -> "The match starts when everyone is ready. You take turns drawing."
+                room.game == GameKind.DRAW -> "It starts when everyone is ready. You take turns drawing."
                 room.game == GameKind.NUMBERS -> "Everyone gets the same new puzzle. The first to solve it wins."
                 room.game == GameKind.SLIDE -> "Same shuffle for everyone; the first to put it in order wins."
                 room.game == GameKind.BINGO -> "A card each; the first full line of called numbers wins."
@@ -597,7 +597,7 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
                 room.game == GameKind.CODE -> "Each of you hides a code for the other; fewest guesses wins."
                 room.game == GameKind.GRID -> "Same letters for everyone, two minutes on the clock."
                 room.game == GameKind.HOCKEY -> "Live air hockey, first to 7. Best nearby, where the phones talk directly."
-                else -> "The game starts when you are both ready. Starting player swaps every round."
+                else -> "It starts when you are both ready. Who goes first swaps every game."
             },
             color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,
             fontSize = TextSize.Body,
@@ -650,14 +650,14 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 
     GameFrame(
         title = game.label,
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = game.color,
         dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = opponent?.name ?: "Your opponent"
+            val name = opponent?.name ?: "The other player"
             MatchPopup(
                 room, game, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 turnResultDetail(game, room.winner, room.endReason, name),
@@ -668,7 +668,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     ) {
         if (game == GameKind.MEMORY) FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
         if (!finished) {
-            val name = turnName ?: "Your opponent"
+            val name = turnName ?: "The other player"
             val waitingOn = room.others.firstOrNull { it.name == turnName } ?: opponent
             // In Dots & Boxes and Memory, a move that scores keeps the turn: say so.
             val again = myTurn && turns.lastMoveByMe == true && (game == GameKind.DOTS || game == GameKind.MEMORY)

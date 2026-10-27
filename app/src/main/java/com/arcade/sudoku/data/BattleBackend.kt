@@ -72,11 +72,11 @@ interface BattleBackend {
      * switch games say so.
      */
     suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject =
-        throw ApiException("This connection plays one game. Start a new battle to play another.")
+        throw ApiException("This connection plays one game. Connect again to play another.")
 
     /** Back to the menu, staying in the room. Leaving a match being played gives it up. */
     suspend fun toMenu(code: String, playerId: String): JSONObject =
-        throw ApiException("This connection plays one game. Start a new battle to play another.")
+        throw ApiException("This connection plays one game. Connect again to play another.")
     suspend fun leave(code: String, playerId: String)
 
     /** Drops any live connection. */

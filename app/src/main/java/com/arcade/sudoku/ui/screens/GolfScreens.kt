@@ -303,7 +303,7 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 
     GameFrame(
         title = "Mini Golf",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(
             room, state, now, MyDisc,
             detail = { player, isMe ->
@@ -321,7 +321,7 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             MatchPopup(
                 room, GameKind.GOLF,
                 if (room.winner == null) Outcome.TIE else outcomeOf(room.winner),
-                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "Your opponent"),
+                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "The other player"),
                 when (room.endReason) {
                     "strokes" -> "Nine holes played: the fewest strokes wins."
                     "draw" -> "Level after nine holes."

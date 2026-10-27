@@ -296,12 +296,12 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
             MatchPopup(
                 room, GameKind.DOMINOES,
                 if (room.winner == null) Outcome.TIE else outcomeOf(room.winner),
-                if (room.endReason == "left") "Match stopped" else resultTitle(room.winner, room.winnerName ?: "Your opponent"),
+                if (room.endReason == "left") "Game stopped" else resultTitle(room.winner, room.winnerName ?: "The other player"),
                 when (room.endReason) {
                     "points" -> if (room.winner == "me") "You reached ${view.target} points!" else "${room.winnerName} reached ${view.target} points."
                     "left" -> "A player left, so the hands can't be played out."
                     "forfeit" -> if (room.winner == "me") "Everyone else left the game." else "You left the game."
-                    "timeout" -> if (room.winner == "me") "Your opponent lost connection." else "You were disconnected for too long."
+                    "timeout" -> if (room.winner == "me") "The other player lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
                 onRematch = vm::readyTurns, onFinish = onLeave,
@@ -312,7 +312,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
         val waitingOn = room.others.firstOrNull { it.name == turnName }
         DominoTable(
             view, myTurn, enabled = !state.firing,
-            waitingText = if (waitingOn?.online == false) "${turnName} is away. They'll get a notification." else "${turnName ?: "Your opponent"} is thinking…",
+            waitingText = if (waitingOn?.online == false) "${turnName} is away. They'll get a notification." else "${turnName ?: "The other player"} is thinking…",
             name = ::name,
             onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
         )

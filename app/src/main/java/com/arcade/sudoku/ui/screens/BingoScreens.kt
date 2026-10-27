@@ -173,21 +173,21 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val canClaim = card != null && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null
     GameFrame(
         title = "Bingo",
-        subtitle = "Round ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, now, p.primary, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
         glow = GameKind.BINGO.color,
         dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
-            val name = room.winnerName ?: room.opponent?.name ?: "Your opponent"
+            val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.BINGO, outcomeOf(room.winner), resultTitle(room.winner, name),
                 when (room.endReason) {
                     "bingo" -> if (room.winner == "me") "Bingo after $called calls!" else "$name called Bingo first."
                     "draw" -> "The calls ran out with nobody calling Bingo."
                     "forfeit" -> if (room.winner == "me") "Everyone else left the game." else "You left the game."
-                    "timeout" -> if (room.winner == "me") "Your opponent lost connection." else "You were disconnected for too long."
+                    "timeout" -> if (room.winner == "me") "The other player lost connection." else "You were disconnected for too long."
                     else -> ""
                 },
                 onRematch = vm::readyTurns, onFinish = onLeave,

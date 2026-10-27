@@ -146,7 +146,7 @@ export function findRole(room, playerId) {
  * `games` lists the games the joining app knows (null for apps that predate the list).
  */
 export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceId = null, games = null) {
-  if (room.status === 'closed') throw new GameError('The host closed this battle.', true, 'closed');
+  if (room.status === 'closed') throw new GameError('The host closed this game.', true, 'closed');
   if (!(games || OLD_APP_GAMES).includes(room.game)) {
     throw new GameError('This game needs the latest Game Suite. Update the app to join.', true, 'update_needed');
   }
@@ -156,13 +156,13 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     if (id) room.players[known].deviceId = id;
     return known;
   }
-  if (playerId) throw new GameError('You are not part of this battle.', true, 'not_member');
+  if (playerId) throw new GameError("You're not in this game.", true, 'not_member');
   const max = maxPlayers(room.game);
   const seat = ROLES.slice(1, max).find((r) => !room.players[r] || room.players[r].left);
   if (!seat) {
-    throw new GameError(max === 2 ? 'This battle already has two players.' : `This game is full: ${max} players.`, true, 'full');
+    throw new GameError(max === 2 ? 'This game already has two players.' : `This game is full: ${max} players.`, true, 'full');
   }
-  if (room.status === 'started') throw new GameError('A match is being played. Join when it ends.', true, 'busy');
+  if (room.status === 'started') throw new GameError('A game is being played. Join when it ends.', true, 'busy');
   room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId, room.game);
   // Everyone gets ready again, so the newcomer is part of the next round.
   for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
@@ -174,11 +174,11 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
 /** Throws unless there is someone to play with; used by every "ready". */
 function checkCanReady(room) {
   if (room.status !== 'lobby' && room.status !== 'finished') {
-    throw new GameError('You can only get ready in the lobby or after a match.');
+    throw new GameError('You can only get ready in the lobby or after a game.');
   }
   if (present(room).length < 2) {
     if (inRoom(room).length > 1) throw new GameError('Waiting for the others to come to this game.');
-    throw new GameError(seated(room).length > 1 ? 'Your opponent has left the battle.' : 'Waiting for an opponent to join.');
+    throw new GameError(seated(room).length > 1 ? 'The other player has left.' : 'Waiting for someone to join.');
   }
 }
 
@@ -284,7 +284,7 @@ export function setShipsReady(room, role, ready, fleet, now, random = Math.rando
 
 /** Fires at the opponent's sea. Returns { hit, sunk }. */
 export function fire(room, role, x, y, now) {
-  if (room.game !== 'ships' || room.status !== 'started') throw new GameError('The battle is not running.');
+  if (room.game !== 'ships' || room.status !== 'started') throw new GameError("The game isn't running.");
   if (room.turn !== role) throw new GameError("It's not your turn.");
   x = Number(x);
   y = Number(y);
@@ -1022,7 +1022,7 @@ export function openGame(room, role, game, now) {
       bump(room);
       return;
     }
-    throw new GameError('A match is being played. Join when it ends.', false, 'busy');
+    throw new GameError('A game is being played. Join when it ends.', false, 'busy');
   }
   // Two-player games use the first two seats (their rules know only host and guest).
   if (maxPlayers(game) === 2 && role !== 'host' && role !== 'guest') {

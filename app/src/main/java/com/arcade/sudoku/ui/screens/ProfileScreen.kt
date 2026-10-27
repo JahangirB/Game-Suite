@@ -156,7 +156,7 @@ fun ProfileScreen(
                         when {
                             !Push.available -> "Invitations are off in this build (see the README to switch them on)."
                             !PushApi.supports(partner.serverUrl) -> "This online link can't send invitations."
-                            partner.deviceId == null -> "Play one online battle together to switch on invitations."
+                            partner.deviceId == null -> "Play one online game together to switch on invitations."
                             else -> "You can invite ${partner.name} from the home screen."
                         },
                         color = p.muted,
