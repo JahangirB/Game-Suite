@@ -190,6 +190,13 @@ fun ProfileScreen(
             AppCard("Sound and touch") {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
+                        Text("Sound", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
+                        Text("Game sounds. The phone on silent mutes them too.", color = p.muted, fontSize = TextSize.Body)
+                    }
+                    Switch(checked = profile.sound, onCheckedChange = app::setSound)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
                         Text("Vibration", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
                         Text("A buzz for your turn, your moves and the result.", color = p.muted, fontSize = TextSize.Body)
                     }

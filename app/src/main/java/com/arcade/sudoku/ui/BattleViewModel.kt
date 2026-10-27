@@ -147,6 +147,7 @@ data class BattleUiState(
 class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private val store = ProfileStore.get(app)
     private val haptics = Haptics.get(app)
+    private val sfx = Sfx.get(app)
 
     private val _state = MutableStateFlow(
         // The last partner's code stays filled in, so reconnecting needs no typing.
@@ -721,7 +722,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(guess, room)
-                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
+                if (!e.fatal) {
+                    haptics.play(Buzz.NOT_ALLOWED)
+                    sfx.play(Sound.ERROR)
+                }
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 undo(guess, room)
@@ -761,7 +765,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 // Not a word, or the wrong length: it stays typed, and the phone says no.
-                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
+                if (!e.fatal) {
+                    haptics.play(Buzz.NOT_ALLOWED)
+                    sfx.play(Sound.ERROR)
+                }
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 showMessage("Network problem, try again.")
@@ -879,7 +886,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (!e.fatal) haptics.play(Buzz.NOT_ALLOWED)
+                if (!e.fatal) {
+                    haptics.play(Buzz.NOT_ALLOWED)
+                    sfx.play(Sound.ERROR)
+                }
                 if (e.fatal) endSession(e.message) else showMessage(e.message)
             } catch (e: IOException) {
                 showMessage("Network problem, try again.")
@@ -1361,7 +1371,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         // Your turn just came round in a turn game or Ship Battle.
         val before = _state.value.room
         fun myTurn(r: RoomState?) = r != null && r.atGame && r.status == RoomStatus.PLAYING && (r.turns?.turn == "me" || r.ships?.turn == "me")
-        if (myTurn(room) && !myTurn(before)) haptics.play(Buzz.YOUR_TURN)
+        if (myTurn(room) && !myTurn(before)) {
+            haptics.play(Buzz.YOUR_TURN)
+            sfx.play(Sound.YOUR_TURN)
+        }
         val offset = sentAt?.let { clockOffset(room.serverTime, it) } ?: _state.value.clockOffsetMs
         lastVersion = json.optInt("version", -1)
         if (room.others.map { it.progress } != _state.value.room?.others?.map { it.progress }) {

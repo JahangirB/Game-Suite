@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
+import androidx.compose.runtime.DisposableEffect
 import com.arcade.sudoku.ui.Buzz
 import com.arcade.sudoku.ui.rememberHaptics
 import androidx.compose.runtime.LaunchedEffect
@@ -87,12 +90,16 @@ private fun ToyButton(
     body: @Composable () -> Unit,
 ) {
     val p = AppTheme.palette
+    val sfx = rememberSfx()
     val press = remember { MutableInteractionSource() }
     val pressed by press.collectIsPressedAsState()
     val shape = Shapes.L
     Box(modifier.fillMaxWidth().height(54.dp).pressedEdge(p.ink.copy(alpha = if (enabled) 1f else 0.3f), Radius.L)) {
         Button(
-            onClick = onClick,
+            onClick = {
+                sfx.play(Sound.TAP)
+                onClick()
+            },
             enabled = enabled,
             shape = shape,
             interactionSource = press,
@@ -333,7 +340,13 @@ fun CountdownText(
     textAlign: TextAlign? = null,
 ) {
     val haptics = rememberHaptics()
+    val sfx = rememberSfx()
     val n = seconds.toInt()
-    LaunchedEffect(n) { haptics.play(Buzz.COUNTDOWN) }
+    LaunchedEffect(n) {
+        haptics.play(Buzz.COUNTDOWN)
+        sfx.play(Sound.COUNTDOWN_TICK)
+    }
+    // The number goes when the race starts.
+    DisposableEffect(Unit) { onDispose { sfx.play(Sound.COUNTDOWN_GO) } }
     Text(style = Digits, text = n.toString(), color = color, fontSize = TextSize.Countdown, fontFamily = fontFamily, fontWeight = fontWeight, textAlign = textAlign, modifier = modifier)
 }

@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.Buzz
 import com.arcade.sudoku.ui.rememberHaptics
 import com.arcade.sudoku.ui.theme.LocalReduceMotion
@@ -81,7 +83,11 @@ fun BoxScope.ResultPopup(
     val p = AppTheme.palette
     var folded by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
-    LaunchedEffect(Unit) { haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE) }
+    val sfx = rememberSfx()
+    LaunchedEffect(Unit) {
+        haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
+        sfx.play(when (outcome) { Outcome.WIN -> Sound.WIN; Outcome.LOSE -> Sound.LOSE; else -> Sound.TIE })
+    }
     if (folded) {
         Surface(
             onClick = { folded = false },

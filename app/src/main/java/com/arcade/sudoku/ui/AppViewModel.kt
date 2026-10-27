@@ -35,4 +35,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
     fun finishFirstRun() = store.finishFirstRun()
     fun setVibration(on: Boolean) = store.setVibration(on)
+    fun setSound(on: Boolean) = store.setSound(on)
 }

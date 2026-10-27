@@ -1,7 +1,12 @@
 # Sound effects catalogue
 
-Every sound Game Suite needs, where it plays and what it should sound like. The app has no
-sound yet; this is the list to source (or make) and wire in.
+Every sound Game Suite needs, where it plays and what it should sound like.
+
+**Now in the app:** the 55 priority-1 sounds, made from scratch (tones and noise, no
+recordings) by `scripts/make-sounds.py`; run it again after changing a sound. They are
+played by `ui/Sfx.kt`, which sets each sound's level. Profile → Sound and touch turns them
+off, and so does the phone on silent. Better recordings can replace any file later: keep
+the same file name.
 
 ## Style
 
@@ -26,8 +31,8 @@ sound yet; this is the list to source (or make) and wire in.
 - Licence: the repository is public, so only **CC0** (or self-made) audio. Good CC0 sources:
   [Kenney audio packs](https://kenney.nl/assets?q=audio) (Interface Sounds, Casino Audio,
   Impact Sounds, Digital Audio, UI Audio), CC0-filtered [Freesound](https://freesound.org),
-  and [jsfxr](https://sfxr.me) for blips and chimes made from scratch. Record each file's
-  source in `app/src/main/res/raw/SOUNDS.md`.
+  and [jsfxr](https://sfxr.me) for blips and chimes made from scratch. Record each
+  replaced file's source in this document (Android doesn't allow other files in `res/raw`).
 
 Columns: **ID** (the file name without `sfx_`), **When** (the event that plays it), **Sound**
 (what to look for or make), **ms** (rough length), **Pri** (1 ship first, 2 next, 3 nice to
