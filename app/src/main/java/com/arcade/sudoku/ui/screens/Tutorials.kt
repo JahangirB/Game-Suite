@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -70,7 +73,10 @@ fun TutorialDialog(kind: GameKind, onDone: () -> Unit) {
         LaunchedEffect(kind) { onDone() }
         return
     }
-    Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Full screen: the dialog draws under the system bars and keeps its content inside them.
+    // Left to fit the bars itself, it sits below the status bar at full height, and its bottom
+    // (Back and Next) runs off the screen.
+    Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(color = AppTheme.palette.background, modifier = Modifier.fillMaxSize()) {
             TutorialScreen(kind, steps, onDone)
         }
@@ -86,7 +92,10 @@ private fun TutorialScreen(kind: GameKind, steps: List<TutorialStep>, onDone: ()
     var at by rememberSaveable(kind) { mutableIntStateOf(0) }
     val step = steps[at.coerceIn(0, steps.size - 1)]
     val last = at == steps.size - 1
-    Column(Modifier.fillMaxSize().padding(horizontal = Space.L, vertical = Space.M), verticalArrangement = Arrangement.spacedBy(Space.M)) {
+    Column(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = Space.L, vertical = Space.M),
+        verticalArrangement = Arrangement.spacedBy(Space.M),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             if (!last) TextButton(onClick = { at = steps.size - 1 }) { Text("Skip", color = p.primaryText, fontWeight = FontWeight.Bold) }
@@ -179,7 +188,7 @@ private fun connectFour(): List<TutorialStep> {
     val second = c4(38 to 'm', 39 to 'o')
     val four = c4(35 to 'm', 36 to 'm', 37 to 'm', 38 to 'm', 39 to 'o', 32 to 'o', 31 to 'o')
     return listOf(
-        TutorialStep("You're red", "Take turns dropping discs into the seven columns.", board(c4(), null)),
+        TutorialStep("Seven columns", "You're red, they're yellow. Take turns dropping a disc into a column.", board(c4(), null)),
         TutorialStep("Slide to a column", "Let go and your disc falls to the lowest free space.", board(first, 38)),
         TutorialStep("Then they play", "You'll feel a buzz and see \"Your turn\" when it's you again.", board(second, 39)),
         TutorialStep("Four in a row wins", "Across, up and down, or on a slant.", board(four, 38, listOf(35, 36, 37, 38))),
