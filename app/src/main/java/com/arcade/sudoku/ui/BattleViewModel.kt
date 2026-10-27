@@ -44,7 +44,6 @@ import com.arcade.sudoku.data.Reaction
 import com.arcade.sudoku.data.RoomState
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.data.TurnsView
-import com.arcade.sudoku.data.nearby.FoundHost
 import com.arcade.sudoku.data.nearby.NearbyGuest
 import com.arcade.sudoku.data.nearby.NearbyHost
 import com.arcade.sudoku.data.parseRoom
@@ -123,9 +122,11 @@ data class BattleUiState(
     /** Bingo: the squares you dabbed, for round [bingoRound]. */
     val bingoDabs: Set<Int> = emptySet(),
     val bingoRound: Int = -1,
-    /** Nearby hosts found while looking for a game. */
-    val nearbyHosts: List<FoundHost> = emptyList(),
-    val scanning: Boolean = false,
+    /**
+     * The nearby room's code: the host reads it out, the other phone types it. The last one is
+     * kept, so the same two phones meet again without typing.
+     */
+    val nearbyCode: String = "",
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -148,8 +149,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(
         // The last partner's code stays filled in, so reconnecting needs no typing.
-        store.profile.value.partner.let { partner ->
-            BattleUiState(hostCode = partner?.code ?: Invite.randomCode(), joinCode = partner?.code.orEmpty())
+        store.profile.value.let { p ->
+            BattleUiState(
+                hostCode = p.partner?.code ?: Invite.randomCode(),
+                joinCode = p.partner?.code.orEmpty(),
+                nearbyCode = p.nearbyCode.ifEmpty { Invite.randomCode() },
+            )
         },
     )
     val state: StateFlow<BattleUiState> = _state.asStateFlow()
@@ -173,8 +178,6 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var opponentActiveAt = 0L
     private var lastOpponentEmojiSeq = -1
     private val foreground = MutableStateFlow(true)
-    private var nearbyGuest: NearbyGuest? = null
-    private var scanJob: Job? = null
     /** The server of the current online session, remembered with the partner. */
     private var sessionServer: Pair<String, String>? = null
 
@@ -192,6 +195,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun setHostCode(value: String) = _state.update { it.copy(hostCode = cleanCode(value)) }
     fun newHostCode() = _state.update { it.copy(hostCode = Invite.randomCode()) }
     fun setJoinCode(value: String) = _state.update { it.copy(joinCode = cleanCode(value)) }
+    fun setNearbyCode(value: String) = _state.update { it.copy(nearbyCode = cleanCode(value)) }
+    fun newNearbyCode() = _state.update { it.copy(nearbyCode = Invite.randomCode()) }
     fun dismissMessage() = _state.update { it.copy(message = null) }
     fun setHostGame(game: GameKind) = _state.update { it.copy(hostGame = game) }
 
@@ -336,48 +341,26 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Nearby (offline) battles -------------------------------------------------------------
 
-    /** This phone becomes the battle server and waits for a nearby player to connect. */
+    /**
+     * This phone opens a nearby room with [BattleUiState.nearbyCode] and waits. Only a phone
+     * given the code can join; the code is kept for next time.
+     */
     fun hostNearby() {
-        stopScan()
+        val code = _state.value.nearbyCode
+        if (code.length < 4) return showMessage("The room code needs at least 4 letters or digits.")
+        store.setNearbyCode(code)
         val p = store.profile.value
         val host = NearbyHost(getApplication(), displayName(p.name), p.avatar)
         val game = _state.value.hostGame
-        startSession(host, BattleMode.NEARBY) { b, me -> b.create(Invite.randomCode(4), me, game) }
+        startSession(host, BattleMode.NEARBY) { b, me -> b.create(code, me, game) }
     }
 
-    /** Looks for phones hosting a nearby battle. */
-    fun startScan() {
-        if (scanJob?.isActive == true) return
-        val guest = nearbyGuest ?: NearbyGuest(getApplication()).also { nearbyGuest = it }
-        _state.update { it.copy(scanning = true, nearbyHosts = emptyList()) }
-        scanJob = viewModelScope.launch {
-            try {
-                guest.discover().collect { hosts -> _state.update { it.copy(nearbyHosts = hosts) } }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                showMessage(e.message ?: "Could not look for nearby players.")
-            } finally {
-                _state.update { it.copy(scanning = false) }
-            }
-        }
-    }
-
-    fun stopScan() {
-        scanJob?.cancel()
-        scanJob = null
-        _state.update { it.copy(scanning = false, nearbyHosts = emptyList()) }
-    }
-
-    fun joinNearby(host: FoundHost) {
-        val guest = nearbyGuest ?: return
-        scanJob?.cancel()
-        scanJob = null
-        nearbyGuest = null
-        startSession(guest, BattleMode.NEARBY) { b, me ->
-            (b as NearbyGuest).connectTo(host, me.name)
-            b.join(host.code, me)
-        }
+    /** Finds the nearby room with [BattleUiState.nearbyCode] and joins it. */
+    fun joinNearby() {
+        val code = _state.value.nearbyCode
+        if (code.length < 4) return showMessage("Enter the room code from the other phone.")
+        store.setNearbyCode(code)
+        startSession(NearbyGuest(getApplication()), BattleMode.NEARBY) { b, me -> b.join(code, me) }
     }
 
     // --- Sessions -----------------------------------------------------------------------------
@@ -1439,7 +1422,6 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room
         val id = playerId
         val old = backend
-        nearbyGuest?.close()
         if (old != null) {
             CoroutineScope(Dispatchers.IO).launch {
                 if (room != null && id != null) runCatching { old.leave(room.code, id) }

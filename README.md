@@ -197,8 +197,9 @@ seconds (app closed, no network), the opponent wins by timeout.
 ## Nearby battles (same room, no internet)
 
 1. Both players open *Battle a friend → Nearby (no internet)*.
-2. One taps **Host nearby battle**; the other taps **Find nearby battles** and then **Join**
-   next to the host's name.
+2. Both use the same **room code**. One taps **Open nearby room** and reads the code out;
+   the other types it and taps **Join nearby room**. The code is never broadcast, so only a
+   phone given it can join. Both phones keep the code, so next time you just tap.
 3. Android asks once for the Bluetooth / nearby devices permissions (on Android 12 and
    older also location, which Android requires for Bluetooth scanning).
 

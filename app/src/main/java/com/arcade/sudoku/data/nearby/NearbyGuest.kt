@@ -62,10 +62,10 @@ class NearbyGuest(context: Context) : BattleBackend {
     private var closed = false
     private var reconnecting: Job? = null
 
-    private data class Session(val code: String, val me: Hello, val playerId: String)
+    private data class Session(val code: String, val tag: String, val me: Hello, val playerId: String)
 
     /** Hosts currently advertising a battle nearby. Stops looking when collection stops. */
-    fun discover(): Flow<List<FoundHost>> = callbackFlow {
+    private fun discover(): Flow<List<FoundHost>> = callbackFlow {
         val found = linkedMapOf<String, FoundHost>()
         val callback = object : EndpointDiscoveryCallback() {
             override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
@@ -87,8 +87,8 @@ class NearbyGuest(context: Context) : BattleBackend {
         awaitClose { client.stopDiscovery() }
     }
 
-    /** Opens the direct link to [host]; call [join] afterwards. */
-    suspend fun connectTo(host: FoundHost, myName: String) {
+    /** Opens the direct link to [host]. */
+    private suspend fun connectTo(host: FoundHost, myName: String) {
         val done = CompletableDeferred<Unit>()
         linked = done
         endpointId = host.endpointId
@@ -104,10 +104,36 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun create(code: String, me: Hello, game: GameKind): JSONObject =
         throw UnsupportedOperationException("A nearby guest does not host")
 
+    /**
+     * Finds the nearby room with [code] and joins it. The code is never broadcast, so this
+     * tries each phone hosting nearby in turn; one hosting another room turns the code away.
+     */
     override suspend fun join(code: String, me: Hello, playerId: String?): JSONObject {
-        val json = request(open(me.name, me.avatar, playerId), OPEN)
-        session = Session(code, me, json.getString("playerId"))
-        return json
+        val tried = mutableSetOf<String>()
+        val deadline = System.currentTimeMillis() + JOIN_SEARCH_MS
+        while (true) {
+            val left = deadline - System.currentTimeMillis()
+            val host = if (left <= 0) null else withTimeoutOrNull(left) {
+                discover().first { hosts -> hosts.any { it.endpointId !in tried } }.first { it.endpointId !in tried }
+            }
+            host ?: throw ApiException(
+                "No room with that code nearby. Check the code, and that the other phone has the room open.",
+                reason = "not_found",
+            )
+            tried += host.endpointId
+            try {
+                connectTo(host, me.name)
+                val json = request(open(me.name, me.avatar, playerId, code), OPEN)
+                session = Session(code, host.tag, me, json.getString("playerId"))
+                return json
+            } catch (e: ApiException) {
+                if (e.reason != WRONG_CODE) throw e
+            } catch (e: IOException) {
+                // That phone didn't answer; try the next one.
+            }
+            endpointId?.let { client.disconnectFromEndpoint(it) }
+            endpointId = null
+        }
     }
 
     override suspend fun ready(code: String, playerId: String, ready: Boolean, difficulty: Difficulty?) =
@@ -186,8 +212,8 @@ class NearbyGuest(context: Context) : BattleBackend {
         scope.cancel()
     }
 
-    private fun open(name: String, avatar: Avatar?, playerId: String?) = JSONObject()
-        .put("type", "open").put("name", name)
+    private fun open(name: String, avatar: Avatar?, playerId: String?, code: String) = JSONObject()
+        .put("type", "open").put("code", code).put("name", name)
         .put("avatar", avatar?.key ?: JSONObject.NULL)
         .put("playerId", playerId ?: JSONObject.NULL)
         .put("games", BattleBackend.SUPPORTED_GAMES)
@@ -250,11 +276,11 @@ class NearbyGuest(context: Context) : BattleBackend {
             while (!closed && endpointId == null) {
                 try {
                     val host = withTimeoutOrNull(SEARCH_TIMEOUT_MS) {
-                        discover().first { hosts -> hosts.any { it.code == s.code } }.first { it.code == s.code }
+                        discover().first { hosts -> hosts.any { it.tag == s.tag } }.first { it.tag == s.tag }
                     }
                     if (host != null) {
                         connectTo(host, s.me.name)
-                        client.sendPayload(host.endpointId, open(s.me.name, s.me.avatar, s.playerId).put("id", OPEN).toPayload())
+                        client.sendPayload(host.endpointId, open(s.me.name, s.me.avatar, s.playerId, s.code).put("id", OPEN).toPayload())
                         return@launch
                     }
                 } catch (e: Exception) {
@@ -271,6 +297,8 @@ class NearbyGuest(context: Context) : BattleBackend {
         const val REQUEST_TIMEOUT_MS = 10_000L
         const val LEAVE_TIMEOUT_MS = 2_000L
         const val SEARCH_TIMEOUT_MS = 15_000L
+        // Looking for the room with a code: long enough to try a few phones.
+        const val JOIN_SEARCH_MS = 30_000L
         const val RETRY_MS = 2_000L
     }
 }

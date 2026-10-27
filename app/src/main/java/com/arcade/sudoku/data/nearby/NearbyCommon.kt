@@ -16,11 +16,25 @@ internal const val SERVICE_ID = "com.arcade.sudoku.battle"
 // A star: the host's phone in the middle, up to three guests connected to it.
 internal val STRATEGY: Strategy = Strategy.P2P_STAR
 
-/** A phone hosting a nearby battle, as seen by a player looking for one. */
-data class FoundHost(val endpointId: String, val code: String, val name: String, val avatar: Avatar?)
+/**
+ * A phone hosting a nearby battle, as seen by a player looking for one. The room's code is
+ * never broadcast: [tag] is random and only tells this room apart when reconnecting.
+ */
+data class FoundHost(val endpointId: String, val tag: String, val name: String, val avatar: Avatar?)
 
-/** The host advertises "code|name|avatar" so players can see who is hosting. */
-internal fun advertisedName(code: String, name: String, avatar: Avatar?) = "$code|$name|${avatar?.key.orEmpty()}"
+/**
+ * The host advertises "tag|name|avatar". Only someone told the room's code can join: the guest
+ * sends it when opening the link, and the host turns away a wrong one.
+ */
+internal fun advertisedName(tag: String, name: String, avatar: Avatar?) = "$tag|$name|${avatar?.key.orEmpty()}"
+
+/** A room code as typed: case and anything but letters and digits don't matter. */
+internal fun sameCode(a: String, b: String) = clean(a) == clean(b)
+
+private fun clean(code: String) = code.uppercase().filter { it in 'A'..'Z' || it in '0'..'9' }
+
+/** The host's answer to a wrong room code. */
+internal const val WRONG_CODE = "wrong_code"
 
 internal fun parseAdvertisedName(endpointId: String, text: String): FoundHost? {
     val parts = text.split("|")

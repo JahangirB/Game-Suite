@@ -51,6 +51,8 @@ data class Profile(
     val partner: SavedPartner? = null,
     /** This install's permanent id; lets a partner invite you again. */
     val deviceId: String = "",
+    /** The last nearby room's code, so the same code reconnects the same two phones later. */
+    val nearbyCode: String = "",
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -106,6 +108,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             }
         }
         _profile.update { it.copy(partner = partner) }
+    }
+
+    fun setNearbyCode(code: String) {
+        prefs.edit { putString(KEY_NEARBY_CODE, code) }
+        _profile.update { it.copy(nearbyCode = code) }
     }
 
     fun recordSoloWin(difficulty: Difficulty, timeMs: Long) {
@@ -165,6 +172,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             shipStyle = runCatching { ShipStyle.valueOf(prefs.getString(KEY_SHIP_STYLE, "").orEmpty()) }
                 .getOrDefault(ShipStyle.TOY),
             stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
+            nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
         )
     }
 
@@ -186,6 +194,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_P_PLAYER = "partner_player_id"
         private val PARTNER_KEYS = listOf(KEY_P_URL, KEY_P_PASSWORD, KEY_P_CODE, KEY_P_NAME, KEY_P_AVATAR, KEY_P_DEVICE, KEY_P_PLAYER)
         private const val KEY_PASSWORD = "server_password"
+        private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
 

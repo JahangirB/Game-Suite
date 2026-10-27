@@ -171,7 +171,7 @@ fun GameChooser(selected: GameKind, onSelect: (GameKind) -> Unit) {
 }
 
 @Composable
-private fun codeStyle() = TextStyle(
+internal fun codeStyle() = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontWeight = FontWeight.Bold,
     fontSize = TextSize.Title,

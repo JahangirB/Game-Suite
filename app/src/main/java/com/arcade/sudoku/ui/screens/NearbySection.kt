@@ -6,28 +6,24 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import com.arcade.sudoku.ui.BattleUiState
 import com.arcade.sudoku.ui.BattleViewModel
@@ -45,7 +41,7 @@ private fun nearbyPermissions(): Array<String> = buildList {
     add(Manifest.permission.ACCESS_FINE_LOCATION)
 }.toTypedArray()
 
-/** Host or find a battle with a phone in the same room, without internet or a server. */
+/** Open or join a room with a phone close by, without internet or a server. */
 @Composable
 fun NearbySection(state: BattleUiState, vm: BattleViewModel) {
     val p = AppTheme.palette
@@ -73,9 +69,6 @@ fun NearbySection(state: BattleUiState, vm: BattleViewModel) {
         }
     }
 
-    // Stop looking for hosts when leaving this screen.
-    DisposableEffect(Unit) { onDispose { vm.stopScan() } }
-
     AppCard("Play in the same room") {
         Text(
             "Two phones connect directly over Bluetooth and Wi‑Fi. No internet and no server needed. " +
@@ -93,34 +86,38 @@ fun NearbySection(state: BattleUiState, vm: BattleViewModel) {
         }
     }
 
-    AppCard("Host") {
-        GameChooser(state.hostGame, vm::setHostGame)
-        Text("Wait here for your friend to find you.", color = p.muted, fontSize = TextSize.Body)
-        PrimaryButton("Host nearby battle", { withPermissions(vm::hostNearby) }, loading = state.busy)
+    AppCard("Room code") {
+        Text(
+            "Both phones use the same code. One opens the room and reads the code out; the other types it " +
+                "and joins. Only a phone with the code can join. The code is kept, so next time you just tap.",
+            color = p.muted,
+            fontSize = TextSize.Body,
+        )
+        OutlinedTextField(
+            value = state.nearbyCode,
+            onValueChange = vm::setNearbyCode,
+            label = { Text("Room code") },
+            singleLine = true,
+            textStyle = codeStyle(),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Characters,
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Done,
+            ),
+            trailingIcon = {
+                IconButton(onClick = vm::newNearbyCode) { Icon(Icons.Filled.Refresh, "New code") }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 
-    AppCard("Join") {
-        if (!state.scanning) {
-            SecondaryButton("Find nearby battles", { withPermissions(vm::startScan) }, enabled = !state.busy)
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = p.primary)
-                Spacer(Modifier.width(12.dp))
-                Text("Looking for players nearby…", color = p.muted)
-            }
-            if (state.nearbyHosts.isEmpty()) {
-                Text("Ask your friend to tap Host nearby battle.", color = p.muted, fontSize = TextSize.Body)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                state.nearbyHosts.forEach { host ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        PlayerAvatar(host.name, p.primary, avatar = host.avatar)
-                        Spacer(Modifier.width(12.dp))
-                        Text(host.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Button(onClick = { vm.joinNearby(host) }, enabled = !state.busy) { Text("Join") }
-                    }
-                }
-            }
-        }
+    AppCard("Open the room") {
+        GameChooser(state.hostGame, vm::setHostGame)
+        PrimaryButton("Open nearby room", { withPermissions(vm::hostNearby) }, loading = state.busy)
+    }
+
+    AppCard("Join the room") {
+        Text("The other phone opens the room first.", color = p.muted, fontSize = TextSize.Body)
+        SecondaryButton("Join nearby room", { withPermissions(vm::joinNearby) }, enabled = !state.busy)
     }
 }

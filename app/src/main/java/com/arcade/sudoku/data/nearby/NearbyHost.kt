@@ -50,6 +50,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     private val guests = mutableMapOf<String, String>()
     private var advertising = false
     private var timers: Job? = null
+    /** Tells this room apart when a guest looks for it again; random, unlike the code. */
+    private val tag = java.util.UUID.randomUUID().toString().take(8)
 
     private fun now() = System.currentTimeMillis()
 
@@ -185,7 +187,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         val r = room ?: return
         advertising = true
         val options = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
-        client.startAdvertising(advertisedName(r.code, hostName, hostAvatar), SERVICE_ID, lifecycle, options)
+        client.startAdvertising(advertisedName(tag, hostName, hostAvatar), SERVICE_ID, lifecycle, options)
             .addOnFailureListener { e ->
                 advertising = false
                 _pushes.tryEmit(errorJson(null, "Could not start the nearby battle: ${e.message}", fatal = true))
@@ -199,7 +201,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     private val lifecycle = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            // Accept everyone; a phone that finds no free seat is told so when it sends "open".
+            // Accept everyone; a phone with the wrong code, or that finds no free seat, is told so when it sends "open".
             client.acceptConnection(endpointId, payloads)
         }
 
@@ -236,6 +238,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
             if (role == null && msg.optString("type") != "open") throw ApiException("Join the battle first.", fatal = true)
             when (msg.optString("type")) {
                 "open" -> {
+                    if (!sameCode(msg.optString("code"), r.code)) {
+                        throw ApiException("That code is for another room.", fatal = true, reason = WRONG_CODE)
+                    }
                     val playerId = if (msg.isNull("playerId")) null else msg.optString("playerId")
                     val games = if (msg.has("games")) msg.optString("games").split(",") else null
                     val seat = r.join(msg.optString("name"), Avatar.from(msg.optString("avatar")), playerId, games)
@@ -335,6 +340,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
             pushAll(except = endpointId)
         } catch (e: ApiException) {
             send(endpointId, errorJson(id ?: if (msg.optString("type") == "open") "open" else null, e.message, e.fatal, e.reason))
+            // A phone with the wrong code gets no second try on this link.
+            if (e.reason == WRONG_CODE) scope.launch {
+                delay(300)
+                client.disconnectFromEndpoint(endpointId)
+            }
         }
     }
 
