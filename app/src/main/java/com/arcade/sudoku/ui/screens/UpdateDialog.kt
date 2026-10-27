@@ -57,9 +57,9 @@ fun UpdateDialog(state: UpdateUiState, onUpdate: () -> Unit, onAllow: () -> Unit
         },
         confirmButton = {
             if (state.needsPermission) {
-                TextButton(onClick = onAllow) { Text("Allow", color = p.primary) }
+                TextButton(onClick = onAllow) { Text("Allow", color = p.primaryText) }
             } else {
-                TextButton(onClick = onUpdate, enabled = !state.downloading) { Text("Update", color = p.primary) }
+                TextButton(onClick = onUpdate, enabled = !state.downloading) { Text("Update", color = p.primaryText) }
             }
         },
         dismissButton = {

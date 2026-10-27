@@ -128,7 +128,7 @@ fun BattleMenuScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     TextButton(onClick = { vm.pasteInvite(clipboard.getText()?.text) }) {
-                        Text("Paste the invite message instead", color = p.primary)
+                        Text("Paste the invite message instead", color = p.primaryText)
                     }
                 }
             }
@@ -136,7 +136,7 @@ fun BattleMenuScreen(
             AppCard("Server") {
                 if (hasLink) {
                     Text(profile.scriptUrl, color = p.text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    TextButton(onClick = onProfile) { Text("Change in profile", color = p.primary) }
+                    TextButton(onClick = onProfile) { Text("Change in profile", color = p.primaryText) }
                 } else {
                     Text(
                         "No server link yet. Add the host's link in your profile, or paste the invite message.",

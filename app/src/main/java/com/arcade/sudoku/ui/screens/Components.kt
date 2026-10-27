@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.foundation.BorderStroke
@@ -177,7 +178,7 @@ fun PlayerAvatar(name: String, color: Color, size: Int = 40, avatar: Avatar? = n
     ) {
         Text(
             name.trim().firstOrNull()?.uppercase() ?: "?",
-            color = Color.White,
+            color = readableOn(color),
             fontWeight = FontWeight.Bold,
             fontSize = (size * 0.45f).sp,
         )

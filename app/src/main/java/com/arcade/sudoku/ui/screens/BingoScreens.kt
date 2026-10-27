@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.readableOn
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
@@ -62,7 +63,7 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
             Row {
                 "BINGO".forEachIndexed { c, ch ->
                     Box(Modifier.size(cell).padding(3.dp).clip(Shapes.S).background(ColumnColours[c]), contentAlignment = Alignment.Center) {
-                        Text(ch.toString(), color = Color.White, fontSize = (cell.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
+                        Text(ch.toString(), color = readableOn(ColumnColours[c]), fontSize = (cell.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
                     }
                 }
             }
@@ -192,7 +193,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Get ready", color = p.muted, fontSize = 18.sp)
                     if (phase == RoomStatus.COUNTDOWN) {
-                        Text(((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primary, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(((startAt - state.serverNow() + 999) / 1000).coerceAtLeast(1).toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

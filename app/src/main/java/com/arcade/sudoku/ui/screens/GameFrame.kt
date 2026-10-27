@@ -279,6 +279,6 @@ fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismi
                 extra?.invoke()
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primary, fontWeight = FontWeight.Bold) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primaryText, fontWeight = FontWeight.Bold) } },
     )
 }

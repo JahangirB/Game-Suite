@@ -114,7 +114,7 @@ fun NumberPad(remaining: (Int) -> Int, enabled: Boolean, onDigit: (Int) -> Unit)
                         digit.toString(),
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Normal,
-                        color = if (enabled) p.primary else p.primary.copy(alpha = 0.4f),
+                        color = if (enabled) p.primaryText else p.primaryText.copy(alpha = 0.4f),
                     )
                 }
             }

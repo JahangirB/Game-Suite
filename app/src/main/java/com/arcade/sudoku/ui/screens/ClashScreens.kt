@@ -121,7 +121,7 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
 @Composable
 private fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    Surface(color = p.ink, shape = RoundedCornerShape(width * 0.18f), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(width, width * 1.45f)) {
+    Surface(color = Board.Ink, shape = RoundedCornerShape(width * 0.18f), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(width, width * 1.45f)) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(width * 0.62f)) {
                 val r = size.minDimension / 2

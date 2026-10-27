@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.readableOn
+import com.arcade.sudoku.ui.theme.textFill
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Radius
 import androidx.compose.animation.core.Animatable
@@ -92,7 +94,7 @@ fun BoxScope.ResultPopup(
     LaunchedEffect(Unit) { enter.animateTo(1f, tween(320)) }
     // The dim layer also swallows taps, so the game underneath can't be played by accident.
     Box(
-        Modifier.matchParentSize().background(p.ink.copy(alpha = 0.55f * enter.value))
+        Modifier.matchParentSize().background(p.scrim.copy(alpha = 0.55f * enter.value))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     )
     Surface(
@@ -117,8 +119,8 @@ fun BoxScope.ResultPopup(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                game.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                modifier = Modifier.clip(Shapes.Full).background(game.color).padding(horizontal = 14.dp, vertical = 4.dp),
+                game.label, color = readableOn(textFill(game.color)), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                modifier = Modifier.clip(Shapes.Full).background(textFill(game.color)).padding(horizontal = 14.dp, vertical = 4.dp),
             )
             Text(title, color = p.text, fontSize = 34.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 36.sp, textAlign = TextAlign.Center)
             ResultAnimation(game, outcome)

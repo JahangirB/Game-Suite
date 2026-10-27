@@ -196,7 +196,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
             drawCircle(Ink, cell * 0.38f, at)
             drawCircle(ludoColor(colour), cell * 0.31f, at)
             drawCircle(Color.White.copy(alpha = 0.45f), cell * 0.12f, Offset(at.x - cell * 0.08f, at.y - cell * 0.08f))
-            if (who == 'm' && i in view.movable) drawCircle(p.ink, cell * 0.46f, at, style = Stroke(cell * 0.07f))
+            if (who == 'm' && i in view.movable) drawCircle(Ink, cell * 0.46f, at, style = Stroke(cell * 0.07f))
         }
     }
 }

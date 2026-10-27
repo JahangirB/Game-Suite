@@ -2,6 +2,8 @@ package com.arcade.sudoku.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 
 /**
@@ -80,8 +82,31 @@ object Board {
 /** The other players, in seat order after you: the first is the classic opponent orange. */
 val SeatColors = listOf(OpponentColor, Pieces.Purple, Pieces.Green)
 
-/** Lines that need attention without being errors (levels that don't match). */
-val Warning = Color(0xFFE08A00)
+/** WCAG contrast ratio of two opaque colours (1 to 21). */
+fun contrast(a: Color, b: Color): Float {
+    val la = a.luminance() + 0.05f
+    val lb = b.luminance() + 0.05f
+    return maxOf(la, lb) / minOf(la, lb)
+}
+
+/** White or ink, whichever reads better on [background]: for text and marks on coloured fills. */
+fun readableOn(background: Color): Color =
+    if (contrast(Color.White, background) >= contrast(Board.Ink, background)) Color.White else Board.Ink
+
+/**
+ * [background] as a fill behind small text: kept when white or ink reaches 4.5:1 on it, else
+ * darkened until white does. Pair it with [readableOn].
+ */
+fun textFill(background: Color): Color {
+    if (contrast(readableOn(background), background) >= 4.5f) return background
+    var t = 0.05f
+    while (t < 1f) {
+        val darker = lerp(background, Color.Black, t)
+        if (contrast(Color.White, darker) >= 4.5f) return darker
+        t += 0.05f
+    }
+    return Color.Black
+}
 
 /** Colours only one game uses: its course, stones, letters or effects. */
 object GameColors {

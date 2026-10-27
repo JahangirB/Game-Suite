@@ -139,7 +139,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
                     val seconds = (((room.startAt ?: 0L) - state.serverNow() + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Get ready", color = p.muted, fontSize = 18.sp)
-                        Text(seconds.toString(), color = p.primary, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(seconds.toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

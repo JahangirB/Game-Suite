@@ -108,7 +108,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                     val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Get ready", color = p.muted, fontSize = 18.sp)
-                        Text(seconds.toString(), color = p.primary, fontSize = 96.sp, fontWeight = FontWeight.Bold)
+                        Text(seconds.toString(), color = p.primaryText, fontSize = 96.sp, fontWeight = FontWeight.Bold)
                         opponent?.let { Text("vs ${it.name}", color = OpponentColor, fontWeight = FontWeight.SemiBold) }
                     }
                 }
@@ -172,7 +172,7 @@ private fun BoxScope.SudokuPopup(
     MatchPopup(room, GameKind.SUDOKU, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: opponentName), detail, onRematch = null, onFinish = onLeave) {
         if (!won && room.solution != null) {
             TextButton(onClick = onToggleSolution) {
-                Text(if (showSolution) "Hide solution" else "Show solution on the board", color = p.primary)
+                Text(if (showSolution) "Hide solution" else "Show solution on the board", color = p.primaryText)
             }
         }
         if (opponent != null && !opponent.left) {

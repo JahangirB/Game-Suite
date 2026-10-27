@@ -258,7 +258,7 @@ private fun GameSheet(
                 Text(kind.label, color = p.text, fontSize = 26.sp, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = 28.sp)
                 Text(kind.tagline, color = p.muted, fontSize = 14.sp)
             }
-            TextButton(onClick = { showRules = !showRules }) { Text(if (showRules) "Hide rules" else "How to play", color = p.primary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { showRules = !showRules }) { Text(if (showRules) "Hide rules" else "How to play", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
         if (showRules) Text(kind.rules, color = p.text, fontSize = 15.sp)
 
@@ -315,13 +315,13 @@ private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficult
                             Text(level.label, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                             Text(level.tagline(), color = p.muted, fontSize = 13.sp)
                         }
-                        Text("${level.ordinal + 1}", color = p.primary, fontWeight = FontWeight.Bold)
+                        Text("${level.ordinal + 1}", color = p.primaryText, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.primary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.primaryText) } },
     )
 }
 

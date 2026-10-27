@@ -2,7 +2,6 @@ package com.arcade.sudoku.ui.screens
 
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.SeatColors
-import com.arcade.sudoku.ui.theme.Warning
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -84,7 +83,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             } else AppCard("Secret code") {
                 Text(
                     room.code,
-                    color = p.primary,
+                    color = p.primaryText,
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
@@ -224,7 +223,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
                                     (if (mine) "✓ " else "") + level.label,
-                                    color = if (mine) p.onPrimary else if (canPick) p.primary else p.muted,
+                                    color = if (mine) p.onPrimary else if (canPick) p.primaryText else p.muted,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp,
                                 )
@@ -232,7 +231,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                         }
                         Text(
                             if (theirs) pickers.joinToString(", ") { it.name } + if (pickers.size == 1) "'s pick" else "" else " ",
-                            color = OpponentColor,
+                            color = p.opponentText,
                             fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -257,7 +256,7 @@ private fun groupLevelStatus(room: RoomState): Pair<String, Color> {
     val choices = everyone.joinToString(" · ") { (if (it === room.me) "You" else it.name) + ": " + (it.difficulty?.takeIf { _ -> it.ready }?.label ?: "…") }
     return when {
         chosen.size == everyone.size && chosen.toSet().size == 1 -> "Everyone chose ${chosen[0].label}. Starting…" to p.good
-        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to Warning
+        chosen.toSet().size > 1 -> "$choices. Everyone must choose the same level." to p.warning
         else -> "$choices. The game starts when everyone picks the same level." to p.muted
     }
 }
@@ -271,7 +270,7 @@ private fun levelStatus(room: RoomState, opponent: PlayerInfo?): Pair<String, Co
         opponent == null -> "Waiting for an opponent to join before you can choose a level." to p.muted
         mine != null && theirs != null && mine != theirs ->
             "Levels don't match: you chose ${mine.label}, ${opponent.name} chose ${theirs.label}. " +
-                "Both players must choose the same level before the game can start." to Warning
+                "Both players must choose the same level before the game can start." to p.warning
         mine != null && theirs != null -> "Both chose ${mine.label}. Starting…" to p.good
         mine != null -> "You chose ${mine.label}. Waiting for ${opponent.name} to choose a level… " +
             "(tap it again to cancel)" to p.muted
