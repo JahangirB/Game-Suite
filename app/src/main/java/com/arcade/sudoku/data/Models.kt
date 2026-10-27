@@ -279,6 +279,11 @@ data class PlayerInfo(
     val online: Boolean?,
     /** Left or lost their connection during the match being played, which goes on without them. */
     val out: Boolean = false,
+    /**
+     * The game this player's screen is on, or null in the menu. Servers that play one game per
+     * room don't say; everyone there is at the room's game.
+     */
+    val at: GameKind? = null,
 )
 
 data class RoomState(
@@ -321,8 +326,18 @@ data class RoomState(
     val options: DominoOptions? = null,
     /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
     val tttClassic: Boolean = false,
+    /** Whether this player sets the open game's options: whoever opened it (the host at first). */
+    val setsOptions: Boolean = role == "host",
+    /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
+    val inSession: Boolean = false,
 ) {
     val isHost get() = role == "host"
+
+    /** Whether your screen is on the open game (its lobby, match or result), not the menu. */
+    val atGame get() = me.at == game
+
+    /** Others in the room at the open game. */
+    val othersAtGame get() = present.filter { it.at == game }
 
     /** Others still in the room. */
     val present get() = others.filter { !it.left }
@@ -340,8 +355,8 @@ fun parseRoom(json: JSONObject) = RoomState(
     solution = json.stringOrNull("solution"),
     winner = json.stringOrNull("winner"),
     endReason = json.stringOrNull("endReason"),
-    me = parsePlayer(json.getJSONObject("me")),
-    opponent = json.optJSONObject("opponent")?.let(::parsePlayer),
+    me = parsePlayer(json.getJSONObject("me"), GameKind.from(json.stringOrNull("game"))),
+    opponent = json.optJSONObject("opponent")?.let { parsePlayer(it, GameKind.from(json.stringOrNull("game"))) },
     ships = json.optJSONObject("ships")?.let(::parseShips),
     turns = json.optJSONObject("turns")?.let(::parseTurns),
     words = json.optJSONObject("words")?.let(::parseWords),
@@ -360,14 +375,18 @@ fun parseRoom(json: JSONObject) = RoomState(
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
-    others = json.optJSONArray("others")?.objects()?.map(::parsePlayer) ?: listOfNotNull(json.optJSONObject("opponent")?.let(::parsePlayer)),
+    others = (json.optJSONArray("others")?.objects() ?: listOfNotNull(json.optJSONObject("opponent")))
+        .map { parsePlayer(it, GameKind.from(json.stringOrNull("game"))) },
     winnerName = json.stringOrNull("winnerName"),
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
+    inSession = json.getJSONObject("me").has("at"),
 )
 
-private fun parsePlayer(json: JSONObject) = PlayerInfo(
+/** [game] is the room's open game, where players of a one-game room always are. */
+private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     name = json.optString("name", "Player"),
     avatar = Avatar.from(json.stringOrNull("avatar")),
     deviceId = json.stringOrNull("deviceId"),
@@ -382,6 +401,7 @@ private fun parsePlayer(json: JSONObject) = PlayerInfo(
     idleMs = json.optLong("idleMs"),
     online = if (json.has("online")) json.optBoolean("online") else null,
     out = json.optBoolean("out"),
+    at = if (!json.has("at")) game else json.stringOrNull("at")?.let { key -> GameKind.entries.firstOrNull { it.key == key } },
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(

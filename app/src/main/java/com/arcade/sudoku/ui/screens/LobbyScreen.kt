@@ -74,7 +74,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 AppCard("Nearby battle") {
                     Text(
                         if (room.isHost) {
-                            "Your friend opens Battle a friend → Nearby, taps Find and picks your name. " +
+                            "Room code ${room.code}: the other phone types it and taps Join nearby room. " +
                                 "Keep Bluetooth and Wi‑Fi on; no internet is needed."
                         } else {
                             "Connected directly to ${opponent?.name ?: "the host"}'s phone."
@@ -116,11 +116,11 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             }
 
             AppCard(if (room.maxPlayers > 2) "Players (up to ${room.maxPlayers})" else "Players") {
-                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0)
+                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game)
                 room.others.forEachIndexed { i, other ->
                     if (!other.left) {
                         val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
-                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now), seat = i + 1)
+                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now), seat = i + 1, game = room.game)
                     }
                 }
                 val joined = room.present.size
@@ -133,7 +133,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 } else if (joined < room.maxPlayers - 1) {
                     val free = room.maxPlayers - 1 - joined
                     Text(
-                        "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They pick your name under Nearby." else "Share the code to invite them.",
+                        "Room for $free more. " + if (state.mode == BattleMode.NEARBY) "They join with the room code ${room.code}." else "Share the code to invite them.",
                         color = p.muted, fontSize = TextSize.Body,
                     )
                 }
@@ -175,7 +175,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
 }
 
 @Composable
-private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int) {
+private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int, game: GameKind) {
     val p = AppTheme.palette
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         PlayerAvatar(player.name, color, avatar = player.avatar, mark = seatMark(seat))
@@ -189,6 +189,9 @@ private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction:
         if (reaction != null) ReactionImage(reaction.reaction, 30.dp, Modifier.padding(end = 8.dp), startedAt = reaction.at)
         when {
             player.online == false -> Pill("Offline", p.bad)
+            // Connected, but not in this game yet: in the menu or still on another game's screen.
+            player.at == null -> Pill("In the menu", p.muted)
+            player.at != game -> Pill("In ${player.at.label}", p.muted)
             player.ready && player.difficulty != null -> Pill("Ready · ${player.difficulty.label}", p.good)
             player.ready -> Pill("Ready", p.good)
             else -> Pill("Choosing…", p.muted)

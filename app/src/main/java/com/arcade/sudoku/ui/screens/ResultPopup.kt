@@ -204,7 +204,7 @@ fun BoxScope.MatchPopup(
         outcome = outcome,
         title = title,
         detail = detail,
-        finish = PopupAction("Finish", onFinish),
+        finish = PopupAction(if (room.inSession) "Back to games" else "Finish", onFinish),
         again = onRematch?.let { PopupAction(if (room.me.ready) "Not ready" else "Rematch", it, enabled = !gone) },
         scores = scores,
         status = status,

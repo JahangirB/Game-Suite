@@ -266,9 +266,9 @@ private fun GameDock(actions: List<DockAction>) {
     }
 }
 
-/** The dock for a game against your partner: leave, send a reaction, read the rules. */
+/** The dock for a game against your partner: back to the games, send a reaction, read the rules. */
 fun battleDock(finished: Boolean, onLeave: () -> Unit, onReact: (() -> Unit)?, onRules: () -> Unit) = listOfNotNull(
-    DockAction(if (finished) "Exit" else "Leave", Icons.AutoMirrored.Filled.ArrowBack, onClick = onLeave),
+    DockAction("Games", Icons.AutoMirrored.Filled.ArrowBack, onClick = onLeave),
     onReact?.let { DockAction("React", Icons.Filled.Face, onClick = it) },
     DockAction("Rules", Icons.Filled.Info, onClick = onRules),
 )

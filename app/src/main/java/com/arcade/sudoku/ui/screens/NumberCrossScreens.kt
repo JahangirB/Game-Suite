@@ -247,11 +247,11 @@ fun NumbersLevelCard(room: RoomState, busy: Boolean, onPick: (NumberLevel) -> Un
     val p = AppTheme.palette
     val level = room.numbers?.level ?: NumberLevel.EASY
     AppCard("Level") {
-        if (room.isHost) {
+        if (room.setsOptions) {
             OptionGroup(NumberLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-            Text("Your phone builds a new puzzle each round and sends it to everyone.", color = p.muted, fontSize = TextSize.Body)
+            Text("A new puzzle each round, the same for everyone.", color = p.muted, fontSize = TextSize.Body)
         } else {
-            Text("${level.label}: the host's phone builds the puzzle.", color = p.muted, fontSize = TextSize.Body)
+            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

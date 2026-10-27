@@ -266,7 +266,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(joinCode = partner.code, hostCode = partner.code, hostGame = game) }
-        startOnline(partner.serverUrl, partner.password) { b, me ->
+        startOnline(partner.serverUrl, partner.password, then = game) { b, me ->
             openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
         }
     }
@@ -309,7 +309,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         store.setScriptUrl(partner.serverUrl)
         store.setServerPassword(partner.password)
         _state.update { it.copy(hostGame = game) }
-        startOnline(partner.serverUrl, partner.password) { b, me ->
+        startOnline(partner.serverUrl, partner.password, then = game) { b, me ->
             val json = openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
             try {
                 PushApi(partner.serverUrl, partner.password).invite(me.deviceId, to, partner.code, game)
@@ -335,8 +335,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playWithPartner(game)
     }
 
-    private fun startOnline(url: String, password: String = store.profile.value.serverPassword, open: suspend (BattleBackend, Hello) -> JSONObject) {
-        startSession(BattleBackend.forUrl(url, password), BattleMode.ONLINE, server = url to password, open = open)
+    private fun startOnline(
+        url: String,
+        password: String = store.profile.value.serverPassword,
+        then: GameKind? = null,
+        open: suspend (BattleBackend, Hello) -> JSONObject,
+    ) {
+        startSession(BattleBackend.forUrl(url, password), BattleMode.ONLINE, server = url to password, then = then, open = open)
     }
 
     // --- Nearby (offline) battles -------------------------------------------------------------
@@ -365,10 +370,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Sessions -----------------------------------------------------------------------------
 
+    /**
+     * Connects with [open], then (in a room that plays game after game) goes to [then]'s lobby,
+     * or to the menu when null, where everyone sees where the others are. A match this player
+     * is back in stays on screen.
+     */
     private fun startSession(
         newBackend: BattleBackend,
         mode: BattleMode,
         server: Pair<String, String>? = null,
+        then: GameKind? = null,
         open: suspend (BattleBackend, Hello) -> JSONObject,
     ) = runBusy {
         val p = store.profile.value
@@ -393,6 +404,48 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         // Joining a finished room must not count its old result again.
         if (room.status == RoomStatus.FINISHED) recordedRound = room.round
         if (newBackend.pushes != null) startListening(newBackend) else startPolling()
+        val id = playerId
+        val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
+        if (room.inSession && id != null && !(inMatch && room.atGame)) {
+            val sent = System.currentTimeMillis()
+            applyResponse(if (then != null) newBackend.openGame(room.code, id, then) else newBackend.toMenu(room.code, id), sent, record = false)
+        }
+    }
+
+    // --- One connection, many games -----------------------------------------------------------
+
+    /** Opens [game] in the room you're connected to, or joins it if it's the open one. The others see where you went. */
+    fun openGame(game: GameKind) = runBusy {
+        val room = _state.value.room ?: return@runBusy
+        val id = playerId ?: return@runBusy
+        _state.update { it.copy(hostGame = game) }
+        val sentAt = System.currentTimeMillis()
+        applyResponse(requireBackend().openGame(room.code, id, game), sentAt)
+    }
+
+    /**
+     * Back to the games, still connected. Giving up a match being played is the caller's
+     * question to ask. A room that plays only one game is left instead.
+     */
+    fun backToGames() {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (!room.inSession) return leave()
+        // The menu shows at once; the room's answer follows.
+        _state.update { it.copy(room = room.copy(me = room.me.copy(at = null))) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.toMenu(room.code, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                if (e.fatal) endSession(e.message) else showMessage(e.message)
+            } catch (e: IOException) {
+                showMessage("Network problem: ${e.message ?: "no connection"}")
+            }
+        }
     }
 
     private fun checkedUrl(): String? {
@@ -628,17 +681,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playMove(JSONObject().put("pass", true), turns.copy(lastMoveByMe = true, turn = "opponent"))
     }
 
-    /** Dominoes: the host changes the rules of the next match; everyone gets ready again. */
+    /** Dominoes: whoever opened the game changes the rules of the next match; everyone gets ready again. */
     fun setDominoOptions(options: DominoOptions) {
         val room = _state.value.room ?: return
-        if (!room.isHost || room.options == options) return
+        if (!room.setsOptions || room.options == options) return
         sendReady(room.copy(options = options, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, options.toJson()) }
     }
 
-    /** Tic-Tac-Toe: the host picks normal (3 × 3) or Ultimate; everyone gets ready again. */
+    /** Tic-Tac-Toe: whoever opened the game picks normal (3 × 3) or Ultimate; everyone gets ready again. */
     fun setTttClassic(classic: Boolean) {
         val room = _state.value.room ?: return
-        if (!room.isHost || room.tttClassic == classic) return
+        if (!room.setsOptions || room.tttClassic == classic) return
         sendReady(room.copy(tttClassic = classic, me = room.me.copy(ready = false))) { b, id ->
             b.setOptions(room.code, id, JSONObject().put("mode", if (classic) "classic" else "ultimate"))
         }
@@ -1058,7 +1111,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun setSlideLevel(level: SlideLevel) {
         val room = _state.value.room ?: return
         val slide = room.slide ?: return
-        if (!room.isHost || slide.level == level) return
+        if (!room.setsOptions || slide.level == level) return
         sendReady(room.copy(slide = slide.copy(level = level, size = level.size), me = room.me.copy(ready = false))) { b, id ->
             b.setOptions(room.code, id, JSONObject().put("level", level.key))
         }
@@ -1109,7 +1162,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun setWordLevel(level: WordLevel) {
         val room = _state.value.room ?: return
         val words = room.words ?: return
-        if (!room.isHost || words.level == level) return
+        if (!room.setsOptions || words.level == level) return
         sendReady(room.copy(words = words.copy(level = level, length = level.lengths.first()), me = room.me.copy(ready = false))) { b, id ->
             b.setOptions(room.code, id, JSONObject().put("level", level.key))
         }
@@ -1119,7 +1172,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun setNumberLevel(level: NumberLevel) {
         val room = _state.value.room ?: return
         val numbers = room.numbers ?: return
-        if (!room.isHost || numbers.level == level) return
+        if (!room.setsOptions || numbers.level == level) return
         sendReady(room.copy(numbers = numbers.copy(level = level), me = room.me.copy(ready = false))) { b, id ->
             b.setOptions(room.code, id, JSONObject().put("level", level.key))
         }
@@ -1342,8 +1395,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             next
         }
         rememberPartner(room)
-        if (room.game == GameKind.HOCKEY) syncHockey(room)
-        if (record && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
+        if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
+        // A match counts for the players who were in it, not for someone waiting in the menu.
+        if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round
             store.recordBattle(won = room.winner == "me")
         }

@@ -132,12 +132,19 @@ fun ArcadeSudokuApp(
         dest = Dest.BATTLE
     }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
+    // Leaving the room altogether (from the home, while connected).
+    var confirmDisconnect by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(battleState.message) {
         battleState.message?.let {
             snackbar.showSnackbar(it)
             battle.dismissMessage()
         }
+    }
+
+    // Once connected from the battle screen, the games are where you go next.
+    LaunchedEffect(battleState.room?.code) {
+        if (battleState.room?.inSession == true && dest == Dest.BATTLE) dest = Dest.HOME
     }
 
     LaunchedEffect(updateState.message) {
@@ -148,18 +155,22 @@ fun ArcadeSudokuApp(
     }
 
     val room = battleState.room
+    // Your screen is on the room's game; otherwise you're in the menu and still connected.
+    val inRoomGame = room != null && room.atGame
     val requestLeave: () -> Unit = {
-        // Leaving a match forfeits it and a host leaving closes the room, so ask first.
-        if (room?.status == RoomStatus.FINISHED) {
-            battle.leave()
-        } else {
-            confirmLeave = true
+        val inMatch = room?.status == RoomStatus.COUNTDOWN || room?.status == RoomStatus.PLAYING
+        when {
+            // Back from a lobby or a result goes to the games and never disconnects.
+            room?.inSession == true && !inMatch -> battle.backToGames()
+            // Leaving a match forfeits it and a host leaving a one-game room closes it, so ask first.
+            room?.status == RoomStatus.FINISHED -> battle.leave()
+            else -> confirmLeave = true
         }
     }
-    BackHandler(enabled = room != null, onBack = requestLeave)
+    BackHandler(enabled = inRoomGame, onBack = requestLeave)
     LifecycleEventEffect(Lifecycle.Event.ON_START) { battle.setForeground(true) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { battle.setForeground(false) }
-    BackHandler(enabled = room == null && dest != Dest.HOME) {
+    BackHandler(enabled = !inRoomGame && dest != Dest.HOME) {
         if (dest == Dest.SOLO) solo.pause()
         dest = Dest.HOME
     }
@@ -172,25 +183,25 @@ fun ArcadeSudokuApp(
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             CompositionLocalProvider(LocalShipStyle provides profile.shipStyle) {
                 when {
-                    room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
+                    inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
                         LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.SLIDE -> SlideGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.BINGO -> BingoGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.GOLF -> GolfGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.BLOCKS -> BlocksGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.CODE -> CodeGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.BALLOON -> BalloonGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.GRID -> GridGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.LUDO -> LudoGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.CLASH -> ClashGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.HOCKEY -> HockeyScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
-                    room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)
-                    room != null -> GameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.SLIDE -> SlideGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.BINGO -> BingoGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.GOLF -> GolfGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.BLOCKS -> BlocksGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.CODE -> CodeGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.BALLOON -> BalloonGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.GRID -> GridGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.LUDO -> LudoGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.CLASH -> ClashGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.HOCKEY -> HockeyScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)
+                    inRoomGame && room != null -> GameScreen(battleState, battle, onLeave = requestLeave)
                     dest == Dest.SHIPS -> SoloShipsScreen(shipsState, ships, onHome = { dest = Dest.HOME })
                     dest == Dest.CONNECT4 -> SoloConnectFourScreen(connectFourState, connectFour, onHome = { dest = Dest.HOME })
                     dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = { dest = Dest.HOME })
@@ -273,11 +284,15 @@ fun ArcadeSudokuApp(
                         onConnectNearby = { openBattle(BattleTab.NEARBY) },
                         onStartRoom = { openBattle(BattleTab.HOST) },
                         onJoinRoom = { openBattle(BattleTab.JOIN) },
+                        room = room,
+                        nearby = battleState.mode == BattleMode.NEARBY,
+                        onOpenGame = battle::openGame,
+                        onLeaveRoom = { confirmDisconnect = true },
                     )
                 }
             }
             // A reaction from your opponent plays large over the battle screen.
-            if (room != null) ReactionBurst(battleState.opponentReaction)
+            if (inRoomGame) ReactionBurst(battleState.opponentReaction)
         }
     }
 
@@ -286,7 +301,40 @@ fun ArcadeSudokuApp(
         UpdateDialog(updateState, onUpdate = updates::update, onAllow = updates::allowInstalls, onLater = updates::dismiss)
     }
 
-    if (confirmLeave && room != null) {
+    if (confirmDisconnect && room != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDisconnect = false },
+            containerColor = p.card,
+            title = { Text("Leave the room?", color = p.text) },
+            text = { Text("You'll disconnect. A game you're in ends for everyone in it.", color = p.muted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDisconnect = false
+                    battle.leave()
+                }) { Text("Leave", color = p.bad) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Stay", color = p.primary) } },
+        )
+    }
+
+    if (confirmLeave && room != null && room.inSession) {
+        // Back to the games during a match: you stay connected but the match is lost.
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            containerColor = p.card,
+            title = { Text("Give up this match?", color = p.text) },
+            text = { Text("It counts as a loss. You stay connected and go back to the games.", color = p.muted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmLeave = false
+                    battle.backToGames()
+                }) { Text("Give up", color = p.bad) }
+            },
+            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Keep playing", color = p.primary) } },
+        )
+    }
+
+    if (confirmLeave && room != null && !room.inSession) {
         val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
         AlertDialog(
             onDismissRequest = { confirmLeave = false },

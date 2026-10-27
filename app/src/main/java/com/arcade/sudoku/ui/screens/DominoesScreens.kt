@@ -319,7 +319,7 @@ fun DominoOptionsCard(room: RoomState, busy: Boolean, onChange: (DominoOptions) 
     val p = AppTheme.palette
     val o = room.options ?: DominoOptions()
     AppCard("Rules") {
-        if (room.isHost) {
+        if (room.setsOptions) {
             DominoOptionChips(o, fourPlayers = room.present.size == 3, enabled = !busy, onChange = onChange)
         } else {
             Text(dominoRulesLine(o), color = p.muted, fontSize = TextSize.Body)

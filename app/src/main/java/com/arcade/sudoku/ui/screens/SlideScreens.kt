@@ -125,10 +125,10 @@ fun SlideLevelCard(room: RoomState, busy: Boolean, onPick: (SlideLevel) -> Unit)
     val p = AppTheme.palette
     val level = room.slide?.level ?: SlideLevel.EASY
     AppCard("Level") {
-        if (room.isHost) {
+        if (room.setsOptions) {
             OptionGroup(SlideLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
         } else {
-            Text("${level.label}: the host's phone shuffles the puzzle.", color = p.muted, fontSize = TextSize.Body)
+            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

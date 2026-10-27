@@ -73,6 +73,12 @@ import com.arcade.sudoku.data.SavedPartner
 import com.arcade.sudoku.ui.art.AvatarImage
 import com.arcade.sudoku.ui.theme.OpponentColor
 import com.arcade.sudoku.data.PlayMode
+import com.arcade.sudoku.data.RoomState
+import com.arcade.sudoku.data.RoomStatus
+import com.arcade.sudoku.ui.theme.SeatColors
+import com.arcade.sudoku.ui.theme.Space
+import com.arcade.sudoku.ui.theme.seatMark
+import android.content.Intent
 import com.arcade.sudoku.data.Profile
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.selectable
@@ -103,6 +109,11 @@ fun HomeScreen(
     onConnectNearby: () -> Unit,
     onStartRoom: () -> Unit,
     onJoinRoom: () -> Unit,
+    /** The room you're connected to, if any; you stay in it while picking games. */
+    room: RoomState? = null,
+    nearby: Boolean = false,
+    onOpenGame: (GameKind) -> Unit = {},
+    onLeaveRoom: () -> Unit = {},
 ) {
     val p = AppTheme.palette
     var pickingLevel by rememberSaveable { mutableStateOf(false) }
@@ -128,9 +139,12 @@ fun HomeScreen(
                 }
             }
 
-            ConnectionCard(profile, connected, onPlayMode, onConnectNearby, onStartRoom, onJoinRoom, onProfile)
-
-            profile.partner?.let { PartnerCard(it) }
+            if (room != null) {
+                ConnectedCard(room, nearby, partnerBusy, onOpenGame, onLeaveRoom)
+            } else {
+                ConnectionCard(profile, connected, onPlayMode, onConnectNearby, onStartRoom, onJoinRoom, onProfile)
+                profile.partner?.let { PartnerCard(it) }
+            }
 
             // Two tiles per row.
             GameKind.entries.chunked(2).forEach { pair ->
@@ -162,6 +176,8 @@ fun HomeScreen(
             GameSheet(
                 kind = kind,
                 solo = solo,
+                room = room,
+                onOpenGame = { close(); onOpenGame(kind) },
                 partner = profile.partner,
                 busy = partnerBusy,
                 onContinue = { close(); onContinue() },
@@ -255,6 +271,61 @@ private fun ConnectionCard(
     }
 }
 
+/**
+ * While connected: who you're with, the room, and where everyone is. Someone at a game shows
+ * with a Join button; picking any game opens it for everyone. Leave is the only way out.
+ */
+@Composable
+private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, onOpenGame: (GameKind) -> Unit, onLeave: () -> Unit) {
+    val p = AppTheme.palette
+    val context = LocalContext.current
+    val others = room.present
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PlayerAvatar(room.me.name, p.primary, avatar = room.me.avatar, mark = seatMark(0))
+            others.forEachIndexed { i, o ->
+                Spacer(Modifier.width(Space.XS))
+                PlayerAvatar(o.name, SeatColors[i % SeatColors.size], avatar = o.avatar, mark = seatMark(i + 1))
+            }
+            Spacer(Modifier.width(Space.M))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (others.isEmpty()) "Waiting for someone to join" else "Connected with ${others.joinToString(" & ") { it.name }}",
+                    color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "● ${if (nearby) "Nearby" else "Online"} · room ${room.code}",
+                    color = if (others.any { it.online == false }) p.warning else p.good,
+                    fontSize = TextSize.Body,
+                )
+            }
+            TextButton(onClick = onLeave) { Text("Leave", color = p.bad, fontWeight = FontWeight.Bold) }
+        }
+        val here = room.othersAtGame
+        val playing = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
+        when {
+            others.isEmpty() && !nearby -> {
+                Text("Send the code. The game list stays here; you pick one together once they're in.", color = p.muted, fontSize = TextSize.Body)
+                SecondaryButton("Send the code", {
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, "Let's play in Game Suite! Code: ${room.code}")
+                    context.startActivity(Intent.createChooser(send, "Send the code"))
+                })
+            }
+            others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join nearby room.", color = p.muted, fontSize = TextSize.Body)
+            here.isNotEmpty() && playing -> {
+                StatusLine("${here.joinToString(" & ") { it.name }} ${if (here.size == 1) "is" else "are"} playing ${room.game.label}.", Tone.Neutral)
+            }
+            here.isNotEmpty() -> {
+                val names = here.joinToString(" & ") { it.name }
+                StatusLine("$names ${if (here.size == 1) "is" else "are"} waiting in ${room.game.label}.", Tone.Good)
+                PrimaryButton("Join $names in ${room.game.label}", { onOpenGame(room.game) }, loading = busy)
+            }
+            else -> Text("Pick a game together: whoever picks it sets its options.", color = p.muted, fontSize = TextSize.Body)
+        }
+    }
+}
+
 /** Two segments, Offline and Online; the chosen one is filled. */
 @Composable
 private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> Unit) {
@@ -289,6 +360,8 @@ private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> U
 private fun GameSheet(
     kind: GameKind,
     solo: SoloUiState,
+    room: RoomState?,
+    onOpenGame: () -> Unit,
     partner: SavedPartner?,
     busy: Boolean,
     onContinue: () -> Unit,
@@ -318,7 +391,15 @@ private fun GameSheet(
         }
         if (showRules) Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
 
-        if (partner != null) {
+        val names = room?.present?.joinToString(" & ") { it.name }
+        if (room != null) {
+            // Connected: open it for everyone in the room; they see where you went.
+            when {
+                names.isNullOrEmpty() -> PrimaryButton("Open ${kind.label}", onOpenGame, loading = busy)
+                kind.maxPlayers < room.present.size + 1 -> Text("${kind.label} is for ${kind.maxPlayers}.", color = p.muted, fontSize = TextSize.Body)
+                else -> PrimaryButton("Play with $names", onOpenGame, loading = busy)
+            }
+        } else if (partner != null) {
             val canInvite = Push.available && partner.deviceId != null && PushApi.supports(partner.serverUrl)
             if (canInvite) {
                 PrimaryButton("Invite ${partner.name}", onInvite, loading = busy)
@@ -339,8 +420,8 @@ private fun GameSheet(
             kind == GameKind.DRAW -> Text("Draw & Guess needs two players: play with your partner, online or nearby.", color = p.muted, fontSize = TextSize.Body)
             else -> SecondaryButton("Play the computer", onSolo)
         }
-        SecondaryButton("Online with a code or nearby", onBattle)
-        if (partner == null) {
+        if (room == null) SecondaryButton("Online with a code or nearby", onBattle)
+        if (partner == null && room == null) {
             Text(
                 "Play one online game with your partner and they are saved here, ready for one-tap games and invitations.",
                 color = p.muted, fontSize = TextSize.Body,

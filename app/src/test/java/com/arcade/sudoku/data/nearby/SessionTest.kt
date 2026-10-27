@@ -2,6 +2,7 @@ package com.arcade.sudoku.data.nearby
 
 import com.arcade.sudoku.data.ApiException
 import com.arcade.sudoku.data.GameKind
+import com.arcade.sudoku.data.parseRoom
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -127,5 +128,19 @@ class SessionTest {
         assertEquals("playing", c4.status(LocalRoom.HOST))
         // Cat stayed on the Colour Clash screen and isn't part of the match.
         assertEquals("clash", c4.at(LocalRoom.P3))
+    }
+
+    @Test
+    fun theAppReadsWhereEveryoneIs() {
+        val dots = pair().openGame(LocalRoom.GUEST, GameKind.DOTS)
+        val alice = parseRoom(dots.view(LocalRoom.HOST, 0))
+        assertTrue(alice.inSession)
+        assertFalse(alice.atGame)
+        assertEquals(GameKind.CONNECT4, alice.me.at)
+        assertEquals(listOf("Bob"), alice.othersAtGame.map { it.name })
+        assertFalse(alice.setsOptions)
+        dots.toMenu(LocalRoom.HOST, 0)
+        assertEquals(null, parseRoom(dots.view(LocalRoom.HOST, 0)).me.at)
+        assertTrue(parseRoom(dots.view(LocalRoom.GUEST, 0)).atGame)
     }
 }
