@@ -36,7 +36,10 @@ step is one commit, pushed and checked on CI.
 
 ## Steps
 
-Done:
+Steps 1 to 20 are done. Online play across games needs the updated Cloudflare Worker
+(redeploy it, see "Updating the server" in the README) and the new app on every phone.
+
+Started first:
 
 1. Ludo: the die stays white so its dots show in dark mode.
 2. A race countdown's end is pushed to everyone (Nearby host and server).
