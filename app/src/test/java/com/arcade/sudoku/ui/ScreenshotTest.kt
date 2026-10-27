@@ -27,6 +27,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -110,4 +111,18 @@ class ScreenshotTest {
     @Test fun resultLight() = shot("result", dark = false) { result() }
 
     @Test fun resultDark() = shot("result", dark = true) { result() }
+
+    // The design-system gallery is long: a tall screen fits it all in one picture.
+    @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")
+    fun galleryLight() = shot("gallery", dark = false) { DesignSystemGallery() }
+
+    @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")
+    fun galleryDark() = shot("gallery", dark = true) { DesignSystemGallery() }
+
+    /** The phone's largest text setting: nothing should be cut off or overlap. */
+    @Test @Config(qualifiers = "w411dp-h3200dp-xxhdpi")
+    fun galleryLargeText() {
+        RuntimeEnvironment.setFontScale(2f)
+        shot("gallery-large-text", dark = false) { DesignSystemGallery() }
+    }
 }
