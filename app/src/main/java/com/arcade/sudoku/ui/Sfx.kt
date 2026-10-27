@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.arcade.sudoku.R
@@ -118,4 +119,22 @@ class Sfx private constructor(context: Context) {
 fun rememberSfx(): Sfx {
     val context = LocalContext.current
     return remember { Sfx.get(context) }
+}
+
+private object Unseen
+
+/**
+ * Plays sounds with [block] each time [key] changes to something new, such as a move
+ * arriving, but not when the screen first shows the current state (or [key] is null). Put it
+ * where that change's animation starts, so the sound and the movement line up.
+ */
+@Composable
+fun SoundOnChange(key: Any?, block: suspend Sfx.() -> Unit) {
+    val sfx = rememberSfx()
+    val seen = remember { arrayOf<Any?>(Unseen) }
+    LaunchedEffect(key) {
+        val first = seen[0] === Unseen
+        seen[0] = key
+        if (!first && key != null) sfx.block()
+    }
 }

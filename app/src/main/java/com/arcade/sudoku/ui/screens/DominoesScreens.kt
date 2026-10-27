@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
+import com.arcade.sudoku.ui.Sfx
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
@@ -111,6 +114,7 @@ private fun DrawScope.pips(c: Offset, side: Float, n: Int) {
 fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true) {
     val shape = Shapes.L
     val slide = remember { Animatable(1f) }
+    val sfx = rememberSfx()
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(incoming) {
         if (!seen) {
@@ -120,6 +124,8 @@ fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier
         if (incoming == null) return@LaunchedEffect
         slide.snapTo(0f)
         slide.animateTo(1f, tween(Motion.MOVE_MS + 150, easing = FastOutSlowInEasing))
+        // The tile clacks onto the table as it arrives.
+        sfx.play(Sound.PIECE_PLACE, if (fromBelow) 1f else Sfx.OTHERS)
     }
     val placed = remember(line, start) { DominoLayout.layout(line, start) }
     Canvas(modifier.clip(shape).background(Felt).border(2.dp, AppTheme.palette.ink, shape)) {

@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -47,6 +49,9 @@ fun SudokuGrid(
     modifier: Modifier = Modifier,
 ) {
     val p = AppTheme.palette
+    // A pencil tap for each digit placed, and the gentle bonk when one clashes.
+    SoundOnChange(board.cells.count { it != 0 }) { play(Sound.SUDOKU_DIGIT) }
+    SoundOnChange(errors.size.takeIf { it > 0 }) { play(Sound.ERROR) }
     val selectedDigit = selected?.let { board.cells[it] }?.takeIf { it != 0 }
     // The highlight spreads out from the selected cell like a ripple: [wave] is how many cells
     // out it has reached.

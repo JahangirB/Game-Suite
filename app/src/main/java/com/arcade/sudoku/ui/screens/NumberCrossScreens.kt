@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -115,6 +117,9 @@ private fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?
         val ok = NumberCross.holds(s.map { cells[it] })
         for (i in s) verdict[i] = (verdict[i] ?: true) && ok
     }
+    // A number set down clacks; a sum coming out right rings a soft bell.
+    SoundOnChange(entries.count { it.isNotEmpty() }.takeIf { enabled }) { play(Sound.PIECE_PLACE) }
+    SoundOnChange(verdict.count { it.value }.takeIf { it > 0 }) { play(Sound.NUMBERS_SUM_RIGHT) }
     BoxWithConstraints(modifier) {
         val cell = minOf(maxWidth / cols.count(), maxHeight / rows.count())
         val fontSize = with(LocalDensity.current) { (cell * 0.42f).toSp() }

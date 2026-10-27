@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
+import androidx.compose.runtime.SideEffect
+import kotlin.math.hypot
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -56,6 +60,25 @@ private val Puck = Board.Ink
 @Composable
 fun HockeyRink(frame: HockeyFrame, myColor: Color, theirColor: Color, onMove: ((Float, Float) -> Unit)?, modifier: Modifier = Modifier) {
     val move by rememberUpdatedState(onMove)
+    // Sounds from the frames themselves: a goal when the score goes up, and a tock whenever the
+    // puck turns back, off a paddle (louder the faster it leaves) or, thinner, off a wall.
+    val sfx = rememberSfx()
+    val previous = remember { arrayOf<HockeyFrame?>(null) }
+    SideEffect {
+        val before = previous[0]
+        previous[0] = frame
+        if (before == null) return@SideEffect
+        val a = before.puck
+        val b = frame.puck
+        if (frame.bottomScore + frame.topScore > before.bottomScore + before.topScore) {
+            sfx.play(Sound.HOCKEY_GOAL)
+        } else if (a.vx * b.vx < 0 || a.vy * b.vy < 0) {
+            val reach = Hockey.PUCK_R + Hockey.PADDLE_R + 0.02f
+            val byPaddle = listOf(frame.bottom, frame.top).any { hypot(it.x - b.x, it.y - b.y) < reach }
+            val speed = (hypot(b.vx, b.vy) / Hockey.MAX_SPEED).coerceIn(0.3f, 1f)
+            if (byPaddle) sfx.play(Sound.HOCKEY_HIT, speed) else sfx.play(Sound.HOCKEY_WALL, speed)
+        }
+    }
     val touch = if (onMove == null) Modifier else Modifier.pointerInput(Unit) {
         awaitEachGesture {
             val down = awaitFirstDown()

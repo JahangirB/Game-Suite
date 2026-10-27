@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Pieces
@@ -57,6 +59,7 @@ private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previe
     val p = AppTheme.palette
     // The piece just placed drops onto the board from above and settles; earlier ones stay put.
     val land = remember { Animatable(1f) }
+    val sfx = rememberSfx()
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(view.lastCells) {
         if (!seen) {
@@ -66,6 +69,7 @@ private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previe
         if (view.lastCells.isEmpty()) return@LaunchedEffect
         land.snapTo(0f)
         land.animateTo(1f, tween(Motion.MOVE_MS, easing = FastOutSlowInEasing))
+        sfx.play(Sound.PIECE_PLACE)
     }
     val landing = land.value < 1f
     val falling = if (landing) view.lastCells.toSet() else emptySet()

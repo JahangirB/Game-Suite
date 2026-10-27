@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -57,6 +60,7 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
     val p = AppTheme.palette
     var path by remember(letters) { mutableStateOf(listOf<Int>()) }
     val send by rememberUpdatedState(onWord)
+    val sfx = rememberSfx()
     val n = LetterGrid.SIZE
     BoxWithConstraints(modifier) {
         val cellPx = with(LocalDensity.current) { maxWidth.toPx() } / n
@@ -73,6 +77,7 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                     return if (dx * dx + dy * dy <= (cellPx * 0.42f) * (cellPx * 0.42f)) r * n + c else null
                 }
                 var trail = listOfNotNull(cellAt(down.position.x, down.position.y))
+                if (trail.isNotEmpty()) sfx.play(Sound.GRID_TRACE)
                 path = trail
                 while (true) {
                     val event = awaitPointerEvent()
@@ -86,6 +91,8 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                         cell !in trail && LetterGrid.touching(trail.last(), cell) -> trail + cell
                         else -> trail
                     }
+                    // Each letter added ticks a little higher along the word.
+                    if (trail.size > path.size) sfx.play(Sound.GRID_TRACE, pitch = 1f + 0.06f * (trail.size - 1))
                     path = trail
                 }
                 if (trail.size >= 3) send(trail.joinToString("") { letters[it].toString() })
@@ -118,6 +125,7 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
 @Composable
 private fun FoundWords(words: List<String>) {
     val p = AppTheme.palette
+    SoundOnChange(words.size.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
     Text(
         if (words.isEmpty()) "Drag through touching letters to spell words of three letters or more."
         else words.reversed().joinToString("  ·  ") { it.uppercase() },

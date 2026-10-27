@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sfx
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.LocalReduceMotion
 import com.arcade.sudoku.ui.theme.markOf
@@ -106,6 +109,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
     val move = view.lastMove?.takeIf { it.token != null && it.from != null && it.to != null && it.to > it.from }
     val steps = remember { Animatable(0f) }
     val reduce = LocalReduceMotion.current
+    val sfx = rememberSfx()
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(move) {
         val m = move
@@ -116,6 +120,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         }
         // Coming out of the yard is a single step onto the start square.
         val count = if (m.from!! < 0) 1 else m.to!! - m.from
+        launch { ludoSounds(sfx, m, count) }
         steps.snapTo(0f)
         if (reduce) steps.snapTo(count.toFloat()) else steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
     }
@@ -220,6 +225,7 @@ private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).
 @Composable
 internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
     var face by remember { mutableStateOf(n) }
+    val sfx = rememberSfx()
     val spin = remember { Animatable(0f) }
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(rolled, n) {
@@ -229,11 +235,13 @@ internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null
             return@LaunchedEffect
         }
         launch { spin.snapTo(0f); spin.animateTo(1f, tween(TUMBLE_MS, easing = FastOutSlowInEasing)) }
+        sfx.play(Sound.DICE_ROLL)
         repeat(7) {
             face = (1..6).random()
             delay(TUMBLE_MS / 8L)
         }
         face = n
+        sfx.play(Sound.DICE_LAND)
     }
     Surface(
         color = DieWhite, shape = Shapes.M, border = BorderStroke(2.dp, Ink),
@@ -406,5 +414,25 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
                 onRoll = vm::roll, onToken = vm::moveToken,
             )
         }
+    }
+}
+
+/**
+ * A token's move, in sound: a pop out of the yard, a tap on each square (rising as it goes),
+ * then a bonk and a slide whistle for a token knocked back, or a little fanfare at home.
+ */
+private suspend fun ludoSounds(sfx: Sfx, m: LudoMove, count: Int) {
+    val v = if (m.who == 'm') 1f else Sfx.OTHERS
+    if (m.from!! < 0) {
+        sfx.play(Sound.LUDO_OUT, v)
+        return
+    }
+    repeat(count) { i ->
+        sfx.play(Sound.PIECE_HOP, v, pitch = 1f + 0.04f * i)
+        delay(HOP_MS.toLong())
+    }
+    when {
+        m.captured.isNotEmpty() -> sfx.play(Sound.LUDO_CAPTURE)
+        m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v)
     }
 }

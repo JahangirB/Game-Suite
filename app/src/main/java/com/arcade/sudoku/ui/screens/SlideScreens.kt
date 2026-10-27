@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -53,6 +55,8 @@ import kotlin.math.sign
 /** The puzzle: tiles glide to their new place; tap a tile in line with the gap, or drag it there, to slide. */
 @Composable
 fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
+    // A tile taps along one square; the last one in place sets off the cascade and chime.
+    SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
     val p = AppTheme.palette
     // A drag in progress: the tile grabbed, which way the gap is, and how far (in px, up to a cell).
     var grabbed by remember { mutableStateOf<Int?>(null) }

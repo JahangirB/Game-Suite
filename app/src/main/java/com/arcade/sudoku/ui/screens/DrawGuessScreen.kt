@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -199,6 +201,8 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             )
         },
     ) {
+        // The word guessed: a bell for the team.
+        SoundOnChange(draw.lastTurn?.takeIf { it.guessed }) { play(Sound.DRAW_CORRECT) }
         draw.lastTurn?.let { last ->
             val who = when {
                 last.guessedIt -> "You"

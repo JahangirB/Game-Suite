@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.rememberSfx
+import kotlinx.coroutines.delay
 import com.arcade.sudoku.ui.theme.markOf
 import com.arcade.sudoku.ui.theme.MarkIcon
 import com.arcade.sudoku.ui.theme.Board
@@ -104,6 +108,19 @@ private fun ScorePegs(black: Int, white: Int) {
 /** Guesses so far, newest at the bottom; [hidden] shows only the score pegs (the other player's guesses). */
 @Composable
 private fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
+    // A scored guess: a click for each red pin, then each white one, and a lock springing open when cracked.
+    SoundOnChange(guesses.size.takeIf { it > 0 }) {
+        val g = guesses.last()
+        repeat(g.black) {
+            play(Sound.CODE_PIN_RED)
+            delay(120)
+        }
+        repeat(g.white) {
+            play(Sound.CODE_PIN_WHITE)
+            delay(120)
+        }
+        if (g.black == CodeBreaker.PEGS) play(Sound.CODE_CRACKED)
+    }
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         guesses.forEachIndexed { i, g ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -155,13 +172,17 @@ private fun pinsMeaning(red: Int, white: Int): String {
 @Composable
 private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit) {
     var code by remember { mutableStateOf("") }
+    val sfx = rememberSfx()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (k in 0 until CodeBreaker.PEGS) Peg(code.getOrNull(k), 40.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CodeBreaker.COLOURS.forEach { c ->
-                Peg(c, 40.dp, Modifier.clickable(enabled = enabled && code.length < CodeBreaker.PEGS) { code += c })
+                Peg(c, 40.dp, Modifier.clickable(enabled = enabled && code.length < CodeBreaker.PEGS) {
+                    sfx.play(Sound.CODE_PEG)
+                    code += c
+                })
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

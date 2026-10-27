@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
+import kotlinx.coroutines.delay
 import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -117,6 +120,16 @@ fun ShipsSea(
         if (lastShot == null) return@LaunchedEffect
         blast.snapTo(0f)
         blast.animateTo(1f, tween(BLAST_MS, easing = LinearEasing))
+    }
+    // The cannon, then a blast or a splash as the shot lands; a creak and bubbles when a ship goes down.
+    SoundOnChange(lastShot) {
+        play(Sound.SHIPS_FIRE)
+        delay(250)
+        play(if (lastShot?.hit == true) Sound.SHIPS_HIT else Sound.SHIPS_MISS)
+    }
+    SoundOnChange(sunk.size.takeIf { it > 0 }) {
+        delay(700)
+        play(Sound.SHIPS_SUNK)
     }
     val tapModifier = if (onTap == null) Modifier else Modifier.pointerInput(onTap) {
         detectTapGestures { offset ->

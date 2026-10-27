@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
@@ -59,6 +62,9 @@ private fun ballColour(n: Int) = ColumnColours[((n - 1) / 15).coerceIn(0, 4)]
 @Composable
 fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    SoundOnChange(dabs.size.takeIf { enabled }) { play(Sound.BINGO_DAB) }
+    // A full line dabbed: the Bingo button lights up with a shimmer.
+    SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) { play(Sound.BINGO_LINE_READY) }
     BoxWithConstraints(modifier) {
         val cell = minOf(maxWidth, maxHeight * 5f / 6f) / Bingo.SIZE
         Column(Modifier.align(Alignment.Center)) {
@@ -121,6 +127,7 @@ private fun Ball(n: Int, size: Dp) {
 @Composable
 private fun CallStrip(calls: List<Int>, called: Int) {
     val p = AppTheme.palette
+    SoundOnChange(called.takeIf { it > 0 }) { play(Sound.BINGO_BALL) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (called == 0) {
             Text("Get ready…", color = p.muted, fontSize = TextSize.BodyL)
@@ -202,7 +209,8 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         } else {
             CallStrip(calls, called)
             BingoCard(card, dabs, if (finished && room.winner == "me") bingo.line else null, phase == RoomStatus.PLAYING, vm::dabBingo, Modifier.fillMaxWidth().weight(1f))
-            PrimaryButton("BINGO!", vm::claimBingo, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
+            val sfx = rememberSfx()
+            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claimBingo() }, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
         }
     }
 }
@@ -242,7 +250,8 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
         } else {
             CallStrip(state.calls, state.called)
             BingoCard(state.card, state.dabs, if (state.winner == "me") state.line else null, state.winner == null && state.called > 0, vm::dab, Modifier.fillMaxWidth().weight(1f))
-            PrimaryButton("BINGO!", vm::claim, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
+            val sfx = rememberSfx()
+            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
         }
     }
 }

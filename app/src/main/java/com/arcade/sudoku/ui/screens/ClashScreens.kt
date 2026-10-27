@@ -1,5 +1,12 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.Sfx
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.rememberSfx
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import com.arcade.sudoku.ui.theme.markOf
 import com.arcade.sudoku.ui.theme.MarkIcon
 import androidx.compose.foundation.layout.padding
@@ -219,6 +226,7 @@ private fun ColumnScope.ClashTable(
                 // anyone else's from the top, turning face up on the way.
                 val played = view.lastMove?.takeIf { it.card != null }
                 val mine = played?.who == 'm'
+                SoundOnChange(played) { play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS) }
                 FlipCard(
                     faceUp = true,
                     key = played,
@@ -239,6 +247,17 @@ private fun ColumnScope.ClashTable(
             // deck face down and turns over, and the others keep their place.
             val seen = mutableMapOf<String, Int>()
             val dealing = view.hand.size >= 7 && view.lastMove == null
+            // Cards dealt or drawn into your hand flick in, one sound each.
+            val sfx = rememberSfx()
+            var handBefore by remember { mutableIntStateOf(view.hand.size) }
+            LaunchedEffect(view.hand.size) {
+                val added = view.hand.size - handBefore
+                handBefore = view.hand.size
+                repeat(added.coerceIn(0, 7)) {
+                    sfx.play(Sound.CARD_DEAL)
+                    delay(Motion.STAGGER_MS.toLong())
+                }
+            }
             view.hand.forEachIndexed { i, card ->
                 val copy = seen.getOrDefault(card, 0).also { seen[card] = it + 1 }
                 key(card, copy) {

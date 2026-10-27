@@ -1,5 +1,10 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
+import com.arcade.sudoku.ui.Sfx
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.GameColors
@@ -84,6 +89,7 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
     // screen opened don't roll again.
     var seen by remember { mutableStateOf(view.last?.seq ?: 0) }
     var rolling by remember { mutableStateOf<Pair<Int, List<Pt>>?>(null) }
+    val sfx = rememberSfx()
     val progress = remember { Animatable(1f) }
     val last = view.last
     LaunchedEffect(last?.seq) {
@@ -95,7 +101,20 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         path[path.size - 1] = last.to
         rolling = last.hole to path
         progress.snapTo(0f)
+        val v = if (last.who == 'm') 1f else Sfx.OTHERS
+        sfx.play(Sound.GOLF_PUTT, v * (0.6f + 0.4f * last.power.toFloat()))
+        val sounds = launch {
+            // A bonk each time the ball turns back off a wall (one path point a frame), and the cup at the end.
+            var at = 0
+            for (i in bounces(path)) {
+                delay((i - at) * 1000L / 60)
+                at = i
+                sfx.play(Sound.GOLF_WALL, v)
+            }
+        }
         progress.animateTo(1f, tween((path.size * 1000 / 60).coerceAtLeast(200), easing = LinearEasing))
+        sounds.cancel()
+        if (last.holed) sfx.play(Sound.GOLF_CUP)
         rolling = null
     }
     var aim by remember { mutableStateOf<Pair<Double, Double>?>(null) }
@@ -386,4 +405,10 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
             BoardArea((Golf.W / Golf.H).toFloat()) { size -> GolfCourse(view, state.turn, myTurn, vm::shoot, size) }
         }
     }
+}
+
+/** Where along [path] the ball turned back: off a wall or a block. */
+private fun bounces(path: List<Pt>): List<Int> = (2 until path.size).filter { i ->
+    val (a, b, c) = Triple(path[i - 2], path[i - 1], path[i])
+    (b.x - a.x) * (c.x - b.x) < 0 || (b.y - a.y) * (c.y - b.y) < 0
 }

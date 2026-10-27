@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sfx
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.SoundOnChange
 import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -125,6 +128,13 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
             1f at 470
         })
     }
+    // The disc rattles down the slot and clacks into its hole as it lands.
+    SoundOnChange(lastCell) {
+        val v = if (board.getOrNull(lastCell ?: -1) == 'm') 1f else Sfx.OTHERS
+        play(Sound.C4_DROP, v)
+        delay(320)
+        play(Sound.C4_LAND, v)
+    }
     val glow by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), still = 1f, label = "winGlow")
     var hover by remember { mutableStateOf<Int?>(null) }
     val pick = if (onDrop == null) Modifier else Modifier.pointerInput(onDrop) {
@@ -198,6 +208,7 @@ fun TttBoard(
     val p = AppTheme.palette
     val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
     LaunchedEffect(lastCell) { pop.animateTo(1f, tween(260)) }
+    SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
@@ -275,6 +286,7 @@ private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, o
     val p = AppTheme.palette
     val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
     LaunchedEffect(lastCell) { pop.animateTo(1f, tween(320)) }
+    SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
             val step = size.width / 3f
@@ -345,6 +357,9 @@ fun DotsBoard(
     modifier: Modifier = Modifier,
 ) {
     val p = AppTheme.palette
+    SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
+    // A box closed: a stamp and a chime, and the same player goes again.
+    SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
     var preview by remember { mutableStateOf<Int?>(null) }
     val pick = if (onLine == null) Modifier else Modifier.pointerInput(onLine) {
         fun lineAt(at: Offset): Int {
@@ -432,6 +447,8 @@ fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, 
     // flip, but after a look they turn back here, so nobody waits on the next player.
     val missed = faces.indices.filter { faces[it] != null && owners.getOrNull(it) == '.' }.takeIf { it.size == 2 }
     var hidden by remember { mutableStateOf<List<Int>?>(null) }
+    SoundOnChange(faces.count { it != null }.takeIf { it > 0 }) { play(Sound.CARD_FLIP) }
+    SoundOnChange(owners.count { it != '.' }.takeIf { it > 0 }) { play(Sound.MEMORY_MATCH) }
     LaunchedEffect(missed) {
         if (missed == null) return@LaunchedEffect
         delay(MISSED_LOOK_MS)
@@ -918,4 +935,9 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
             MemoryBoard(state.faces, state.found, onFlip = if (finished == null) vm::flip else null, modifier = size)
         }
     }
+}
+
+/** An X (yours) or an O (theirs) chalked on a Tic-Tac-Toe board. */
+private fun Sfx.tttSound(mark: Char?) {
+    if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS)
 }

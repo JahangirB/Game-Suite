@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.Sfx
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -73,6 +77,18 @@ private fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length
     // Rows scored before this screen opened don't drop again; a new round starts over.
     var seen by remember { mutableStateOf(guesses.size) }
     if (guesses.size < seen) seen = 0
+    // A scored row: each letter lands with a tok, a ting for one in the right place, and a run of tings when all are.
+    SoundOnChange(guesses.size.takeIf { it > 0 }) {
+        val score = guesses.lastOrNull()?.score ?: return@SoundOnChange
+        var at = 0L
+        score.forEachIndexed { i, s ->
+            delay(i * Motion.STAGGER_MS + Motion.DROP_MS - at)
+            at = i * Motion.STAGGER_MS + Motion.DROP_MS.toLong()
+            play(Sound.LETTER_DROP)
+            if (s == 'g') play(Sound.LETTER_RIGHT)
+        }
+        if (score.all { it == 'g' }) play(Sound.WORDS_SOLVED)
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until tries) {
             val guess = guesses.getOrNull(row)
@@ -143,6 +159,7 @@ private fun ColourRows(guesses: List<WordGuess>, tries: Int, length: Int, small:
 @Composable
 private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onDelete: () -> Unit, onEnter: () -> Unit) {
     val p = AppTheme.palette
+    val sfx = rememberSfx()
     val best = mutableMapOf<Char, Char>()
     for (g in guesses) {
         val word = g.word ?: continue
@@ -169,6 +186,7 @@ private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onD
                             .background(state?.let(::tileColor) ?: p.card)
                             .border(2.dp, p.ink, Shapes.S)
                             .clickable {
+                                sfx.play(Sound.LETTER_TYPE)
                                 when (key) {
                                     '+' -> onEnter()
                                     '-' -> onDelete()

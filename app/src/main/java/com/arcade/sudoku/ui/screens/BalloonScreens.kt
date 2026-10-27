@@ -1,5 +1,11 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.Sfx
+import com.arcade.sudoku.ui.SoundOnChange
+import com.arcade.sudoku.ui.Sound
+import com.arcade.sudoku.ui.rememberSfx
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.arcade.sudoku.ui.theme.loopingFloat
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
@@ -79,10 +85,17 @@ fun BalloonRow(total: Int, popped: Int, modifier: Modifier = Modifier) {
     var before by remember { mutableStateOf(popped) }
     var bursting by remember { mutableStateOf<Int?>(null) }
     val pop = remember { Animatable(1f) }
+    val sfx = rememberSfx()
     LaunchedEffect(popped) {
         if (popped > before) {
             bursting = popped - 1
             pop.snapTo(0f)
+            // The rubber squeaks as it swells, then pops as it bursts.
+            sfx.play(Sound.BALLOON_STRETCH)
+            launch {
+                delay((POP_MS * SWELL).toLong())
+                sfx.play(Sound.BALLOON_POP)
+            }
             pop.animateTo(1f, tween(POP_MS, easing = LinearEasing))
         }
         before = popped
@@ -169,6 +182,12 @@ private fun DrawScope.shreds(cx: Float, cy: Float, r: Float, color: Color, seed:
 @Composable
 private fun WordTiles(pattern: String, reveal: String? = null) {
     val p = AppTheme.palette
+    // A letter found drops into its tile with a tok and a ting.
+    SoundOnChange(pattern.count { it != '_' }.takeIf { it > 0 }) {
+        delay(150)
+        play(Sound.LETTER_DROP)
+        play(Sound.LETTER_RIGHT)
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth()) {
         pattern.forEachIndexed { i, c ->
             val shown = if (c != '_') c else reveal?.getOrNull(i)
@@ -190,6 +209,7 @@ private fun WordTiles(pattern: String, reveal: String? = null) {
 @Composable
 private fun LetterKeys(guessed: List<Char>, word: String, enabled: Boolean, onLetter: (Char) -> Unit) {
     val p = AppTheme.palette
+    val sfx = rememberSfx()
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         listOf("ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ").forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
@@ -203,7 +223,10 @@ private fun LetterKeys(guessed: List<Char>, word: String, enabled: Boolean, onLe
                             else -> p.card
                         },
                         shape = Shapes.S, border = BorderStroke(2.dp, if (tried) p.muted else p.ink),
-                        modifier = Modifier.weight(1f).height(42.dp).clickable(enabled = enabled && !tried) { onLetter(c) },
+                        modifier = Modifier.weight(1f).height(42.dp).clickable(enabled = enabled && !tried) {
+                            sfx.play(Sound.LETTER_TYPE)
+                            onLetter(c)
+                        },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(c.toString(), color = if (hit) Color.White else if (tried) p.muted else p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL)
