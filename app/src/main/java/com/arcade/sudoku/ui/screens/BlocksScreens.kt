@@ -55,7 +55,7 @@ import com.arcade.sudoku.ui.theme.AppTheme
 
 /** The board: everyone's squares, empty start squares ringed, the last piece outlined and [preview]. */
 @Composable
-private fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previewOk: Boolean, onTap: ((Int, Int) -> Unit)?, modifier: Modifier = Modifier) {
+internal fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previewOk: Boolean, onTap: ((Int, Int) -> Unit)?, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     // The piece just placed drops onto the board from above and settles; earlier ones stay put.
     val land = remember { Animatable(1f) }

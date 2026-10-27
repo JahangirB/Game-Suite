@@ -134,7 +134,7 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
 
 /** The back of a card: the deck. */
 @Composable
-private fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
+internal fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     Surface(color = Board.Ink, shape = RoundedCornerShape(width * 0.18f), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(width, width * 1.45f)) {
         Box(contentAlignment = Alignment.Center) {

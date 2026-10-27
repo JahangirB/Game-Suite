@@ -180,7 +180,7 @@ private fun DrawScope.shreds(cx: Float, cy: Float, r: Float, color: Color, seed:
 
 /** The word as tiles: found letters shown, blanks empty. */
 @Composable
-private fun WordTiles(pattern: String, reveal: String? = null) {
+internal fun WordTiles(pattern: String, reveal: String? = null) {
     val p = AppTheme.palette
     // A letter found drops into its tile with a tok and a ting.
     SoundOnChange(pattern.count { it != '_' }.takeIf { it > 0 }) {

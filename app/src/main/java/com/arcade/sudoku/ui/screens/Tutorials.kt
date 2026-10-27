@@ -1,9 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,14 +28,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.arcade.sudoku.data.Avatar
+import com.arcade.sudoku.data.CodeGuess
 import com.arcade.sudoku.data.DrawStroke
 import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.NumberBoard
 import com.arcade.sudoku.data.WordGuess
 import com.arcade.sudoku.game.BoardState
+import com.arcade.sudoku.game.blocks.Blocks
+import com.arcade.sudoku.game.blocks.BlocksView
 import com.arcade.sudoku.game.dominoes.Tile
+import com.arcade.sudoku.game.golf.Golf
+import com.arcade.sudoku.game.golf.GolfView
+import com.arcade.sudoku.game.golf.Pt
+import com.arcade.sudoku.game.hockey.Body
+import com.arcade.sudoku.game.hockey.Hockey
+import com.arcade.sudoku.game.hockey.HockeyFrame
+import com.arcade.sudoku.game.ludo.Ludo
+import com.arcade.sudoku.game.ludo.LudoMove
+import com.arcade.sudoku.game.ludo.LudoView
 import com.arcade.sudoku.game.ships.Ship
 import com.arcade.sudoku.game.ships.Shot
+import com.arcade.sudoku.game.slide.Slide
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
 import com.arcade.sudoku.ui.theme.LineHeight
@@ -42,8 +56,8 @@ import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Space
 import com.arcade.sudoku.ui.theme.TextSize
 
-/** One step of a game's tutorial: what to know, over the real board set up to show it. */
-class TutorialStep(val title: String, val body: String, val board: @Composable (Modifier) -> Unit)
+/** One step of a game's tutorial: what to know, over the real board set up to show it ([aspect] wide for each 1 tall). */
+class TutorialStep(val title: String, val body: String, val board: @Composable (Modifier) -> Unit, val aspect: Float = 1f)
 
 /**
  * A game's tutorial as a full-screen dialog: a few steps on the game's own board, with Skip,
@@ -77,7 +91,7 @@ private fun TutorialScreen(kind: GameKind, steps: List<TutorialStep>, onDone: ()
             Text(kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             if (!last) TextButton(onClick = { at = steps.size - 1 }) { Text("Skip", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
-        BoardArea(1f) { size -> step.board(size) }
+        BoardArea(step.aspect) { size -> step.board(size) }
         Text(step.title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
         Text(step.body, color = p.muted, fontSize = TextSize.BodyL, modifier = Modifier.height(72.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(Space.S), verticalAlignment = Alignment.CenterVertically) {
@@ -92,7 +106,7 @@ private fun TutorialScreen(kind: GameKind, steps: List<TutorialStep>, onDone: ()
     }
 }
 
-/** The tutorial for [kind], or null for games that don't have one yet. */
+/** The tutorial for [kind], or null for a game without one. */
 fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.SUDOKU -> sudoku()
     GameKind.SHIPS -> ships()
@@ -104,7 +118,16 @@ fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.TTT -> ttt()
     GameKind.DOMINOES -> dominoes()
     GameKind.NUMBERS -> numbers()
-    else -> null
+    GameKind.HOCKEY -> hockey()
+    GameKind.CLASH -> clash()
+    GameKind.LUDO -> ludo()
+    GameKind.GRID -> grid()
+    GameKind.BALLOON -> balloon()
+    GameKind.CODE -> code()
+    GameKind.SLIDE -> slide()
+    GameKind.BINGO -> bingo()
+    GameKind.GOLF -> golf()
+    GameKind.BLOCKS -> blocks()
 }
 
 // ---- The first ten games -----------------------------------------------------------------
@@ -262,5 +285,157 @@ private fun numbers(): List<TutorialStep> {
         TutorialStep("Tap a blank, then a number", "The numbers to use are under the grid, each once.", grid(listOf("", ""), 0)),
         TutorialStep("Right sums turn green", "3 + 4 = 7 holds. A wrong one turns red.", grid(listOf("4", ""), 1)),
         TutorialStep("Every sum must hold", "3 − 1 = 2 too. Fill the grid with every sum right.", grid(listOf("4", "1"), null)),
+    )
+}
+
+// ---- The other ten -----------------------------------------------------------------------
+
+private fun hockey(): List<TutorialStep> {
+    fun rink(f: HockeyFrame) = @Composable { m: Modifier -> HockeyRink(f, MyDisc, TheirDisc, null, m) }
+    val aspect = Hockey.W / Hockey.H
+    val start = HockeyFrame.start()
+    val hit = HockeyFrame(puck = Body(0.56f, 1.0f, -0.2f, -1.4f), bottom = Body(0.52f, 1.13f), top = Body(0.5f, 0.24f))
+    val goal = HockeyFrame(puck = Body(0.5f, 0.04f), bottom = Body(0.5f, 1.2f), top = Body(0.28f, 0.2f), bottomScore = 1)
+    return listOf(
+        TutorialStep("Your paddle is red", "It's at the bottom and stays in your half. Theirs is at the top.", rink(start), aspect),
+        TutorialStep("Drag to hit the puck", "The puck takes your paddle's speed: swing through it to shoot hard.", rink(hit), aspect),
+        TutorialStep("Score at the far end", "The puck bounces off the sides. Get it into their goal.", rink(goal), aspect),
+        TutorialStep("First to ${Hockey.GOALS} wins", "Against your partner it's live, so play nearby where the phones talk directly.", rink(start.copy(bottomScore = 6, topScore = 4)), aspect),
+    )
+}
+
+/** Colour Clash's table: the pile and the card on top, and a hand under it. */
+@Composable
+private fun ClashScene(top: String, hand: List<String>, named: Char? = null, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val w = minOf(maxWidth / 6, maxHeight / 4.2f)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(w * 0.4f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(w * 0.4f), verticalAlignment = Alignment.CenterVertically) {
+                ClashBack(w)
+                ClashCard(top, w * 1.5f, named = named)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(w * 0.15f)) { hand.forEach { ClashCard(it, w) } }
+        }
+    }
+}
+
+private fun clash(): List<TutorialStep> {
+    fun table(top: String, hand: List<String>, named: Char? = null) = @Composable { m: Modifier -> ClashScene(top, hand, named, modifier = m) }
+    return listOf(
+        TutorialStep("Match the top card", "Play a card of the same colour, or the same number or symbol.", table("r5", listOf("r2", "b5", "g7", "y1"))),
+        TutorialStep("Action cards", "Skip misses the next player, reverse turns the order round, +2 makes them draw two.", table("rS", listOf("rR", "rD", "b5"))),
+        TutorialStep("Wilds go on anything", "You name the colour. +4 also makes the next player draw four.", table("W", listOf("b2", "F"), named = 'b')),
+        TutorialStep("Can't play? Draw", "Tap the pile. Play the card if it fits, or keep it.", table("g3", listOf("r8", "y6"))),
+        TutorialStep("Play your last card", "Everyone starts with seven. The first to empty their hand wins.", table("b2", listOf("b9"))),
+    )
+}
+
+private fun ludo(): List<TutorialStep> {
+    val yard = listOf(-1, -1, -1, -1)
+    fun board(mine: List<Int>, theirs: List<Int> = yard, roll: Int? = null, movable: List<Int> = emptyList(), move: LudoMove? = null) = @Composable { m: Modifier ->
+        LudoBoard(LudoView(mapOf('m' to 0, 'o' to 2), mapOf('m' to mine, 'o' to theirs), roll, movable, move), null, m)
+    }
+    val out = LudoMove('m', 6, 0, -1, 0, emptyList(), stuck = false, thirdSix = false)
+    return listOf(
+        TutorialStep("Four tokens each", "Yours wait in your corner. Roll the die on your turn.", board(yard)),
+        TutorialStep("A 6 brings one out", "It goes onto your start square, and a 6 rolls again.", board(listOf(0, -1, -1, -1), move = out)),
+        TutorialStep("Tap a token to move it", "The tokens that can move bob up and down. Move round the board clockwise.", board(listOf(5, 0, -1, -1), roll = 4, movable = listOf(0, 1))),
+        TutorialStep("Land on them to send them back", "Their token goes back to their corner. Start squares and stars are safe.", board(listOf(27, 5, -1, -1), listOf(4, -1, -1, -1), roll = 3, movable = listOf(0, 1))),
+        TutorialStep("Get all four home", "Up your coloured column to the centre. You need the exact roll.", board(listOf(Ludo.HOME, Ludo.HOME, Ludo.HOME, 53), listOf(30, 12, -1, -1))),
+    )
+}
+
+private fun grid(): List<TutorialStep> {
+    fun board(letters: String) = @Composable { m: Modifier -> LetterGridBoard(letters, false, {}, m) }
+    val letters = "STARPEONLIDECKUM"
+    return listOf(
+        TutorialStep("Sixteen letters, two minutes", "Everyone gets the same grid. Find as many words as you can.", board(letters)),
+        TutorialStep("Drag through the letters", "Slide across, up and down or corner to corner, each letter once. Lift to send it.", board(letters)),
+        TutorialStep("Longer words score more", "Short words score 1, an 8-letter word 11. A word nobody else found scores double.", board(letters)),
+    )
+}
+
+private fun balloon(): List<TutorialStep> {
+    fun round(pattern: String, popped: Int) = @Composable { m: Modifier ->
+        Column(m, verticalArrangement = Arrangement.SpaceEvenly) {
+            BalloonRow(7, popped)
+            WordTiles(pattern)
+        }
+    }
+    return listOf(
+        TutorialStep("One picks a secret word", "Any word works: names and in-jokes too. The others guess it.", round("_____", 0)),
+        TutorialStep("Guess a letter", "A right letter fills in every place it's in, and scores a point for each.", round("_A___", 0)),
+        TutorialStep("A wrong letter pops a balloon", "If all seven pop, the picker scores 5.", round("_A_T_", 3)),
+        TutorialStep("Fill in the last letter", "That scores 3 more. Everyone picks once; most points wins.", round("PARTY", 3)),
+    )
+}
+
+private fun code(): List<TutorialStep> {
+    fun rows(guesses: List<CodeGuess>) = @Composable { m: Modifier -> Box(m, contentAlignment = Alignment.Center) { GuessRows(guesses) } }
+    val one = listOf(CodeGuess("rrgg", 1, 1))
+    val two = one + CodeGuess("rgoo", 2, 0)
+    val three = two + CodeGuess("rgyb", 2, 2)
+    return listOf(
+        TutorialStep("Hide a code, crack theirs", "Four coloured pegs; colours can repeat. You each crack the other's.", rows(one)),
+        TutorialStep("Read the pins", "Red: right colour, right place. White: right colour, wrong place.", rows(two)),
+        TutorialStep("Close in on it", "Two red, two white: all four colours are right, two are swapped.", rows(three)),
+        TutorialStep("Fewest guesses wins", "Four red cracks it. On a tie the faster wins. Ten guesses each.", rows(three + CodeGuess("rgby", 4, 0))),
+    )
+}
+
+private fun slide(): List<TutorialStep> {
+    fun board(tiles: List<Int>) = @Composable { m: Modifier -> SlideBoard(tiles, 3, false, {}, m) }
+    return listOf(
+        TutorialStep("Put the tiles in order", "1 to 8, with the gap last. Tiles in their place turn orange.", board(listOf(0, 2, 3, 1, 4, 6, 7, 5, 8))),
+        TutorialStep("Tap a tile by the gap", "It slides into the gap. A tile further along the line takes the ones between with it.", board(listOf(1, 2, 3, 0, 4, 6, 7, 5, 8))),
+        TutorialStep("Nearly there", "Work row by row from the top.", board(listOf(1, 2, 3, 4, 5, 6, 7, 0, 8))),
+        TutorialStep("First to finish wins", "Everyone gets the same shuffle, and it can always be solved.", board(Slide.solved(3))),
+    )
+}
+
+private fun bingo(): List<TutorialStep> {
+    val card = List(25) { i -> if (i == 12) 0 else (i % 5) * 15 + listOf(3, 7, 10, 12, 14)[i / 5] }
+    fun card(dabs: Set<Int>, line: List<Int>? = null) = @Composable { m: Modifier -> BingoCard(card, dabs, line, false, {}, m) }
+    val row = listOf(10, 11, 12, 13, 14)
+    return listOf(
+        TutorialStep("Your card", "24 numbers round a free star. B is 1 to 15, I 16 to 30, and so on up to O 75.", card(emptySet())),
+        TutorialStep("Dab the called numbers", "A number is called every few seconds. Tap it on your card if you have it.", card(setOf(0, 6, 11))),
+        TutorialStep("Fill a line", "A row, column or diagonal; the star counts. The Bingo button lights up.", card(setOf(0, 6, 10, 11, 13, 14), row)),
+        TutorialStep("Press Bingo first", "The first to press it wins.", card(setOf(0, 6, 10, 11, 13, 14), row)),
+    )
+}
+
+private fun golf(): List<TutorialStep> {
+    fun course(hole: Int, me: Pt?, them: Pt?) = @Composable { m: Modifier ->
+        val view = GolfView(hole, Golf.HOLES.size, mapOf('m' to emptyList(), 'o' to emptyList()), mapOf('m' to me, 'o' to them), emptyMap(), null)
+        GolfCourse(view, 'm', false, { _, _ -> }, m)
+    }
+    val aspect = (Golf.W / Golf.H).toFloat()
+    return listOf(
+        TutorialStep("Nine holes", "Everyone tees off in turn. Get the ball into the cup at the flag.", course(0, null, null), aspect),
+        TutorialStep("Pull back and let go", "Pull from anywhere, like a slingshot. The further you pull, the harder the shot.", course(1, null, Pt(0.62, 1.0)), aspect),
+        TutorialStep("Walls bounce, sand slows", "Play off the walls to get round corners.", course(4, Pt(0.4, 1.05), Pt(0.56, 0.5)), aspect),
+        TutorialStep("Fewest strokes wins", "A ball still out after six strokes is picked up and scores seven.", course(0, Pt(0.52, 0.34), null), aspect),
+    )
+}
+
+private fun blocks(): List<TutorialStep> {
+    val n = Blocks.sizeFor(2)
+    val first = listOf(3 to 4, 4 to 4, 5 to 4, 4 to 5)
+    val second = listOf(6 to 5, 6 to 6, 6 to 7)
+    val theirs = listOf(9 to 9, 10 to 9, 9 to 10, 10 to 10)
+    fun board(mine: List<Pair<Int, Int>>, others: List<Pair<Int, Int>>, preview: List<Pair<Int, Int>>? = null, ok: Boolean = true) = @Composable { m: Modifier ->
+        val b = CharArray(n * n) { '.' }
+        mine.forEach { (x, y) -> b[y * n + x] = 'm' }
+        others.forEach { (x, y) -> b[y * n + x] = 'o' }
+        val view = BlocksView(n, String(b), mapOf('m' to (4 to 4), 'o' to (9 to 9)), emptyMap(), emptyMap(), null, emptyList())
+        BlocksBoard(view, preview, ok, null, m)
+    }
+    return listOf(
+        TutorialStep("Start on your ring", "Everyone has the same 21 pieces. Your first piece covers your ringed square.", board(emptyList(), emptyList())),
+        TutorialStep("Pick, turn, place", "Choose a piece, turn or flip it, tap the board, then Place.", board(first, theirs)),
+        TutorialStep("Corners only", "Each new piece touches your own corner to corner, never along an edge.", board(first + second, theirs)),
+        TutorialStep("Red means no", "This one would touch your piece along an edge. Other colours can touch you anywhere.", board(first + second, theirs, listOf(7 to 6, 8 to 6), ok = false)),
+        TutorialStep("Most squares wins", "Stuck players are skipped. When nobody can place, count the squares.", board(first + second + listOf(7 to 8, 8 to 8, 8 to 9), theirs + listOf(11 to 8, 12 to 8))),
     )
 }

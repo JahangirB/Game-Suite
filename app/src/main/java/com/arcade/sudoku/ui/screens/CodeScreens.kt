@@ -107,7 +107,7 @@ private fun ScorePegs(black: Int, white: Int) {
 
 /** Guesses so far, newest at the bottom; [hidden] shows only the score pegs (the other player's guesses). */
 @Composable
-private fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
+internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
     // A scored guess: a click for each red pin, then each white one, and a lock springing open when cracked.
     SoundOnChange(guesses.size.takeIf { it > 0 }) {
         val g = guesses.last()

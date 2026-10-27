@@ -122,15 +122,15 @@ class ScreenshotTest {
 
     @Test fun resultDark() = shot("result", dark = true) { result() }
 
-    // Every step of the first ten tutorials on its board: one row per game, in one picture.
+    // Every step of every tutorial on its board: one row per game, in one picture.
     @Test @Config(qualifiers = "w411dp-h2400dp-xxhdpi")
     fun tutorials() = shot("tutorials", dark = false) {
         Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (kind in GameKind.entries.take(10)) {
+            for (kind in GameKind.entries) {
                 val steps = tutorialFor(kind) ?: continue
                 Text(kind.label, color = AppTheme.palette.text)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    steps.forEach { step -> Box(Modifier.size(78.dp)) { step.board(Modifier.fillMaxSize()) } }
+                    steps.forEach { step -> Box(Modifier.size(72.dp * step.aspect, 72.dp)) { step.board(Modifier.fillMaxSize()) } }
                 }
             }
         }
