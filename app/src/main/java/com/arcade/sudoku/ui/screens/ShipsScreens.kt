@@ -26,7 +26,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -133,12 +133,29 @@ fun ShipsSea(
         delay(700)
         play(Sound.SHIPS_SUNK)
     }
+    // A tap is watched on the way down to the board, before the screen's swipe (which folds
+    // the players) can take it: a touch that lifts within [SHOT_SLOP_DP] of where it landed
+    // fires, even if the finger drifted. An ordinary tap gesture would be cancelled by that
+    // swipe as soon as the finger moved a little, and the shot would be lost.
     val tapModifier = if (onTap == null) Modifier else Modifier.pointerInput(onTap) {
-        detectTapGestures { offset ->
-            val cell = size.width / Sea.SIZE.toFloat()
-            val x = (offset.x / cell).toInt().coerceIn(0, Sea.SIZE - 1)
-            val y = (offset.y / cell).toInt().coerceIn(0, Sea.SIZE - 1)
-            onTap(x, y)
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var lifted = false
+            var drift = 0f
+            while (true) {
+                val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                drift = maxOf(drift, (change.position - down.position).getDistance())
+                if (!change.pressed) {
+                    lifted = true
+                    break
+                }
+            }
+            if (lifted && drift < SHOT_SLOP_DP.dp.toPx()) {
+                val cell = size.width / Sea.SIZE.toFloat()
+                val x = (down.position.x / cell).toInt().coerceIn(0, Sea.SIZE - 1)
+                val y = (down.position.y / cell).toInt().coerceIn(0, Sea.SIZE - 1)
+                onTap(x, y)
+            }
         }
     }
     Canvas(modifier.fillMaxWidth().aspectRatio(1f).clip(Shapes.M).then(tapModifier)) {
@@ -375,6 +392,8 @@ private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = fa
 fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     val game = state.game
+    // Whenever the game changes, make sure the computer plays if it's its turn.
+    LaunchedEffect(game) { vm.keepPlaying() }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
     GameFrame(
@@ -565,3 +584,6 @@ private fun shipName(len: Int) = when (len) {
     3 -> "Cruiser"
     else -> "Destroyer"
 }
+
+/** How far a finger may drift and still fire a shot. The players fold only after a longer swipe. */
+private const val SHOT_SLOP_DP = 16

@@ -33,9 +33,9 @@ class SoloShipsViewModel : ViewModel() {
     fun setDraft(fleet: List<Ship>) = _state.update { it.copy(draft = fleet) }
 
     fun start() {
-        val game = SoloShips.new(_state.value.draft)
-        _state.update { it.copy(game = game) }
-        if (!game.myTurn) computerTurn()
+        computer?.cancel()
+        _state.update { it.copy(game = SoloShips.new(it.draft)) }
+        keepPlaying()
     }
 
     fun fire(x: Int, y: Int) {
@@ -43,7 +43,17 @@ class SoloShipsViewModel : ViewModel() {
         val next = game.fire(x, y)
         if (next === game) return
         _state.update { it.copy(game = next) }
-        if (!next.myTurn && next.winner == null) computerTurn()
+        keepPlaying()
+    }
+
+    /**
+     * Starts the computer's shots when it's its turn and they aren't already coming. The screen
+     * calls this whenever the game changes, so the computer's turn is never left waiting, even
+     * if its shots were stopped part way.
+     */
+    fun keepPlaying() {
+        val game = _state.value.game ?: return
+        if (!game.myTurn && game.winner == null && computer?.isActive != true) computerTurn()
     }
 
     /** Back to placing a new fleet. */
@@ -54,7 +64,6 @@ class SoloShipsViewModel : ViewModel() {
 
     /** The computer takes its shots one by one, so you can follow them. */
     private fun computerTurn() {
-        computer?.cancel()
         computer = viewModelScope.launch {
             while (true) {
                 val game = _state.value.game ?: break

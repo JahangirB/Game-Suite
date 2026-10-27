@@ -120,10 +120,12 @@ fun GameFrame(
     var focused by remember { mutableStateOf(false) }
     LaunchedEffect(focusWhen) { if (focusWhen && swipeToFocus) focused = true }
     val swipe = if (!swipeToFocus) Modifier else Modifier.pointerInput(Unit) {
+        // A real swipe, well past the drift a tap on the board is allowed.
+        val far = FOLD_SWIPE_DP.dp.toPx()
         var pulled = 0f
         detectVerticalDragGestures(
             onDragStart = { pulled = 0f },
-            onDragEnd = { if (pulled < -60f) focused = true else if (pulled > 60f) focused = false },
+            onDragEnd = { if (pulled < -far) focused = true else if (pulled > far) focused = false },
         ) { _, dy -> pulled += dy }
     }
     Column(Modifier.fillMaxSize()) {
@@ -169,6 +171,9 @@ fun GameFrame(
         GameDock(dock)
     }
 }
+
+/** How far a swipe must go to fold or unfold the players. */
+private const val FOLD_SWIPE_DP = 48
 
 /**
  * The room left in a game screen, for a board [aspect] wide per unit of height: the board

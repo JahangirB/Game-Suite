@@ -97,10 +97,6 @@ Copy and polish:
 
 ## Backlog
 
-Fixes asked for along the way, outside the numbered steps.
+Fixes asked for along the way, outside the numbered steps. None open: Slide Race swipes and
+the Ship Battle hang against the computer are fixed.
 
-- **Ship Battle against the computer: the game gets stuck at some point.** Not looked into
-  yet. The computer's choice of shot has been ruled out: 20,000 simulated games all finish
-  without a repeated or impossible shot. Look next at the screen and turn handling: whether a
-  tap on the enemy sea is lost to the swipe that folds the players, and whether the
-  computer's turn can stop without anything restarting it.
