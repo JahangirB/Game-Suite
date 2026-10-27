@@ -387,7 +387,7 @@ private fun slide(): List<TutorialStep> {
     fun board(tiles: List<Int>) = @Composable { m: Modifier -> SlideBoard(tiles, 3, false, {}, m) }
     return listOf(
         TutorialStep("Put the tiles in order", "1 to 8, with the gap last. Tiles in their place turn orange.", board(listOf(0, 2, 3, 1, 4, 6, 7, 5, 8))),
-        TutorialStep("Tap a tile by the gap", "It slides into the gap. A tile further along the line takes the ones between with it.", board(listOf(1, 2, 3, 0, 4, 6, 7, 5, 8))),
+        TutorialStep("Tap or swipe", "Tap a tile in line with the gap, or swipe anywhere: the tile next to the gap slides in.", board(listOf(1, 2, 3, 0, 4, 6, 7, 5, 8))),
         TutorialStep("Nearly there", "Work row by row from the top.", board(listOf(1, 2, 3, 4, 5, 6, 7, 0, 8))),
         TutorialStep("First to finish wins", "Everyone gets the same shuffle, and it can always be solved.", board(Slide.solved(3))),
     )

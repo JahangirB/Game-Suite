@@ -120,7 +120,8 @@ val GameKind.rules: String
             "right colour in the wrong place. You see each other's pins but never the guesses. Fewest guesses wins; " +
             "on a tie, the faster. Ten guesses each."
         GameKind.SLIDE -> "Put the numbered tiles back in order, 1 to the last, with the gap at the end. Tap a tile in line " +
-            "with the gap and it slides over (with any tiles between). In a race everyone gets the same shuffle, made on the " +
+            "with the gap and it slides over (with any tiles between), or swipe anywhere on the screen to slide the tile next to " +
+            "the gap into it. In a race everyone gets the same shuffle, made on the " +
             "host's phone with real slides so it can always be solved; the first to finish wins. Tiles in their place turn orange."
         GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
             "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +

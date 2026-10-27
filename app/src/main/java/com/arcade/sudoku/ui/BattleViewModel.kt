@@ -1178,6 +1178,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     /** Bingo: claim a full line; the server checks it against the calls. */
     fun claimBingo() = sendCode(BINGO_CLAIM)
 
+    /** Slide Race: a swipe anywhere on the screen slides the tile next to the gap that way. */
+    fun swipeSlide(dx: Int, dy: Int) {
+        val s = _state.value
+        val slide = s.room?.slide ?: return
+        val start = slide.start ?: return
+        val tiles = Slide.replay(start, slide.size, s.slideMoves)
+        Slide.tileForSwipe(tiles, slide.size, dx, dy)?.let(::tapSlideTile)
+    }
+
     /** Slide Race: tap a tile in line with the gap; it (and any tiles between) slide over at once. */
     fun tapSlideTile(tile: Int) {
         val s = _state.value

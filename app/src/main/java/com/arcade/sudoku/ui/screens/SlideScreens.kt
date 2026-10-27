@@ -10,7 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,8 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,70 +54,30 @@ import com.arcade.sudoku.ui.art.Outcome
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.theme.AppTheme
 import com.arcade.sudoku.ui.theme.DisplayFont
+import kotlin.math.abs
 import kotlin.math.sign
 
-/** The puzzle: tiles glide to their new place; tap a tile in line with the gap, or drag it there, to slide. */
+/** The puzzle: tiles glide to their new place; tap a tile in line with the gap to slide it. Swipes come from [slideSwipes]. */
 @Composable
 fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     // A tile taps along one square; the last one in place sets off the cascade and chime.
     SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
     val p = AppTheme.palette
-    // A drag in progress: the tile grabbed, which way the gap is, and how far (in px, up to a cell).
-    var grabbed by remember { mutableStateOf<Int?>(null) }
-    var toward by remember { mutableStateOf(0 to 0) }
-    var pulled by remember { mutableStateOf(0f) }
-    val moving = grabbed?.let { Slide.slidesFor(tiles, size, it) }.orEmpty()
-    // (Inside pointerInput, size is the touch area's pixel size.)
-    val n = size
     BoxWithConstraints(
-        modifier.clip(Shapes.L).background(p.accent).then(
-            if (!enabled) Modifier else Modifier.pointerInput(tiles, size) {
-                val cellPx = this.size.width.toFloat() / n
-                detectDragGestures(
-                    onDragStart = { o ->
-                        val i = (o.y / cellPx).toInt().coerceIn(0, n - 1) * n + (o.x / cellPx).toInt().coerceIn(0, n - 1)
-                        val tile = tiles[i]
-                        if (tile != 0 && Slide.slidesFor(tiles, n, tile).isNotEmpty()) {
-                            val gap = tiles.indexOf(0)
-                            grabbed = tile
-                            toward = (gap % n - i % n).sign to (gap / n - i / n).sign
-                            pulled = 0f
-                        }
-                    },
-                    onDrag = { change, amount ->
-                        if (grabbed != null) {
-                            change.consume()
-                            pulled = (pulled + amount.x * toward.first + amount.y * toward.second).coerceIn(0f, cellPx)
-                        }
-                    },
-                    onDragEnd = {
-                        grabbed?.let { if (pulled > cellPx * 0.35f) onTap(it) }
-                        grabbed = null
-                        pulled = 0f
-                    },
-                    onDragCancel = {
-                        grabbed = null
-                        pulled = 0f
-                    },
-                )
-            },
-        ),
+        modifier.clip(Shapes.L).background(p.accent),
     ) {
         val cell = maxWidth / size
         val goal = Slide.solved(size)
-        val density = LocalDensity.current
         for (tile in 1 until size * size) key(tile) {
             val at = tiles.indexOf(tile)
             val x by animateDpAsState(cell * (at % size), tween(120), label = "x")
             val y by animateDpAsState(cell * (at / size), tween(120), label = "y")
-            // Tiles being dragged follow the finger towards the gap.
-            val drag = if (tile in moving) with(density) { pulled.toDp() } else 0.dp
             val home = goal[at] == tile
             Surface(
                 color = if (home) GameKind.SLIDE.color else p.card,
                 shape = Shapes.M,
                 border = BorderStroke(2.dp, p.ink),
-                modifier = Modifier.offset(x + drag * toward.first, y + drag * toward.second).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
+                modifier = Modifier.offset(x, y).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(tile.toString(), color = if (home) Color.White else p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
@@ -122,6 +86,40 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
         }
     }
 }
+
+/**
+ * Swipes for Slide Race, over the whole game area: a swipe slides the tile next to the gap in
+ * that direction ([onSwipe] gets -1, 0 or 1 across and down). Once the finger has moved past
+ * the touch slop the touch is a swipe, wherever it started or ended: it is taken from the tiles
+ * so it can never also count as a tap, and it slides one tile at most.
+ */
+internal fun Modifier.slideSwipes(enabled: Boolean, onSwipe: (Int, Int) -> Unit): Modifier =
+    if (!enabled) this else pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var moved = Offset.Zero
+            var swiping = false
+            var done = false
+            while (true) {
+                // The Initial pass reaches this before the tiles do, so a swipe is taken first.
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                moved += change.positionChange()
+                if (!swiping && moved.getDistance() > viewConfiguration.touchSlop) swiping = true
+                if (swiping) {
+                    change.consume()
+                    if (!done && moved.getDistance() > SWIPE_DP.dp.toPx()) {
+                        done = true
+                        if (abs(moved.x) > abs(moved.y)) onSwipe(moved.x.sign.toInt(), 0) else onSwipe(0, moved.y.sign.toInt())
+                    }
+                }
+                if (!change.pressed) break
+            }
+        }
+    }
+
+/** How far a finger moves before a swipe slides a tile. */
+private const val SWIPE_DP = 24
 
 /** The host's level for the next puzzle; everyone else sees it. */
 @Composable
@@ -194,8 +192,11 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 }
             }
         } else {
-            TurnLine("Slides: ${state.slideMoves.size} · tap a tile in line with the gap", phase == RoomStatus.PLAYING, GameKind.SLIDE.color)
-            BoardArea(1f) { size -> SlideBoard(tiles, slide.size, phase == RoomStatus.PLAYING, vm::tapSlideTile, size) }
+            val playing = phase == RoomStatus.PLAYING
+            Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(playing, vm::swipeSlide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
+                BoardArea(1f) { size -> SlideBoard(tiles, slide.size, playing, vm::tapSlideTile, size) }
+            }
         }
     }
 }
@@ -228,14 +229,16 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
     ) {
         if (level == null) {
             AppCard("Choose the size") {
-                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap.", color = p.muted, fontSize = TextSize.Body)
+                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap, or swipe anywhere.", color = p.muted, fontSize = TextSize.Body)
                 SlideLevel.entries.forEach { l ->
                     PrimaryButton(l.label + (state.best[l]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(l) }, Modifier.fillMaxWidth())
                 }
             }
         } else {
-            TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
-            BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
+            Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
+                BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
+            }
         }
     }
 }

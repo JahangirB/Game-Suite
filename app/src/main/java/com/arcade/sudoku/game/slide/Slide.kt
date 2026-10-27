@@ -56,6 +56,19 @@ object Slide {
         return cells.map { tiles[it] }
     }
 
+    /**
+     * The tile a swipe slides into the gap: a swipe going ([dx], [dy]) (each -1, 0 or 1) moves
+     * the tile on the other side of the gap, so a swipe to the left slides in the tile to the
+     * gap's right. Null when the gap is at that edge.
+     */
+    fun tileForSwipe(tiles: List<Int>, size: Int, dx: Int, dy: Int): Int? {
+        val gap = tiles.indexOf(0)
+        val x = gap % size - dx
+        val y = gap / size - dy
+        if (gap < 0 || x !in 0 until size || y !in 0 until size) return null
+        return tiles[y * size + x]
+    }
+
     fun progress(tiles: List<Int>, size: Int): Int {
         val goal = solved(size)
         return tiles.indices.count { tiles[it] != 0 && tiles[it] == goal[it] } * 100 / (size * size - 1)

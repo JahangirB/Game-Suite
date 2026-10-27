@@ -23,6 +23,15 @@ class SlideTest {
     }
 
     @Test
+    fun aSwipeSlidesTheTileOnTheFarSideOfTheGap() {
+        // 1 2 3 / 4 5 6 / 7 0 8: left brings 8 in, right brings 7, down brings 5; nothing is below.
+        assertEquals(8, Slide.tileForSwipe(near, 3, -1, 0))
+        assertEquals(7, Slide.tileForSwipe(near, 3, 1, 0))
+        assertEquals(5, Slide.tileForSwipe(near, 3, 0, 1))
+        assertEquals(null, Slide.tileForSwipe(near, 3, 0, -1))
+    }
+
+    @Test
     fun shufflesAreSolvableAndNotSolved() {
         for (size in 3..5) repeat(5) {
             val t = Slide.shuffle(size, Random(it))
