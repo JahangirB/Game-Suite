@@ -453,4 +453,5 @@ Sound effects: the planned sounds for every game, and how to source and wire the
 [docs/SFX.md](docs/SFX.md).
 
 UX audit: problems found across strategy, journeys, accessibility, copy, the design system
-and design ops, with proposed fixes and a roadmap, are in [docs/UX-AUDIT.md](docs/UX-AUDIT.md).
+and design ops, with proposed fixes and a roadmap, are in [docs/UX-AUDIT.md](docs/UX-AUDIT.md); what was decided and the order of work is in
+[docs/UX-PLAN.md](docs/UX-PLAN.md).
