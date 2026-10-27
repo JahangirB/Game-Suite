@@ -70,6 +70,9 @@ fun ludoColor(c: Int): Color = when (c) {
 
 private val Ink = Color(0xFF2B2440)
 
+/** The die's face: white in both themes, like the board, so the dark pips always show. */
+private val DieWhite = Color(0xFFFFFDF7)
+
 private fun DrawScope.drawStar(c: Offset, r: Float, color: Color) {
     val path = Path()
     for (i in 0 until 10) {
@@ -208,7 +211,6 @@ private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).
  */
 @Composable
 private fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
-    val p = AppTheme.palette
     var face by remember { mutableStateOf(n) }
     val spin = remember { Animatable(0f) }
     var seen by remember { mutableStateOf(false) }
@@ -226,7 +228,7 @@ private fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null)
         face = n
     }
     Surface(
-        color = p.card, shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, p.ink),
+        color = DieWhite, shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, Ink),
         modifier = modifier.size(52.dp).graphicsLayer { rotationZ = spin.value * 360f; scaleX = 1f + 0.2f * sin(spin.value * PI.toFloat()); scaleY = scaleX },
     ) {
         Canvas(Modifier.size(52.dp)) {
