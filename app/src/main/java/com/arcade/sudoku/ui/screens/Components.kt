@@ -1,5 +1,9 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Mark
+import com.arcade.sudoku.ui.theme.MarkIcon
+import com.arcade.sudoku.ui.theme.Board
+import com.arcade.sudoku.ui.theme.contrast
 import com.arcade.sudoku.ui.theme.Space
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.readableOn
@@ -209,23 +213,36 @@ fun ScreenTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
     }
 }
 
-/** A round badge with the player's chosen picture, or their first letter if they have none. */
+/**
+ * A round badge with the player's chosen picture, or their first letter if they have none.
+ * [mark] adds their seat's shape in a small badge, so players aren't told apart by colour alone.
+ */
 @Composable
-fun PlayerAvatar(name: String, color: Color, size: Int = 40, avatar: Avatar? = null) {
-    if (avatar != null) {
-        AvatarImage(avatar, Modifier.size(size.dp))
-        return
-    }
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(size.dp).clip(CircleShape).background(color),
-    ) {
-        Text(
-            name.trim().firstOrNull()?.uppercase() ?: "?",
-            color = readableOn(color),
-            fontWeight = FontWeight.Bold,
-            fontSize = (size * 0.45f).sp,
-        )
+fun PlayerAvatar(name: String, color: Color, size: Int = 40, avatar: Avatar? = null, mark: Mark? = null) {
+    Box(Modifier.size(size.dp)) {
+        if (avatar != null) {
+            AvatarImage(avatar, Modifier.size(size.dp))
+        } else {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(size.dp).clip(CircleShape).background(color),
+            ) {
+                Text(
+                    name.trim().firstOrNull()?.uppercase() ?: "?",
+                    color = readableOn(color),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size * 0.45f).sp,
+                )
+            }
+        }
+        if (mark != null) {
+            val badge = (size * 0.42f).dp
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 3.dp).size(badge)
+                    .clip(CircleShape).background(Color.White).border(1.5.dp, Board.Ink, CircleShape),
+            ) { MarkIcon(mark, Modifier.size(badge * 0.55f), color = color.takeIf { contrast(it, Color.White) >= 3f } ?: Board.Ink) }
+        }
     }
 }
 

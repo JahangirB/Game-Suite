@@ -23,15 +23,15 @@ val GameKind.color: Color
         GameKind.DOMINOES -> Color(0xFF8B5E34)
         GameKind.NUMBERS -> Color(0xFF0E9AA7)
         GameKind.HOCKEY -> Color(0xFF1E88E5)
-        GameKind.CLASH -> Color(0xFFE8505B)
-        GameKind.LUDO -> Color(0xFF20A47B)
-        GameKind.GRID -> Color(0xFF7B6CF0)
+        GameKind.CLASH -> Color(0xFF00796B)
+        GameKind.LUDO -> Color(0xFF7CB342)
+        GameKind.GRID -> Color(0xFF9E9D24)
         GameKind.BALLOON -> Color(0xFFEC6FA9)
         GameKind.CODE -> Color(0xFF5B5F97)
         GameKind.SLIDE -> Color(0xFFFF8A3D)
         GameKind.BINGO -> Color(0xFFD9467A)
         GameKind.GOLF -> Color(0xFF3FA34D)
-        GameKind.BLOCKS -> Color(0xFF3D7BF7)
+        GameKind.BLOCKS -> Color(0xFF546E7A)
     }
 
 /** One line describing each game, for its tile and play sheet. */

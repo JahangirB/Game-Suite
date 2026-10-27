@@ -120,8 +120,11 @@ object Board {
     val IceLine = Color(0xFFB9D9F2)
 }
 
-/** The other players, in seat order after you: the first is the classic opponent orange. */
-val SeatColors = listOf(OpponentColor, Pieces.Purple, Pieces.Green)
+/**
+ * The other players, in seat order after you: the classic opponent orange, then plum and
+ * sunflower, which no game uses as its own colour.
+ */
+val SeatColors = listOf(OpponentColor, Color(0xFF8E24AA), Color(0xFFE0B000))
 
 /** WCAG contrast ratio of two opaque colours (1 to 21). */
 fun contrast(a: Color, b: Color): Float {

@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.seatMark
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Tracking
 import com.arcade.sudoku.ui.theme.Shapes
@@ -115,11 +116,11 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             }
 
             AppCard(if (room.maxPlayers > 2) "Players (up to ${room.maxPlayers})" else "Players") {
-                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now))
+                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0)
                 room.others.forEachIndexed { i, other ->
                     if (!other.left) {
                         val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
-                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now))
+                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now), seat = i + 1)
                     }
                 }
                 val joined = room.present.size
@@ -174,10 +175,10 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
 }
 
 @Composable
-private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?) {
+private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int) {
     val p = AppTheme.palette
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        PlayerAvatar(player.name, color, avatar = player.avatar)
+        PlayerAvatar(player.name, color, avatar = player.avatar, mark = seatMark(seat))
         Spacer(Modifier.width(12.dp))
         Text(
             player.name + if (isMe) " (you)" else "",

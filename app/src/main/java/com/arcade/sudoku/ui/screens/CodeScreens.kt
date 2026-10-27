@@ -1,5 +1,10 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.markOf
+import com.arcade.sudoku.ui.theme.MarkIcon
+import com.arcade.sudoku.ui.theme.Board
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
@@ -63,7 +68,11 @@ private fun Peg(c: Char?, size: Dp, modifier: Modifier = Modifier) {
     Box(
         modifier.size(size).clip(CircleShape).background(if (c == null) p.accent else pegColor(c))
             .border(2.dp, if (c == null) p.muted else p.ink, CircleShape),
-    )
+    ) {
+        // Each colour's mark, so pegs can be told apart without seeing colour.
+        val mark = c?.let { markOf(pegColor(it)) }
+        if (mark != null) MarkIcon(mark, Modifier.fillMaxSize().padding(size * 0.26f))
+    }
 }
 
 /** A right colour in the right place. */
@@ -82,7 +91,11 @@ private fun ScorePegs(black: Int, white: Int) {
                     i < black + white -> Color.White
                     else -> p.accent
                 }
-                Box(Modifier.size(9.dp).clip(CircleShape).background(fill).border(1.dp, p.ink.copy(alpha = 0.5f), CircleShape))
+                // Right colour and place is filled; right colour only is a white pin with a dark
+                // ring; so the two read apart by shape as well as colour.
+                val ring = if (i in black until black + white) 2.dp else 1.dp
+                val ringColor = if (i in black until black + white) Board.Ink else p.ink.copy(alpha = 0.5f)
+                Box(Modifier.size(9.dp).clip(CircleShape).background(fill).border(ring, ringColor, CircleShape))
             }
         }
     }

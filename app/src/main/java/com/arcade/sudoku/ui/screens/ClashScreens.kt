@@ -1,5 +1,8 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.markOf
+import com.arcade.sudoku.ui.theme.MarkIcon
+import androidx.compose.foundation.layout.padding
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Board
 import com.arcade.sudoku.ui.theme.Pieces
@@ -106,6 +109,10 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
                 }
             } else {
                 Surface(color = Color.White, shape = CircleShape, modifier = Modifier.size(width * 0.66f)) {}
+                // The colour's mark in the corner, so cards can be told apart without seeing colour.
+                markOf(clashColor(card[0]))?.let { mark ->
+                    MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
+                }
             }
             Text(
                 faceLabel(card),

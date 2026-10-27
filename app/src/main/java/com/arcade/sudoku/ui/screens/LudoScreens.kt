@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.markOf
+import com.arcade.sudoku.ui.theme.drawMark
 import com.arcade.sudoku.ui.theme.TextSize
 import com.arcade.sudoku.ui.theme.Shapes
 import com.arcade.sudoku.ui.theme.Board
@@ -196,6 +198,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
             val at = Offset(x * cell + shift, y * cell + shift + lift)
             drawCircle(Ink, cell * 0.38f, at)
             drawCircle(ludoColor(colour), cell * 0.31f, at)
+            markOf(ludoColor(colour))?.let { drawMark(it, at, cell * 0.3f) }
             drawCircle(Color.White.copy(alpha = 0.45f), cell * 0.12f, Offset(at.x - cell * 0.08f, at.y - cell * 0.08f))
             if (who == 'm' && i in view.movable) drawCircle(Ink, cell * 0.46f, at, style = Stroke(cell * 0.07f))
         }

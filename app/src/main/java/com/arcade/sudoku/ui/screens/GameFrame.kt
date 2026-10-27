@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.theme.Mark
+import com.arcade.sudoku.ui.theme.seatMark
 import com.arcade.sudoku.ui.theme.Digits
 import com.arcade.sudoku.ui.theme.LineHeight
 import com.arcade.sudoku.ui.theme.TextSize
@@ -79,6 +81,8 @@ class ChipPlayer(
     val detail: String? = null,
     val reaction: ShownReaction? = null,
     val active: Boolean = false,
+    /** The seat's shape on the avatar (you ●, then ▲, ■, ◆). */
+    val mark: Mark? = null,
 )
 
 /**
@@ -179,7 +183,7 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
             // Avatar over name and detail, so four fit across a phone.
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.TopEnd) {
-                    PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar)
+                    PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar, mark = player.mark)
                     if (player.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
                 }
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -190,7 +194,7 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
             return@Surface
         }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar)
+            PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar, mark = player.mark)
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -217,7 +221,7 @@ fun battleChips(
     active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
     otherColor: (Int) -> Color = { SeatColors[it % SeatColors.size] },
 ): List<ChipPlayer> = listOf(
-    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true)),
+    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0)),
 ) + room.others.mapIndexed { i, other ->
     val status = when {
         other.left -> " (left)"
@@ -228,6 +232,7 @@ fun battleChips(
         other.name + status, other.avatar, otherColor(i), detail(other, false),
         visibleReaction(state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }, now),
         active(other, false),
+        seatMark(i + 1),
     )
 }
 
