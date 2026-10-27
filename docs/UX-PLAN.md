@@ -93,3 +93,18 @@ Copy and polish:
 31. Key art for the other 10.
 32. Sudoku in the Toy Box look.
 33. New name, icon and splash, once the name is chosen.
+
+## Backlog
+
+Fixes asked for along the way, outside the numbered steps.
+
+- **Slide Race: swipe anywhere.** Today a slide only works when the swipe starts on the tile
+  that can move, only in some directions, and the same touch can also count as a tap on that
+  tile. Wanted:
+  - **Swipe anywhere on the game screen** (board or not) to slide the tile that can move that
+    way: a swipe from right to left slides the tile to the right of the gap into it, and the
+    same for the other three directions. Where the swipe starts doesn't matter.
+  - **Tapping a tile still works**: tapping a tile next to the gap slides it in, as now.
+  - **A swipe is never a tap.** Once the finger moves past a small distance it is a swipe,
+    even if it started or ended on a tile, and that touch does nothing else. Only a touch that
+    stays put counts as a tap.
