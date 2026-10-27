@@ -66,6 +66,13 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           APP_ID: ${{ vars.APP_ID }}
         run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      # Pictures of screens in light and dark from the screenshot tests, to look at each change.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: app/build/outputs/roborazzi
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: arcade-sudoku-debug-apk

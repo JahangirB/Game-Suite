@@ -210,7 +210,7 @@ private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).
  * every roll is seen happening.
  */
 @Composable
-private fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
+internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
     var face by remember { mutableStateOf(n) }
     val spin = remember { Animatable(0f) }
     var seen by remember { mutableStateOf(false) }
