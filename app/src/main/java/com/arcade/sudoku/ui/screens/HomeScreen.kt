@@ -10,7 +10,6 @@ import com.arcade.sudoku.ui.art.rules
 import com.arcade.sudoku.ui.art.color
 import com.arcade.sudoku.ui.art.GameIcon
 import com.arcade.sudoku.ui.art.KeyArt
-import com.arcade.sudoku.ui.art.hasKeyArt
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -404,17 +403,8 @@ private fun GameSheet(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // The game's key art across the top; games without it yet show their icon by the name.
-        val art = hasKeyArt(kind)
-        if (art) KeyArt(kind, Modifier.fillMaxWidth().height(150.dp).clip(Shapes.L).border(2.dp, p.ink, Shapes.L))
+        KeyArt(kind, Modifier.fillMaxWidth().height(150.dp).clip(Shapes.L).border(2.dp, p.ink, Shapes.L))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (!art) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(52.dp).clip(Shapes.L).background(kind.color).border(2.dp, p.ink, Shapes.L),
-                ) { GameIcon(kind, Modifier.size(32.dp)) }
-                Spacer(Modifier.width(12.dp))
-            }
             Column(Modifier.weight(1f)) {
                 Text(kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
                 Text(kind.tagline, color = p.muted, fontSize = TextSize.Body)
