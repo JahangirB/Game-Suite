@@ -73,6 +73,8 @@ class LocalRoom(
         var solved = false
         /** Left or lost their connection during the match being played, which goes on without them. */
         var out = false
+        /** The game this player's screen is on, or null in the menu. */
+        var at: GameKind? = null
     }
 
     var status = "waiting"
@@ -129,8 +131,14 @@ class LocalRoom(
     /** Roles with a player in them (gone ones included until the lobby clears them). */
     fun seated() = ROLES.filter { players[it] != null }
 
-    /** Players still in the room. */
-    private fun present() = seated().filter { !players.getValue(it)!!.left }
+    /** Players still in the room, wherever they are in it. */
+    private fun inRoom() = seated().filter { !players.getValue(it)!!.left }
+
+    /** Players in the room who are at the open game (not in the menu or elsewhere). */
+    private fun present() = inRoom().filter { player(it).at == game }
+
+    /** Who sets the open game's options: whoever opened it (the host at first). */
+    private var openedBy = HOST
 
     /** Players still playing this match. */
     private fun playing() = inMatch.filter { r -> players[r]?.let { !it.left && !it.out } == true }
@@ -173,6 +181,7 @@ class LocalRoom(
             throw ApiException("You can only get ready in the lobby or after a match.")
         }
         if (present().size < 2) {
+            if (inRoom().size > 1) throw ApiException("Waiting for the others to come to this game.")
             throw ApiException(if (seated().size > 1) "Your opponent has left the battle." else "Waiting for an opponent to join.")
         }
     }
@@ -319,7 +328,9 @@ class LocalRoom(
 
     /** The host's choices for the next match (Dominoes: teams, drawing, points target). Everyone gets ready again. */
     fun setOptions(role: String, options: JSONObject) {
-        if (role != HOST) throw ApiException("Only the host can change the rules.")
+        if (role != openedBy) {
+            throw ApiException(if (openedBy == HOST) "Only the host can change the rules." else "Only ${player(openedBy).name} can change the rules: they opened this game.")
+        }
         if (status != "waiting" && status != "lobby" && status != "finished") throw ApiException("The rules can only change between matches.")
         when (game) {
             GameKind.DOMINOES -> this.options = DominoOptions.from(options)
@@ -924,7 +935,7 @@ class LocalRoom(
     }
 
     fun sendEmoji(role: String, reaction: Reaction, now: Long) {
-        if (present().size < 2) throw ApiException("Nobody to send it to yet.")
+        if (inRoom().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
         if (now - player.emojiAt < EMOJI_INTERVAL_MS) throw ApiException("Slow down a little.")
         emojiSeq++
@@ -961,9 +972,69 @@ class LocalRoom(
             players[role]?.left = true
         } else {
             players[role] = null
-            if (present().size < 2) status = "waiting"
+            if (inRoom().size < 2) status = "waiting"
             for (r in seated()) player(r).apply { ready = false; difficulty = null }
         }
+        version++
+    }
+
+    /**
+     * Opens [next] for [role] in the same room, so one connection plays game after game.
+     * Opening the game that is open joins it and returns this room. Opening another one,
+     * between matches, returns a fresh room for it with the same code, seats and connections,
+     * with this player in its lobby; everyone else stays where they were (the menu, or the
+     * last game's screen), so their phones can show where this player went. Whoever opens a
+     * game sets its options. As on the server (room.js openGame).
+     */
+    fun openGame(role: String, next: GameKind): LocalRoom {
+        val me = player(role)
+        if (status == "started") {
+            // Back to the match this player is in, from the menu.
+            if (next == game && role in playing()) {
+                me.at = next
+                version++
+                return this
+            }
+            throw ApiException("A match is being played. Join when it ends.", reason = "busy")
+        }
+        // Two-player games use the first two seats (their rules know only host and guest).
+        if (next.maxPlayers == 2 && role != HOST && role != GUEST) {
+            throw ApiException("This game is for two: the first two in the room play it.", reason = "full")
+        }
+        if (next == game) {
+            if (role !in present() && present().size >= game.maxPlayers) {
+                throw ApiException("This game is full: ${game.maxPlayers} players.", reason = "full")
+            }
+            me.at = next
+            for (r in present()) player(r).apply { ready = false; difficulty = null }
+            version++
+            return this
+        }
+        // The round number carries on, so phones never mistake the new game's first round for one they have seen.
+        val fresh = LocalRoom(code, host.name, host.avatar, next, generate)
+        for (r in ROLES) {
+            val p = players[r]
+            fresh.players[r] = if (p == null || p.left) null else Player(p.id, p.name, p.avatar).also {
+                it.connected = p.connected
+                it.awaySince = p.awaySince
+                it.emoji = p.emoji
+                it.emojiAt = p.emojiAt
+                it.at = if (r == role) next else p.at
+            }
+        }
+        fresh.version = version + 1
+        fresh.emojiSeq = emojiSeq
+        fresh.round = round
+        fresh.startPushedRound = startPushedRound
+        fresh.openedBy = role
+        fresh.status = if (fresh.inRoom().size >= 2) "lobby" else "waiting"
+        return fresh
+    }
+
+    /** [role] goes back to the menu and stays in the room. Leaving a match being played gives it up. */
+    fun toMenu(role: String, now: Long) {
+        dropOut(role, "forfeit", now)
+        player(role).apply { at = null; ready = false; difficulty = null }
         version++
     }
 
@@ -1069,6 +1140,8 @@ class LocalRoom(
             )
             .put("endReason", endReason ?: JSONObject.NULL)
             .put("maxPlayers", game.maxPlayers)
+            // Whether this player sets the open game's options: whoever opened it (the host at first).
+            .put("setsOptions", role == openedBy)
             // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
             .put("me", playerView(players.getValue(role)!!, shown == "finished" || game == GameKind.SHIPS, now))
             .put("opponent", opponent?.let { playerView(it, true, now) } ?: JSONObject.NULL)
@@ -1131,6 +1204,8 @@ class LocalRoom(
         .put("out", p.out)
         .put("idleMs", p.awaySince?.let { maxOf(0, now - it) } ?: 0)
         .put("online", p.connected)
+        // The game this player's screen is on, or null in the menu.
+        .put("at", p.at?.key ?: JSONObject.NULL)
 
     private val host get() = players.getValue(HOST)!!
 
@@ -1138,7 +1213,7 @@ class LocalRoom(
         org.json.JSONArray(map { JSONObject().put("x", it.x).put("y", it.y).put("hit", it.hit) })
 
     private fun newPlayer(name: String, avatar: Avatar?) =
-        Player(UUID.randomUUID().toString(), name.trim().take(16).ifBlank { "Player" }, avatar)
+        Player(UUID.randomUUID().toString(), name.trim().take(16).ifBlank { "Player" }, avatar).also { it.at = game }
 
     companion object {
         const val HOST = "host"

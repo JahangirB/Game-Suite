@@ -85,18 +85,20 @@ export function cleanDeviceId(deviceId) {
   return /^[A-Za-z0-9-]{8,64}$/.test(String(deviceId || '')) ? String(deviceId) : null;
 }
 
-function newPlayer(name, avatar, now, uuid, deviceId = null) {
+// `at` is the game the player's screen is on, or null in the menu.
+function newPlayer(name, avatar, now, uuid, deviceId = null, at = null) {
   return {
     id: uuid(), name: cleanName(name), avatar: cleanAvatar(avatar), deviceId: cleanDeviceId(deviceId), emoji: null, emojiAt: 0, ready: false, difficulty: null, board: null,
-    progress: 0, finishedAt: null, left: false, connected: false, awaySince: now,
+    progress: 0, finishedAt: null, left: false, connected: false, awaySince: now, at,
   };
 }
 
 export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = null, game = 'sudoku') {
+  const open = GAMES.includes(game) ? game : 'sudoku';
   return {
-    code, game: GAMES.includes(game) ? game : 'sudoku', createdAt: now, version: 0, emojiSeq: 0, difficulty: null, status: 'waiting', round: 0,
+    code, game: open, createdAt: now, version: 0, emojiSeq: 0, difficulty: null, status: 'waiting', round: 0,
     puzzle: null, solution: null, startAt: null, winner: null, endReason: null,
-    players: { host: newPlayer(hostName, avatar, now, uuid, deviceId), guest: null },
+    players: { host: newPlayer(hostName, avatar, now, uuid, deviceId, open), guest: null },
   };
 }
 
@@ -110,9 +112,20 @@ export function seated(room) {
   return ROLES.filter((r) => room.players[r]);
 }
 
-/** Players still in the room. */
-export function present(room) {
+/** Players still in the room, wherever they are in it. */
+export function inRoom(room) {
   return seated(room).filter((r) => !room.players[r].left);
+}
+
+/** Where [role]'s screen is: the open game, another game, or null for the menu. Rooms saved before there was a menu have everyone at the open game. */
+function whereIs(room, role) {
+  const at = room.players[role].at;
+  return at === undefined ? room.game : at;
+}
+
+/** Players in the room who are at the open game (not in the menu or elsewhere). */
+export function present(room) {
+  return inRoom(room).filter((r) => whereIs(room, r) === room.game);
 }
 
 /** Players still playing this match: those it started with, minus any who left or timed out. */
@@ -150,7 +163,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     throw new GameError(max === 2 ? 'This battle already has two players.' : `This game is full: ${max} players.`, true, 'full');
   }
   if (room.status === 'started') throw new GameError('A match is being played. Join when it ends.', true, 'busy');
-  room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId);
+  room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId, room.game);
   // Everyone gets ready again, so the newcomer is part of the next round.
   for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   if (room.status === 'waiting') room.status = 'lobby';
@@ -164,6 +177,7 @@ function checkCanReady(room) {
     throw new GameError('You can only get ready in the lobby or after a match.');
   }
   if (present(room).length < 2) {
+    if (inRoom(room).length > 1) throw new GameError('Waiting for the others to come to this game.');
     throw new GameError(seated(room).length > 1 ? 'Your opponent has left the battle.' : 'Waiting for an opponent to join.');
   }
 }
@@ -344,7 +358,10 @@ export function setTurnReady(room, role, ready, now, random = Math.random) {
 
 /** The host's choices for the next match (Dominoes: teams, drawing, points target). Everyone gets ready again. */
 export function setOptions(room, role, options) {
-  if (role !== 'host') throw new GameError('Only the host can change the rules.');
+  const opener = room.openedBy || 'host';
+  if (role !== opener) {
+    throw new GameError(opener === 'host' ? 'Only the host can change the rules.' : `Only ${room.players[opener].name} can change the rules: they opened this game.`);
+  }
   if (room.status !== 'waiting' && room.status !== 'lobby' && room.status !== 'finished') {
     throw new GameError('The rules can only change between matches.');
   }
@@ -988,6 +1005,67 @@ function dropOut(room, role, reason, now) {
   }
 }
 
+/**
+ * Opens [game] for [role] in the same room, so one connection plays game after game. Opening
+ * the game that is open joins it. Opening another one, between matches, starts it afresh with
+ * this player in its lobby; everyone else stays where they were (the menu, or the last game's
+ * screen), so their phones can show where this player went and offer to follow. Whoever opens
+ * a game sets its options.
+ */
+export function openGame(room, role, game, now) {
+  if (!GAMES.includes(game)) throw new GameError('This game needs the latest Game Suite.', false, 'update_needed');
+  const me = room.players[role];
+  if (room.status === 'started') {
+    // Back to the match this player is in, from the menu.
+    if (game === room.game && playing(room).includes(role)) {
+      me.at = game;
+      bump(room);
+      return;
+    }
+    throw new GameError('A match is being played. Join when it ends.', false, 'busy');
+  }
+  // Two-player games use the first two seats (their rules know only host and guest).
+  if (maxPlayers(game) === 2 && role !== 'host' && role !== 'guest') {
+    throw new GameError('This game is for two: the first two in the room play it.', false, 'full');
+  }
+  if (game === room.game) {
+    if (!present(room).includes(role) && present(room).length >= maxPlayers(game)) {
+      throw new GameError(`This game is full: ${maxPlayers(game)} players.`, false, 'full');
+    }
+    me.at = game;
+    for (const r of present(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
+    bump(room);
+    return;
+  }
+  // A new game: a fresh room with the same code, seats and connections. The round number
+  // carries on, so phones never mistake the new game's first round for one they have seen.
+  const fresh = createRoom(room.code, me.name, now, () => '', null, null, game);
+  const players = {};
+  for (const r of ROLES) {
+    const p = room.players[r];
+    if (!p || p.left) {
+      players[r] = null;
+      continue;
+    }
+    const at = r === role ? game : whereIs(room, r);
+    players[r] = {
+      ...newPlayer(p.name, p.avatar, now, () => p.id, p.deviceId, at),
+      emoji: p.emoji, emojiAt: p.emojiAt, connected: p.connected, awaySince: p.awaySince,
+    };
+  }
+  const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, round: room.round, startPushedRound: room.startPushedRound };
+  for (const key of Object.keys(room)) delete room[key];
+  Object.assign(room, fresh, kept, { players, openedBy: role, status: inRoom({ players }).length >= 2 ? 'lobby' : 'waiting' });
+  bump(room);
+}
+
+/** [role] goes back to the menu and stays in the room. Leaving a match being played gives it up. */
+export function toMenu(room, role, now) {
+  dropOut(room, role, 'forfeit', now);
+  Object.assign(room.players[role], { at: null, ready: false, difficulty: null });
+  bump(room);
+}
+
 export function leave(room, role, now = Date.now()) {
   dropOut(room, role, 'forfeit', now);
   if (role === 'host') {
@@ -997,7 +1075,7 @@ export function leave(room, role, now = Date.now()) {
     room.players[role].left = true;
   } else {
     room.players[role] = null;
-    if (present(room).length < 2) room.status = 'waiting';
+    if (inRoom(room).length < 2) room.status = 'waiting';
     for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   }
   bump(room);
@@ -1006,7 +1084,7 @@ export function leave(room, role, now = Date.now()) {
 /** Shows a predefined reaction to the opponent. Throws when it is not allowed. */
 export function sendEmoji(room, role, emoji, now) {
   if (!EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
-  if (present(room).length < 2) throw new GameError('Nobody to send it to yet.');
+  if (inRoom(room).length < 2) throw new GameError('Nobody to send it to yet.');
   const player = room.players[role];
   if (now - (player.emojiAt || 0) < EMOJI_INTERVAL_MS) throw new GameError('Slow down a little.');
   room.emojiSeq = (room.emojiSeq || 0) + 1;
@@ -1180,6 +1258,8 @@ export function view(room, role, now) {
     winnerName: room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
+    // Whether this player sets the open game's options: whoever opened it (the host at first).
+    setsOptions: role === (room.openedBy || 'host'),
     options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
@@ -1216,5 +1296,7 @@ function playerView(player, room, includeProgress, now) {
     idleMs: player.connected ? 0 : Math.max(0, now - player.awaySince),
     // Whether the player has a live connection right now.
     online: !!player.connected,
+    // The game this player's screen is on, or null in the menu.
+    at: player.at === undefined ? room.game : player.at,
   };
 }

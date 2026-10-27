@@ -62,7 +62,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
         timers = scope.launch {
             while (true) {
                 delay(1000)
-                if (r.checkTimers(now())) pushAll()
+                // The room in play: opening another game replaces it.
+                if (room?.checkTimers(now()) == true) pushAll()
             }
         }
         r.view(LocalRoom.HOST, now()).put("playerId", r.playerId(LocalRoom.HOST))
@@ -143,6 +144,16 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun clearDrawing(code: String, playerId: String) =
         local { clearDrawing(LocalRoom.HOST, now()) }
+
+    override suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject = withContext(Dispatchers.Main.immediate) {
+        val r = room ?: throw ApiException("The battle is over.", fatal = true)
+        room = r.openGame(LocalRoom.HOST, game)
+        pushToGuests()
+        room!!.view(LocalRoom.HOST, now())
+    }
+
+    override suspend fun toMenu(code: String, playerId: String) =
+        local { toMenu(LocalRoom.HOST, now()) }
 
     override suspend fun leave(code: String, playerId: String) {
         withContext(Dispatchers.Main.immediate) {
@@ -299,6 +310,16 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     Reaction.from(msg.optString("emoji")) ?: throw ApiException("Unknown reaction."),
                     now,
                 )
+                "game" -> {
+                    val next = GameKind.entries.firstOrNull { it.key == msg.optString("game") }
+                        ?: throw ApiException("This game needs the latest Game Suite.", reason = "update_needed")
+                    val opened = r.openGame(role!!, next)
+                    room = opened
+                    send(endpointId, opened.view(role, now).put("re", id))
+                    pushAll(except = endpointId)
+                    return
+                }
+                "menu" -> r.toMenu(role!!, now)
                 "sync" -> Unit
                 "leave" -> {
                     r.leave(role!!)

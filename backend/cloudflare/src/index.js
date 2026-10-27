@@ -8,7 +8,8 @@
 //
 // Each room is one Durable Object, so a room's state lives in one place and every
 // change is pushed to both players at once. Messages are JSON:
-//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'sync' | 'leave', ... }
+//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'game' | 'menu' | 'sync' | 'leave', ... }
+//                  ('game' { game } opens a game in the same room; 'menu' goes back to the menu)
 //   server -> app  { type: 'state', re?, serverTime, ...room view }   (re = id it answers)
 //                  { type: 'error', re?, error, fatal }
 //                  { type: 'stroke', turn, index, stroke }   (Draw & Guess, to the guesser)
@@ -19,7 +20,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -261,6 +262,12 @@ export class Room extends DurableObject {
           break;
         case 'emoji':
           sendEmoji(this.room, role, msg.emoji, now);
+          break;
+        case 'game':
+          openGame(this.room, role, String(msg.game ?? ''), now);
+          break;
+        case 'menu':
+          toMenu(this.room, role, now);
           break;
         case 'sync':
           break;

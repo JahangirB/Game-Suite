@@ -65,6 +65,18 @@ interface BattleBackend {
 
     /** Draw & Guess: wipe the drawing. */
     suspend fun clearDrawing(code: String, playerId: String): JSONObject
+
+    /**
+     * Opens [game] in the same room: the open game is joined, another one (between matches)
+     * replaces it, with the others left where they are until they follow. Rooms that can't
+     * switch games say so.
+     */
+    suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject =
+        throw ApiException("This connection plays one game. Start a new battle to play another.")
+
+    /** Back to the menu, staying in the room. Leaving a match being played gives it up. */
+    suspend fun toMenu(code: String, playerId: String): JSONObject =
+        throw ApiException("This connection plays one game. Start a new battle to play another.")
     suspend fun leave(code: String, playerId: String)
 
     /** Drops any live connection. */
