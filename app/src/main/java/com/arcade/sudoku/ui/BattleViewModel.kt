@@ -1,5 +1,6 @@
 package com.arcade.sudoku.ui
 
+import com.arcade.sudoku.ui.screens.TALLY_ME
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -129,6 +130,8 @@ data class BattleUiState(
     val nearbyCode: String = "",
     /** Something that went wrong, with its fix; shown until dismissed or fixed. */
     val problem: Problem? = null,
+    /** Wins since connecting, by name ("You" for this phone): the result's "Tonight" line. */
+    val tally: Map<String, Int> = emptyMap(),
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -421,7 +424,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         bestRoundTripMs = Long.MAX_VALUE
         lastVersion = -1
         lastOpponentEmojiSeq = -1
-        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null) }
+        talliedRound = -1
+        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap()) }
         val room = applyResponse(json, sentAt, record = false)
         // Joining a finished room must not count its old result again.
         if (room.status == RoomStatus.FINISHED) recordedRound = room.round
@@ -1440,12 +1444,29 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
         rememberPartner(room)
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
+        countForTonight(room)
         // A match counts for the players who were in it, not for someone waiting in the menu.
         if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round
             store.recordBattle(won = room.winner == "me")
         }
         return room
+    }
+
+    /** The round last counted in [BattleUiState.tally], so each result counts once. */
+    private var talliedRound = -1
+
+    /** Adds a finished match's winner (or winners, for a team) to the score since connecting. */
+    private fun countForTonight(room: RoomState) {
+        if (!room.atGame || room.status != RoomStatus.FINISHED || room.round == talliedRound) return
+        talliedRound = room.round
+        val winners = when (room.winner) {
+            "me" -> listOf(TALLY_ME)
+            "opponent" -> room.winnerName?.split(" & ").orEmpty()
+            else -> emptyList()
+        }
+        if (winners.isEmpty()) return
+        _state.update { s -> s.copy(tally = s.tally + winners.associateWith { (s.tally[it] ?: 0) + 1 }) }
     }
 
     /** Saves an online opponent so the next game is one tap away. */

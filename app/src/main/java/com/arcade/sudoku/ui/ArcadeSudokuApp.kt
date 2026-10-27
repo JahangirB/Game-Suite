@@ -31,6 +31,8 @@ import com.arcade.sudoku.ui.screens.FirstRunScreen
 import com.arcade.sudoku.ui.screens.ConnectKind
 import com.arcade.sudoku.ui.screens.ConnectSheet
 import com.arcade.sudoku.ui.screens.ConnectionBanners
+import com.arcade.sudoku.ui.screens.LocalMatchSession
+import com.arcade.sudoku.ui.screens.MatchSession
 import com.arcade.sudoku.data.PlayMode
 import android.content.Intent
 import android.net.Uri
@@ -189,7 +191,16 @@ fun ArcadeSudokuApp(
     ) { padding ->
         // The IME insets shrink every screen above the keyboard, so a focused field stays visible.
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-            CompositionLocalProvider(LocalShipStyle provides profile.shipStyle) {
+            // A result in a connection that plays game after game shows the score since
+            // connecting and a couple of games to play next.
+            val session = room?.takeIf { it.inSession }?.let { r ->
+                MatchSession(
+                    tally = battleState.tally,
+                    nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                    onOpenGame = battle::openGame,
+                )
+            }
+            CompositionLocalProvider(LocalShipStyle provides profile.shipStyle, LocalMatchSession provides session) {
                 when {
                     !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
                     inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->

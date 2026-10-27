@@ -1,5 +1,12 @@
 package com.arcade.sudoku.ui.screens
 
+import com.arcade.sudoku.ui.art.GameIcon
+import com.arcade.sudoku.ui.theme.Space
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.runtime.compositionLocalOf
 import com.arcade.sudoku.ui.Sound
 import com.arcade.sudoku.ui.rememberSfx
 import com.arcade.sudoku.ui.Buzz
@@ -175,6 +182,27 @@ fun outcomeOf(winner: String?) = when (winner) {
     else -> Outcome.TIE
 }
 
+/** This phone's name in the score since connecting. */
+const val TALLY_ME = "You"
+
+/**
+ * What a match's result needs from the connection it was played in: the score since
+ * connecting ([tally], by name), a couple of other games the players could pick next, and
+ * how to open one. Null outside a connection that plays game after game.
+ */
+class MatchSession(val tally: Map<String, Int>, val nextGames: List<GameKind>, val onOpenGame: (GameKind) -> Unit)
+
+val LocalMatchSession = compositionLocalOf<MatchSession?> { null }
+
+/** "Tonight: You 3 – 2 Alex", or each name and score with three or more; null before anyone has won. */
+fun tonightLine(tally: Map<String, Int>, names: List<String>): String? {
+    if (tally.values.sum() == 0) return null
+    val everyone = listOf(TALLY_ME) + names
+    val scores = everyone.map { it to (tally[it] ?: 0) }
+    return "Tonight: " + if (scores.size == 2) "${scores[0].first} ${scores[0].second} – ${scores[1].second} ${scores[1].first}"
+    else scores.joinToString(" · ") { (n, w) -> "$n $w" }
+}
+
 /** The usual result title for a match against your partner. */
 fun resultTitle(winner: String?, opponentName: String) = when (winner) {
     "me" -> "You win!"
@@ -205,20 +233,54 @@ fun BoxScope.MatchPopup(
     val (status, good) = when {
         gone -> (if (room.others.size == 1) "${room.others[0].name} has left the game." else "Everyone else has left.") to false
         room.me.ready && keen.size == present.size -> "Starting…" to true
-        room.me.ready -> (if (present.size == 1) "Waiting for ${present[0].name}…" else "Waiting for ${present.size - keen.size} more…") to false
-        keen.isNotEmpty() -> (keen.joinToString(" and ") { it.name } + if (keen.size == 1) " wants a rematch" else " want a rematch") to true
+        keen.isNotEmpty() && !room.me.ready -> (keen.joinToString(" and ") { it.name } + if (keen.size == 1) " wants a rematch" else " want a rematch") to true
         else -> null to false
     }
+    val session = LocalMatchSession.current.takeIf { room.inSession }
+    // Once you've asked for a rematch the button says who you're waiting for, and tapping it takes it back.
+    val waitingFor = present.filter { !it.ready }.let { if (it.size == 1) it[0].name else "${it.size} more" }
     ResultPopup(
         game = game,
         outcome = outcome,
         title = title,
         detail = detail,
         finish = PopupAction(if (room.inSession) "Back to games" else "Finish", onFinish),
-        again = onRematch?.let { PopupAction(if (room.me.ready) "Not ready" else "Rematch", it, enabled = !gone) },
-        scores = scores,
+        again = onRematch?.let { PopupAction(if (room.me.ready) "Waiting for $waitingFor… · Cancel" else "Rematch", it, enabled = !gone) },
+        scores = listOfNotNull(session?.let { tonightLine(it.tally, present.map { o -> o.name }) }) + scores,
         status = status,
         statusGood = good,
-        extra = extra,
+        extra = {
+            extra()
+            if (session != null && !gone) PlaySomethingElse(session, busyGame = game)
+        },
     )
+}
+
+/** Under a result: a couple of other games to play together next, one tap to open. */
+@Composable
+private fun PlaySomethingElse(session: MatchSession, busyGame: GameKind) {
+    val p = AppTheme.palette
+    val games = session.nextGames.filter { it != busyGame }.take(2)
+    if (games.isEmpty()) return
+    Text("OR PLAY SOMETHING ELSE TOGETHER", color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
+        games.forEach { g ->
+            Surface(
+                onClick = { session.onOpenGame(g) },
+                color = p.card,
+                shape = Shapes.M,
+                border = BorderStroke(2.dp, p.ink),
+                modifier = Modifier.weight(1f),
+            ) {
+                Row(Modifier.padding(Space.S), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(30.dp).clip(Shapes.S).background(g.color).border(2.dp, p.ink, Shapes.S),
+                    ) { GameIcon(g, Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(Space.S))
+                    Text(g.label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
 }
