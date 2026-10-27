@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.arcade.sudoku.data.RoomStatus
 import com.arcade.sudoku.ui.screens.BattleMenuScreen
+import com.arcade.sudoku.ui.screens.BattleTab
+import com.arcade.sudoku.data.PlayMode
 import com.arcade.sudoku.ui.screens.SoloConnectFourScreen
 import com.arcade.sudoku.ui.screens.SoloDotsScreen
 import com.arcade.sudoku.ui.screens.SoloMemoryScreen
@@ -124,6 +126,11 @@ fun ArcadeSudokuApp(
     val blocksState by blocks.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
+    var battleTab by rememberSaveable { mutableStateOf(BattleTab.JOIN) }
+    val openBattle = { tab: BattleTab ->
+        battleTab = tab
+        dest = Dest.BATTLE
+    }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(battleState.message) {
@@ -215,6 +222,7 @@ fun ArcadeSudokuApp(
                         vm = battle,
                         onProfile = { dest = Dest.PROFILE },
                         onBack = { dest = Dest.HOME },
+                        initialTab = battleTab,
                     )
                     else -> HomeScreen(
                         solo = soloState,
@@ -255,11 +263,16 @@ fun ArcadeSudokuApp(
                         },
                         onBattle = { game ->
                             battle.setHostGame(game)
-                            dest = Dest.BATTLE
+                            openBattle(if (profile.playMode == PlayMode.OFFLINE) BattleTab.NEARBY else BattleTab.HOST)
                         },
                         partnerBusy = battleState.busy,
                         onPlayWithPartner = battle::playWithPartner,
                         onInvitePartner = battle::invitePartner,
+                        onPlayMode = app::setPlayMode,
+                        connected = room != null,
+                        onConnectNearby = { openBattle(BattleTab.NEARBY) },
+                        onStartRoom = { openBattle(BattleTab.HOST) },
+                        onJoinRoom = { openBattle(BattleTab.JOIN) },
                     )
                 }
             }

@@ -69,6 +69,11 @@ class ScreenshotTest {
         partnerBusy = false,
         onPlayWithPartner = {},
         onInvitePartner = {},
+        onPlayMode = {},
+        connected = false,
+        onConnectNearby = {},
+        onStartRoom = {},
+        onJoinRoom = {},
     )
 
     @Test fun homeLight() = shot("home", dark = false) { home() }

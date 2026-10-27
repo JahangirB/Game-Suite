@@ -72,7 +72,13 @@ import com.arcade.sudoku.data.GameKind
 import com.arcade.sudoku.data.SavedPartner
 import com.arcade.sudoku.ui.art.AvatarImage
 import com.arcade.sudoku.ui.theme.OpponentColor
+import com.arcade.sudoku.data.PlayMode
 import com.arcade.sudoku.data.Profile
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.Role
 import com.arcade.sudoku.ui.SoloUiState
 import com.arcade.sudoku.ui.theme.AppTheme
 
@@ -91,6 +97,12 @@ fun HomeScreen(
     partnerBusy: Boolean,
     onPlayWithPartner: (GameKind) -> Unit,
     onInvitePartner: (GameKind) -> Unit,
+    /** The Online/Offline switch; it can't change while connected. */
+    onPlayMode: (PlayMode) -> Unit,
+    connected: Boolean,
+    onConnectNearby: () -> Unit,
+    onStartRoom: () -> Unit,
+    onJoinRoom: () -> Unit,
 ) {
     val p = AppTheme.palette
     var pickingLevel by rememberSaveable { mutableStateOf(false) }
@@ -116,18 +128,15 @@ fun HomeScreen(
                 }
             }
 
+            ConnectionCard(profile, connected, onPlayMode, onConnectNearby, onStartRoom, onJoinRoom, onProfile)
+
             profile.partner?.let { PartnerCard(it) }
 
-            // Two tiles per row; the last slot opens battles with a code.
-            val tiles: List<GameKind?> = GameKind.entries + null
-            tiles.chunked(2).forEach { pair ->
+            // Two tiles per row.
+            GameKind.entries.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     pair.forEach { kind ->
-                        if (kind != null) {
-                            GameTile(kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null) { sheetGame = kind }
-                        } else {
-                            CodeTile(Modifier.weight(1f)) { onBattle(GameKind.SUDOKU) }
-                        }
+                        GameTile(kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null) { sheetGame = kind }
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
@@ -208,24 +217,69 @@ private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onClick
     }
 }
 
-/** Joining or hosting with a secret code, or playing nearby. */
+/**
+ * The Online/Offline switch and how to connect in that mode: nearby over Bluetooth and Wi‑Fi,
+ * or online by starting a room or joining one with its code. The switch is saved, and locked
+ * while connected.
+ */
 @Composable
-private fun CodeTile(modifier: Modifier, onClick: () -> Unit) {
+private fun ConnectionCard(
+    profile: Profile,
+    connected: Boolean,
+    onPlayMode: (PlayMode) -> Unit,
+    onConnectNearby: () -> Unit,
+    onStartRoom: () -> Unit,
+    onJoinRoom: () -> Unit,
+    onProfile: () -> Unit,
+) {
     val p = AppTheme.palette
-    Surface(
-        onClick = onClick,
-        color = p.accent,
-        shape = Shapes.L,
-        border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, Radius.L),
+    AppCard {
+        ModeSwitch(profile.playMode, enabled = !connected, onPick = onPlayMode)
+        Text("Not connected", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        when {
+            profile.playMode == PlayMode.OFFLINE -> {
+                Text("Phones in the same room connect over Bluetooth and Wi‑Fi. No internet needed.", color = p.muted, fontSize = TextSize.Body)
+                PrimaryButton("Connect nearby", onConnectNearby)
+            }
+            profile.scriptUrl.startsWith("https://") -> {
+                Text("Start a room and send the code, or join theirs.", color = p.muted, fontSize = TextSize.Body)
+                PrimaryButton("Start a room", onStartRoom)
+                SecondaryButton("Join with code", onJoinRoom)
+            }
+            else -> {
+                Text("Online play needs a server link. Paste an invite, or add the link in your profile.", color = p.muted, fontSize = TextSize.Body)
+                PrimaryButton("Join with code", onJoinRoom)
+                SecondaryButton("Open profile", onProfile)
+            }
+        }
+    }
+}
+
+/** Two segments, Offline and Online; the chosen one is filled. */
+@Composable
+private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> Unit) {
+    val p = AppTheme.palette
+    Row(
+        Modifier.fillMaxWidth().clip(Shapes.Full).border(2.dp, p.ink, Shapes.Full).selectableGroup(),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(PlayMode.OFFLINE to "Offline · nearby", PlayMode.ONLINE to "Online").forEach { (value, label) ->
+            val on = value == mode
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(46.dp).clip(Shapes.M).background(p.card).border(2.dp, p.ink, Shapes.M),
-            ) { Text("#", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) }
-            Text("Join with a code", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.Body)
-            Text("Battle online with a secret code, or nearby", color = p.muted, fontSize = TextSize.Body, lineHeight = LineHeight.Label, minLines = 2)
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp)
+                    .background(if (on) p.primary else Color.Transparent)
+                    .selectable(selected = on, enabled = enabled, role = Role.Tab) { onPick(value) },
+            ) {
+                Text(
+                    label,
+                    color = if (on) p.onPrimary else p.text,
+                    fontSize = TextSize.Body,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.alpha(if (enabled || on) 1f else 0.5f),
+                )
+            }
         }
     }
 }

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.update
 
 enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
 
+/** How this phone meets others: nearby over Bluetooth and Wi‑Fi, or online through a server. */
+enum class PlayMode { OFFLINE, ONLINE }
+
 /** How the ships look in Ship Battle; each player picks their own. */
 enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood") }
 
@@ -53,6 +56,8 @@ data class Profile(
     val deviceId: String = "",
     /** The last nearby room's code, so the same code reconnects the same two phones later. */
     val nearbyCode: String = "",
+    /** The home's Online/Offline switch, as last set. */
+    val playMode: PlayMode = PlayMode.OFFLINE,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -108,6 +113,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             }
         }
         _profile.update { it.copy(partner = partner) }
+    }
+
+    fun setPlayMode(mode: PlayMode) {
+        prefs.edit { putString(KEY_PLAY_MODE, mode.name) }
+        _profile.update { it.copy(playMode = mode) }
     }
 
     fun setNearbyCode(code: String) {
@@ -173,6 +183,10 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 .getOrDefault(ShipStyle.TOY),
             stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
+            // Before the switch existed, someone with a server link played online.
+            playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
+                if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
+            },
         )
     }
 
@@ -195,6 +209,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private val PARTNER_KEYS = listOf(KEY_P_URL, KEY_P_PASSWORD, KEY_P_CODE, KEY_P_NAME, KEY_P_AVATAR, KEY_P_DEVICE, KEY_P_PLAYER)
         private const val KEY_PASSWORD = "server_password"
         private const val KEY_NEARBY_CODE = "nearby_code"
+        private const val KEY_PLAY_MODE = "play_mode"
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
 

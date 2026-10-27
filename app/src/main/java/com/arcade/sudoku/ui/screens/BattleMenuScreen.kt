@@ -44,6 +44,9 @@ import com.arcade.sudoku.ui.BattleUiState
 import com.arcade.sudoku.ui.BattleViewModel
 import com.arcade.sudoku.ui.theme.AppTheme
 
+/** Which part of the battle screen opens first: the home's "Connect nearby", "Start a room" or "Join with code". */
+enum class BattleTab { NEARBY, HOST, JOIN }
+
 /**
  * Host or join a battle. The form sits in a scrollable column that shrinks with the keyboard
  * (the app root applies the IME insets), so the code field is never hidden while typing.
@@ -55,10 +58,11 @@ fun BattleMenuScreen(
     vm: BattleViewModel,
     onProfile: () -> Unit,
     onBack: () -> Unit,
+    initialTab: BattleTab = BattleTab.JOIN,
 ) {
     val p = AppTheme.palette
-    var hosting by rememberSaveable { mutableStateOf(false) }
-    var nearby by rememberSaveable { mutableStateOf(false) }
+    var hosting by rememberSaveable { mutableStateOf(initialTab == BattleTab.HOST) }
+    var nearby by rememberSaveable { mutableStateOf(initialTab == BattleTab.NEARBY) }
     val clipboard = LocalClipboardManager.current
     val hasLink = profile.scriptUrl.startsWith("https://")
 
