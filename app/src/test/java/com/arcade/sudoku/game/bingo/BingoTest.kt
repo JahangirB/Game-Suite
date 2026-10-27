@@ -62,6 +62,8 @@ class BingoTest {
         room.setBingoReady(LocalRoom.HOST, true, 0)
         room.setBingoReady(guest, true, 0)
         val go = LocalRoom.COUNTDOWN_MS
+        // The countdown's end is pushed once, so everyone gets their card.
+        assertEquals(true, room.checkTimers(go))
         assertEquals(false, room.checkTimers(go + Bingo.ROUND_MS - 1))
         assertEquals(true, room.checkTimers(go + Bingo.ROUND_MS))
         assertEquals(RoomStatus.FINISHED, parseRoom(room.view(guest, go + Bingo.ROUND_MS)).status)

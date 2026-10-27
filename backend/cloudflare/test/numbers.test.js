@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as numbers from '../src/numbers.js';
-import { COUNTDOWN_MS, createRoom, joinRoom, setConnected, setNumbersReady, setOptions, submitNumbers, view } from '../src/room.js';
+import { COUNTDOWN_MS, checkTimers, createRoom, joinRoom, setConnected, setNumbersReady, setOptions, submitNumbers, nextDeadline, view } from '../src/room.js';
 
 let ids = 0;
 const uuid = () => `p-${++ids}`;
@@ -69,4 +69,21 @@ test('the host sends the puzzle with Ready; the first to solve wins', () => {
   assert.equal(end.status, 'finished');
   assert.equal(end.winnerName, 'Cat');
   assert.equal(end.numbers.solution[14], '5');
+});
+
+test('the puzzle is pushed to everyone the moment the countdown ends', () => {
+  const room = createRoom('NUM2', 'Alice', T0, uuid, null, null, 'numbers');
+  setConnected(room, 'host', true, T0);
+  setConnected(room, joinRoom(room, 'Bob', null, T0, uuid, null, null, ALL), true, T0);
+  setNumbersReady(room, 'guest', true, null, T0);
+  setNumbersReady(room, 'host', true, PUZZLE, T0);
+  // Hidden during the countdown, so the guest needs a fresh view when it ends.
+  assert.equal(view(room, 'guest', room.startAt - 1).numbers.puzzle, null);
+  assert.equal(nextDeadline(room), room.startAt);
+  assert.equal(checkTimers(room, room.startAt - 1), null);
+  assert.equal(checkTimers(room, room.startAt), 'changed');
+  assert.notEqual(view(room, 'guest', room.startAt).numbers.puzzle, null);
+  // Only once per round.
+  assert.notEqual(nextDeadline(room), room.startAt);
+  assert.equal(checkTimers(room, room.startAt + 1), null);
 });

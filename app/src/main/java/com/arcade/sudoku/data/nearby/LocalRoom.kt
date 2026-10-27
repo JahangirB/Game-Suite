@@ -976,6 +976,26 @@ class LocalRoom(
 
     /** A player away for 45 s during a match loses; returns true if that happened. */
     fun checkTimers(now: Long): Boolean {
+        if (roomTimers(now)) return true
+        if (needsStartPush() && now >= (startAt ?: return false)) {
+            startPushedRound = round
+            version++
+            return true
+        }
+        return false
+    }
+
+    /**
+     * True while a round of a game whose view hides the round (letters, tiles, card, puzzle)
+     * until the countdown ends has started but not been pushed at its start time. Without that
+     * push the guests see the countdown end with nothing on the board until they next send
+     * something.
+     */
+    private fun needsStartPush() = status == "started" && game in REVEALED_AT_START && startPushedRound != round
+
+    private var startPushedRound = -1
+
+    private fun roomTimers(now: Long): Boolean {
         val start = startAt ?: return false
         if (status != "started" || now < start) return false
         if (game == GameKind.BINGO && now >= start + Bingo.ROUND_MS) {
@@ -1136,6 +1156,9 @@ class LocalRoom(
         const val DRAW_TURN_MS = 80_000L
         // What apps from before the version check could play; they don't say which games they know.
         val OLD_APP_GAMES = listOf("sudoku", "ships")
+
+        /** Games whose view hides the round until the countdown ends; see needsStartPush. */
+        private val REVEALED_AT_START = setOf(GameKind.WORDS, GameKind.GRID, GameKind.SLIDE, GameKind.BINGO, GameKind.NUMBERS)
 
         /** The other player of a two-player game. */
         fun other(role: String) = if (role == HOST) GUEST else HOST

@@ -66,6 +66,8 @@ test('only a line of called numbers wins', () => {
 
 test('nobody claiming ends the round with no winner', () => {
   const room = round();
+  // The countdown's end is pushed once, so everyone gets their card.
+  assert.equal(checkTimers(room, GO), 'changed');
   assert.equal(checkTimers(room, endsAt(GO) - 1), null);
   assert.equal(checkTimers(room, endsAt(GO)), 'changed');
   assert.equal(room.status, 'finished');

@@ -1028,6 +1028,17 @@ export function setConnected(room, role, connected, now) {
  * players away from a lobby. Returns 'changed', 'expired' (delete the room) or null.
  */
 export function checkTimers(room, now) {
+  const result = roomTimers(room, now);
+  if (result) return result;
+  if (needsStartPush(room) && now >= room.startAt) {
+    room.startPushedRound = room.round;
+    bump(room);
+    return 'changed';
+  }
+  return null;
+}
+
+function roomTimers(room, now) {
   const roles = seated(room);
   const away = (r) => room.players[r].connected ? 0 : now - room.players[r].awaySince;
 
@@ -1079,6 +1090,18 @@ export function checkTimers(room, now) {
   return null;
 }
 
+/** Games whose view hides the round (letters, tiles, card, puzzle) until the countdown ends. */
+const REVEALED_AT_START = ['words', 'grid', 'slide', 'bingo', 'numbers'];
+
+/**
+ * True while a round of such a game has started but not yet been pushed at its start time.
+ * Without that push a player sees the countdown end with nothing on the board until their
+ * own next message brings a fresh view.
+ */
+function needsStartPush(room) {
+  return room.status === 'started' && REVEALED_AT_START.includes(room.game) && room.startPushedRound !== room.round;
+}
+
 /** When checkTimers should run next, or null if nothing is pending. */
 export function nextDeadline(room) {
   const roles = seated(room);
@@ -1087,6 +1110,7 @@ export function nextDeadline(room) {
     const lastAway = Math.max(...roles.map((r) => room.players[r].awaySince));
     deadlines.push(lastAway + idleLimit(room));
   }
+  if (needsStartPush(room)) deadlines.push(room.startAt);
   if (room.status === 'started' && room.game === 'draw') deadlines.push(room.turnEndsAt);
   if (room.status === 'started' && room.game === 'grid') deadlines.push(room.gridEndsAt);
   if (room.status === 'started' && room.game === 'bingo') deadlines.push(room.bingoEndsAt);

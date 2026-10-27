@@ -185,6 +185,23 @@ class LocalShipsTest {
     }
 
     @Test
+    fun numberCrossPuzzleIsPushedWhenTheCountdownEnds() {
+        val room = LocalRoom("NUM2", "Ann", null, com.arcade.sudoku.data.GameKind.NUMBERS)
+        val guest = room.join("Bob", null, null, listOf("numbers"))
+        val puzzle = com.arcade.sudoku.game.numbers.NumberCrossGenerator(kotlin.random.Random(1))
+            .generate(com.arcade.sudoku.game.numbers.NumberLevel.EASY)
+        room.setNumbersReady(guest, true, null, T0)
+        room.setNumbersReady(LocalRoom.HOST, true, puzzle, T0)
+        val start = room.startAt!!
+        // Hidden during the countdown, so the guest needs a fresh view when it ends.
+        assertNull(parseRoom(room.view(guest, start - 1)).numbers!!.board)
+        assertFalse(room.checkTimers(start - 1))
+        assertTrue(room.checkTimers(start))
+        // Only once per round.
+        assertFalse(room.checkTimers(start + 1))
+    }
+
+    @Test
     fun dominoesTeamsWinTogether() {
         val room = LocalRoom("DOM1", "Ann", null, com.arcade.sudoku.data.GameKind.DOMINOES)
         val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null, listOf("dominoes")) }
