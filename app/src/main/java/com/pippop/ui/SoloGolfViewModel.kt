@@ -59,7 +59,7 @@ class SoloGolfViewModel : ViewModel() {
         if (s.turn != 'm' || s.result != null || match == null) return
         val shot = shotFor('m', angle, power) ?: return
         play('m', angle, power, shot)
-        if (_state.value.result == null && _state.value.turn != 'm') computersPlay(rollMs(shot.path.size))
+        if (_state.value.result == null && _state.value.turn != 'm') computersPlay(rollMs(shot))
     }
 
     private fun shotFor(mark: Char, angle: Double, power: Double): GolfShot? {
@@ -100,7 +100,7 @@ class SoloGolfViewModel : ViewModel() {
                 val (angle, power) = withContext(Dispatchers.Default) { Golf.computerShot(hole, from, skill) }
                 val shot = Golf.simulate(hole, from, angle, power)
                 play(mark, angle, power, shot)
-                wait = rollMs(shot.path.size)
+                wait = rollMs(shot)
             }
         }
     }
@@ -108,7 +108,10 @@ class SoloGolfViewModel : ViewModel() {
     private fun viewOf(m: GolfMatch) = GolfView.from(m.view('m', mapOf('o' to 'o', 'p' to 'p', 'q' to 'q')))
 
     companion object {
-        /** How long a shot's roll plays on screen: the path has about 60 points a second. */
-        fun rollMs(points: Int) = points * 1000L / 60
+        /**
+         * How long a shot plays on screen: the roll (about 60 path points a second), and a lost
+         * ball sinking or falling, so the next shot doesn't start before it's done.
+         */
+        fun rollMs(shot: GolfShot) = shot.path.size * 1000L / 60 + if (shot.hazard != null) Golf.LOST_MS else 0
     }
 }

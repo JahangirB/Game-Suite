@@ -17,6 +17,14 @@ data class Pt(val x: Double, val y: Double)
 
 data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     operator fun contains(p: Pt) = p.x in x0..x1 && p.y in y0..y1
+
+    /** Whether [p] is inside this box with its corners rounded off by [r], as islands are drawn. */
+    fun containsRounded(p: Pt, r: Double): Boolean {
+        if (p !in this) return false
+        val cx = p.x.coerceIn(x0 + r, x1 - r)
+        val cy = p.y.coerceIn(y0 + r, y1 - r)
+        return hypot(p.x - cx, p.y - cy) <= r
+    }
 }
 
 /** A pond, an ellipse round ([x], [y]). */
@@ -54,8 +62,8 @@ data class Hole(
     /** Everything the ball bounces off. */
     val solid get() = walls + cuts
 
-    /** Whether [p] is on the course rather than over the drop. */
-    fun onCourse(p: Pt) = islands == null || islands.any { p in it } || bridges.any { p in it }
+    /** Whether [p] is on the course rather than over the drop: islands have round corners, as drawn. */
+    fun onCourse(p: Pt) = islands == null || islands.any { it.containsRounded(p, Golf.CORNER) } || bridges.any { p in it }
 
     fun inWater(p: Pt) = water.any { p in it }
 }
@@ -85,6 +93,10 @@ object Golf {
     /** Slower than this on water, the ball sinks. */
     private const val SINK_SPEED = 0.45
     const val MAX_STROKES = 6
+    /** How round an island's corners are, on screen and to the ball. */
+    const val CORNER = 0.04
+    /** How long phones show a lost ball sinking or falling before it's back on the tee. */
+    const val LOST_MS = 1100
 
     /**
      * Hole [index] of a game playing [course] (ids into [Courses]); a game without one (from

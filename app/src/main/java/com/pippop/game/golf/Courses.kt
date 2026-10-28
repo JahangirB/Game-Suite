@@ -136,8 +136,9 @@ object Courses {
         val bridges = (0 until count - 1).map { i ->
             val upper = islands[i]
             val lower = islands[i + 1]
-            val from = maxOf(upper.x0, lower.x0) + 0.04
-            val to = minOf(upper.x1, lower.x1) - 0.04
+            // Clear of the islands' round corners, so a bridge always meets straight edges.
+            val from = maxOf(upper.x0, lower.x0) + 0.07
+            val to = minOf(upper.x1, lower.x1) - 0.07
             val width = random.between(if (count == 3) 0.1 else 0.12, if (count == 3) 0.15 else 0.18)
             if (to - from < width) return null
             val x0 = random.between(from, to - width)

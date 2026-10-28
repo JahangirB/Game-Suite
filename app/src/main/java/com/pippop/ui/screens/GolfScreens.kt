@@ -103,6 +103,8 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
     LaunchedEffect(last?.seq) {
         if (last == null || last.seq <= seen) return@LaunchedEffect
         seen = last.seq
+        // A shot that comes in while the last lost ball is still sinking takes over from it.
+        lost = null
         val hole = view.holeAt(last.hole)
         val shot = Golf.simulate(hole, last.from ?: hole.tee, last.angle, last.power)
         val path = shot.path.toMutableList()
@@ -130,8 +132,12 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
             lost = hazard to path.last()
             sfx.play(if (hazard == Hazard.WATER) Sound.GOLF_SPLASH else Sound.GOLF_DROP, v)
             sink.snapTo(0f)
-            sink.animateTo(1f, tween(LOST_MS, easing = LinearEasing))
-            lost = null
+            try {
+                sink.animateTo(1f, tween(Golf.LOST_MS, easing = LinearEasing))
+            } finally {
+                // Even if the next shot cuts it short, so the ball never stays hidden.
+                lost = null
+            }
         }
         rolling = null
     }
@@ -175,7 +181,9 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         /** The course's shape, [inset] in from its edge (and round its cuts): one piece, or its islands. */
         fun course(inset: Double): Path {
             val pieces = hole.islands ?: listOf(Box(0.0, 0.0, Golf.W, Golf.H))
-            val outer = pieces.map { rounded(rect(it, -inset), 0.07) }
+            // Islands' corners are as round as the ball finds them (Golf.CORNER).
+            val corner = if (hole.islands != null) Golf.CORNER else 0.07
+            val outer = pieces.map { rounded(rect(it, -inset), corner) }
                 .reduce { a, b -> Path().apply { op(a, b, PathOperation.Union) } }
             return hole.cuts.fold(outer) { shape, cut -> Path().apply { op(shape, rounded(rect(cut, inset), 0.025), PathOperation.Difference) } }
         }
@@ -317,9 +325,6 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         aim?.let { (a, power) -> aimLine(o(myBall), a, power, s) }
     }
 }
-
-/** How long a lost ball takes to sink or fall before it's back on the tee. */
-private const val LOST_MS = 1100
 
 /** A trail of shrinking dots from the ball the way it will go; longer for a harder shot. */
 private fun DrawScope.aimLine(from: Offset, angle: Double, power: Double, s: Float) {
