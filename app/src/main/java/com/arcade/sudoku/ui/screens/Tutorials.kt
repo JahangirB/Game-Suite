@@ -1,16 +1,11 @@
 package com.arcade.sudoku.ui.screens
 
-import android.view.Gravity
-import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -20,8 +15,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,10 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.compose.ui.platform.LocalView
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.CodeGuess
 import com.arcade.sudoku.data.DrawStroke
@@ -68,29 +63,46 @@ import com.arcade.sudoku.ui.theme.TextSize
 class TutorialStep(val title: String, val body: String, val board: @Composable (Modifier) -> Unit, val aspect: Float = 1f)
 
 /**
- * A game's tutorial as a full-screen dialog: a few steps on the game's own board, with Skip,
- * Back and Next. It plays the first time a game is opened; Rules → "Show me how" plays it again.
+ * Where tutorials are drawn: one layer over the whole app, inside the area the app's screens
+ * already keep to (clear of the status and gesture bars). [ArcadeSudokuApp] owns it and
+ * draws [TutorialLayer] last, over everything.
+ */
+class TutorialHost {
+    internal var showing by mutableStateOf<Pair<GameKind, () -> Unit>?>(null)
+}
+
+val LocalTutorialHost = staticCompositionLocalOf<TutorialHost?> { null }
+
+/**
+ * Shows [kind]'s tutorial while this is in the composition: a few steps on the game's own
+ * board, with Skip, Back and Next. It plays the first time a game is opened; Rules → "Show me
+ * how" plays it again. It is drawn by the app's [TutorialHost], not as a dialog window: a
+ * window takes whatever height the phone gives it beside the system bars, which differs from
+ * phone to phone and cut off Back and Next on some.
  */
 @Composable
 fun TutorialDialog(kind: GameKind, onDone: () -> Unit) {
-    val steps = tutorialFor(kind)
-    if (steps == null) {
-        LaunchedEffect(kind) { onDone() }
+    val done by rememberUpdatedState(onDone)
+    val host = LocalTutorialHost.current
+    if (tutorialFor(kind) == null || host == null) {
+        LaunchedEffect(kind) { done() }
         return
     }
-    // Full screen on every phone. A dialog's window otherwise takes whatever height the phone
-    // gives it next to the status and gesture bars, which differs from maker to maker, so Back
-    // and Next ran off the bottom on some phones. The window is set to exactly the screen and
-    // drawn under the bars; the steps keep inside the safe area (see TutorialScreen).
-    Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        SideEffect {
-            window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            window?.setGravity(Gravity.FILL)
-        }
-        Surface(color = AppTheme.palette.background, modifier = Modifier.fillMaxSize()) {
-            TutorialScreen(kind, steps, onDone)
-        }
+    DisposableEffect(kind, host) {
+        val shown: Pair<GameKind, () -> Unit> = kind to { done() }
+        host.showing = shown
+        onDispose { if (host.showing === shown) host.showing = null }
+    }
+}
+
+/** The tutorial being shown, if any, covering the whole of the app's screen area. */
+@Composable
+fun TutorialLayer(host: TutorialHost) {
+    val (kind, done) = host.showing ?: return
+    val steps = tutorialFor(kind) ?: return
+    BackHandler(onBack = done)
+    Surface(color = AppTheme.palette.background, modifier = Modifier.fillMaxSize()) {
+        TutorialScreen(kind, steps, done)
     }
 }
 
@@ -104,7 +116,7 @@ private fun TutorialScreen(kind: GameKind, steps: List<TutorialStep>, onDone: ()
     val step = steps[at.coerceIn(0, steps.size - 1)]
     val last = at == steps.size - 1
     Column(
-        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = Space.L, vertical = Space.M),
+        Modifier.fillMaxSize().padding(horizontal = Space.L, vertical = Space.M),
         verticalArrangement = Arrangement.spacedBy(Space.M),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

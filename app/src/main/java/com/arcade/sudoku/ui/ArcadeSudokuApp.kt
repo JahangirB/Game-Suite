@@ -26,6 +26,9 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.arcade.sudoku.data.RoomStatus
+import com.arcade.sudoku.ui.screens.LocalTutorialHost
+import com.arcade.sudoku.ui.screens.TutorialHost
+import com.arcade.sudoku.ui.screens.TutorialLayer
 import com.arcade.sudoku.ui.screens.ArrangeGamesScreen
 import com.arcade.sudoku.ui.screens.FirstRunScreen
 import com.arcade.sudoku.ui.screens.ConnectKind
@@ -185,127 +188,132 @@ fun ArcadeSudokuApp(
         dest = Dest.HOME
     }
 
-    Scaffold(
-        containerColor = p.background,
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        // The IME insets shrink every screen above the keyboard, so a focused field stays visible.
-        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-            // A result in a connection that plays game after game shows the score since
-            // connecting and a couple of games to play next.
-            val session = room?.takeIf { it.inSession }?.let { r ->
-                MatchSession(
-                    tally = battleState.tally,
-                    nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
-                    onOpenGame = battle::openGame,
-                )
-            }
-            CompositionLocalProvider(LocalShipStyle provides profile.shipStyle, LocalMatchSession provides session) {
-                when {
-                    !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
-                    inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
-                        LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.SLIDE -> SlideGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.BINGO -> BingoGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.GOLF -> GolfGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.BLOCKS -> BlocksGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.CODE -> CodeGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.BALLOON -> BalloonGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.GRID -> GridGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.LUDO -> LudoGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.CLASH -> ClashGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.HOCKEY -> HockeyScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)
-                    inRoomGame && room != null -> GameScreen(battleState, battle, onLeave = requestLeave)
-                    dest == Dest.SHIPS -> SoloShipsScreen(shipsState, ships, onHome = { dest = Dest.HOME })
-                    dest == Dest.CONNECT4 -> SoloConnectFourScreen(connectFourState, connectFour, onHome = { dest = Dest.HOME })
-                    dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = { dest = Dest.HOME })
-                    dest == Dest.MEMORY -> SoloMemoryScreen(memoryState, memory, onHome = { dest = Dest.HOME })
-                    dest == Dest.WORDS -> SoloWordsScreen(wordsState, words, onHome = { dest = Dest.HOME })
-                    dest == Dest.TTT -> SoloTttScreen(tttState, ttt, onHome = { dest = Dest.HOME })
-                    dest == Dest.DOMINOES -> SoloDominoesScreen(dominoesState, dominoes, onHome = { dest = Dest.HOME })
-                    dest == Dest.NUMBERS -> SoloNumbersScreen(numbersState, numbers, onHome = { dest = Dest.HOME })
-                    dest == Dest.HOCKEY -> SoloHockeyScreen(hockeyState, hockey, onHome = { dest = Dest.HOME })
-                    dest == Dest.CLASH -> SoloClashScreen(clashState, clash, onHome = { dest = Dest.HOME })
-                    dest == Dest.LUDO -> SoloLudoScreen(ludoState, ludo, onHome = { dest = Dest.HOME })
-                    dest == Dest.GRID -> SoloGridScreen(gridState, grid, onHome = { dest = Dest.HOME })
-                    dest == Dest.BALLOON -> SoloBalloonScreen(balloonState, balloon, onHome = { dest = Dest.HOME })
-                    dest == Dest.CODE -> SoloCodeScreen(codeState, codeBreaker, onHome = { dest = Dest.HOME })
-                    dest == Dest.SLIDE -> SoloSlideScreen(slideState, slide, onHome = { dest = Dest.HOME })
-                    dest == Dest.BINGO -> SoloBingoScreen(bingoState, bingo, onHome = { dest = Dest.HOME })
-                    dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = { dest = Dest.HOME })
-                    dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = { dest = Dest.HOME })
-                    dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = { dest = Dest.HOME })
-                    dest == Dest.PROFILE -> ProfileScreen(
-                        profile, battleState.busy, app, battle, updateState,
-                        onCheckUpdates = { updates.check(manual = true) },
-                        onUpdate = updates::update,
-                        onBack = { dest = Dest.HOME },
-                    )
-                    dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
-                    else -> HomeScreen(
-                        solo = soloState,
-                        profile = profile,
-                        onContinue = {
-                            solo.resume()
-                            dest = Dest.SOLO
-                        },
-                        onNewGame = {
-                            solo.startNew(it)
-                            dest = Dest.SOLO
-                        },
-                        onProfile = { dest = Dest.PROFILE },
-                        onSolo = { game ->
-                            dest = when (game) {
-                                GameKind.SHIPS -> Dest.SHIPS
-                                GameKind.CONNECT4 -> Dest.CONNECT4
-                                GameKind.DOTS -> Dest.DOTS
-                                GameKind.MEMORY -> Dest.MEMORY
-                                GameKind.WORDS -> Dest.WORDS
-                                GameKind.TTT -> Dest.TTT
-                                GameKind.DOMINOES -> Dest.DOMINOES
-                                GameKind.NUMBERS -> Dest.NUMBERS
-                                GameKind.HOCKEY -> Dest.HOCKEY
-                                GameKind.CLASH -> Dest.CLASH
-                                GameKind.LUDO -> Dest.LUDO
-                                GameKind.GRID -> Dest.GRID
-                                GameKind.BALLOON -> Dest.BALLOON
-                                GameKind.CODE -> Dest.CODE
-                                GameKind.SLIDE -> Dest.SLIDE
-                                GameKind.BINGO -> Dest.BINGO
-                                GameKind.GOLF -> Dest.GOLF
-                                GameKind.BLOCKS -> Dest.BLOCKS
-                                // Draw & Guess needs two players; its sheet offers no solo game.
-                                GameKind.DRAW -> Dest.HOME
-                                GameKind.SUDOKU -> Dest.SOLO
-                            }
-                        },
-                        onArrange = { dest = Dest.ARRANGE },
-                        partnerBusy = battleState.busy,
-                        onPlayWithPartner = battle::playWithPartner,
-                        onInvitePartner = battle::invitePartner,
-                        onPlayMode = app::setPlayMode,
-                        connected = room != null,
-                        onConnectNearby = { connectSheet = ConnectKind.NEARBY },
-                        onStartRoom = battle::host,
-                        onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
-                        room = room,
-                        nearby = battleState.mode == BattleMode.NEARBY,
+    val tutorials = remember { TutorialHost() }
+    CompositionLocalProvider(LocalTutorialHost provides tutorials) {
+        Scaffold(
+            containerColor = p.background,
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
+            // The IME insets shrink every screen above the keyboard, so a focused field stays visible.
+            Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+                // A result in a connection that plays game after game shows the score since
+                // connecting and a couple of games to play next.
+                val session = room?.takeIf { it.inSession }?.let { r ->
+                    MatchSession(
+                        tally = battleState.tally,
+                        nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         onOpenGame = battle::openGame,
-                        onLeaveRoom = { confirmDisconnect = true },
-                        onNotificationsAnswered = app::notificationsAnswered,
-                        onTutorialSeen = app::tutorialSeen,
                     )
                 }
+                CompositionLocalProvider(LocalShipStyle provides profile.shipStyle, LocalMatchSession provides session) {
+                    when {
+                        !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
+                        inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
+                            LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.SLIDE -> SlideGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.BINGO -> BingoGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.GOLF -> GolfGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.BLOCKS -> BlocksGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.CODE -> CodeGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.BALLOON -> BalloonGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.GRID -> GridGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.LUDO -> LudoGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.CLASH -> ClashGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.HOCKEY -> HockeyScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null -> GameScreen(battleState, battle, onLeave = requestLeave)
+                        dest == Dest.SHIPS -> SoloShipsScreen(shipsState, ships, onHome = { dest = Dest.HOME })
+                        dest == Dest.CONNECT4 -> SoloConnectFourScreen(connectFourState, connectFour, onHome = { dest = Dest.HOME })
+                        dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = { dest = Dest.HOME })
+                        dest == Dest.MEMORY -> SoloMemoryScreen(memoryState, memory, onHome = { dest = Dest.HOME })
+                        dest == Dest.WORDS -> SoloWordsScreen(wordsState, words, onHome = { dest = Dest.HOME })
+                        dest == Dest.TTT -> SoloTttScreen(tttState, ttt, onHome = { dest = Dest.HOME })
+                        dest == Dest.DOMINOES -> SoloDominoesScreen(dominoesState, dominoes, onHome = { dest = Dest.HOME })
+                        dest == Dest.NUMBERS -> SoloNumbersScreen(numbersState, numbers, onHome = { dest = Dest.HOME })
+                        dest == Dest.HOCKEY -> SoloHockeyScreen(hockeyState, hockey, onHome = { dest = Dest.HOME })
+                        dest == Dest.CLASH -> SoloClashScreen(clashState, clash, onHome = { dest = Dest.HOME })
+                        dest == Dest.LUDO -> SoloLudoScreen(ludoState, ludo, onHome = { dest = Dest.HOME })
+                        dest == Dest.GRID -> SoloGridScreen(gridState, grid, onHome = { dest = Dest.HOME })
+                        dest == Dest.BALLOON -> SoloBalloonScreen(balloonState, balloon, onHome = { dest = Dest.HOME })
+                        dest == Dest.CODE -> SoloCodeScreen(codeState, codeBreaker, onHome = { dest = Dest.HOME })
+                        dest == Dest.SLIDE -> SoloSlideScreen(slideState, slide, onHome = { dest = Dest.HOME })
+                        dest == Dest.BINGO -> SoloBingoScreen(bingoState, bingo, onHome = { dest = Dest.HOME })
+                        dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = { dest = Dest.HOME })
+                        dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = { dest = Dest.HOME })
+                        dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = { dest = Dest.HOME })
+                        dest == Dest.PROFILE -> ProfileScreen(
+                            profile, battleState.busy, app, battle, updateState,
+                            onCheckUpdates = { updates.check(manual = true) },
+                            onUpdate = updates::update,
+                            onBack = { dest = Dest.HOME },
+                        )
+                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
+                        else -> HomeScreen(
+                            solo = soloState,
+                            profile = profile,
+                            onContinue = {
+                                solo.resume()
+                                dest = Dest.SOLO
+                            },
+                            onNewGame = {
+                                solo.startNew(it)
+                                dest = Dest.SOLO
+                            },
+                            onProfile = { dest = Dest.PROFILE },
+                            onSolo = { game ->
+                                dest = when (game) {
+                                    GameKind.SHIPS -> Dest.SHIPS
+                                    GameKind.CONNECT4 -> Dest.CONNECT4
+                                    GameKind.DOTS -> Dest.DOTS
+                                    GameKind.MEMORY -> Dest.MEMORY
+                                    GameKind.WORDS -> Dest.WORDS
+                                    GameKind.TTT -> Dest.TTT
+                                    GameKind.DOMINOES -> Dest.DOMINOES
+                                    GameKind.NUMBERS -> Dest.NUMBERS
+                                    GameKind.HOCKEY -> Dest.HOCKEY
+                                    GameKind.CLASH -> Dest.CLASH
+                                    GameKind.LUDO -> Dest.LUDO
+                                    GameKind.GRID -> Dest.GRID
+                                    GameKind.BALLOON -> Dest.BALLOON
+                                    GameKind.CODE -> Dest.CODE
+                                    GameKind.SLIDE -> Dest.SLIDE
+                                    GameKind.BINGO -> Dest.BINGO
+                                    GameKind.GOLF -> Dest.GOLF
+                                    GameKind.BLOCKS -> Dest.BLOCKS
+                                    // Draw & Guess needs two players; its sheet offers no solo game.
+                                    GameKind.DRAW -> Dest.HOME
+                                    GameKind.SUDOKU -> Dest.SOLO
+                                }
+                            },
+                            onArrange = { dest = Dest.ARRANGE },
+                            partnerBusy = battleState.busy,
+                            onPlayWithPartner = battle::playWithPartner,
+                            onInvitePartner = battle::invitePartner,
+                            onPlayMode = app::setPlayMode,
+                            connected = room != null,
+                            onConnectNearby = { connectSheet = ConnectKind.NEARBY },
+                            onStartRoom = battle::host,
+                            onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
+                            room = room,
+                            nearby = battleState.mode == BattleMode.NEARBY,
+                            onOpenGame = battle::openGame,
+                            onLeaveRoom = { confirmDisconnect = true },
+                            onNotificationsAnswered = app::notificationsAnswered,
+                            onTutorialSeen = app::tutorialSeen,
+                        )
+                    }
+                }
+                // A reaction from your opponent plays large over the battle screen.
+                if (inRoomGame) ReactionBurst(battleState.opponentReaction)
+                if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter))
+                // A game's tutorial, over everything, in the same safe area as every screen.
+                TutorialLayer(tutorials)
             }
-            // A reaction from your opponent plays large over the battle screen.
-            if (inRoomGame) ReactionBurst(battleState.opponentReaction)
-            if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter))
         }
     }
 
