@@ -6,6 +6,7 @@ import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Reaction
 import com.pippop.data.toJson
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.Generator
 import com.pippop.game.dominoes.DominoMatch
 import com.pippop.game.dominoes.DominoOptions
@@ -291,7 +292,7 @@ class LocalRoom(
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic)
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel)
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
@@ -338,6 +339,7 @@ class LocalRoom(
             GameKind.WORDS -> wordLevel = WordLevel.from(options.optString("level"))
             GameKind.SLIDE -> slideLevel = SlideLevel.from(options.optString("level"))
             GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
+            GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
             else -> throw ApiException("This game has no options.")
         }
         for (r in seated()) player(r).ready = false
@@ -528,6 +530,9 @@ class LocalRoom(
 
     // Slide Race: the host's level, the start being played and the next one from the host.
     var slideLevel = SlideLevel.EASY
+
+    /** Mini Golf: how many islands every hole of the next game has. */
+    var golfLevel = GolfLevel.EASY
         private set
     private var slideStart: List<Int>? = null
     private var nextSlide: List<Int>? = null
@@ -1135,6 +1140,7 @@ class LocalRoom(
                     GameKind.WORDS -> JSONObject().put("level", wordLevel.key)
                     GameKind.SLIDE -> JSONObject().put("level", slideLevel.key)
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
+                    GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
                     else -> JSONObject.NULL
                 },
             )

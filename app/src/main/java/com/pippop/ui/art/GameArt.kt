@@ -126,8 +126,8 @@ val GameKind.rules: String
         GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
             "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +
             "diagonal (the star counts) and the Bingo button lights up: the first to press it wins."
-        GameKind.GOLF -> "Nine holes of mini golf, new every game from a library of a thousand: three easy, three on two " +
-            "islands, three on three. On your turn, pull back from anywhere on the course like a slingshot and let go: the " +
+        GameKind.GOLF -> "Nine holes of mini golf, new every game from a library of a thousand designed holes. Pick the " +
+            "level first: Easy holes are one island, Medium two islands, Hard three, and all nine holes are that kind. On your turn, pull back from anywhere on the course like a slingshot and let go: the " +
             "further you pull, the harder the shot. Walls bounce the ball and sand slows it. Islands are joined by narrow " +
             "bridges: roll off an island or a bridge and the ball falls, and a ball that slows down on a pond sinks. Either " +
             "way it costs the stroke and you play again from the tee. Everyone tees off in turn, then whoever is still out " +

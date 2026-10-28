@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as golf from '../src/golf.js';
-import { createRoom, joinRoom, makeMove, setConnected, setTurnReady, view } from '../src/room.js';
+import { createRoom, joinRoom, makeMove, setConnected, setOptions, setTurnReady, view } from '../src/room.js';
 
 let ids = 0;
 const uuid = () => `p-${++ids}`;
@@ -57,15 +57,29 @@ test('nine holes in a room; fewest strokes wins', () => {
   assert.equal(room.endReason, 'strokes');
 });
 
-test('a game plays nine library holes: three easy, three medium, three hard', () => {
-  for (let k = 0; k < 50; k++) {
-    const course = golf.pickCourse();
-    assert.equal(course.length, golf.HOLES);
-    assert.equal(new Set(course).size, golf.HOLES);
-    course.slice(0, 3).forEach((id) => assert.ok(id >= 0 && id < 333));
-    course.slice(3, 6).forEach((id) => assert.ok(id >= 333 && id < 666));
-    course.slice(6).forEach((id) => assert.ok(id >= 666 && id < golf.COURSES));
+test('a game plays nine holes of the level picked: easy one island, medium two, hard three', () => {
+  const bands = { easy: [0, 333], medium: [333, 666], hard: [666, 1000] };
+  for (const [level, [from, to]] of Object.entries(bands)) {
+    for (let k = 0; k < 30; k++) {
+      const course = golf.pickCourse(Math.random, level);
+      assert.equal(course.length, golf.HOLES);
+      assert.equal(new Set(course).size, golf.HOLES);
+      course.forEach((id) => assert.ok(id >= from && id < to, `${level} ${id}`));
+    }
+    const s = golf.start(Math.random, ['h', 'g'], { level });
+    s.course.forEach((id) => assert.ok(id >= from && id < to));
+    assert.deepEqual(golf.view(s, 'h').golf.course, s.course);
   }
-  const s = golf.start(Math.random, ['h', 'g']);
-  assert.deepEqual(golf.view(s, 'h').golf.course, s.course);
+  assert.deepEqual(golf.cleanOptions({ level: 'silly' }), { level: 'easy' });
+});
+
+test('whoever opened the golf game picks the level, and the match uses it', () => {
+  const room = createRoom('GOLF', 'Alice', T0, uuid, null, null, 'golf');
+  const guest = joinRoom(room, 'Bob', null, T0, uuid, null, null, ['golf']);
+  setConnected(room, guest, true, T0);
+  setOptions(room, 'host', { level: 'hard' });
+  assert.deepEqual(view(room, 'host', T0 + 2).options, { level: 'hard' });
+  setTurnReady(room, 'host', true, T0 + 3);
+  setTurnReady(room, guest, true, T0 + 4);
+  room.turnState.course.forEach((id) => assert.ok(id >= 666 && id < 1000));
 });

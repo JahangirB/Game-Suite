@@ -49,8 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pippop.data.GameKind
 import com.pippop.data.RoomStatus
+import com.pippop.data.RoomState
 import com.pippop.game.golf.Box
 import com.pippop.game.golf.Golf
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.golf.Hazard
 import com.pippop.game.golf.GolfView
 import com.pippop.game.golf.Pt
@@ -422,6 +424,21 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     }
 }
 
+/** Mini Golf's level: whoever opened the game picks how many islands every hole has; everyone else sees it. */
+@Composable
+fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
+    val p = AppTheme.palette
+    val level = room.golfLevel ?: return
+    AppCard("Which holes?") {
+        if (room.setsOptions) {
+            OptionGroup(GolfLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
+        } else {
+            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+        }
+        Text("All nine holes are this kind, new from the 1,000 each game.", color = p.muted, fontSize = TextSize.Body)
+    }
+}
+
 // ---- On your own ------------------------------------------------------------------------------
 
 @Composable
@@ -449,6 +466,8 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
         if (view == null) {
             AppCard("Nine holes") {
                 Text("Pull back from the ball like a slingshot and let go: the further you pull, the harder the shot. Fewest strokes over nine holes wins.", color = p.muted, fontSize = TextSize.Body)
+                Text("Holes", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+                OptionGroup(GolfLevel.entries.map { it to it.label }, state.level, enabled = true, onPick = vm::setLevel)
                 Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (n in 0..3) {

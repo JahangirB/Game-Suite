@@ -8,9 +8,9 @@ import org.json.JSONObject
 /**
  * Mini Golf's turns and strokes, matching the server (backend/cloudflare/src/golf.js). A move
  * is a shot the player's phone already worked out: { angle, power, x, y, holed }. [course] is
- * the nine holes from the [Courses] library everyone plays, picked when the game starts.
+ * the nine holes from the [Courses] library everyone plays, all of the level picked for the game.
  */
-class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick()) : TurnMatch {
+class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(GolfLevel.EASY)) : TurnMatch {
     var hole = 0
         private set
     val strokes = marks.associateWith { mutableListOf(0) }

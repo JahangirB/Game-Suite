@@ -9,6 +9,8 @@ import com.pippop.game.ludo.LudoMatch
 import com.pippop.game.dominoes.DominoMatch
 import com.pippop.game.dominoes.DominoOptions
 import com.pippop.game.dots.DotsMatch
+import com.pippop.game.golf.Courses
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.golf.GolfMatch
 import com.pippop.game.memory.MemoryMatch
 import com.pippop.game.ttt.TttMatch
@@ -46,12 +48,14 @@ interface TurnMatch {
             options: DominoOptions = DominoOptions(),
             /** Tic-Tac-Toe: normal 3 × 3 instead of Ultimate. */
             tttClassic: Boolean = false,
+            /** Mini Golf: how many islands every hole has. */
+            golfLevel: GolfLevel = GolfLevel.EASY,
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
             GameKind.LUDO -> LudoMatch(marks, random)
             GameKind.BALLOON -> BalloonMatch(marks)
-            GameKind.GOLF -> GolfMatch(marks)
+            GameKind.GOLF -> GolfMatch(marks, Courses.pick(golfLevel, random))
             GameKind.BLOCKS -> BlocksMatch(marks)
             GameKind.DOTS -> DotsMatch()
             GameKind.MEMORY -> MemoryMatch(random)

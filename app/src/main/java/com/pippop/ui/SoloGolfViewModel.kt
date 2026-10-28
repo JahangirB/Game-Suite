@@ -2,7 +2,9 @@ package com.pippop.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pippop.game.golf.Courses
 import com.pippop.game.golf.Golf
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.golf.GolfMatch
 import com.pippop.game.golf.GolfShot
 import com.pippop.game.golf.GolfView
@@ -23,6 +25,8 @@ data class SoloGolfUiState(
     val computers: Int = 1,
     /** 0 easy to 2 hard. */
     val skill: Int = 1,
+    /** How many islands every hole has. */
+    val level: GolfLevel = GolfLevel.EASY,
     val turn: Char = 'm',
     /** "me", "computer", "tie" or null while playing. */
     val result: String? = null,
@@ -40,6 +44,8 @@ class SoloGolfViewModel : ViewModel() {
 
     fun setSkill(n: Int) = _state.update { it.copy(skill = n.coerceIn(0, 2)) }
 
+    fun setLevel(level: GolfLevel) = _state.update { it.copy(level = level) }
+
     fun changeSetup() {
         thinking?.cancel()
         match = null
@@ -48,7 +54,7 @@ class SoloGolfViewModel : ViewModel() {
 
     fun start() {
         thinking?.cancel()
-        val m = GolfMatch("mopq".take(_state.value.computers + 1).toList())
+        val m = GolfMatch("mopq".take(_state.value.computers + 1).toList(), Courses.pick(_state.value.level))
         match = m
         _state.update { it.copy(view = viewOf(m), turn = 'm', result = null) }
     }

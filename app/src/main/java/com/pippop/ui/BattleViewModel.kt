@@ -19,6 +19,7 @@ import com.pippop.game.blocks.Placement
 import com.pippop.game.code.CodeBreaker
 import com.pippop.game.golf.Golf
 import com.pippop.game.golf.GolfLastShot
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.slide.Slide
 import com.pippop.game.slide.SlideLevel
 import com.pippop.game.grid.LetterGrid
@@ -714,6 +715,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.options == options) return
         sendReady(room.copy(options = options, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, options.toJson()) }
+    }
+
+    /** Mini Golf: whoever opened the game picks how many islands every hole has; everyone gets ready again. */
+    fun setGolfLevel(level: GolfLevel) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.golfLevel == level) return
+        sendReady(room.copy(golfLevel = level, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("level", level.key))
+        }
     }
 
     /** Tic-Tac-Toe: whoever opened the game picks normal (3 × 3) or Ultimate; everyone gets ready again. */

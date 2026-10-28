@@ -4,13 +4,23 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
+import java.io.File
 import kotlin.math.PI
 import kotlin.random.Random
 
 class CoursesTest {
+    companion object {
+        @BeforeClass @JvmStatic
+        fun library() = Courses.install(File("src/main/assets/golf/courses.jsonl").readLines())
+    }
+
     @Test
-    fun everyHoleInTheLibraryIsBuiltTheSameAndCanBePlayed() {
+    fun theLibraryHasAThousandDesignedHolesAndEveryOneCanBePlayed() {
+        val lines = File("src/main/assets/golf/courses.jsonl").readLines().filter { it.isNotBlank() }
+        assertEquals(Courses.SIZE, lines.size)
+        lines.forEachIndexed { i, line -> assertEquals(i, JSONObject(line).getInt("id")) }
         for (id in 0 until Courses.SIZE) {
             val hole = Courses.hole(id)
             assertTrue("hole $id can't be played", Courses.playable(hole))
@@ -18,21 +28,22 @@ class CoursesTest {
             assertEquals(Courses.islands(id) - 1, hole.bridges.size)
             assertEquals(Courses.islands(id) + 1, hole.par)
         }
-        // Built from the number alone: the same on every phone.
-        assertEquals(Courses.hole(512), Courses.hole(512 + Courses.SIZE))
     }
 
     @Test
-    fun aGameIsThreeEasyThreeMediumThreeHard() {
-        repeat(50) { seed ->
-            val course = Courses.pick(Random(seed))
-            assertEquals(9, course.toSet().size)
-            assertEquals(listOf(1, 1, 1, 2, 2, 2, 3, 3, 3), course.map { Courses.islands(it) })
+    fun aGamesNineHolesAreAllOfTheLevelPicked() {
+        for (level in GolfLevel.entries) {
+            repeat(30) { seed ->
+                val course = Courses.pick(level, Random(seed))
+                assertEquals(9, course.toSet().size)
+                assertTrue(course.all { Courses.islands(it) == level.islands })
+            }
         }
-        val match = GolfMatch(listOf('h', 'g'), listOf(1, 2, 3, 400, 401, 402, 700, 701, 702))
+        val match = GolfMatch(listOf('h', 'g'), listOf(700, 701, 702, 703, 704, 705, 706, 707, 708))
         val view = GolfView.from(match.view('h', mapOf('g' to 'o')))
         assertEquals(match.course, view.course)
-        assertEquals(Courses.hole(400), view.holeAt(3))
+        assertEquals(Courses.hole(703), view.holeAt(3))
+        assertEquals(3, view.holeAt(3).islands?.size)
     }
 
     @Test
@@ -51,8 +62,7 @@ class CoursesTest {
             bridges = listOf(Box(0.45, 0.58, 0.55, 0.92)),
         )
         // Straight up the bridge: still on the course past the gap.
-        val across = Golf.simulate(hole, hole.tee, -PI / 2, 0.75)
-        assertNull(across.hazard)
+        assertNull(Golf.simulate(hole, hole.tee, -PI / 2, 0.75).hazard)
         // Up the left side, where there's no bridge: into the drop.
         val off = Golf.simulate(hole, Pt(0.15, 1.4), -PI / 2, 0.75)
         assertEquals(Hazard.DROP, off.hazard)
@@ -73,7 +83,7 @@ class CoursesTest {
 
     @Test
     fun theComputerGetsRoundTheLibrary() {
-        // A sample of every kind of hole, at the computer's best: it gets the ball in.
+        // A sample of every level, at the computer's best: it gets the ball in.
         for (id in listOf(5, 150, 300, 340, 500, 650, 670, 820, 990)) {
             val hole = Courses.hole(id)
             val field = Golf.distanceField(hole)

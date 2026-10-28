@@ -1,5 +1,6 @@
 package com.pippop.data
 
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.balloon.BalloonView
 import com.pippop.game.golf.GolfView
 import com.pippop.game.blocks.BlocksView
@@ -326,6 +327,8 @@ data class RoomState(
     val options: DominoOptions? = null,
     /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
     val tttClassic: Boolean = false,
+    /** Mini Golf: the level chosen for the next game's holes; null from a server without levels. */
+    val golfLevel: GolfLevel? = null,
     /** Whether this player sets the open game's options: whoever opened it (the host at first). */
     val setsOptions: Boolean = role == "host",
     /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
@@ -381,6 +384,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
     inSession = json.getJSONObject("me").has("at"),
 )

@@ -42,6 +42,7 @@ import com.pippop.game.blocks.BlocksView
 import com.pippop.game.dominoes.Tile
 import com.pippop.game.golf.Courses
 import com.pippop.game.golf.Golf
+import com.pippop.game.golf.GolfLevel
 import com.pippop.game.golf.GolfView
 import com.pippop.game.golf.Pt
 import com.pippop.game.hockey.Body
@@ -445,7 +446,7 @@ private fun golf(): List<TutorialStep> {
         GolfCourse(view, 'm', false, { _, _ -> }, m)
     }
     // A two-island hole from the library with a pond on it.
-    val islands = (Courses.MEDIUM until Courses.HARD).first { Courses.hole(it).water.isNotEmpty() }
+    val islands = Courses.of(GolfLevel.MEDIUM).firstOrNull { Courses.hole(it).water.isNotEmpty() } ?: Courses.MEDIUM
     val aspect = (Golf.W / Golf.H).toFloat()
     return listOf(
         TutorialStep("Nine holes", "Everyone tees off in turn. Get the ball into the cup at the flag.", course(0, null, null), aspect),

@@ -7,9 +7,10 @@
 // after MAX_STROKES is picked up and scores one more. The player to start moves on a seat
 // each hole.
 //
-// The holes come from the app's library of COURSES (game/golf/Courses.kt), which builds each
-// hole from its number: this module only picks the nine numbers, so every phone plays the same
-// holes. Three easy (one island), then three medium (two), then three hard (three).
+// The holes come from the app's library of COURSES designed holes (assets/golf/courses.jsonl):
+// this module only picks the nine numbers, so every phone plays the same holes. All nine are of
+// the level whoever opened the game picked: easy (one island, holes 0-332), medium (two islands,
+// 333-665) or hard (three islands, 666-999).
 
 export const HOLES = 9;
 export const MAX_STROKES = 6;
@@ -17,20 +18,23 @@ export const COURSES = 1000;
 const MEDIUM = 333;
 const HARD = 666;
 
-/** Three different numbers from [from, to). */
-function three(random, from, to) {
+export const LEVELS = { easy: [0, MEDIUM], medium: [MEDIUM, HARD], hard: [HARD, COURSES] };
+
+export function cleanOptions(options) {
+  return { level: Object.hasOwn(LEVELS, options?.level) ? options.level : 'easy' };
+}
+
+/** Nine different holes of [level]. */
+export function pickCourse(random = Math.random, level = 'easy') {
+  const [from, to] = LEVELS[cleanOptions({ level }).level];
   const picked = new Set();
-  while (picked.size < 3) picked.add(from + Math.floor(random() * (to - from)));
+  while (picked.size < HOLES) picked.add(from + Math.floor(random() * (to - from)));
   return [...picked];
 }
 
-export function pickCourse(random = Math.random) {
-  return [...three(random, 0, MEDIUM), ...three(random, MEDIUM, HARD), ...three(random, HARD, COURSES)];
-}
-
-export function start(random = Math.random, marks = ['h', 'g']) {
+export function start(random = Math.random, marks = ['h', 'g'], options = {}) {
   return {
-    marks, hole: 0, course: pickCourse(random),
+    marks, hole: 0, course: pickCourse(random, cleanOptions(options).level),
     strokes: Object.fromEntries(marks.map((m) => [m, [0]])),
     balls: Object.fromEntries(marks.map((m) => [m, null])),
     done: Object.fromEntries(marks.map((m) => [m, false])),
