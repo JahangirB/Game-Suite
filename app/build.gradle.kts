@@ -10,7 +10,7 @@ plugins {
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
 // The id Android and Firebase know the app by. Set APP_ID to give your own build its own id
-// (so it can sit next to someone else's Game Suite). The Kotlin code keeps its original
+// (so it can sit next to someone else's Pip & Pop). The Kotlin code keeps its original
 // com.arcade.sudoku package (the namespace below).
 val appId = System.getenv("APP_ID")?.takeIf { it.isNotBlank() } ?: "com.gamesuite.app"
 

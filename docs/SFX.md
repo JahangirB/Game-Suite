@@ -1,6 +1,6 @@
 # Sound effects catalogue
 
-Every sound Game Suite needs, where it plays and what it should sound like.
+Every sound Pip & Pop needs, where it plays and what it should sound like.
 
 **Now in the app:** the 55 priority-1 sounds, made from scratch (tones and noise, no
 recordings) by `scripts/make-sounds.py`; run it again after changing a sound. They are

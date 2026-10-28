@@ -148,7 +148,7 @@ export function findRole(room, playerId) {
 export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceId = null, games = null) {
   if (room.status === 'closed') throw new GameError('The host closed this game.', true, 'closed');
   if (!(games || OLD_APP_GAMES).includes(room.game)) {
-    throw new GameError('This game needs the latest Game Suite. Update the app to join.', true, 'update_needed');
+    throw new GameError('This game needs the latest Pip & Pop. Update the app to join.', true, 'update_needed');
   }
   const known = findRole(room, playerId);
   if (known) {
@@ -1013,7 +1013,7 @@ function dropOut(room, role, reason, now) {
  * a game sets its options.
  */
 export function openGame(room, role, game, now) {
-  if (!GAMES.includes(game)) throw new GameError('This game needs the latest Game Suite.', false, 'update_needed');
+  if (!GAMES.includes(game)) throw new GameError('This game needs the latest Pip & Pop.', false, 'update_needed');
   const me = room.players[role];
   if (room.status === 'started') {
     // Back to the match this player is in, from the menu.

@@ -159,7 +159,7 @@ class LocalRoom(
     fun join(name: String, avatar: Avatar?, playerId: String?, games: List<String>? = null): String {
         if (status == "closed") throw ApiException("The host closed this game.", fatal = true, reason = "closed")
         if (game.key !in (games ?: OLD_APP_GAMES)) {
-            throw ApiException("This game needs the latest Game Suite. Update the app to join.", fatal = true, reason = "update_needed")
+            throw ApiException("This game needs the latest Pip & Pop. Update the app to join.", fatal = true, reason = "update_needed")
         }
         players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { return it.key }
         if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")

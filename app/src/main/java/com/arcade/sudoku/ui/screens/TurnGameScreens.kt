@@ -509,7 +509,7 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
             .clickable(enabled = onFlip != null && face == null) { onFlip?.invoke() },
     ) {
         if (turn < 90f) {
-            // The back: the Game Suite grid pattern on Memory amber.
+            // The back: the app's grid pattern on Memory amber.
             Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
                 val s = size.width / 4
                 for (r in 0 until 6) for (c in 0 until 4) {

@@ -36,7 +36,7 @@ step is one commit, pushed and checked on CI.
 
 ## Steps
 
-Steps 1 to 20 are done. Online play across games needs the updated Cloudflare Worker
+All 33 steps are done. Online play across games needs the updated Cloudflare Worker
 (redeploy it, see "Updating the server" in the README) and the new app on every phone.
 
 Started first:
@@ -93,7 +93,9 @@ Copy and polish:
 30. Key art for the first 10 games.
 31. Key art for the other 10.
 32. Sudoku in the Toy Box look.
-33. New name, icon and splash, once the name is chosen.
+33. New name, icon and splash. The name is **Pip & Pop**. The Globe & Die icon stays for now;
+    the Pip & Pop icon (and the other names' icons) are on the Game moments canvas if it changes.
+    The splash shows the icon on the app's lavender.
 
 ## Backlog
 

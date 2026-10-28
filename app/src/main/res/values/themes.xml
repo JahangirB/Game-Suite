@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#FFF4F6FA</color>
+    <!-- The app's lavender, so the splash (the icon on this colour) leads straight into the home. -->
+    <color name="window_background">#FFEFEAFF</color>
     <color name="ic_launcher_background">#FF3D7BF7</color>
 
     <style name="Theme.ArcadeSudoku" parent="android:Theme.Material.Light.NoActionBar">

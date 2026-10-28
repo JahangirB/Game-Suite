@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Makes Game Suite's sound effects from scratch (no recordings, so no licence questions).
+"""Makes Pip & Pop's sound effects from scratch (no recordings, so no licence questions).
 
 Each sound in docs/SFX.md marked priority 1 is built here from tones and noise, in the
 "Toy Box" style: soft, rounded, short. Run it to (re)make app/src/main/res/raw/sfx_*.ogg:

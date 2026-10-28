@@ -317,7 +317,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 )
                 "game" -> {
                     val next = GameKind.entries.firstOrNull { it.key == msg.optString("game") }
-                        ?: throw ApiException("This game needs the latest Game Suite.", reason = "update_needed")
+                        ?: throw ApiException("This game needs the latest Pip & Pop.", reason = "update_needed")
                     val opened = r.openGame(role!!, next)
                     room = opened
                     send(endpointId, opened.view(role, now).put("re", id))

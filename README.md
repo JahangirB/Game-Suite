@@ -1,4 +1,4 @@
-# Game Suite
+# Pip & Pop
 
 <p align="center">
   <a href="https://github.com/JahangirB/Game-Suite/releases/latest/download/GameSuite.apk">
@@ -8,7 +8,7 @@
 
 <p align="center">Tap the button on your phone, open the downloaded file and allow installs from your browser or file manager when Android asks. Needs Android 8.0 or newer.</p>
 
-Game Suite (formerly Arcade Sudoku) is an Android app for playing together with someone far away. Sudoku has three ways to play:
+Pip & Pop (formerly Game Suite, and before that Arcade Sudoku) is an Android app for playing together with someone far away. Sudoku has three ways to play:
 
 - **Solo:** classic Sudoku on your phone, six levels, no internet needed.
 - **Online battle:** a two-player race over the internet. One player hosts the battle
@@ -323,7 +323,7 @@ Firebase Cloud Messaging. It is free. The host does this once:
 1. Open the [Firebase console](https://console.firebase.google.com), **Create a project**
    (any name, e.g. `game-suite`; Google Analytics can be off).
 2. In the project, **Add app → Android**. Package name: your app id, **`com.gamesuite.app`**
-   unless you set your own (see *Make your own copy*). App nickname: Game Suite. Register,
+   unless you set your own (see *Make your own copy*). App nickname: Pip & Pop. Register,
    then **download `google-services.json`** and skip the remaining steps (no Gradle changes
    are needed). Don't commit the file: add its content as the **`GOOGLE_SERVICES_JSON`**
    repository secret; the next build switches invitations on.
@@ -363,7 +363,7 @@ project and make sure **Firebase Cloud Messaging API** is enabled.
 
 **Automatic updates:** when the app starts it checks the latest release (and you can check
 by hand under *Profile → App*). If a newer build exists it offers to update, downloads it and
-opens Android's install screen. The first time, Android asks you to allow Game Suite to
+opens Android's install screen. The first time, Android asks you to allow Pip & Pop to
 install apps; after that each update is two taps. Android only accepts the update if it is
 signed with the same key as the installed app, and it never installs without your
 confirmation. The offer is never shown during a battle. Version 1.0.N is the CI run number.
@@ -378,7 +378,7 @@ Suite for you and your friends:
 1. **Fork** this repository on GitHub (or use it as a template).
 2. **Signing key** (so your releases can update your installed app): create one with
    `keytool -genkeypair -keystore gamesuite.keystore -storetype PKCS12 -alias gamesuite
-   -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Game Suite"`, then add these
+   -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Pip & Pop"`, then add these
    secrets under *Settings → Secrets and variables → Actions*:
    - `SIGNING_KEYSTORE_BASE64`: the keystore file in base64 (`base64 -w0 gamesuite.keystore`)
    - `SIGNING_STORE_PASSWORD` and `SIGNING_KEY_PASSWORD`: its password
@@ -386,7 +386,7 @@ Suite for you and your friends:
 
    Keep the keystore file private and safe: losing it means your next version can't update
    the installed app. Without these secrets CI still builds and tests, but publishes nothing.
-3. **Own app id (optional):** to install your copy next to someone else's Game Suite, add a
+3. **Own app id (optional):** to install your copy next to someone else's Pip & Pop, add a
    repository **variable** (*Variables* tab) `APP_ID`, e.g. `com.yourname.gamesuite`, and use
    that id in Firebase.
 4. **Invitations (optional):** create your own Firebase project (*1c* above) and add its

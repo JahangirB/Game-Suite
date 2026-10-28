@@ -114,5 +114,5 @@ jobs:
           gh release create latest GameSuite.apk ArcadeSudoku.apk version.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Game Suite 1.0.${GITHUB_RUN_NUMBER}" \
+            --title "Pip & Pop 1.0.${GITHUB_RUN_NUMBER}" \
             --notes "Built from commit ${GITHUB_SHA::7}. Install GameSuite.apk on an Android phone (allow installs from unknown sources)."

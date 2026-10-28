@@ -9,7 +9,7 @@ import kotlin.random.Random
  */
 data class Invite(val scriptUrl: String?, val code: String?, val password: String? = null) {
     fun toShareText() = buildString {
-        append("Let's play in Game Suite! Code: $code")
+        append("Let's play in Pip & Pop! Code: $code")
         if (!scriptUrl.isNullOrBlank()) append("\nLink: $scriptUrl")
     }
 
