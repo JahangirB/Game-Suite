@@ -73,6 +73,8 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
     GOLF_PUTT(R.raw.sfx_golf_putt, 0.65f, varied = true),
     GOLF_WALL(R.raw.sfx_golf_wall, 0.45f),
     GOLF_CUP(R.raw.sfx_golf_cup, 0.65f),
+    GOLF_SPLASH(R.raw.sfx_golf_splash, 0.6f),
+    GOLF_DROP(R.raw.sfx_golf_drop, 0.5f),
 }
 
 /**

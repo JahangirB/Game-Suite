@@ -7,9 +7,10 @@ import org.json.JSONObject
 
 /**
  * Mini Golf's turns and strokes, matching the server (backend/cloudflare/src/golf.js). A move
- * is a shot the player's phone already worked out: { angle, power, x, y, holed }.
+ * is a shot the player's phone already worked out: { angle, power, x, y, holed }. [course] is
+ * the nine holes from the [Courses] library everyone plays, picked when the game starts.
  */
-class GolfMatch(val marks: List<Char>) : TurnMatch {
+class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick()) : TurnMatch {
     var hole = 0
         private set
     val strokes = marks.associateWith { mutableListOf(0) }
@@ -77,6 +78,7 @@ class GolfMatch(val marks: List<Char>) : TurnMatch {
             JSONObject()
                 .put("hole", minOf(hole, HOLES - 1))
                 .put("holes", HOLES)
+                .put("course", JSONArray(course))
                 .put("maxStrokes", Golf.MAX_STROKES)
                 .put("strokes", each { JSONArray(strokes.getValue(it)) })
                 .put("balls", each { balls[it]?.toJson() ?: JSONObject.NULL })
@@ -108,8 +110,13 @@ data class GolfView(
     val balls: Map<Char, Pt?>,
     val done: Map<Char, Boolean>,
     val last: GolfLastShot?,
+    /** The holes from the [Courses] library, or null from a server that predates it ([Golf.HOLES]). */
+    val course: List<Int>? = null,
 ) {
     fun total(who: Char) = strokes[who].orEmpty().sum()
+
+    /** Hole [index] of this game. */
+    fun holeAt(index: Int = hole) = Golf.hole(course, index)
 
     companion object {
         private fun pt(a: JSONArray?) = a?.let { Pt(it.optDouble(0), it.optDouble(1)) }
@@ -133,6 +140,7 @@ data class GolfView(
                         holed = l.optBoolean("holed"), seq = l.optInt("seq"),
                     )
                 },
+                course = g.optJSONArray("course")?.let { a -> (0 until a.length()).map { a.optInt(it) } }?.takeIf { it.size >= GolfMatch.HOLES },
             )
         }
     }

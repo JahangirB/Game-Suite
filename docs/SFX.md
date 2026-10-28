@@ -269,6 +269,8 @@ Uses `piece_hop` for each tile slid.
 | `golf_roll` | Ball rolling (loop, fades as it slows) | Soft grass roll | loop | 3 |
 | `golf_cup` | Ball drops in | Rattle in the cup + ting | 500 | 1 |
 | `golf_lip_out` | Ball too fast, rolls over the cup | Quick rattle | 200 | 2 |
+| `golf_splash` | Ball slows on a pond and sinks (back to the tee) | Plop, wash, two bubbles | 420 | 1 |
+| `golf_drop` | Ball rolls off an island into the drop (back to the tee) | Falling whistle | 520 | 1 |
 | `golf_hole_in_one` | In with the first stroke | Small fanfare | 1200 | 2 |
 | `golf_flag` | New hole appears | Flag flutter | 300 | 3 |
 

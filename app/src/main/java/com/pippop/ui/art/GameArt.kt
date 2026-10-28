@@ -55,7 +55,7 @@ val GameKind.tagline: String
         GameKind.CODE -> "Crack the hidden colour code"
         GameKind.SLIDE -> "Same shuffle, first in order wins"
         GameKind.BINGO -> "Dab the calls, shout first"
-        GameKind.GOLF -> "Nine holes, fewest strokes"
+        GameKind.GOLF -> "Islands, bridges, fewest strokes"
         GameKind.BLOCKS -> "Corner to corner, fill the board"
     }
 
@@ -126,9 +126,12 @@ val GameKind.rules: String
         GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
             "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +
             "diagonal (the star counts) and the Bingo button lights up: the first to press it wins."
-        GameKind.GOLF -> "Nine holes of mini golf. On your turn, pull back from anywhere on the course like a slingshot and let go: " +
-            "the further you pull, the harder the shot. Walls bounce the ball and sand slows it. Everyone tees off in turn, then " +
-            "whoever is still out plays. A ball still out after six strokes is picked up and scores seven. Fewest strokes wins."
+        GameKind.GOLF -> "Nine holes of mini golf, new every game from a library of a thousand: three easy, three on two " +
+            "islands, three on three. On your turn, pull back from anywhere on the course like a slingshot and let go: the " +
+            "further you pull, the harder the shot. Walls bounce the ball and sand slows it. Islands are joined by narrow " +
+            "bridges: roll off an island or a bridge and the ball falls, and a ball that slows down on a pond sinks. Either " +
+            "way it costs the stroke and you play again from the tee. Everyone tees off in turn, then whoever is still out " +
+            "plays. A ball still out after six strokes is picked up and scores seven. Fewest strokes wins."
         GameKind.BLOCKS -> "Everyone has the same 21 pieces in their colour. Your first piece must cover your ringed start square. " +
             "After that, each new piece must touch one of your own pieces corner to corner and never along an edge (other colours " +
             "can touch you anywhere). Pick a piece, turn or flip it, tap the board to put it there and Place. Stuck players are " +

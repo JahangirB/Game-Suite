@@ -40,6 +40,7 @@ import com.pippop.game.BoardState
 import com.pippop.game.blocks.Blocks
 import com.pippop.game.blocks.BlocksView
 import com.pippop.game.dominoes.Tile
+import com.pippop.game.golf.Courses
 import com.pippop.game.golf.Golf
 import com.pippop.game.golf.GolfView
 import com.pippop.game.golf.Pt
@@ -439,15 +440,18 @@ private fun bingo(): List<TutorialStep> {
 }
 
 private fun golf(): List<TutorialStep> {
-    fun course(hole: Int, me: Pt?, them: Pt?) = @Composable { m: Modifier ->
-        val view = GolfView(hole, Golf.HOLES.size, mapOf('m' to emptyList(), 'o' to emptyList()), mapOf('m' to me, 'o' to them), emptyMap(), null)
+    fun course(hole: Int, me: Pt?, them: Pt?, course: List<Int>? = null) = @Composable { m: Modifier ->
+        val view = GolfView(hole, Golf.HOLES.size, mapOf('m' to emptyList(), 'o' to emptyList()), mapOf('m' to me, 'o' to them), emptyMap(), null, course)
         GolfCourse(view, 'm', false, { _, _ -> }, m)
     }
+    // A two-island hole from the library with a pond on it.
+    val islands = (Courses.MEDIUM until Courses.HARD).first { Courses.hole(it).water.isNotEmpty() }
     val aspect = (Golf.W / Golf.H).toFloat()
     return listOf(
         TutorialStep("Nine holes", "Everyone tees off in turn. Get the ball into the cup at the flag.", course(0, null, null), aspect),
         TutorialStep("Pull back and let go", "Pull from anywhere, like a slingshot. The further you pull, the harder the shot.", course(1, null, Pt(0.62, 1.0)), aspect),
         TutorialStep("Walls bounce, sand slows", "Play off the walls to get round corners.", course(4, Pt(0.4, 1.05), Pt(0.56, 0.5)), aspect),
+        TutorialStep("Mind the drop and the ponds", "Cross between islands by the bridges. Fall off, or stop in a pond, and you're back on the tee.", course(0, null, null, List(9) { islands }), aspect),
         TutorialStep("Fewest strokes wins", "A ball still out after six strokes is picked up and scores seven.", course(0, Pt(0.52, 0.34), null), aspect),
     )
 }

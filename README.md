@@ -108,9 +108,13 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   seconds. Dab the calls on your card; the Bingo button lights up only with a full row, column
   or diagonal, and the first to press it wins. Or play against one to three computer cards.
 
-- **Mini Golf:** nine holes with walls and sand; pull back like a slingshot and let go. Players
-  take turns; the shooter's phone works out the roll and the others replay it. A ball still out
-  after six is picked up with seven; fewest strokes wins. Or play alone or against computers.
+- **Mini Golf:** nine holes picked from a library of 1,000 (`game/golf/Courses.kt`), new each
+  game: three easy (one island), three medium (two islands and a bridge), three hard (three
+  islands, two bridges). Walls bounce, sand slows; roll off an island or stop in a pond and the
+  ball goes back to the tee. Pull back like a slingshot and let go. Players take turns; the
+  shooter's phone works out the roll and the others replay it, and the server (or the nearby
+  host) picks the nine holes so everyone plays the same ones. A ball still out after six is
+  picked up with seven; fewest strokes wins. Or play alone or against computers.
 
 - **Corner Blocks:** 21 pieces each on a shared board (14×14 for two, 20×20 for three or
   four). Cover your start square first; after that your pieces touch only corner to corner.

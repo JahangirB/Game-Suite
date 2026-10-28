@@ -179,6 +179,11 @@ object GameColors {
     val SkyBottom = Color(0xFFC6EBFB)
     val Flag = Color(0xFFE23B4B)
     val Cup = Color(0xFF1B1B1B)
+    /** Mini Golf's ponds and the boards that bridge the drop between islands. */
+    val Water = Color(0xFF4FA9E3)
+    val WaterEdge = Color(0xFF2F7FB8)
+    val Wood = Color(0xFFC8A27A)
+    val WoodDark = Color(0xFF9C7550)
     // Number Cross grid and stone blocks.
     val GridFrame = Color(0xFF6E6A7C)
     val OperatorTile = Color(0xFFEDE8F7)

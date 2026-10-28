@@ -56,3 +56,16 @@ test('nine holes in a room; fewest strokes wins', () => {
   assert.equal(view(room, 'host', T0 + 2000).winner, 'me');
   assert.equal(room.endReason, 'strokes');
 });
+
+test('a game plays nine library holes: three easy, three medium, three hard', () => {
+  for (let k = 0; k < 50; k++) {
+    const course = golf.pickCourse();
+    assert.equal(course.length, golf.HOLES);
+    assert.equal(new Set(course).size, golf.HOLES);
+    course.slice(0, 3).forEach((id) => assert.ok(id >= 0 && id < 333));
+    course.slice(3, 6).forEach((id) => assert.ok(id >= 333 && id < 666));
+    course.slice(6).forEach((id) => assert.ok(id >= 666 && id < golf.COURSES));
+  }
+  const s = golf.start(Math.random, ['h', 'g']);
+  assert.deepEqual(golf.view(s, 'h').golf.course, s.course);
+});

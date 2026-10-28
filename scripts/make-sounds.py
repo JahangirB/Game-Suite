@@ -470,6 +470,22 @@ def golf_cup():
     return mix(rattle, seq(at(260, 0.6 * bell(hz('E6'), 250, 9))))
 
 
+@sound
+def golf_splash():
+    # A plop, then a soft wash of water and two bubbles.
+    n = len(t(420))
+    wash = lowpass(rng.uniform(-1, 1, n) * np.exp(-9 * np.arange(n) / RATE), 0.35)
+    plop = tone(520, 90, 30, glide=0.45)
+    bubbles = seq(at(170, 0.35 * tone(700, 60, 40, glide=1.7)), at(260, 0.3 * tone(900, 50, 45, glide=1.6)))
+    return mix(plop, 0.6 * wash, bubbles)
+
+
+@sound
+def golf_drop():
+    # A falling whistle, down and away.
+    return 0.8 * tone(1300, 520, 3.5, attack_ms=10, shape='soft', glide=0.3)
+
+
 # --- Writing the files ------------------------------------------------------------------------
 
 def write(name, samples):

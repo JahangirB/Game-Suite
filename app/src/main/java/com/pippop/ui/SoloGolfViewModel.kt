@@ -64,14 +64,16 @@ class SoloGolfViewModel : ViewModel() {
 
     private fun shotFor(mark: Char, angle: Double, power: Double): GolfShot? {
         val m = match ?: return null
-        val hole = Golf.HOLES[m.hole]
+        val hole = Golf.hole(m.course, m.hole)
         val from = _state.value.view?.balls?.get(mark) ?: hole.tee
         return Golf.simulate(hole, from, angle, power)
     }
 
     private fun play(mark: Char, angle: Double, power: Double, shot: GolfShot) {
         val m = match ?: return
-        val move = JSONObject().put("angle", angle).put("power", power).put("x", shot.end.x).put("y", shot.end.y).put("holed", shot.holed)
+        // In the water or over the edge, the ball goes back on the tee.
+        val rest = shot.rest(Golf.hole(m.course, m.hole))
+        val move = JSONObject().put("angle", angle).put("power", power).put("x", rest.x).put("y", rest.y).put("holed", shot.holed)
         val result = m.play(mark, move)
         _state.update {
             val over = result.over
@@ -92,7 +94,7 @@ class SoloGolfViewModel : ViewModel() {
                 delay(wait + 500)
                 val m = match ?: return@launch
                 val mark = _state.value.turn
-                val hole = Golf.HOLES[m.hole]
+                val hole = Golf.hole(m.course, m.hole)
                 val from = _state.value.view?.balls?.get(mark) ?: hole.tee
                 val skill = listOf(0.3, 0.6, 0.9)[_state.value.skill]
                 val (angle, power) = withContext(Dispatchers.Default) { Golf.computerShot(hole, from, skill) }

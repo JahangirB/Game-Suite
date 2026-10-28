@@ -51,6 +51,7 @@ import com.pippop.data.GameKind
 import com.pippop.data.RoomStatus
 import com.pippop.game.golf.Box
 import com.pippop.game.golf.Golf
+import com.pippop.game.golf.Hazard
 import com.pippop.game.golf.GolfView
 import com.pippop.game.golf.Pt
 import com.pippop.ui.BattleUiState
@@ -76,6 +77,10 @@ private val SandEdge = GameColors.SandEdge
 private val SkyTop = GameColors.SkyTop
 private val SkyBottom = GameColors.SkyBottom
 private val FlagRed = GameColors.Flag
+private val Water = GameColors.Water
+private val WaterEdge = GameColors.WaterEdge
+private val Wood = GameColors.Wood
+private val WoodDark = GameColors.WoodDark
 
 /**
  * The hole being played, with everyone's ball ([current] waits on the tee for its first shot).
@@ -91,14 +96,19 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
     var rolling by remember { mutableStateOf<Pair<Int, List<Pt>>?>(null) }
     val sfx = rememberSfx()
     val progress = remember { Animatable(1f) }
+    // A ball lost in the water or over the edge: what happened and where, while it sinks or falls.
+    var lost by remember { mutableStateOf<Pair<Hazard, Pt>?>(null) }
+    val sink = remember { Animatable(0f) }
     val last = view.last
     LaunchedEffect(last?.seq) {
         if (last == null || last.seq <= seen) return@LaunchedEffect
         seen = last.seq
-        val hole = Golf.HOLES.getOrNull(last.hole) ?: return@LaunchedEffect
-        val path = Golf.simulate(hole, last.from ?: hole.tee, last.angle, last.power).path.toMutableList()
+        val hole = view.holeAt(last.hole)
+        val shot = Golf.simulate(hole, last.from ?: hole.tee, last.angle, last.power)
+        val path = shot.path.toMutableList()
         // The shooter's phone said where it stopped; end there whatever this phone worked out.
-        path[path.size - 1] = last.to
+        // (A lost ball ends where it went in; it's back on the tee afterwards.)
+        if (shot.hazard == null) path[path.size - 1] = last.to
         rolling = last.hole to path
         progress.snapTo(0f)
         val v = if (last.who == 'm') 1f else Sfx.OTHERS
@@ -115,13 +125,21 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         progress.animateTo(1f, tween((path.size * 1000 / 60).coerceAtLeast(200), easing = LinearEasing))
         sounds.cancel()
         if (last.holed) sfx.play(Sound.GOLF_CUP)
+        shot.hazard?.let { hazard ->
+            // A splash, or a whistle down into the drop, then the ball is back on the tee.
+            lost = hazard to path.last()
+            sfx.play(if (hazard == Hazard.WATER) Sound.GOLF_SPLASH else Sound.GOLF_DROP, v)
+            sink.snapTo(0f)
+            sink.animateTo(1f, tween(LOST_MS, easing = LinearEasing))
+            lost = null
+        }
         rolling = null
     }
     var aim by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     val flagWave by loopingFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1600, easing = LinearEasing)), still = 0f, label = "flag")
     val roll = rolling
     val holeIndex = roll?.first ?: view.hole
-    val hole = Golf.HOLES[holeIndex.coerceIn(0, Golf.HOLES.size - 1)]
+    val hole = view.holeAt(holeIndex.coerceIn(0, view.holes - 1))
     val myBall = view.balls['m'] ?: hole.tee
     val shooting = canShoot && roll == null && view.done['m'] != true
 
@@ -154,9 +172,11 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         fun o(p: Pt) = Offset(ox + (p.x * s).toFloat(), oy + (p.y * s).toFloat())
         fun rect(b: Box, grow: Double = 0.0) = Rect(o(Pt(b.x0 - grow, b.y0 - grow)), o(Pt(b.x1 + grow, b.y1 + grow)))
         fun rounded(r: Rect, radius: Double) = Path().apply { addRoundRect(RoundRect(r, CornerRadius((radius * s).toFloat()))) }
-        /** The course's shape, [inset] in from its edge (and round its cuts). */
+        /** The course's shape, [inset] in from its edge (and round its cuts): one piece, or its islands. */
         fun course(inset: Double): Path {
-            val outer = rounded(rect(Box(0.0, 0.0, Golf.W, Golf.H), -inset), 0.07)
+            val pieces = hole.islands ?: listOf(Box(0.0, 0.0, Golf.W, Golf.H))
+            val outer = pieces.map { rounded(rect(it, -inset), 0.07) }
+                .reduce { a, b -> Path().apply { op(a, b, PathOperation.Union) } }
             return hole.cuts.fold(outer) { shape, cut -> Path().apply { op(shape, rounded(rect(cut, inset), 0.025), PathOperation.Difference) } }
         }
         val rim = 0.028
@@ -172,6 +192,17 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         }
         // The side of the course, then its light rim and the grass inside.
         translate(0f, (depth * s).toFloat()) { drawPath(course(0.0), CourseSide) }
+        // Bridges over the drop: wooden boards, their ends under the islands' rims.
+        hole.bridges.forEach { b ->
+            translate(0f, (depth * 0.5 * s).toFloat()) { drawRect(WoodDark, rect(b).topLeft, rect(b).size) }
+            drawRect(Wood, rect(b).topLeft, rect(b).size)
+            var y = b.y0 + 0.03
+            while (y < b.y1) {
+                drawLine(WoodDark, o(Pt(b.x0, y)), o(Pt(b.x1, y)), 0.005f * s)
+                y += 0.035
+            }
+            drawRect(WoodDark, rect(b).topLeft, rect(b).size, style = Stroke(0.006f * s))
+        }
         drawPath(course(0.0), Rim)
         val grass = course(rim)
         drawPath(grass, Grass)
@@ -187,6 +218,17 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         hole.sand.forEach {
             drawPath(rounded(rect(it), 0.05), Sand)
             drawPath(rounded(rect(it), 0.05), SandEdge, style = Stroke(0.006f * s))
+        }
+        // Ponds, with a glint and a ripple.
+        hole.water.forEach { w ->
+            val box = rect(Box(w.x - w.rx, w.y - w.ry, w.x + w.rx, w.y + w.ry))
+            drawOval(Water, box.topLeft, box.size)
+            drawOval(WaterEdge, box.topLeft, box.size, style = Stroke(0.007f * s))
+            val c = o(Pt(w.x, w.y))
+            val rx = (w.rx * s).toFloat()
+            val ry = (w.ry * s).toFloat()
+            drawArc(Color.White.copy(alpha = 0.6f), 200f, 60f, false, c - Offset(rx * 0.6f, ry * 0.55f), Size(rx * 0.7f, ry * 0.6f), style = Stroke(0.006f * s, cap = StrokeCap.Round))
+            drawArc(Color.White.copy(alpha = 0.35f), 20f, 70f, false, c - Offset(rx * 0.1f, ry * 0.1f), Size(rx * 0.8f, ry * 0.7f), style = Stroke(0.005f * s, cap = StrokeCap.Round))
         }
         // Blocks standing on the course: a shaded side under a light top.
         hole.walls.forEach { b ->
@@ -228,9 +270,9 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
             it.nativeCanvas.drawText("${holeIndex + 1}", top.x + 0.06f * s, top.y + 0.065f * s, paint)
         }
 
-        fun ball(p: Pt, mark: Char) {
+        fun ball(p: Pt, mark: Char, size: Float = 1f) {
             val c = o(p)
-            val r = (Golf.R * s * 1.15).toFloat()
+            val r = (Golf.R * s * 1.15).toFloat() * size
             drawCircle(Color.Black.copy(alpha = 0.18f), r, c + Offset(r * 0.25f, r * 0.3f))
             drawCircle(markColor(mark), r, c)
             drawCircle(Color.White.copy(alpha = 0.55f), r * 0.35f, c + Offset(-r * 0.3f, -r * 0.3f))
@@ -242,7 +284,32 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
             if (roll.first == view.hole) {
                 view.balls.forEach { (m, p) -> if (m != shooter && p != null && view.done[m] != true) ball(p, m) }
             }
-            ball(path[(progress.value * (path.size - 1)).toInt().coerceIn(0, path.size - 1)], shooter)
+            val gone = lost
+            if (gone == null) {
+                ball(path[(progress.value * (path.size - 1)).toInt().coerceIn(0, path.size - 1)], shooter)
+            } else {
+                // Sinking with rings spreading on the water, or shrinking away down the drop.
+                val (hazard, at) = gone
+                val k = sink.value
+                if (hazard == Hazard.WATER) {
+                    for (ring in 0..1) {
+                        val t = (k * 1.4f - ring * 0.35f).coerceIn(0f, 1f)
+                        if (t > 0f) drawCircle(Color.White.copy(alpha = 0.8f * (1 - t)), (0.02f + t * 0.07f) * s, o(at), style = Stroke(0.006f * s))
+                    }
+                }
+                if (k < 0.7f) ball(at, shooter, 1f - k / 0.7f)
+                drawIntoCanvas {
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 0.06f * s
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        setShadowLayer(0.01f * s, 0f, 0.004f * s, android.graphics.Color.BLACK)
+                    }
+                    val text = if (hazard == Hazard.WATER) "Splash! Back to the tee" else "Over the edge! Back to the tee"
+                    it.nativeCanvas.drawText(text, size.width / 2, o(at).y - 0.08f * s, paint)
+                }
+            }
         } else {
             view.balls.forEach { (m, p) -> if (p != null && view.done[m] != true) ball(p, m) }
             if (current != null && view.balls[current] == null && view.done[current] != true) ball(hole.tee, current)
@@ -250,6 +317,9 @@ fun GolfCourse(view: GolfView, current: Char?, canShoot: Boolean, onShoot: (Doub
         aim?.let { (a, power) -> aimLine(o(myBall), a, power, s) }
     }
 }
+
+/** How long a lost ball takes to sink or fall before it's back on the tee. */
+private const val LOST_MS = 1100
 
 /** A trail of shrinking dots from the ball the way it will go; longer for a harder shot. */
 private fun DrawScope.aimLine(from: Offset, angle: Double, power: Double, s: Float) {
@@ -265,7 +335,7 @@ private fun DrawScope.aimLine(from: Offset, angle: Double, power: Double, s: Flo
 @Composable
 private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
     val p = AppTheme.palette
-    val hole = Golf.HOLES[view.hole]
+    val hole = view.holeAt()
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Hole ${view.hole + 1} of ${view.holes} · par ${hole.par}", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         Text(names.joinToString("  ") { (m, n) -> "$n ${view.total(m)}" }, color = p.muted, fontSize = TextSize.Body)
@@ -274,7 +344,7 @@ private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
 
 /** Scores per player for the result popup: total and against par. */
 private fun golfScores(view: GolfView, names: List<Pair<Char, String>>): List<String> {
-    val par = Golf.HOLES.sumOf { it.par }
+    val par = (0 until view.holes).sumOf { view.holeAt(it).par }
     return names.map { (m, n) ->
         val t = view.total(m)
         val vs = t - par

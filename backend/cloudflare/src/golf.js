@@ -6,13 +6,31 @@
 // Everyone tees off in seat order, then whoever is still out plays in turn. A ball still out
 // after MAX_STROKES is picked up and scores one more. The player to start moves on a seat
 // each hole.
+//
+// The holes come from the app's library of COURSES (game/golf/Courses.kt), which builds each
+// hole from its number: this module only picks the nine numbers, so every phone plays the same
+// holes. Three easy (one island), then three medium (two), then three hard (three).
 
 export const HOLES = 9;
 export const MAX_STROKES = 6;
+export const COURSES = 1000;
+const MEDIUM = 333;
+const HARD = 666;
+
+/** Three different numbers from [from, to). */
+function three(random, from, to) {
+  const picked = new Set();
+  while (picked.size < 3) picked.add(from + Math.floor(random() * (to - from)));
+  return [...picked];
+}
+
+export function pickCourse(random = Math.random) {
+  return [...three(random, 0, MEDIUM), ...three(random, MEDIUM, HARD), ...three(random, HARD, COURSES)];
+}
 
 export function start(random = Math.random, marks = ['h', 'g']) {
   return {
-    marks, hole: 0,
+    marks, hole: 0, course: pickCourse(random),
     strokes: Object.fromEntries(marks.map((m) => [m, [0]])),
     balls: Object.fromEntries(marks.map((m) => [m, null])),
     done: Object.fromEntries(marks.map((m) => [m, false])),
@@ -83,6 +101,7 @@ export function view(s, mark, seats = {}) {
     golf: {
       hole: Math.min(s.hole, HOLES - 1),
       holes: HOLES,
+      course: s.course,
       maxStrokes: MAX_STROKES,
       strokes: each((m) => s.strokes[m]),
       balls: each((m) => s.balls[m]),

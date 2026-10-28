@@ -650,15 +650,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun shootGolf(angle: Double, power: Double) {
         val turns = _state.value.room?.turns ?: return
         val golf = turns.golf ?: return
-        val hole = Golf.HOLES.getOrNull(golf.hole) ?: return
+        val hole = golf.holeAt()
         val from = golf.balls['m']
         val shot = Golf.simulate(hole, from ?: hole.tee, angle, power)
+        // In the water or over the edge, the ball goes back on the tee.
+        val rest = shot.rest(hole)
         val shown = golf.copy(
-            balls = golf.balls + ('m' to shot.end),
-            last = GolfLastShot('m', golf.hole, from, angle, power, shot.end, shot.holed, (golf.last?.seq ?: 0) + 1),
+            balls = golf.balls + ('m' to rest),
+            last = GolfLastShot('m', golf.hole, from, angle, power, rest, shot.holed, (golf.last?.seq ?: 0) + 1),
         )
         playMove(
-            JSONObject().put("angle", angle).put("power", power).put("x", shot.end.x).put("y", shot.end.y).put("holed", shot.holed),
+            JSONObject().put("angle", angle).put("power", power).put("x", rest.x).put("y", rest.y).put("holed", shot.holed),
             turns.copy(turn = "opponent", golf = shown),
         )
     }

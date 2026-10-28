@@ -19,10 +19,26 @@ data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     operator fun contains(p: Pt) = p.x in x0..x1 && p.y in y0..y1
 }
 
+/** A pond, an ellipse round ([x], [y]). */
+data class Pond(val x: Double, val y: Double, val rx: Double, val ry: Double) {
+    operator fun contains(p: Pt): Boolean {
+        val dx = (p.x - x) / rx
+        val dy = (p.y - y) / ry
+        return dx * dx + dy * dy <= 1
+    }
+}
+
+/** Where a shot can end besides the course: in a pond, or off the edge into the drop. */
+enum class Hazard { WATER, DROP }
+
 /**
  * One hole: where you tee off, the cup, the walls you bounce off and the sand that slows you.
  * [cuts] are bites out of the course's edge (so it isn't a plain rectangle): the ball bounces
  * off them just like walls, but they are drawn as the sky beyond the course.
+ *
+ * A hole can also float as [islands] joined by narrow [bridges]: off them is the drop, and a
+ * ball that goes over the edge falls and starts again from the tee. Without islands the whole
+ * course is ground. A ball that slows down on [water] sinks and starts again from the tee too.
  */
 data class Hole(
     val par: Int,
@@ -31,14 +47,25 @@ data class Hole(
     val walls: List<Box> = emptyList(),
     val sand: List<Box> = emptyList(),
     val cuts: List<Box> = emptyList(),
+    val water: List<Pond> = emptyList(),
+    val islands: List<Box>? = null,
+    val bridges: List<Box> = emptyList(),
 ) {
     /** Everything the ball bounces off. */
     val solid get() = walls + cuts
+
+    /** Whether [p] is on the course rather than over the drop. */
+    fun onCourse(p: Pt) = islands == null || islands.any { p in it } || bridges.any { p in it }
+
+    fun inWater(p: Pt) = water.any { p in it }
 }
 
-/** A shot's path (about 60 points a second) and whether it dropped in. */
-data class GolfShot(val path: List<Pt>, val holed: Boolean) {
+/** A shot's path (about 60 points a second), whether it dropped in, and any [hazard] it ended in. */
+data class GolfShot(val path: List<Pt>, val holed: Boolean, val hazard: Hazard? = null) {
     val end get() = path.last()
+
+    /** Where the ball is played from next: back on the tee after water or the drop. */
+    fun rest(hole: Hole) = if (hazard != null) hole.tee else end
 }
 
 /**
@@ -55,7 +82,16 @@ object Golf {
     private const val DT = 1.0 / 120
     /** Faster than this, the ball rolls over the cup. */
     private const val DROP_SPEED = 0.9
+    /** Slower than this on water, the ball sinks. */
+    private const val SINK_SPEED = 0.45
     const val MAX_STROKES = 6
+
+    /**
+     * Hole [index] of a game playing [course] (ids into [Courses]); a game without one (from
+     * a server that predates the library) plays [HOLES].
+     */
+    fun hole(course: List<Int>?, index: Int): Hole =
+        course?.getOrNull(index)?.let { Courses.hole(it) } ?: HOLES[index.coerceIn(0, HOLES.size - 1)]
 
     val HOLES = listOf(
         Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.25)),
@@ -88,8 +124,10 @@ object Golf {
         val path = mutableListOf(from)
         for (step in 0 until 12 * 120) {
             val inSand = hole.sand.any { Pt(x, y) in it }
+            // Water drags a little more than grass, so a ball on it slows and sinks.
+            val drag = if (inSand) 1.0 else if (hole.water.isNotEmpty() && hole.inWater(Pt(x, y))) 1.6 else 1.0
             val sp = hypot(vx, vy)
-            val dec = (if (inSand) 3.2 else 0.55) * DT + sp * (if (inSand) 2.5 else 0.45) * DT
+            val dec = (if (inSand) 3.2 else 0.55 * drag) * DT + sp * (if (inSand) 2.5 else 0.45 * drag) * DT
             if (sp <= dec || sp < 0.03) break
             val k = (sp - dec) / sp
             vx *= k
@@ -131,6 +169,15 @@ object Golf {
                 path += hole.cup
                 return GolfShot(path, holed = true)
             }
+            // Over the edge, or slowing down on water: the ball is lost and goes back to the tee.
+            if (!hole.onCourse(Pt(x, y))) {
+                path += Pt(x, y)
+                return GolfShot(path, holed = false, hazard = Hazard.DROP)
+            }
+            if (hole.water.isNotEmpty() && hypot(vx, vy) < SINK_SPEED && hole.inWater(Pt(x, y))) {
+                path += Pt(x, y)
+                return GolfShot(path, holed = false, hazard = Hazard.WATER)
+            }
             if (step % 2 == 1) path += Pt(x, y)
         }
         path += Pt(x, y)
@@ -147,7 +194,9 @@ object Golf {
         fun blocked(c: Int, r: Int): Boolean {
             val x = (c + 0.5) * G
             val y = (r + 0.5) * G
-            return hole.solid.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R }
+            val p = Pt(x, y)
+            return hole.solid.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R } ||
+                !hole.onCourse(p) || hole.inWater(p)
         }
         val start = floor(hole.cup.y / G).toInt() * cols + floor(hole.cup.x / G).toInt()
         d[start] = 0.0
@@ -185,11 +234,19 @@ object Golf {
         var bestAngle = 0.0
         var bestPower = 0.5
         var bestScore = Double.POSITIVE_INFINITY
+        fun score(angle: Double, power: Double): Double {
+            val shot = simulate(hole, from, angle, power)
+            // Losing the ball costs a stroke and the way back from the tee.
+            return if (shot.holed) -1 + power * 0.01 else if (shot.hazard != null) field(hole.tee) + 0.5 else field(shot.end)
+        }
+        // With water or a drop about, a shot is only as good as its worst near miss, so the
+        // computer keeps clear of the edges instead of skimming them.
+        val risky = hole.islands != null || hole.water.isNotEmpty()
         for (a in 0 until 96) for (p in 1..12) {
             val angle = a / 96.0 * 2 * PI
             val power = p / 12.0
-            val shot = simulate(hole, from, angle, power)
-            val score = if (shot.holed) -1 + power * 0.01 else field(shot.end)
+            var score = score(angle, power)
+            if (risky && score < bestScore) score = maxOf(score, score(angle - 0.035, power), score(angle + 0.035, power), score(angle, power * 1.08))
             if (score < bestScore) {
                 bestScore = score
                 bestAngle = angle
