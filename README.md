@@ -1,7 +1,7 @@
 # Pip & Pop
 
 <p align="center">
-  <a href="https://github.com/JahangirB/Game-Suite/releases/latest/download/GameSuite.apk">
+  <a href="https://github.com/JahangirB/Game-Suite/releases/latest/download/PipPop.apk">
     <img alt="Download the Android app" src="https://img.shields.io/badge/%E2%AC%87%20Download-Android%20APK-0072E3?style=for-the-badge&logo=android&logoColor=white">
   </a>
 </p>
@@ -242,7 +242,7 @@ day, it doesn't bill you). For the one-click option also a free GitHub account.
 1. Sign up at Cloudflare and confirm your email. The first time, Cloudflare asks you to
    pick a `workers.dev` subdomain (for example `alex`).
 2. Tap the button above, sign in, connect GitHub when asked and keep the project name
-   `arcade-sudoku`. Cloudflare copies the server into your GitHub and deploys it.
+   `game-suite`. Cloudflare copies the server into your GitHub and deploys it.
 3. You get a link like `https://game-suite.alex.workers.dev`. That is the
    **server link**.
 
@@ -259,13 +259,13 @@ npx wrangler deploy    # prints your server link
 **If the Cloudflare build fails** with *"Could not detect a directory containing static
 files"*, the build ran from an old copy of the code without the root `wrangler.jsonc`.
 Connect the Worker to this repository (see *Updating the server* below) and press **Retry build** in
-*Workers & Pages → arcade-sudoku → Deployments*. Both the repository root and
+*Workers & Pages → game-suite → Deployments*. Both the repository root and
 `backend/cloudflare` can be deployed. If the log says the Worker name doesn't match, name
-the Worker `arcade-sudoku` or change `name` in `wrangler.jsonc` to your Worker's name.
+the Worker `game-suite` or change `name` in `wrangler.jsonc` to your Worker's name.
 
 **Optional password (recommended).** Anyone with the link could open rooms on your
 server; a password keeps it to people you invite. In the Cloudflare dashboard open
-*Workers & Pages → arcade-sudoku → Settings → Variables and Secrets*, add a **Secret**
+*Workers & Pages → game-suite → Settings → Variables and Secrets*, add a **Secret**
 named `SERVER_PASSWORD`, or run `npx wrangler secret put SERVER_PASSWORD`.
 
 **In the app:** *Profile → Online link*: paste the link (and the password), tap
@@ -372,22 +372,22 @@ Builds older than the updater (anything installed before it existed) need one ma
 ## Make your own copy
 
 Everything personal lives outside the code: in **GitHub repository secrets** (signing key,
-Firebase config) and in **Cloudflare** (server password, Firebase key). To run your own Game
-Suite for you and your friends:
+Firebase config) and in **Cloudflare** (server password, Firebase key). To run your own
+Pip & Pop for you and your friends:
 
 1. **Fork** this repository on GitHub (or use it as a template).
 2. **Signing key** (so your releases can update your installed app): create one with
-   `keytool -genkeypair -keystore gamesuite.keystore -storetype PKCS12 -alias gamesuite
+   `keytool -genkeypair -keystore pippop.keystore -storetype PKCS12 -alias pippop
    -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Pip & Pop"`, then add these
    secrets under *Settings → Secrets and variables → Actions*:
-   - `SIGNING_KEYSTORE_BASE64`: the keystore file in base64 (`base64 -w0 gamesuite.keystore`)
+   - `SIGNING_KEYSTORE_BASE64`: the keystore file in base64 (`base64 -w0 pippop.keystore`)
    - `SIGNING_STORE_PASSWORD` and `SIGNING_KEY_PASSWORD`: its password
-   - `SIGNING_KEY_ALIAS`: `gamesuite`
+   - `SIGNING_KEY_ALIAS`: `pippop`
 
    Keep the keystore file private and safe: losing it means your next version can't update
    the installed app. Without these secrets CI still builds and tests, but publishes nothing.
 3. **Own app id (optional):** to install your copy next to someone else's Pip & Pop, add a
-   repository **variable** (*Variables* tab) `APP_ID`, e.g. `com.yourname.gamesuite`, and use
+   repository **variable** (*Variables* tab) `APP_ID`, e.g. `com.yourname.pippop`, and use
    that id in Firebase.
 4. **Invitations (optional):** create your own Firebase project (*1c* above) and add its
    `google-services.json` content as the `GOOGLE_SERVICES_JSON` secret.
@@ -404,14 +404,14 @@ Requires Android 8.0 (API 26) or newer.
 | `backend/Code.gs` | Apps Script web app: rooms, puzzle generator, start sync, progress, winner |
 | `backend/test/` | Node tests that run `Code.gs` against mocked Apps Script services |
 | `backend/cloudflare/` | Cloudflare Worker: one Durable Object per room (`src/room.js`: Sudoku, Ship Battle and turn-game rules; `src/connect4.js`, `src/dots.js`, `src/memory.js`, `src/words.js`, `src/draw.js`) and a Directory object for invitations (`src/directory.js`, `src/push.js`), with unit and end-to-end tests |
-| `app/src/main/java/com/arcade/sudoku/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
-| `app/src/main/java/com/arcade/sudoku/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
-| `app/src/main/java/com/arcade/sudoku/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `numbers/`, `hockey/`, `clash/`, `ludo/`, `grid/`, `balloon/`, `code/`, `slide/`, `bingo/`, `golf/`, `blocks/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
-| `app/src/main/java/com/arcade/sudoku/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |
-| `app/src/main/java/com/arcade/sudoku/push/` | Invitations: Firebase setup, notifications with Play/Decline, the invite endpoints |
-| `app/src/main/java/com/arcade/sudoku/data/nearby/` | Nearby battles: `LocalRoom` (the rules, run on the host phone), `NearbyHost`, `NearbyGuest` |
-| `app/src/main/java/com/arcade/sudoku/game/` | Board, notes/undo, puzzle generator and the solo game rules |
-| `app/src/main/java/com/arcade/sudoku/ui/` | `BattleViewModel` (session, polling, clock sync), `SoloViewModel` and the Compose screens |
+| `app/src/main/java/com/pippop/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
+| `app/src/main/java/com/pippop/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
+| `app/src/main/java/com/pippop/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `numbers/`, `hockey/`, `clash/`, `ludo/`, `grid/`, `balloon/`, `code/`, `slide/`, `bingo/`, `golf/`, `blocks/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
+| `app/src/main/java/com/pippop/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |
+| `app/src/main/java/com/pippop/push/` | Invitations: Firebase setup, notifications with Play/Decline, the invite endpoints |
+| `app/src/main/java/com/pippop/data/nearby/` | Nearby battles: `LocalRoom` (the rules, run on the host phone), `NearbyHost`, `NearbyGuest` |
+| `app/src/main/java/com/pippop/game/` | Board, notes/undo, puzzle generator and the solo game rules |
+| `app/src/main/java/com/pippop/ui/` | `BattleViewModel` (session, polling, clock sync), `SoloViewModel` and the Compose screens |
 
 ## Server API (Apps Script)
 

@@ -1,8 +1,8 @@
 {
-  "name": "arcade-sudoku-server",
+  "name": "pip-pop-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Arcade Sudoku battle server for Cloudflare Workers",
+  "description": "Pip & Pop game server for Cloudflare Workers",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

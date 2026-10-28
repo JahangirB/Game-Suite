@@ -77,7 +77,7 @@ jobs:
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
-          name: arcade-sudoku-debug-apk
+          name: pip-pop-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
   # Publishes the APK as the "latest" release, which the README download button points to.
@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: arcade-sudoku-debug-apk
+          name: pip-pop-debug-apk
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,16 +103,18 @@ jobs:
             echo "::warning::No SIGNING_KEYSTORE_BASE64 secret, so nothing is published. See the README."
             exit 0
           fi
+          cp app-debug.apk PipPop.apk
+          # Older names, still fetched by apps that haven't updated yet (their updater asks for
+          # ArcadeSudoku.apk) and by old download links (GameSuite.apk).
           cp app-debug.apk GameSuite.apk
-          # Apps from before the rename download this name when updating.
           mv app-debug.apk ArcadeSudoku.apk
           # The app's updater reads this to see whether a newer build exists.
           # versionCode is the run number, the same value Gradle used for this build.
           echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"1.0.${GITHUB_RUN_NUMBER}\"}" > version.json
           cat version.json
           gh release delete latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
-          gh release create latest GameSuite.apk ArcadeSudoku.apk version.json \
+          gh release create latest PipPop.apk GameSuite.apk ArcadeSudoku.apk version.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Pip & Pop 1.0.${GITHUB_RUN_NUMBER}" \
-            --notes "Built from commit ${GITHUB_SHA::7}. Install GameSuite.apk on an Android phone (allow installs from unknown sources)."
+            --notes "Built from commit ${GITHUB_SHA::7}. Install PipPop.apk on an Android phone (allow installs from unknown sources)."

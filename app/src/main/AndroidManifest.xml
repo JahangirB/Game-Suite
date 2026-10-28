@@ -22,13 +22,13 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
     <application
-        android:name=".GameSuiteApp"
+        android:name=".PipPopApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ArcadeSudoku">
+        android:theme="@style/Theme.PipPop">
         <activity
             android:name=".MainActivity"
             android:exported="true"

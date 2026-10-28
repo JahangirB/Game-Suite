@@ -1,5 +1,5 @@
 /**
- * Arcade Sudoku Battle - Google Apps Script backend.
+ * Pip & Pop (Sudoku races) - Google Apps Script backend.
  *
  * The host deploys this script as a web app and shares the web app URL plus a
  * secret code with the opponent. The script keeps each room in the script

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ArcadeSudoku"
+rootProject.name = "PipPop"
 include(":app")

@@ -1,4 +1,4 @@
-// Arcade Sudoku Battle server for Cloudflare Workers.
+// Pip & Pop game server for Cloudflare Workers.
 //
 // GET  /ping                 health check (also verifies the password)
 // GET  /room/<CODE> (WebSocket) with ?action=create|join&name=&avatar=&deviceId=&game=&games=&playerId=&password=

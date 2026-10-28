@@ -10,8 +10,8 @@ plugins {
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
 // The id Android and Firebase know the app by. Set APP_ID to give your own build its own id
-// (so it can sit next to someone else's Pip & Pop). The Kotlin code keeps its original
-// com.arcade.sudoku package (the namespace below).
+// (so it can sit next to someone else's Pip & Pop). It stays com.gamesuite.app so installed
+// phones keep updating; the Kotlin code lives in the com.pippop package (the namespace below).
 val appId = System.getenv("APP_ID")?.takeIf { it.isNotBlank() } ?: "com.gamesuite.app"
 
 // Push invitations use Firebase, which is optional: google-services.json from your Firebase
@@ -37,7 +37,7 @@ val firebase: Map<String, String> = file("google-services.json").takeIf { it.exi
 } ?: emptyMap()
 
 android {
-    namespace = "com.arcade.sudoku"
+    namespace = "com.pippop"
     compileSdk = 35
 
     defaultConfig {
