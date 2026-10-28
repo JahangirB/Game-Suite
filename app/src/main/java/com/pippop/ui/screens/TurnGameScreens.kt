@@ -739,7 +739,7 @@ private fun turnResultDetail(game: GameKind, winner: String?, endReason: String?
 }
 
 /** Memory Pairs' 4 × 4 cards with their gaps, width per unit of height. */
-private const val MEMORY_ASPECT = 0.75f
+internal const val MEMORY_ASPECT = 0.75f
 
 // ---- On your own --------------------------------------------------------------------------
 

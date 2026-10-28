@@ -243,9 +243,9 @@ private fun memory(): List<TutorialStep> {
     val two = none.toMutableList().also { it[0] = Avatar.FOX; it[5] = Avatar.CAT }
     val pair = none.toMutableList().also { it[0] = Avatar.FOX; it[9] = Avatar.FOX }
     return listOf(
-        TutorialStep("Find the pairs", "Sixteen cards, face down: eight pairs of pictures.", table(none, ".".repeat(16))),
-        TutorialStep("Turn two cards", "Not a pair? They turn back and it's the next player's go. Remember where they were.", table(two, ".".repeat(16))),
-        TutorialStep("A pair is yours", "Keep it and turn two more. Most pairs wins.", table(pair, "m" + ".".repeat(8) + "m" + ".".repeat(6))),
+        TutorialStep("Find the pairs", "Sixteen cards, face down: eight pairs of pictures.", table(none, ".".repeat(16)), MEMORY_ASPECT),
+        TutorialStep("Turn two cards", "Not a pair? They turn back and it's the next player's go. Remember where they were.", table(two, ".".repeat(16)), MEMORY_ASPECT),
+        TutorialStep("A pair is yours", "Keep it and turn two more. Most pairs wins.", table(pair, "m" + ".".repeat(8) + "m" + ".".repeat(6)), MEMORY_ASPECT),
     )
 }
 
