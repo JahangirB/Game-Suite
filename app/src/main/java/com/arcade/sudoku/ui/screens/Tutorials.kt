@@ -1,5 +1,7 @@
 package com.arcade.sudoku.ui.screens
 
+import android.view.Gravity
+import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +13,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Surface
@@ -19,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.ui.platform.LocalView
 import com.arcade.sudoku.data.Avatar
 import com.arcade.sudoku.data.CodeGuess
 import com.arcade.sudoku.data.DrawStroke
@@ -73,10 +78,16 @@ fun TutorialDialog(kind: GameKind, onDone: () -> Unit) {
         LaunchedEffect(kind) { onDone() }
         return
     }
-    // Full screen: the dialog draws under the system bars and keeps its content inside them.
-    // Left to fit the bars itself, it sits below the status bar at full height, and its bottom
-    // (Back and Next) runs off the screen.
+    // Full screen on every phone. A dialog's window otherwise takes whatever height the phone
+    // gives it next to the status and gesture bars, which differs from maker to maker, so Back
+    // and Next ran off the bottom on some phones. The window is set to exactly the screen and
+    // drawn under the bars; the steps keep inside the safe area (see TutorialScreen).
     Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            window?.setGravity(Gravity.FILL)
+        }
         Surface(color = AppTheme.palette.background, modifier = Modifier.fillMaxSize()) {
             TutorialScreen(kind, steps, onDone)
         }
@@ -102,7 +113,8 @@ private fun TutorialScreen(kind: GameKind, steps: List<TutorialStep>, onDone: ()
         }
         BoardArea(step.aspect) { size -> step.board(size) }
         Text(step.title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
-        Text(step.body, color = p.muted, fontSize = TextSize.BodyL, modifier = Modifier.height(72.dp))
+        // Room for three lines, so the board doesn't jump between steps; more with a large font setting.
+        Text(step.body, color = p.muted, fontSize = TextSize.BodyL, modifier = Modifier.heightIn(min = 72.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(Space.S), verticalAlignment = Alignment.CenterVertically) {
             steps.indices.forEach { i ->
                 Box(Modifier.size(if (i == at) 22.dp else 8.dp, 8.dp).clip(Shapes.Full).background(if (i == at) p.ink else p.hairline))
