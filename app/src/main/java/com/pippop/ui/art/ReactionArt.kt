@@ -73,9 +73,9 @@ fun ReactionBurst(shown: ShownReaction?) {
     }
 }
 
-/** A sticker's song is about 2.5 s: the sticker fades in as it starts and out as it ends. */
-private const val STICKER_SHOWN_MS = 2600L
-private const val STICKER_FADE_IN_MS = 700
+/** A sticker stays up for its song (11 s): it fades in over the song's first second and out as it ends. */
+private const val STICKER_SHOWN_MS = 11000L
+private const val STICKER_FADE_IN_MS = 1000
 private const val STICKER_FADE_OUT_MS = 400
 
 /** Shows [shown], a sticker, large and still, fading in and out with its sound. */
