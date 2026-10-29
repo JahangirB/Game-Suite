@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -92,9 +93,17 @@ private const val STICKER_FADE_OUT_MS = 400f
  */
 @Composable
 internal fun StickerBurst(shown: ShownReaction) {
+    // A fresh clock for every sticker: produceState keeps its value when its key changes, so
+    // without this a sticker arriving after another finished would start out "finished".
+    key(shown) { StickerBurstOnce(shown) }
+}
+
+@Composable
+private fun StickerBurstOnce(shown: ShownReaction) {
     val takeover = shown.reaction.takesOverMs > 0
     val shownMs = if (takeover) shown.reaction.takesOverMs else STICKER_SHOWN_MS
     val elapsed by produceState(System.currentTimeMillis() - shown.at, shown) {
+        value = System.currentTimeMillis() - shown.at
         while (value < shownMs) {
             withFrameMillis { }
             value = System.currentTimeMillis() - shown.at
