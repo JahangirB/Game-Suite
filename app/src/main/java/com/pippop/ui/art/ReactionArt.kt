@@ -56,27 +56,44 @@ fun ReactionImage(reaction: Reaction, size: Dp, modifier: Modifier = Modifier, s
 @Composable
 fun ReactionBurst(shown: ShownReaction?) {
     if (shown == null) return
+    if (shown.reaction.sticker) {
+        StickerBurst(shown)
+        return
+    }
     var visible by remember(shown) { mutableStateOf(playedFraction(shown.at) < 1f) }
     if (!visible) return
     val progress = remember(shown) { Animatable(playedFraction(shown.at)) }
     LaunchedEffect(shown) {
         progress.animateTo(1f, tween(((1f - progress.value) * REACTION_PLAY_MS).toInt(), easing = LinearEasing))
-        delay(if (shown.reaction.sticker) STICKER_HOLD_MS else 250)
+        delay(250)
         visible = false
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (shown.reaction.sticker) {
-            // A sticker pops in and stays still while its sound plays.
-            val pop = (progress.value * 5f).coerceAtMost(1f)
-            Canvas(Modifier.size(220.dp).graphicsLayer { scaleX = pop; scaleY = pop }) { drawReaction(shown.reaction, 1.0) }
-        } else {
-            Canvas(Modifier.size(160.dp)) { drawReaction(shown.reaction, progress.value.toDouble()) }
-        }
+        Canvas(Modifier.size(160.dp)) { drawReaction(shown.reaction, progress.value.toDouble()) }
     }
 }
 
-/** How long a sticker stays up after its pop-in, so its sound (about 2.5 s) plays out under it. */
-private const val STICKER_HOLD_MS = 1300L
+/** A sticker's song is about 2.5 s: the sticker fades in as it starts and out as it ends. */
+private const val STICKER_SHOWN_MS = 2600L
+private const val STICKER_FADE_IN_MS = 700
+private const val STICKER_FADE_OUT_MS = 400
+
+/** Shows [shown], a sticker, large and still, fading in and out with its sound. */
+@Composable
+private fun StickerBurst(shown: ShownReaction) {
+    var visible by remember(shown) { mutableStateOf(System.currentTimeMillis() - shown.at < STICKER_SHOWN_MS) }
+    if (!visible) return
+    val alpha = remember(shown) { Animatable(0f) }
+    LaunchedEffect(shown) {
+        alpha.animateTo(1f, tween(STICKER_FADE_IN_MS, easing = LinearEasing))
+        delay(STICKER_SHOWN_MS - STICKER_FADE_IN_MS - STICKER_FADE_OUT_MS)
+        alpha.animateTo(0f, tween(STICKER_FADE_OUT_MS, easing = LinearEasing))
+        visible = false
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha.value }) { drawReaction(shown.reaction, 1.0) }
+    }
+}
 
 private val STICKER_GREY = Color(0xFF7D7A84) to Color(0xFF5D5A64)
 
