@@ -145,7 +145,7 @@ private data class Pose(
 
 /**
  * Where a group is [ms] into its sticker (null: at rest). The same moves as the catalogue
- * drawings (scripts/art/*.svg), played once over about 2.5 s; flames, stars and glows keep going.
+ * drawings in scripts/art, played once over about 2.5 s; flames, stars and glows keep going.
  */
 private fun pose(anim: String, ms: Long?): Pose {
     val name = anim.substringBefore(' ')
