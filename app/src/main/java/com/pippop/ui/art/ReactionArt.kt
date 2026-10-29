@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pippop.data.Reaction
@@ -60,12 +61,28 @@ fun ReactionBurst(shown: ShownReaction?) {
     val progress = remember(shown) { Animatable(playedFraction(shown.at)) }
     LaunchedEffect(shown) {
         progress.animateTo(1f, tween(((1f - progress.value) * REACTION_PLAY_MS).toInt(), easing = LinearEasing))
-        delay(250)
+        delay(if (shown.reaction.sticker) STICKER_HOLD_MS else 250)
         visible = false
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(160.dp)) { drawReaction(shown.reaction, progress.value.toDouble()) }
+        if (shown.reaction.sticker) {
+            // A sticker pops in and stays still while its sound plays.
+            val pop = (progress.value * 5f).coerceAtMost(1f)
+            Canvas(Modifier.size(220.dp).graphicsLayer { scaleX = pop; scaleY = pop }) { drawReaction(shown.reaction, 1.0) }
+        } else {
+            Canvas(Modifier.size(160.dp)) { drawReaction(shown.reaction, progress.value.toDouble()) }
+        }
     }
+}
+
+/** How long a sticker stays up after its pop-in, so its sound (about 2.5 s) plays out under it. */
+private const val STICKER_HOLD_MS = 1300L
+
+private val STICKER_GREY = Color(0xFF7D7A84) to Color(0xFF5D5A64)
+
+private fun stickerParts(reaction: Reaction): List<Part> = when (reaction) {
+    Reaction.KYLIAN -> StickerArt.KYLIAN
+    else -> emptyList()
 }
 
 private fun playedFraction(startedAt: Long?): Float =
@@ -74,6 +91,7 @@ private fun playedFraction(startedAt: Long?): Float =
 
 /** Draws [reaction] at animation point [p] (0 = start, 1 = resting pose) filling this draw area. */
 fun DrawScope.drawReaction(reaction: Reaction, p: Double) {
+    if (reaction.sticker) return drawSticker(stickerParts(reaction), STICKER_GREY)
     scale(size.minDimension / 100f, Offset.Zero) {
         val pen = Pen(this)
         when (reaction) {
@@ -87,6 +105,7 @@ fun DrawScope.drawReaction(reaction: Reaction, p: Double) {
             Reaction.COOL -> pen.cool(p)
             Reaction.HEART -> pen.heart(p)
             Reaction.HURRY -> pen.hurry(p)
+            Reaction.KYLIAN -> Unit
         }
     }
 }

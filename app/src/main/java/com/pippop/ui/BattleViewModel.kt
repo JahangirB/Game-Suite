@@ -1435,6 +1435,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             other.emoji?.takeIf { lastOpponentEmojiSeq >= 0 && it.seq > lastOpponentEmojiSeq }?.let { other.name to it }
         }
         lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
+        fresh.maxByOrNull { it.second.seq }?.second?.reaction?.sound?.let { sfx.play(it) }
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
             fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now)) }

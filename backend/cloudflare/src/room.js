@@ -27,7 +27,7 @@ export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, 
 export const COUNTDOWN_MS = 5000;
 // Avatar and reaction keys the app can show; anything else is ignored. Must match the app.
 export const AVATARS = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'unicorn', 'robot', 'alien', 'lion', 'penguin'];
-export const EMOJIS = ['thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry'];
+export const EMOJIS = ['thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry', 'kylian'];
 // At most one reaction per player this often.
 export const EMOJI_INTERVAL_MS = 1500;
 // A player disconnected this long during a match loses it.

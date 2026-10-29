@@ -11,11 +11,16 @@ enum class Avatar(val key: String, val emoji: String) {
     }
 }
 
-/** Quick reactions players can send during a battle. Keys must match EMOJIS in both servers. */
-enum class Reaction(val key: String, val emoji: String) {
+/**
+ * Quick reactions players can send during a battle. Keys must match EMOJIS in the server
+ * (room.js); the nearby host checks them here. A [sticker] is a meme picture with its own sound,
+ * shown bigger and for longer.
+ */
+enum class Reaction(val key: String, val emoji: String, val sticker: Boolean = false) {
     THUMBS_UP("thumbsup", "👍"), CLAP("clap", "👏"), FIRE("fire", "🔥"), LAUGH("laugh", "😂"),
     WOW("wow", "😮"), SWEAT("sweat", "😅"), THINK("think", "🤔"), COOL("cool", "😎"),
-    HEART("heart", "❤️"), HURRY("hurry", "⏰");
+    HEART("heart", "❤️"), HURRY("hurry", "⏰"),
+    KYLIAN("kylian", "🫡", sticker = true);
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key }

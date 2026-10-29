@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,8 +34,14 @@ fun ReactionBar(onReact: (Reaction) -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
     ) {
         Reaction.entries.forEach { reaction ->
-            Surface(onClick = { onReact(reaction) }, shape = CircleShape, color = p.accent, modifier = Modifier.size(42.dp)) {
-                Box(contentAlignment = Alignment.Center) { ReactionImage(reaction, 30.dp) }
+            if (reaction.sticker) {
+                Surface(onClick = { onReact(reaction) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.size(42.dp)) {
+                    ReactionImage(reaction, 42.dp)
+                }
+            } else {
+                Surface(onClick = { onReact(reaction) }, shape = CircleShape, color = p.accent, modifier = Modifier.size(42.dp)) {
+                    Box(contentAlignment = Alignment.Center) { ReactionImage(reaction, 30.dp) }
+                }
             }
         }
     }

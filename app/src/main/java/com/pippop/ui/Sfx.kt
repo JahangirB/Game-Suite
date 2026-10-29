@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.pippop.R
 import com.pippop.data.ProfileStore
+import com.pippop.data.Reaction
 import kotlin.random.Random
 
 /**
@@ -74,7 +75,15 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
     GOLF_CUP(R.raw.sfx_golf_cup, 0.65f),
     GOLF_SPLASH(R.raw.sfx_golf_splash, 0.6f),
     GOLF_DROP(R.raw.sfx_golf_drop, 0.5f),
+    KYLIAN_DICTADOR(R.raw.sfx_kylian_dictador, 0.9f),
 }
+
+/** The sound a reaction plays on the phones it's sent to (stickers have one), or null. */
+val Reaction.sound: Sound?
+    get() = when (this) {
+        Reaction.KYLIAN -> Sound.KYLIAN_DICTADOR
+        else -> null
+    }
 
 /**
  * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound switch (in
