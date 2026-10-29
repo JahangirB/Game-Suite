@@ -95,13 +95,15 @@ fun SudokuGrid(
 
                         val lit = when {
                             hidden || selected == null || index == selected || isError -> null
-                            selectedDigit != null && digit == selectedDigit -> p.cellSameDigit
+                            // The same number elsewhere stands out in the strong colour (it's
+                            // what you're hunting), the square you picked in the calmer one.
+                            selectedDigit != null && digit == selectedDigit -> p.cellSelected
                             Sudoku.arePeers(index, selected) -> p.cellPeer
                             else -> null
                         }
                         val background = when {
                             hidden -> p.boardBackground
-                            index == selected -> p.cellSelected
+                            index == selected -> p.cellSameDigit
                             isError -> p.cellWrong
                             lit != null -> {
                                 // Cells further away light up as the wave reaches them.
