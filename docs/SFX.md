@@ -10,8 +10,10 @@ the same file name.
 
 ## Style
 
-- **Toy Box:** soft, rounded, a little bouncy. Wood, felt, plastic and paper rather than
-  metal and glass. Nothing harsh, nothing that would annoy a partner across the room.
+- **Felt:** round boops, soft thumps and muffled taps, like toys wrapped in felt. Almost
+  nothing above 1.5 kHz: the 2–5 kHz band is where people find sounds harshest (Kumar &
+  Griffiths 2012), and the set keeps under 1% of its energy there (the old Toy Box set had
+  17%). Nothing that would annoy a partner across the room.
 - **Short:** most sounds under 300 ms; only wins, losses and a few big moments run longer.
 - **Quiet by default:** players hear these hundreds of times. The loudest sounds (win
   fanfare, explosion, goal horn) sit about 6 dB under full scale; taps and ticks about 18 dB

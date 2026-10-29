@@ -2,7 +2,7 @@
 """Makes Pip & Pop's sound effects from scratch (no recordings, so no licence questions).
 
 Each sound in docs/SFX.md marked priority 1 is built here from tones and noise, in the
-"Toy Box" style: soft, rounded, short. Run it to (re)make app/src/main/res/raw/sfx_*.ogg:
+"Felt" style: round, low and short, kept out of the 2-5 kHz band people find harshest. Run it to (re)make app/src/main/res/raw/sfx_*.ogg:
 
     python3 scripts/make-sounds.py
 
@@ -73,14 +73,6 @@ def tone(freq, ms, decay=8.0, attack_ms=2, shape='sine', glide=1.0, vibrato=0.0)
     return (w * env(len(x), attack_ms, decay)).view(Snd)
 
 
-def bell(freq, ms, decay=5.0):
-    """A small bell or chime: a few inharmonic partials, the high ones dying first."""
-    out = np.zeros(len(t(ms))).view(Snd)
-    for ratio, amp, d in [(1, 1, 1), (2.76, 0.45, 1.8), (5.4, 0.25, 3), (8.9, 0.12, 4.5)]:
-        out += amp * tone(freq * ratio, ms, decay=decay * d, attack_ms=1)
-    return out
-
-
 def noise(ms, decay=20.0, attack_ms=1, color=0.0):
     """White noise with an envelope; [color] 0..1 smooths it toward a dull rumble."""
     n = len(t(ms))
@@ -101,18 +93,49 @@ def lowpass(x, amount):
     return y / (np.max(np.abs(y)) or 1)
 
 
-def highpass(x, amount):
-    return x - lowpass(x, amount) * np.max(np.abs(x))
+
+def lp(x, cutoff):
+    """Low-pass at [cutoff] Hz, two one-pole stages (12 dB/oct): takes the edge off."""
+    a = np.exp(-2 * np.pi * cutoff / RATE)
+    x = np.asarray(x, dtype=float)
+    for _ in range(2):
+        y = np.empty_like(x)
+        acc = 0.0
+        for i, v in enumerate(x):
+            acc = (1 - a) * v + a * acc
+            y[i] = acc
+        x = y
+    return x.view(Snd)
 
 
-def wood(freq, ms=90, decay=45.0):
-    """A wooden tap: two modes and a click of noise."""
-    return tone(freq, ms, decay) + 0.5 * tone(freq * 2.3, ms, decay * 1.6) + 0.35 * noise(ms, decay * 4)
+# The Felt set: round boops, soft thumps and muffled taps, nothing much above 1.5 kHz, where
+# the ear finds sounds harshest (2-5 kHz). Each game keeps its own idea, made soft.
+
+def boop(freq, ms=200, decay=10.0, glide=1.0, attack_ms=12, vibrato=0.0):
+    """A round, felt-covered note: a sine and a little of its octave."""
+    return lp(tone(freq, ms, decay, attack_ms, glide=glide, vibrato=vibrato)
+              + 0.25 * tone(freq * 2, ms, decay * 1.8, attack_ms, glide=glide), 1200)
 
 
-def plastic(freq, ms=70, decay=60.0):
-    """A hard plastic clack: brighter than wood."""
-    return tone(freq, ms, decay) + 0.6 * tone(freq * 3.1, ms, decay * 1.5) + 0.6 * highpass(noise(ms, decay * 3), 0.6)
+def thump(freq=150, ms=120, decay=30.0):
+    """A soft knock, like a felt mallet on a box."""
+    n = len(t(ms))
+    return lp(tone(freq, ms, decay, 2, glide=0.7) + 0.4 * rng.uniform(-1, 1, n) * env(n, 1, decay * 2), 900)
+
+
+def tap_(freq, ms=70, decay=60.0):
+    """A muffled tap: a short note with a breath of noise, a little brighter than a thump."""
+    n = len(t(ms))
+    return lp(tone(freq, ms, decay, 2) + 0.3 * rng.uniform(-1, 1, n) * env(n, 1, decay * 2), 1000)
+
+
+def shush(ms, cutoff=1200, decay=0.0):
+    """Soft noise that swells and fades: paper, cards, a pencil."""
+    n = len(t(ms))
+    shape = np.sin(np.pi * np.arange(n) / n) ** 2
+    if decay:
+        shape = shape * np.exp(-decay * np.arange(n) / RATE)
+    return lp(rng.uniform(-1, 1, n) * shape, cutoff)
 
 
 def seq(*parts, gap_ms=0):
@@ -145,16 +168,12 @@ def mix(*sounds):
     return out
 
 
-def notes(freqs, each_ms, gap_ms=0, maker=None):
-    maker = maker or (lambda f: bell(f, each_ms * 3))
-    return seq(*[at(i * (each_ms + gap_ms), maker(f)) for i, f in enumerate(freqs)])
-
-
 def hz(name):
     """Note name to Hz: 'C5', 'F#4'."""
     names = {'C': -9, 'C#': -8, 'D': -7, 'D#': -6, 'E': -5, 'F': -4, 'F#': -3, 'G': -2, 'G#': -1, 'A': 0, 'A#': 1, 'B': 2}
     n, o = name[:-1], int(name[-1])
     return 440 * 2 ** ((names[n] + 12 * (o - 4)) / 12)
+
 
 
 # --- The sounds -------------------------------------------------------------------------------
@@ -167,170 +186,158 @@ def sound(fn):
     SOUNDS[fn.__name__] = fn
     return fn
 
+
 @sound
 def tap():
-    return plastic(1900, 40, 90)
+    return thump(300, 90)
 
 
 @sound
 def error():
-    bonk = lambda: tone(190, 90, 30, shape='soft', glide=0.8) + 0.3 * noise(40, 60, color=0.7)
-    return seq(at(0, bonk()), at(95, 0.8 * bonk()))
+    return boop(260, 300, 9, glide=0.82)
 
 
 @sound
 def your_turn():
-    return notes([hz('E5'), hz('A5')], 110)
+    return seq(at(0, boop(hz('G4'), 180)), at(130, boop(hz('C5'), 260)))
 
 
 @sound
 def countdown_tick():
-    return wood(1100, 60, 55)
+    return tap_(420, 70, 50)
 
 
 @sound
 def countdown_go():
-    return mix(wood(1650, 90, 40), 0.5 * bell(hz('E6'), 250, 9))
+    return mix(tap_(520, 90, 40), boop(hz('C5'), 320, 8))
 
 
 @sound
 def win():
-    horn = lambda f, ms: tone(f, ms, 2.5, attack_ms=12, shape='soft', vibrato=5)
-    melody = seq(at(0, horn(hz('C5'), 180)), at(170, horn(hz('E5'), 180)), at(340, horn(hz('G5'), 180)), at(520, horn(hz('C6'), 650)))
-    sparkle = seq(*[at(600 + i * 90, 0.25 * bell(f, 400, 7)) for i, f in enumerate([hz('E6'), hz('G6'), hz('C7'), hz('E7'), hz('G7')])])
-    return mix(melody, sparkle)
+    return seq(*[at(i * 140, 0.8 * boop(hz(n), 700, 5)) for i, n in enumerate(['C4', 'E4', 'G4', 'C5'])])
 
 
 @sound
 def lose():
-    kazoo = lambda f, ms, glide=1.0: lowpass(tone(f, ms, 2.0, attack_ms=20, shape='saw', glide=glide, vibrato=6), 0.55)
-    return seq(at(0, kazoo(hz('G4'), 300)), at(300, kazoo(hz('F#4'), 300)), at(600, kazoo(hz('F4'), 600, 0.94)))
+    return seq(at(0, boop(hz('G4'), 320, 6)), at(300, boop(hz('F#4'), 320, 6)), at(600, boop(hz('F4'), 650, 4, glide=0.94)))
 
 
 @sound
 def tie():
-    return seq(at(0, bell(hz('G5'), 500, 6)), at(260, bell(hz('G5'), 500, 6)))
+    return seq(at(0, boop(hz('G4'), 400, 7)), at(260, boop(hz('G4'), 400, 7)))
 
 
 @sound
 def card_deal():
-    return 0.8 * highpass(noise(90, 45, color=0.3), 0.5)
+    return 0.8 * shush(90, 1000, 20)
 
 
 @sound
 def card_slide():
-    n = len(t(180))
-    swish = rng.uniform(-1, 1, n) * np.sin(np.pi * np.arange(n) / n) ** 2
-    return lowpass(swish, 0.35) + 0.4 * noise(40, 70, color=0.5)
+    return shush(180, 1000)
 
 
 @sound
 def card_flip():
-    return seq(at(0, highpass(noise(50, 60), 0.4)), at(35, 0.6 * highpass(noise(60, 55), 0.5)))
+    return seq(at(0, shush(50, 1100)), at(35, 0.6 * shush(60, 1000)))
 
 
 @sound
 def dice_roll():
-    return seq(*[at(i * 50 + int(rng.integers(0, 20)), (0.9 - i * 0.06) * plastic(2400 + rng.integers(-300, 300), 50, 80)) for i in range(10)])
+    return seq(*[at(i * 50 + int(rng.integers(0, 20)), (0.9 - i * 0.06) * tap_(560 + int(rng.integers(-80, 80)), 50, 80)) for i in range(10)])
 
 
 @sound
 def dice_land():
-    return plastic(1500, 90, 45)
+    return thump(260, 110)
 
 
 @sound
 def piece_hop():
-    return wood(900, 60, 60)
+    return tap_(600, 60, 60)
 
 
 @sound
 def piece_place():
-    return wood(520, 110, 32) + 0.4 * noise(30, 90, color=0.6)
+    return thump(220, 120)
 
 
 @sound
 def letter_type():
-    return 0.7 * plastic(2600, 50, 110)
+    return 0.7 * tap_(700, 50, 90)
 
 
 @sound
 def letter_drop():
-    return wood(760, 90, 45)
+    return tap_(480, 90, 45)
 
 
 @sound
 def letter_right():
-    return bell(hz('A6'), 150, 14)
+    return boop(hz('G5'), 160, 14)
 
 
 @sound
 def mark():
-    n = len(t(150))
-    scratch = rng.uniform(-1, 1, n) * np.sin(np.pi * np.arange(n) / n)
-    return highpass(lowpass(scratch, 0.2), 0.7)
+    return shush(150, 900)
 
 
 @sound
 def sudoku_digit():
-    return 0.8 * wood(1500, 70, 70)
+    return 0.8 * tap_(620, 70, 70)
 
 
 @sound
 def ships_fire():
-    pomf = lowpass(noise(250, 14, color=0.85), 0.8) + tone(110, 250, 12, glide=0.6)
-    whistle = 0.25 * tone(1800, 250, 3, attack_ms=40, glide=0.55)
-    return seq(at(0, pomf), at(150, whistle))
+    pomf = lp(noise(250, 14), 500) + tone(110, 250, 12, glide=0.6)
+    return seq(at(0, pomf), at(150, 0.2 * boop(700, 250, 4, glide=0.55)))
 
 
 @sound
 def ships_hit():
-    boom = lowpass(noise(700, 6, attack_ms=3, color=0.9), 0.9)
-    return mix(boom, tone(70, 600, 6, glide=0.5))
+    return mix(lp(noise(700, 6, attack_ms=3), 450), tone(70, 600, 6, glide=0.5))
 
 
 @sound
 def ships_miss():
-    n = len(t(500))
-    s = rng.uniform(-1, 1, n) * (np.arange(n) / n) ** 0.3 * np.exp(-7 * np.arange(n) / RATE)
-    return mix(lowpass(s, 0.5), 0.3 * tone(300, 200, 18, glide=2.0))
+    return mix(shush(450, 800, 6), 0.3 * boop(260, 200, 16, glide=1.6))
 
 
 @sound
 def ships_sunk():
-    creak = 0.6 * lowpass(tone(140, 450, 2, attack_ms=60, shape='saw', glide=0.8, vibrato=11), 0.6)
-    bubbles = seq(*[at(350 + i * 70 + int(rng.integers(0, 30)), 0.35 * tone(400 + rng.integers(0, 500), 70, 40, glide=1.6)) for i in range(8)])
+    creak = 0.6 * lp(tone(140, 450, 2, attack_ms=60, shape='soft', glide=0.8, vibrato=11), 700)
+    bubbles = seq(*[at(350 + i * 70 + int(rng.integers(0, 30)), 0.35 * boop(300 + int(rng.integers(0, 300)), 80, 35, glide=1.5, attack_ms=3)) for i in range(8)])
     return mix(creak, bubbles)
 
 
 @sound
 def c4_drop():
-    return seq(*[at(i * 40, (0.4 + i * 0.07) * plastic(1300 - i * 60, 40, 90)) for i in range(7)])
+    return seq(*[at(i * 40, (0.4 + i * 0.07) * tap_(700 - i * 40, 40, 90)) for i in range(7)])
 
 
 @sound
 def c4_land():
-    return plastic(1100, 80, 55)
+    return thump(300, 100)
 
 
 @sound
 def dots_box():
-    return mix(wood(380, 120, 30), 0.6 * seq(at(60, bell(hz('C6'), 250, 10))))
+    return mix(thump(380, 120), 0.6 * seq(at(60, boop(hz('C5'), 260, 10))))
 
 
 @sound
 def memory_match():
-    return notes([hz('E6'), hz('A6')], 120)
+    return seq(at(0, 0.9 * boop(440, 140, 10, glide=1.15)), at(110, 0.9 * boop(587, 240)))
 
 
 @sound
 def words_solved():
-    return notes([hz('C6'), hz('D6'), hz('E6'), hz('G6'), hz('C7')], 80, maker=lambda f: bell(f, 300, 9))
+    return seq(*[at(i * 80, boop(hz(n), 300, 9)) for i, n in enumerate(['C4', 'D4', 'E4', 'G4', 'C5'])])
 
 
 @sound
 def draw_correct():
-    return mix(bell(hz('C6'), 700, 3.5), seq(at(250, 0.4 * noise(300, 10, color=0.4))))
+    return mix(boop(hz('C5'), 700, 3.5), seq(at(250, 0.3 * shush(300, 1000))))
 
 
 @sound
@@ -340,150 +347,144 @@ def ttt_x():
 
 @sound
 def ttt_o():
-    n = len(t(170))
-    s = rng.uniform(-1, 1, n) * np.sin(np.pi * np.arange(n) / n)
-    return highpass(lowpass(s, 0.25), 0.7)
+    return shush(170, 900)
 
 
 @sound
 def numbers_sum_right():
-    return bell(hz('E6'), 250, 9)
+    return boop(hz('E5'), 250, 9)
 
 
 @sound
 def hockey_hit():
-    return plastic(900, 70, 60)
+    return thump(400, 70, 40)
 
 
 @sound
 def hockey_wall():
-    return 0.8 * plastic(1600, 60, 75)
+    return 0.8 * tap_(500, 60, 75)
 
 
 @sound
 def hockey_goal():
-    horn = lowpass(tone(hz('A3'), 700, 2.2, attack_ms=15, shape='saw') + tone(hz('E4'), 700, 2.2, attack_ms=15, shape='saw'), 0.5)
-    crowd = 0.3 * lowpass(noise(600, 4, attack_ms=60), 0.4)
-    return mix(horn, seq(at(250, crowd)))
+    horn = lp(tone(hz('A3'), 700, 2.2, attack_ms=15, shape='soft') + tone(hz('E4'), 700, 2.2, attack_ms=15, shape='soft'), 800)
+    return mix(horn, seq(at(250, 0.3 * shush(600, 700))))
 
 
 @sound
 def ludo_out():
-    pop = tone(500, 80, 40, glide=2.2)
-    return seq(at(0, pop), at(90, wood(900, 70, 55)))
+    return seq(at(0, boop(300, 90, 30, glide=2.0, attack_ms=3)), at(90, tap_(600, 70, 55)))
 
 
 @sound
 def ludo_capture():
-    bonk = tone(220, 120, 22, shape='soft', glide=0.7)
-    slide = 0.4 * tone(1400, 450, 2.5, attack_ms=20, glide=0.3)
-    return seq(at(0, bonk), at(110, slide))
+    return seq(at(0, boop(220, 120, 22, glide=0.7, attack_ms=3)), at(110, 0.4 * boop(700, 450, 2.5, glide=0.4)))
 
 
 @sound
 def ludo_home():
-    return notes([hz('G5'), hz('C6'), hz('E6')], 90, maker=lambda f: tone(f, 250, 10, shape='soft'))
+    return seq(*[at(i * 90, boop(hz(n), 260, 10)) for i, n in enumerate(['G4', 'C5', 'E5'])])
 
 
 @sound
 def grid_trace():
-    return 0.7 * bell(hz('C7'), 60, 40)
+    return 0.7 * boop(hz('G5'), 70, 40, attack_ms=3)
 
 
 @sound
 def grid_word():
-    return mix(bell(hz('G5'), 300, 8), 0.5 * bell(hz('D6'), 300, 9))
+    return mix(boop(hz('G4'), 300, 8), 0.5 * boop(hz('D5'), 300, 9))
 
 
 @sound
 def balloon_stretch():
-    return 0.5 * lowpass(tone(500, 330, 0.5, attack_ms=50, shape='saw', glide=2.0, vibrato=14), 0.4)
+    return 0.5 * lp(tone(300, 330, 0.5, attack_ms=50, shape='soft', glide=2.0, vibrato=14), 900)
 
 
 @sound
 def balloon_pop():
-    return mix(noise(250, 30, attack_ms=0.3), 0.5 * tone(160, 120, 30, glide=0.5))
+    # Still a pop, but a cushioned one.
+    return mix(lp(noise(160, 40, attack_ms=0.5), 1800), 0.5 * tone(160, 120, 30, glide=0.5))
 
 
 @sound
 def code_peg():
-    return plastic(2100, 70, 80)
+    return tap_(650, 70, 80)
 
 
 @sound
 def code_pin_red():
-    return plastic(2600, 80, 70)
+    return tap_(780, 80, 70)
 
 
 @sound
 def code_pin_white():
-    return 0.7 * plastic(1800, 80, 80)
+    return 0.7 * tap_(560, 80, 80)
 
 
 @sound
 def code_cracked():
-    clunk = wood(300, 160, 25)
-    spring = 0.4 * tone(900, 300, 6, glide=1.8, vibrato=18)
-    return seq(at(0, clunk), at(120, spring), at(300, 0.5 * bell(hz('E6'), 300, 8)))
+    spring = 0.4 * boop(450, 300, 6, glide=1.8, vibrato=12)
+    return seq(at(0, thump(300, 160, 25)), at(120, spring), at(300, 0.5 * boop(hz('E5'), 300, 8)))
 
 
 @sound
 def slide_solved():
-    ticks = seq(*[at(i * 55, (0.5 + 0.05 * i) * wood(800 + i * 90, 60, 60)) for i in range(7)])
-    return mix(ticks, seq(at(420, bell(hz('C6'), 350, 7))))
+    ticks = seq(*[at(i * 55, (0.5 + 0.05 * i) * tap_(400 + i * 50, 60, 60)) for i in range(7)])
+    return mix(ticks, seq(at(420, boop(hz('C5'), 350, 7))))
 
 
 @sound
 def bingo_ball():
-    roll = seq(*[at(i * 45, (0.5 - i * 0.03) * plastic(700 + rng.integers(-80, 80), 45, 90)) for i in range(10)])
-    return mix(roll, seq(at(470, wood(600, 120, 35))))
+    roll = seq(*[at(i * 45, (0.5 - i * 0.03) * tap_(450 + int(rng.integers(-50, 50)), 45, 90)) for i in range(10)])
+    return mix(roll, seq(at(470, thump(300, 120))))
 
 
 @sound
 def bingo_dab():
-    return 0.9 * lowpass(noise(90, 40, color=0.7), 0.6) + 0.3 * tone(240, 80, 40)
+    return thump(240, 90, 40)
 
 
 @sound
 def bingo_line_ready():
-    return mix(*[seq(at(i * 50, 0.3 * bell(f, 300, 8))) for i, f in enumerate([hz('C6'), hz('E6'), hz('G6'), hz('C7')])])
+    return mix(*[seq(at(i * 50, 0.3 * boop(hz(n), 300, 8))) for i, n in enumerate(['C5', 'E5', 'G5', 'C6'])])
 
 
 @sound
 def bingo_shout():
-    return mix(win()[:int(RATE * 0.9)] * np.linspace(1, 0, int(RATE * 0.9)), 0.3 * lowpass(noise(900, 3, attack_ms=50), 0.4))
+    n = int(RATE * 0.9)
+    return mix(win()[:n] * np.linspace(1, 0, n), 0.3 * shush(900, 700))
 
 
 @sound
 def golf_putt():
-    return plastic(2900, 120, 45) + 0.3 * tone(1450, 120, 30)
+    return tap_(700, 100, 50) + 0.3 * thump(350, 80)
 
 
 @sound
 def golf_wall():
-    return tone(260, 80, 35, shape='soft', glide=0.85)
+    return boop(260, 80, 35, glide=0.85, attack_ms=2)
 
 
 @sound
 def golf_cup():
-    rattle = seq(*[at(i * 45, (0.7 - i * 0.1) * plastic(1700 + i * 100, 40, 90)) for i in range(5)])
-    return mix(rattle, seq(at(260, 0.6 * bell(hz('E6'), 250, 9))))
+    rattle = seq(*[at(i * 45, (0.7 - i * 0.1) * tap_(500 + i * 40, 40, 90)) for i in range(5)])
+    return mix(rattle, seq(at(260, 0.6 * boop(hz('E5'), 250, 9))))
 
 
 @sound
 def golf_splash():
     # A plop, then a soft wash of water and two bubbles.
     n = len(t(420))
-    wash = lowpass(rng.uniform(-1, 1, n) * np.exp(-9 * np.arange(n) / RATE), 0.35)
-    plop = tone(520, 90, 30, glide=0.45)
-    bubbles = seq(at(170, 0.35 * tone(700, 60, 40, glide=1.7)), at(260, 0.3 * tone(900, 50, 45, glide=1.6)))
-    return mix(plop, 0.6 * wash, bubbles)
+    wash = lp(rng.uniform(-1, 1, n) * np.exp(-9 * np.arange(n) / RATE), 900)
+    bubbles = seq(at(170, 0.35 * boop(500, 70, 40, glide=1.6, attack_ms=2)), at(260, 0.3 * boop(620, 60, 45, glide=1.5, attack_ms=2)))
+    return mix(boop(420, 100, 28, glide=0.5, attack_ms=2), 0.6 * wash, bubbles)
 
 
 @sound
 def golf_drop():
     # A falling whistle, down and away.
-    return 0.8 * tone(1300, 520, 3.5, attack_ms=10, shape='soft', glide=0.3)
+    return 0.8 * boop(700, 520, 3.5, glide=0.3)
 
 
 # --- Writing the files ------------------------------------------------------------------------
