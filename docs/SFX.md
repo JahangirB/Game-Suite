@@ -30,6 +30,8 @@ the same file name.
   `sfx_kylian_dictador.ogg` (11 s, from the Kylian Dictador song, kept at 32 kHz mono so it
   preloads with the rest and starts at once). These aren't made by `scripts/make-sounds.py`.
   While it plays, the other phones' controls freeze and nobody can send another reaction.
+  Kylian's card in Colour Clash plays the same song, with his sticker, on every phone,
+  the player's own included.
 - Location: `app/src/main/res/raw/sfx_<id>.ogg`. Variants add `_2`, `_3`
   (`sfx_card_slide_2.ogg`).
 - Played through one small `SoundPool` wrapper (see [Wiring](#wiring)), loaded when the app

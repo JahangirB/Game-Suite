@@ -1,18 +1,5 @@
 package com.pippop.ui.screens
 
-import com.pippop.ui.Sound
-import com.pippop.ui.Sfx
-import com.pippop.ui.SoundOnChange
-import com.pippop.ui.rememberSfx
-import kotlinx.coroutines.delay
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.LaunchedEffect
-import com.pippop.ui.theme.markOf
-import com.pippop.ui.theme.MarkIcon
-import androidx.compose.foundation.layout.padding
-import com.pippop.ui.theme.TextSize
-import com.pippop.ui.theme.Board
-import com.pippop.ui.theme.Pieces
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -25,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -36,8 +24,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,17 +43,31 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pippop.data.GameKind
+import com.pippop.data.Reaction
 import com.pippop.data.RoomStatus
 import com.pippop.game.clash.Clash
 import com.pippop.game.clash.ClashView
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
+import com.pippop.ui.Sfx
 import com.pippop.ui.SoloClashUiState
 import com.pippop.ui.SoloClashViewModel
+import com.pippop.ui.Sound
+import com.pippop.ui.SoundOnChange
+import com.pippop.ui.Takeover
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
+import com.pippop.ui.art.drawSticker
+import com.pippop.ui.art.stickerOf
+import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.DisplayFont
+import com.pippop.ui.theme.MarkIcon
+import com.pippop.ui.theme.Pieces
+import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.markOf
+import kotlinx.coroutines.delay
 
 private val Wild = Board.Ink
 
@@ -90,6 +94,7 @@ private fun faceLabel(card: String) = when (Clash.face(card)) {
     "D" -> "+2"
     "W" -> "★"
     "F" -> "+4"
+    "K" -> "+8"
     else -> Clash.face(card)
 }
 
@@ -114,6 +119,21 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
                         drawArc(clashColor(c), i * 90f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
                     }
                 }
+            } else if (Clash.isKylian(card)) {
+                // Kylian Dictador himself, standing on his colour, with what he costs.
+                Canvas(Modifier.align(Alignment.BottomCenter).size(width * 0.96f)) { drawSticker(stickerOf(Reaction.KYLIAN)) }
+                markOf(clashColor(card[0]))?.let { mark ->
+                    MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
+                }
+                Text(
+                    "+8",
+                    color = Color.White,
+                    fontSize = (width.value * 0.2f).sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = DisplayFont,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = width * 0.08f, top = width * 0.02f),
+                )
+                return@Box
             } else {
                 Surface(color = Color.White, shape = CircleShape, modifier = Modifier.size(width * 0.66f)) {}
                 // The colour's mark in the corner, so cards can be told apart without seeing colour.
@@ -178,6 +198,7 @@ private fun clashNews(view: ClashView, name: (Char) -> String): String? {
     val made = m.madeDraw?.let { (w, n) -> " ${name(w)} draws $n." } ?: ""
     return when {
         m.card != null && Clash.isWild(m.card) -> "$who played a wild: ${colourName(m.colour ?: 'r')}.$made"
+        m.card != null && Clash.isKylian(m.card) -> "$who played ${colourName(m.card[0])} Kylian Dictador.$made"
         m.card != null -> "$who played ${colourName(m.card[0])} ${faceLabel(m.card)}.$made"
         m.drew > 0 -> "$who drew a card."
         m.passed -> "$who passed."
@@ -226,7 +247,14 @@ private fun ColumnScope.ClashTable(
                 // anyone else's from the top, turning face up on the way.
                 val played = view.lastMove?.takeIf { it.card != null }
                 val mine = played?.who == 'm'
-                SoundOnChange(played) { play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS) }
+                SoundOnChange(played) {
+                    play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS)
+                    // Kylian Dictador takes over every phone, the player's own too: his sticker and song.
+                    if (played?.card?.let(Clash::isKylian) == true) {
+                        Takeover.show(Reaction.KYLIAN)
+                        play(Sound.KYLIAN_DICTADOR)
+                    }
+                }
                 FlipCard(
                     faceUp = true,
                     key = played,

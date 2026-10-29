@@ -100,7 +100,9 @@ val GameKind.rules: String
         GameKind.CLASH -> "Everyone starts with seven cards. On your turn play a card that matches the top of the pile " +
             "by colour or by number or symbol. Skip (⦸) skips the next player, reverse (⇄) turns the order round and +2 " +
             "makes the next player draw two and miss their turn. Wilds (★) go on anything and you name the colour; +4 " +
-            "also makes the next player draw four. Can't play? Draw a card: play it if it fits, or keep it. First to " +
+            "also makes the next player draw four. Kylian Dictador (one in each colour) makes the next player draw " +
+            "eight and miss their turn, and takes over every phone with his song. Can't play? Draw a card: play it " +
+            "if it fits, or keep it. First to " +
             "play their last card wins."
         GameKind.LUDO -> "Each player has four tokens in their corner. Roll the die on your turn: a 6 brings a token " +
             "out onto its start square and gives you another roll (but a third 6 in a row ends your turn). Move a token " +

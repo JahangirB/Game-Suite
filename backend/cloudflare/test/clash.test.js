@@ -16,8 +16,20 @@ function position(marks, hands, top, deck = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6']
 test('a deal: seven each and a number card on the pile', () => {
   const s = clash.start(Math.random, ['h', 'g', '3']);
   assert.equal(s.hands.h.length, 7);
-  assert.equal(s.deck.length + 21 + 1, 108);
+  assert.equal(s.deck.length + 21 + 1, 112);
+  assert.deepEqual([...s.deck, ...Object.values(s.hands).flat()].filter((c) => c[1] === 'K').sort(), ['bK', 'gK', 'rK', 'yK']);
   assert.match(s.pile[0], /^[rygb][0-9]$/);
+});
+
+test('Kylian Dictador: the next player draws eight and misses their turn', () => {
+  const deck = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'];
+  const s = position(['h', 'g', '3'], { h: ['bK', 'yK', 'r1'], g: ['y1'], 3: ['y2'] }, 'b4', deck);
+  // On his colour, or on another Kylian; not on anything else.
+  assert.throws(() => clash.play(s, 'h', { card: 1 }), /match/);
+  assert.equal(clash.play(s, 'h', { card: 0 }).turn, '3');
+  assert.equal(s.hands.g.length, 9);
+  assert.deepEqual(clash.view(s, '3', { h: 'o', g: 'p' }).lastMove.made, { who: 'p', drew: 8 });
+  assert.ok(clash.fits('yK', 'bK', 'b'));
 });
 
 test('match colour or face; wilds need a colour', () => {

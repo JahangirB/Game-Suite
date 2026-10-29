@@ -360,6 +360,7 @@ private fun clash(): List<TutorialStep> {
         TutorialStep("Match the top card", "Play a card of the same colour, or the same number or symbol.", table("r5", listOf("r2", "b5", "g7", "y1"))),
         TutorialStep("Action cards", "Skip misses the next player, reverse turns the order round, +2 makes them draw two.", table("rS", listOf("rR", "rD", "b5"))),
         TutorialStep("Wilds go on anything", "You name the colour. +4 also makes the next player draw four.", table("W", listOf("b2", "F"), named = 'b')),
+        TutorialStep("Kylian Dictador", "One in each colour. The next player draws eight and misses their turn, and his song plays on every phone.", table("b4", listOf("bK", "r1"))),
         TutorialStep("Can't play? Draw", "Tap the pile. Play the card if it fits, or keep it.", table("g3", listOf("r8", "y6"))),
         TutorialStep("Play your last card", "Everyone starts with seven. The first to empty their hand wins.", table("b2", listOf("b9"))),
     )

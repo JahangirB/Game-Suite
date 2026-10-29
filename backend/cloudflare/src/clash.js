@@ -1,14 +1,14 @@
 // Colour Clash: match the colour or the number, first to empty their hand wins.
 //
-// A card is a string: a colour letter (r, y, g, b) and a face: 0-9, S (skip), R (reverse) or
-// D (draw two). Wild cards have no colour: W (wild) and F (wild draw four); the player names
-// the colour. The deck is the classic 108: per colour one 0, two of 1-9, two each of S, R, D;
-// and four W and four F.
+// A card is a string: a colour letter (r, y, g, b) and a face: 0-9, S (skip), R (reverse),
+// D (draw two) or K (Kylian Dictador: draw eight). Wild cards have no colour: W (wild) and F
+// (wild draw four); the player names the colour. The deck is the classic 108 plus four Kylians:
+// per colour one 0, two of 1-9, two each of S, R, D and one K; and four W and four F.
 //
 // Moves: { card: i, colour } plays hand card i (colour for a wild); { draw: true } takes one
 // card when you want or need to; then { pass: true } keeps it, or you play that card.
 // Skip and draw cards skip the next player; reverse turns round the order (with two players it
-// works like skip). Every result says whose turn is next.
+// works like skip). Kylian Dictador makes the next player draw eight. Every result says whose turn is next.
 
 export const COLOURS = ['r', 'y', 'g', 'b'];
 
@@ -17,6 +17,7 @@ function fullDeck() {
   for (const c of COLOURS) {
     deck.push(c + '0');
     for (const f of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'S', 'R', 'D']) deck.push(c + f, c + f);
+    deck.push(c + 'K');
   }
   for (let i = 0; i < 4; i++) deck.push('W', 'F');
   return deck;
@@ -31,6 +32,8 @@ function shuffle(cards, random) {
 }
 
 export const isWild = (card) => card === 'W' || card === 'F';
+/** How many cards each draw card makes the next player take. */
+export const DRAWS = { D: 2, F: 4, K: 8 };
 const face = (card) => (isWild(card) ? card : card[1]);
 
 /** Whether [card] can go on the pile, whose top shows [colour] and [top]'s face. */
@@ -118,10 +121,10 @@ export function play(state, mark, move, random = Math.random) {
     next = state.marks.length === 2 ? mark : after(state, mark);
   } else if (f === 'S') {
     next = after(state, mark, 2);
-  } else if (f === 'D' || f === 'F') {
+  } else if (DRAWS[f]) {
     const victim = after(state, mark);
-    state.hands[victim].push(...take(state, f === 'D' ? 2 : 4, random));
-    state.last.made = { who: victim, drew: f === 'D' ? 2 : 4 };
+    state.hands[victim].push(...take(state, DRAWS[f], random));
+    state.last.made = { who: victim, drew: DRAWS[f] };
     next = after(state, mark, 2);
   }
   return { again: next === mark, over: false, winner: null, reason: null, turn: next };

@@ -8,8 +8,8 @@ import kotlin.random.Random
 
 /**
  * Colour Clash rules, matching the server (backend/cloudflare/src/clash.js). A card is a
- * string: a colour (r, y, g, b) and a face (0-9, S skip, R reverse, D draw two), or a wild:
- * W (wild) or F (wild draw four).
+ * string: a colour (r, y, g, b) and a face (0-9, S skip, R reverse, D draw two, K Kylian
+ * Dictador: draw eight), or a wild: W (wild) or F (wild draw four). There's one Kylian per colour.
  */
 object Clash {
     const val COLOURS = "rygb"
@@ -20,10 +20,17 @@ object Clash {
 
     fun fits(card: String, top: String, colour: Char) = isWild(card) || card[0] == colour || face(card) == face(top)
 
+    /** Kylian Dictador: the next player draws eight, and he takes the game over. */
+    fun isKylian(card: String) = face(card) == "K"
+
+    /** How many cards a draw card makes the next player take (0 for any other card). */
+    fun draws(card: String) = when (face(card)) { "D" -> 2; "F" -> 4; "K" -> 8; else -> 0 }
+
     fun fullDeck(): List<String> = buildList {
         for (c in COLOURS) {
             add("${c}0")
             for (f in "123456789SRD") repeat(2) { add("$c$f") }
+            add("${c}K")
         }
         repeat(4) { add("W"); add("F") }
     }
@@ -119,9 +126,9 @@ class ClashMatch(val marks: List<Char>, private val random: Random = Random.Defa
                 next = if (marks.size == 2) mark else after(mark)
             }
             "S" -> next = after(mark, 2)
-            "D", "F" -> {
+            "D", "F", "K" -> {
                 val victim = after(mark)
-                val n = if (Clash.face(card) == "D") 2 else 4
+                val n = Clash.draws(card)
                 hands.getValue(victim) += take(n)
                 lastMove.put("made", JSONObject().put("mark", victim.toString()).put("drew", n))
                 next = after(mark, 2)
@@ -155,8 +162,8 @@ class ClashMatch(val marks: List<Char>, private val random: Random = Random.Defa
 }
 
 /**
- * The computer: plays a matching card if it has one (action cards first, wilds last, naming
- * the colour it holds most of), else draws, and plays the drawn card if it can.
+ * The computer: plays a matching card if it has one (Kylian first, then action cards, wilds
+ * last, naming the colour it holds most of), else draws, and plays the drawn card if it can.
  */
 class ClashComputer {
     fun move(match: ClashMatch, mark: Char): JSONObject {
@@ -168,6 +175,7 @@ class ClashComputer {
             val c = hand[i]
             when {
                 Clash.isWild(c) -> 0
+                Clash.isKylian(c) -> 4
                 Clash.face(c) in listOf("S", "R", "D") -> 3
                 c[0] == match.colour -> 2
                 else -> 1

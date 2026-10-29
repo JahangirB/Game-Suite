@@ -10,10 +10,11 @@ import kotlin.random.Random
 
 class ClashTest {
     @Test
-    fun theDeckIsTheClassic108() {
+    fun theDeckIsTheClassic108PlusAKylianPerColour() {
         val deck = Clash.fullDeck()
-        assertEquals(108, deck.size)
+        assertEquals(112, deck.size)
         assertEquals(8, deck.count { Clash.isWild(it) })
+        assertEquals(listOf("rK", "yK", "gK", "bK"), deck.filter { Clash.isKylian(it) })
         assertTrue(Clash.fits("r7", "b7", 'b'))
         assertTrue(Clash.fits("bS", "r5", 'b'))
         assertFalse(Clash.fits("g2", "b7", 'b'))
@@ -21,11 +22,32 @@ class ClashTest {
     }
 
     @Test
+    fun kylianDictadorMakesTheNextPlayerDrawEightAndMissTheirTurn() {
+        val m = ClashMatch(listOf('h', 'g', '3'), Random(1))
+        val kylian = "${m.colour}K"
+        m.hands.getValue('h').apply {
+            clear()
+            addAll(listOf(kylian, "r1"))
+        }
+        val before = m.hands.getValue('g').size
+        val result = m.play('h', JSONObject().put("card", 0))
+        assertEquals(before + 8, m.hands.getValue('g').size)
+        assertEquals('3', result.turn)
+        val seen = ClashView.from(m.view('3', mapOf('h' to 'o', 'g' to 'p')))
+        assertEquals(kylian, seen.lastMove!!.card)
+        assertEquals('p' to 8, seen.lastMove!!.madeDraw)
+        // He goes on his colour or on another Kylian, nothing else.
+        assertTrue(Clash.fits("rK", "bK", 'b'))
+        assertTrue(Clash.fits("bK", "b4", 'b'))
+        assertFalse(Clash.fits("bK", "r4", 'r'))
+    }
+
+    @Test
     fun aDealGivesSevenEachAndANumberOnThePile() {
         val m = ClashMatch(listOf('h', 'g', '3'), Random(4))
         assertEquals(7, m.hands.getValue('3').size)
         assertTrue(m.top[1].isDigit())
-        assertEquals(108 - 21 - 1, m.deck.size)
+        assertEquals(112 - 21 - 1, m.deck.size)
     }
 
     @Test
