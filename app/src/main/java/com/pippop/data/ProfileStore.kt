@@ -64,7 +64,7 @@ data class Profile(
     val firstRunDone: Boolean = false,
     /** Buzz for game moments (your turn, a move, a win). */
     val vibration: Boolean = true,
-    /** Sound effects (the phone on silent mutes them too). */
+    /** Sound effects, on or off in the app only (the phone's silent mode doesn't change them). */
     val sound: Boolean = true,
     /**
      * The notification question: due once an invitation has been sent or received, and

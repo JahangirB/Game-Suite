@@ -191,7 +191,7 @@ fun ProfileScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
                         Text("Sound", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
-                        Text("Game sounds. The phone on silent mutes them too.", color = p.muted, fontSize = TextSize.Body)
+                        Text("Game sounds, on or off here: the phone's silent mode doesn't change them. The media volume sets how loud.", color = p.muted, fontSize = TextSize.Body)
                     }
                     Switch(checked = profile.sound, onCheckedChange = app::setSound)
                 }

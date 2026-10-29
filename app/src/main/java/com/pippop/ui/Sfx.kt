@@ -2,7 +2,6 @@ package com.pippop.ui
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioManager
 import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,13 +77,13 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
 }
 
 /**
- * Plays [Sound]s through one small SoundPool, loaded once. Silent when Sound is off in the
- * profile or the phone is on silent or vibrate. Every sound goes with something on screen
- * (and most with a buzz), so a silent phone misses nothing.
+ * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound switch (in
+ * the profile) turns them off: the phone's silent or vibrate mode doesn't, and the media volume
+ * sets how loud they are. Every sound goes with something on screen (and most with a buzz), so
+ * with Sound off nothing is missed.
  */
 class Sfx private constructor(context: Context) {
     private val store = ProfileStore.get(context)
-    private val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private val pool = SoundPool.Builder()
         .setMaxStreams(8)
         .setAudioAttributes(
@@ -96,7 +95,6 @@ class Sfx private constructor(context: Context) {
     /** Plays [sound]; [volume] below 1 for other players' events, which sound a little quieter. */
     fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f) {
         if (!store.profile.value.sound) return
-        if (audio != null && audio.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
         val id = loaded[sound] ?: return
         val level = (sound.volume * volume).coerceIn(0f, 1f)
         val rate = (pitch * if (sound.varied) 0.95f + Random.nextFloat() * 0.1f else 1f).coerceIn(0.5f, 2f)

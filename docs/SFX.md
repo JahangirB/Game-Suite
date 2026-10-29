@@ -5,7 +5,7 @@ Every sound Pip & Pop needs, where it plays and what it should sound like.
 **Now in the app:** the 55 priority-1 sounds, made from scratch (tones and noise, no
 recordings) by `scripts/make-sounds.py`; run it again after changing a sound. They are
 played by `ui/Sfx.kt`, which sets each sound's level. Profile → Sound and touch turns them
-off, and so does the phone on silent. Better recordings can replace any file later: keep
+on or off; the phone's silent mode doesn't (the media volume sets how loud). Better recordings can replace any file later: keep
 the same file name.
 
 ## Style
@@ -298,7 +298,7 @@ games. The 55 at priority 1 give every game its core sounds.
   loops. Other players' events pass `volume = 0.6f`.
 - **Settings:** Sound on/off and a volume slider in the profile, saved with the profile; also
   Vibrate on/off (haptics paired with `error`, `ships_hit`, `golf_putt`, `hockey_hit`,
-  `dice_land`, `bingo_shout`). Off by default when the phone is on silent.
+  `dice_land`, `bingo_shout`). Sound follows the app's own switch only, not the phone's silent mode.
 - **Where to call it:** where the animations already start, so sound and movement line up:
   `Motion` helpers (`enterFrom`, `dropIn`, `shake`, `FlipCard`) take an optional sound id;
   game screens' `LaunchedEffect`s that start a blast, a pop, a hop or a roll play the matching
