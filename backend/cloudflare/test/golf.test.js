@@ -27,14 +27,45 @@ test('everyone plays the hole out in turn, then the next starts a seat on', () =
   assert.equal(v.last.holed, true);
 });
 
-test('bad shots are refused and a ball out after six is picked up with seven', () => {
+test('bad shots are refused; nobody is picked up before someone is in', () => {
   const s = golf.start(Math.random, ['h', 'g']);
   assert.throws(() => golf.play(s, 'h', { angle: 1, power: 0, x: 0.5, y: 0.5 }), /not valid/);
   assert.throws(() => golf.play(s, 'h', { angle: 1, power: 0.5, x: 9, y: 0.5 }), /not valid/);
+  // Both keep missing (or falling and starting again): the hole goes on.
+  for (let i = 0; i < 10; i++) {
+    golf.play(s, 'h', shot(0.5, 0.5));
+    golf.play(s, 'g', shot(0.5, 0.5));
+  }
+  assert.equal(s.hole, 0);
+  assert.deepEqual(golf.view(s, 'h').golf.left, { m: null, o: null });
+  // Ann holes out with her 11th: Ben gets three more, counted down.
   golf.play(s, 'h', shot(0.5, 0.2, true));
-  for (let i = 0; i < 6; i++) golf.play(s, 'g', shot(0.5, 0.5));
-  assert.deepEqual(s.strokes.g, [7, 0]);
+  assert.deepEqual(golf.view(s, 'g').golf.left, { m: 3, o: null });
+  golf.play(s, 'g', shot(0.5, 0.5));
+  assert.equal(golf.view(s, 'g').golf.left.m, 2);
+  golf.play(s, 'g', shot(0.5, 0.5));
+  golf.play(s, 'g', shot(0.5, 0.5));
+  // Not in after those: picked up with one more, and on to the next hole.
+  assert.deepEqual(s.strokes.g, [14, 0]);
+  assert.deepEqual(s.strokes.h, [11, 0]);
   assert.equal(s.hole, 1);
+  assert.deepEqual(golf.view(s, 'g').golf.left, { m: null, o: null });
+});
+
+test('holing out within the three shots counts as usual, and twenty is a safety net', () => {
+  const s = golf.start(Math.random, ['h', 'g', '3']);
+  golf.play(s, 'h', shot(0.5, 0.2, true));
+  golf.play(s, 'g', shot(0.5, 0.5));
+  golf.play(s, '3', shot(0.5, 0.5));
+  golf.play(s, 'g', shot(0.5, 0.2, true));
+  assert.deepEqual(s.strokes.g, [2]);
+  golf.play(s, '3', shot(0.5, 0.5));
+  golf.play(s, '3', shot(0.5, 0.5));
+  assert.deepEqual(s.strokes['3'], [4, 0]);
+  // Alone on a hole nobody finishes, the twentieth shot picks the ball up.
+  const t = golf.start(Math.random, ['h']);
+  for (let i = 0; i < golf.MAX_STROKES; i++) golf.play(t, 'h', shot(0.5, 0.5));
+  assert.deepEqual(t.strokes.h, [21, 0]);
 });
 
 test('nine holes in a room; fewest strokes wins', () => {

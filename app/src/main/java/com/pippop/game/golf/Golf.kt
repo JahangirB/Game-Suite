@@ -92,7 +92,10 @@ object Golf {
     private const val DROP_SPEED = 0.9
     /** Slower than this on water, the ball sinks. */
     private const val SINK_SPEED = 0.45
-    const val MAX_STROKES = 6
+    /** A safety net only: a hole ends when someone is in and the others have had their extra shots. */
+    const val MAX_STROKES = 20
+    /** Once someone holes out, the shots everyone still out gets to finish. */
+    const val AFTER_FIRST_IN = 3
     /** How round an island's corners are, on screen and to the ball. */
     const val CORNER = 0.04
     /** How long phones show a lost ball sinking or falling before it's back on the tee. */

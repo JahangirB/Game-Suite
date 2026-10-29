@@ -39,12 +39,33 @@ class GolfTest {
     }
 
     @Test
-    fun aBallOutAfterSixIsPickedUpWithSeven() {
+    fun nobodyIsPickedUpBeforeSomeoneIsInThenTheRestGetThreeMore() {
         val m = GolfMatch(listOf('h', 'g'))
+        // Both keep missing (or falling back to the tee): the hole goes on, as the server's does.
+        repeat(10) {
+            m.play('h', shot(0.5, 0.5))
+            m.play('g', shot(0.5, 0.5))
+        }
+        assertEquals(0, m.hole)
+        assertTrue(GolfView.from(m.view('h', mapOf('g' to 'o'))).left.isEmpty())
         m.play('h', shot(0.5, 0.2, true))
-        repeat(6) { m.play('g', shot(0.5, 0.5)) }
-        assertEquals(listOf(7, 0), m.strokes['g'])
+        assertEquals(mapOf('m' to 3), GolfView.from(m.view('g', mapOf('h' to 'o'))).left)
+        m.play('g', shot(0.5, 0.5))
+        assertEquals(mapOf('m' to 2), GolfView.from(m.view('g', mapOf('h' to 'o'))).left)
+        m.play('g', shot(0.5, 0.5))
+        m.play('g', shot(0.5, 0.5))
+        // Not in after those: picked up with one more, and on to the next hole.
+        assertEquals(listOf(14, 0), m.strokes['g'])
+        assertEquals(listOf(11, 0), m.strokes['h'])
         assertEquals(1, m.hole)
+        assertTrue(GolfView.from(m.view('h', mapOf('g' to 'o'))).left.isEmpty())
+    }
+
+    @Test
+    fun aHoleNobodyFinishesEndsAtTheSafetyNet() {
+        val m = GolfMatch(listOf('h'))
+        repeat(Golf.MAX_STROKES) { m.play('h', shot(0.5, 0.5)) }
+        assertEquals(listOf(Golf.MAX_STROKES + 1, 0), m.strokes['h'])
     }
 
     @Test

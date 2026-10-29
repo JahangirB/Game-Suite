@@ -349,6 +349,28 @@ private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
     }
 }
 
+/**
+ * Once someone is in, the countdown for everyone still out: "Someone's in! Shots left: You 3 ·
+ * Ben 2". Nothing before that.
+ */
+@Composable
+private fun GolfCountdown(view: GolfView, names: List<Pair<Char, String>>) {
+    if (view.left.isEmpty()) return
+    val p = AppTheme.palette
+    val counts = names.mapNotNull { (m, n) -> view.left[m]?.let { "$n $it" } }
+    Text(
+        "Someone's in! Shots left to finish: ${counts.joinToString(" · ")}",
+        color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold,
+    )
+}
+
+/** What the status line says on your shot: the countdown once someone is in. */
+private fun yourShot(view: GolfView) = when (val left = view.left['m']) {
+    null -> "Your shot: pull back and let go"
+    1 -> "Your last shot to get in!"
+    else -> "Your shot: $left left to get in"
+}
+
 /** Scores per player for the result popup: total and against par. */
 private fun golfScores(view: GolfView, names: List<Pair<Char, String>>): List<String> {
     val par = (0 until view.holes).sumOf { view.holeAt(it).par }
@@ -411,11 +433,12 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         },
     ) {
         GolfHeader(view, names)
+        GolfCountdown(view, names)
         TurnLine(
             when {
                 finished -> "Round over"
                 view.done['m'] == true -> "You're in! Waiting for the others…"
-                myTurn -> "Your shot: pull back and let go"
+                myTurn -> yourShot(view)
                 else -> "${turnName ?: "Someone"} is shooting…"
             },
             myTurn, GameKind.GOLF.color,
@@ -487,11 +510,12 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
             }
         } else {
             GolfHeader(view, names)
+            GolfCountdown(view, names)
             val myTurn = state.turn == 'm' && state.result == null
             TurnLine(
                 when {
                     state.result != null -> "Round over"
-                    myTurn -> "Your shot: pull back and let go"
+                    myTurn -> yourShot(view)
                     else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is shooting…"
                 },
                 myTurn, GameKind.GOLF.color,

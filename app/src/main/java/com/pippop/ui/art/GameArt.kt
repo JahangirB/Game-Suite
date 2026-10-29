@@ -131,7 +131,8 @@ val GameKind.rules: String
             "further you pull, the harder the shot. Walls bounce the ball and sand slows it. Islands are joined by narrow " +
             "bridges: roll off an island or a bridge and the ball falls, and a ball that slows down on a pond sinks. Either " +
             "way it costs the stroke and you play again from the tee. Everyone tees off in turn, then whoever is still out " +
-            "plays. A ball still out after six strokes is picked up and scores seven. Fewest strokes wins."
+            "plays, for as long as it takes until someone is in. Then everyone still out gets three more shots, counted down " +
+            "on screen; a ball not in after those is picked up and scores one more. Fewest strokes wins."
         GameKind.BLOCKS -> "Everyone has the same 21 pieces in their colour. Your first piece must cover your ringed start square. " +
             "After that, each new piece must touch one of your own pieces corner to corner and never along an edge (other colours " +
             "can touch you anywhere). Pick a piece, turn or flip it, tap the board to put it there and Place. Stuck players are " +

@@ -453,7 +453,7 @@ private fun golf(): List<TutorialStep> {
         TutorialStep("Pull back and let go", "Pull from anywhere, like a slingshot. The further you pull, the harder the shot.", course(1, null, Pt(0.62, 1.0)), aspect),
         TutorialStep("Walls bounce, sand slows", "Play off the walls to get round corners.", course(4, Pt(0.4, 1.05), Pt(0.56, 0.5)), aspect),
         TutorialStep("Mind the drop and the ponds", "Cross between islands by the bridges. Fall off, or stop in a pond, and you're back on the tee.", course(0, null, null, List(9) { islands }), aspect),
-        TutorialStep("Fewest strokes wins", "A ball still out after six strokes is picked up and scores seven.", course(0, Pt(0.52, 0.34), null), aspect),
+        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in by then: picked up, plus one.", course(0, Pt(0.52, 0.34), null), aspect),
     )
 }
 

@@ -16,6 +16,8 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
     val strokes = marks.associateWith { mutableListOf(0) }
     private val balls = marks.associateWith<Char, Pt?> { null }.toMutableMap()
     private val done = marks.associateWith { false }.toMutableMap()
+    /** The stroke count each player still out must hole by, once someone is in (null till then). */
+    private val deadline = marks.associateWith<Char, Int?> { null }.toMutableMap()
     private var last: JSONObject? = null
     private var shots = 0
 
@@ -45,11 +47,15 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
         val mine = strokes.getValue(mark)
         mine[hole] = mine[hole] + 1
         balls[mark] = Pt(x, y)
+        val taken = mine[hole]
         if (holed) {
             done[mark] = true
-        } else if (mine[hole] >= Golf.MAX_STROKES) {
+            // The first one in: everyone still out gets AFTER_FIRST_IN more shots.
+            for (m in marks) if (done[m] != true && deadline[m] == null) deadline[m] = strokes.getValue(m)[hole] + Golf.AFTER_FIRST_IN
+        } else if (deadline[mark]?.let { taken >= it } == true || taken >= Golf.MAX_STROKES) {
+            // Picked up, with one more.
             done[mark] = true
-            mine[hole] = Golf.MAX_STROKES + 1
+            mine[hole] = taken + 1
         }
         shots++
         last = JSONObject().put("mark", mark.toString()).put("hole", hole).put("from", from?.toJson() ?: JSONObject.NULL)
@@ -66,6 +72,7 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
             strokes.getValue(m).add(0)
             balls[m] = null
             done[m] = false
+            deadline[m] = null
         }
         return TurnResult(again = false, turn = marks[hole % marks.size])
     }
@@ -83,6 +90,7 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
                 .put("strokes", each { JSONArray(strokes.getValue(it)) })
                 .put("balls", each { balls[it]?.toJson() ?: JSONObject.NULL })
                 .put("done", each { done.getValue(it) })
+                .put("left", each { m -> deadline[m]?.takeIf { done[m] != true }?.let { it - strokes.getValue(m)[hole.coerceAtMost(HOLES - 1)] } ?: JSONObject.NULL })
                 .put(
                     "last",
                     last?.let { l ->
@@ -112,6 +120,8 @@ data class GolfView(
     val last: GolfLastShot?,
     /** The holes from the [Courses] library, or null from a server that predates it ([Golf.HOLES]). */
     val course: List<Int>? = null,
+    /** Shots left for each player still out once someone is in (absent before that). */
+    val left: Map<Char, Int> = emptyMap(),
 ) {
     fun total(who: Char) = strokes[who].orEmpty().sum()
 
@@ -140,6 +150,7 @@ data class GolfView(
                         holed = l.optBoolean("holed"), seq = l.optInt("seq"),
                     )
                 },
+                left = each("left") { o, k -> if (o.isNull(k)) null else o.optInt(k) }.filterValues { it != null }.mapValues { it.value!! },
                 course = g.optJSONArray("course")?.let { a -> (0 until a.length()).map { a.optInt(it) } }?.takeIf { it.size >= GolfMatch.HOLES },
             )
         }
