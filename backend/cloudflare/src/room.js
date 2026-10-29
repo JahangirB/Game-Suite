@@ -30,6 +30,8 @@ export const AVATARS = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'u
 export const EMOJIS = ['thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry', 'kylian'];
 // At most one reaction per player this often.
 export const EMOJI_INTERVAL_MS = 1500;
+/** Reactions that take the game over for a while (their song): nobody can send another meanwhile. */
+export const TAKEOVER_MS = { kylian: 11000 };
 // A player disconnected this long during a match loses it.
 export const INACTIVE_FORFEIT_MS = 45_000;
 // A player disconnected this long outside a match is removed (a host closes the room).
@@ -1087,7 +1089,9 @@ export function sendEmoji(room, role, emoji, now) {
   if (!EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
   if (inRoom(room).length < 2) throw new GameError('Nobody to send it to yet.');
   const player = room.players[role];
+  if (now < (room.takenOverUntil || 0)) throw new GameError('Kylian Dictador has the floor.');
   if (now - (player.emojiAt || 0) < EMOJI_INTERVAL_MS) throw new GameError('Slow down a little.');
+  if (TAKEOVER_MS[emoji]) room.takenOverUntil = now + TAKEOVER_MS[emoji];
   room.emojiSeq = (room.emojiSeq || 0) + 1;
   player.emoji = { key: emoji, seq: room.emojiSeq };
   player.emojiAt = now;

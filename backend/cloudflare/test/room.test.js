@@ -146,6 +146,20 @@ test('avatars and reactions', async () => {
   assert.throws(() => sendEmoji(room, 'guest', 'bomb', T0 + 10_000), /Unknown/);
 });
 
+test('Kylian Dictador has the floor: no reactions from anyone until his song ends', async () => {
+  const { sendEmoji, TAKEOVER_MS } = await import('../src/room.js');
+  const room = createRoom('KYL1', 'A', T0, uuid);
+  setConnected(room, 'host', true, T0);
+  joinRoom(room, 'B', null, T0, uuid);
+  sendEmoji(room, 'host', 'kylian', T0);
+  assert.deepEqual(view(room, 'guest', T0).opponent.emoji, { key: 'kylian', seq: 1 });
+  // Not the other player, not the sender, not even another Kylian.
+  assert.throws(() => sendEmoji(room, 'guest', 'laugh', T0 + 5000), /floor/);
+  assert.throws(() => sendEmoji(room, 'host', 'kylian', T0 + TAKEOVER_MS.kylian - 1), /floor/);
+  sendEmoji(room, 'guest', 'laugh', T0 + TAKEOVER_MS.kylian);
+  assert.equal(view(room, 'host', T0).opponent.emoji.key, 'laugh');
+});
+
 test('four players: everyone must be ready, others come in seat order, leavers drop out', () => {
   const room = lobby();
   for (const name of ['Cat', 'Dan']) setConnected(room, joinRoom(room, name, null, T0, uuid), true, T0);

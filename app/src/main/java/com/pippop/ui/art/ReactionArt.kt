@@ -1,9 +1,11 @@
 package com.pippop.ui.art
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -21,11 +23,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pippop.data.Reaction
 import com.pippop.ui.ShownReaction
-import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -33,6 +36,7 @@ import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 /** How long one reaction animation runs. */
 const val REACTION_PLAY_MS = 1500
@@ -73,27 +77,49 @@ fun ReactionBurst(shown: ShownReaction?) {
     }
 }
 
-/** A sticker stays up for its song (11 s): it fades in over the song's first second and out as it ends. */
-private const val STICKER_SHOWN_MS = 11000L
+/** A sticker fades in over its song's first second and out as the song ends. */
 private const val STICKER_FADE_IN_MS = 1000
 private const val STICKER_FADE_OUT_MS = 400
 
-/** Shows [shown], a sticker, large and still, fading in and out with its sound. */
+/**
+ * Shows [shown], a sticker, large and still, fading in and out with its sound. One that takes
+ * the game over (Kylian Dictador) freezes the screen under it: no touches, no back button,
+ * until its song ends.
+ */
 @Composable
 private fun StickerBurst(shown: ShownReaction) {
-    var visible by remember(shown) { mutableStateOf(System.currentTimeMillis() - shown.at < STICKER_SHOWN_MS) }
+    val shownMs = shown.reaction.takesOverMs.takeIf { it > 0 } ?: STICKER_DEFAULT_MS
+    var visible by remember(shown) { mutableStateOf(System.currentTimeMillis() - shown.at < shownMs) }
     if (!visible) return
     val alpha = remember(shown) { Animatable(0f) }
     LaunchedEffect(shown) {
         alpha.animateTo(1f, tween(STICKER_FADE_IN_MS, easing = LinearEasing))
-        delay(STICKER_SHOWN_MS - STICKER_FADE_IN_MS - STICKER_FADE_OUT_MS)
+        delay(shownMs - STICKER_FADE_IN_MS - STICKER_FADE_OUT_MS)
         alpha.animateTo(0f, tween(STICKER_FADE_OUT_MS, easing = LinearEasing))
         visible = false
     }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val freeze = shown.reaction.takesOverMs > 0
+    BackHandler(enabled = freeze) {}
+    Box(
+        Modifier.fillMaxSize().then(
+            if (!freeze) Modifier
+            else Modifier.background(SCRIM.copy(alpha = SCRIM.alpha * alpha.value)).pointerInput(shown) {
+                // Swallow every touch: the game underneath is frozen until the song ends.
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            },
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha.value }) { drawReaction(shown.reaction, 1.0) }
     }
 }
+
+/** How long a sticker without a takeover song stays up. */
+private const val STICKER_DEFAULT_MS = 3000L
+
+private val SCRIM = Color.Black.copy(alpha = 0.45f)
 
 private val STICKER_GREY = Color(0xFF7D7A84) to Color(0xFF5D5A64)
 

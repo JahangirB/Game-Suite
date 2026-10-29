@@ -27,9 +27,9 @@ the same file name.
 
 - Format: OGG Vorbis, 44.1 kHz, mono, peak −1 dBFS, trimmed with no silence at the start.
 - Sticker reactions bring their own clip, which plays on the other phones when one is sent:
-  `sfx_kylian_dictador.ogg` (11 s, from the Kylian Dictador song). These aren't made by
-  `scripts/make-sounds.py`, and being long they stream through a MediaPlayer instead of the
-  SoundPool.
+  `sfx_kylian_dictador.ogg` (11 s, from the Kylian Dictador song, kept at 32 kHz mono so it
+  preloads with the rest and starts at once). These aren't made by `scripts/make-sounds.py`.
+  While it plays, the other phones' controls freeze and nobody can send another reaction.
 - Location: `app/src/main/res/raw/sfx_<id>.ogg`. Variants add `_2`, `_3`
   (`sfx_card_slide_2.ogg`).
 - Played through one small `SoundPool` wrapper (see [Wiring](#wiring)), loaded when the app

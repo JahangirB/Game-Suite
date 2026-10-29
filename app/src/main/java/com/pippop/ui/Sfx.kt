@@ -2,7 +2,6 @@ package com.pippop.ui
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +17,7 @@ import kotlin.random.Random
  * is this sound's level in the mix: taps and ticks sit low, wins and blasts high. Sounds heard
  * very often are [varied]: each play is a little higher or lower, so they don't feel mechanical.
  */
-enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false, val clip: Boolean = false) {
+enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
     TAP(R.raw.sfx_tap, 0.45f, varied = true),
     ERROR(R.raw.sfx_error, 0.65f),
     YOUR_TURN(R.raw.sfx_your_turn, 0.65f),
@@ -76,8 +75,8 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false, v
     GOLF_CUP(R.raw.sfx_golf_cup, 0.65f),
     GOLF_SPLASH(R.raw.sfx_golf_splash, 0.6f),
     GOLF_DROP(R.raw.sfx_golf_drop, 0.5f),
-    /** A sticker's song: 11 s, so it streams ([clip]) rather than sitting in memory. */
-    KYLIAN_DICTADOR(R.raw.sfx_kylian_dictador, 0.9f, clip = true),
+    /** A sticker's song, 11 s; kept at 32 kHz mono so it loads with the rest and starts at once. */
+    KYLIAN_DICTADOR(R.raw.sfx_kylian_dictador, 0.9f),
 }
 
 /** The sound a reaction plays on the phones it's sent to (stickers have one), or null. */
@@ -93,43 +92,20 @@ val Reaction.sound: Sound?
  * sets how loud they are. Every sound goes with something on screen (and most with a buzz), so
  * with Sound off nothing is missed.
  */
-class Sfx private constructor(private val context: Context) {
+class Sfx private constructor(context: Context) {
     private val store = ProfileStore.get(context)
     private val attributes =
         AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
     private val pool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributes).build()
-    private val loaded = Sound.entries.filterNot { it.clip }.associateWith { pool.load(context, it.res, 1) }
-
-    /** The clip playing now, if any: a new one replaces it. */
-    private var clip: MediaPlayer? = null
+    private val loaded = Sound.entries.associateWith { pool.load(context, it.res, 1) }
 
     /** Plays [sound]; [volume] below 1 for other players' events, which sound a little quieter. */
     fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f) {
         if (!store.profile.value.sound) return
-        val level = (sound.volume * volume).coerceIn(0f, 1f)
-        if (sound.clip) return playClip(sound, level)
         val id = loaded[sound] ?: return
+        val level = (sound.volume * volume).coerceIn(0f, 1f)
         val rate = (pitch * if (sound.varied) 0.95f + Random.nextFloat() * 0.1f else 1f).coerceIn(0.5f, 2f)
         pool.play(id, level, level, 1, 0, rate)
-    }
-
-    private fun playClip(sound: Sound, level: Float) {
-        clip?.release()
-        clip = try {
-            MediaPlayer().apply {
-                setAudioAttributes(attributes)
-                context.resources.openRawResourceFd(sound.res).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
-                setVolume(level, level)
-                setOnCompletionListener { done ->
-                    done.release()
-                    if (clip === done) clip = null
-                }
-                prepare()
-                start()
-            }
-        } catch (e: Exception) {
-            null // A sound that won't play isn't worth more than silence.
-        }
     }
 
     companion object {

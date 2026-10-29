@@ -81,6 +81,20 @@ enum class BattleMode { ONLINE, NEARBY }
 /** A reaction on screen and when it appeared. */
 data class ShownReaction(val reaction: Reaction, val at: Long)
 
+/**
+ * Until when a reaction that takes the game over (Kylian Dictador) is playing, on this phone's
+ * clock. Every reaction bar reads it: nothing else can be sent until then.
+ */
+object ReactionLock {
+    val until = MutableStateFlow(0L)
+
+    fun locked(now: Long = System.currentTimeMillis()) = now < until.value
+
+    fun takeOver(reaction: Reaction, at: Long) {
+        if (reaction.takesOverMs > 0) until.value = maxOf(until.value, at + reaction.takesOverMs)
+    }
+}
+
 data class BattleUiState(
     val hostCode: String = Invite.randomCode(),
     val joinCode: String = "",
@@ -502,7 +516,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         val id = playerId ?: return
         val b = backend ?: return
-        _state.update { it.copy(myReaction = ShownReaction(reaction, System.currentTimeMillis())) }
+        val now = System.currentTimeMillis()
+        if (ReactionLock.locked(now)) return
+        ReactionLock.takeOver(reaction, now)
+        _state.update { it.copy(myReaction = ShownReaction(reaction, now)) }
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
@@ -1435,7 +1452,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             other.emoji?.takeIf { lastOpponentEmojiSeq >= 0 && it.seq > lastOpponentEmojiSeq }?.let { other.name to it }
         }
         lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
-        fresh.maxByOrNull { it.second.seq }?.second?.reaction?.sound?.let { sfx.play(it) }
+        fresh.maxByOrNull { it.second.seq }?.second?.reaction?.let { reaction ->
+            ReactionLock.takeOver(reaction, now)
+            reaction.sound?.let { sfx.play(it) }
+        }
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
             fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now)) }

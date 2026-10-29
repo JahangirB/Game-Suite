@@ -104,6 +104,17 @@ class LocalRoomTest {
     }
 
     @Test
+    fun kylianDictadorHasTheFloorUntilHisSongEnds() {
+        val room = lobby()
+        room.sendEmoji(LocalRoom.HOST, Reaction.KYLIAN, t0)
+        // Not the other player, not the sender, not even another Kylian.
+        assertThrows(ApiException::class.java) { room.sendEmoji(LocalRoom.GUEST, Reaction.LAUGH, t0 + 5_000) }
+        assertThrows(ApiException::class.java) { room.sendEmoji(LocalRoom.HOST, Reaction.KYLIAN, t0 + Reaction.KYLIAN.takesOverMs - 1) }
+        room.sendEmoji(LocalRoom.GUEST, Reaction.LAUGH, t0 + Reaction.KYLIAN.takesOverMs)
+        assertEquals(Reaction.LAUGH, parseRoom(room.view(LocalRoom.HOST, t0)).opponent!!.emoji!!.reaction)
+    }
+
+    @Test
     fun fourPlayersShareARoundAndDropOutOneByOne() {
         val room = lobby()
         room.join("Cat", null, null)

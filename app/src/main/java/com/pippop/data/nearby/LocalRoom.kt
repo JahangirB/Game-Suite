@@ -90,6 +90,9 @@ class LocalRoom(
     private var winner: String? = null
     private var endReason: String? = null
     private var emojiSeq = 0
+
+    /** Until when a reaction like Kylian Dictador owns the game: no other reaction meanwhile. */
+    private var takenOverUntil = 0L
     private var turn: String? = null
     private var lastShot: Pair<String, Shot>? = null
     // Turn games
@@ -942,7 +945,9 @@ class LocalRoom(
     fun sendEmoji(role: String, reaction: Reaction, now: Long) {
         if (inRoom().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
+        if (now < takenOverUntil) throw ApiException("Kylian Dictador has the floor.")
         if (now - player.emojiAt < EMOJI_INTERVAL_MS) throw ApiException("Slow down a little.")
+        if (reaction.takesOverMs > 0) takenOverUntil = now + reaction.takesOverMs
         emojiSeq++
         player.emoji = reaction to emojiSeq
         player.emojiAt = now
