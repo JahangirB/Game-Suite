@@ -116,6 +116,8 @@ fun SudokuGrid(
                             modifier = Modifier
                                 .size(cellSize)
                                 .background(background)
+                                // The selected square also gets a coral ring, so it never hangs on its fill alone.
+                                .then(if (!hidden && index == selected) Modifier.border(2.dp, p.primary) else Modifier)
                                 .clickable(
                                     enabled = !hidden,
                                     interactionSource = remember { MutableInteractionSource() },

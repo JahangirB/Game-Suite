@@ -108,15 +108,17 @@ val DarkPalette = SudokuPalette(
     // A light ink, so outlines and pressed edges show on the dark background (5:1).
     ink = Color(0xFF8A80B8),
     hairline = Color(0xFF3A3360),
-    boardBackground = Color(0xFF1F1A36),
+    // Board: each highlight a clear step from the next (row/column/box 1.3:1 on the board,
+    // the same digit 2.1:1, the selected square 2.5:1, with a coral ring), digits 4.5:1 or more.
+    boardBackground = Color(0xFF17132A),
     lineThick = Color(0xFFB9B0E0),
     lineThin = Color(0xFF6E66A0),
-    cellSelected = Color(0xFF5E3434),
-    cellSameDigit = Color(0xFF3D3470),
-    cellPeer = Color(0xFF2A2448),
-    cellWrong = Color(0xFF5A2A35),
+    cellSelected = Color(0xFF8E3B47),
+    cellSameDigit = Color(0xFF4C3F96),
+    cellPeer = Color(0xFF2F2752),
+    cellWrong = Color(0xFF6B1E2C),
     given = Color(0xFFF1EDFF),
-    entry = Color(0xFF8FB4FF),
+    entry = Color(0xFFB3CCFF),
     wrong = Color(0xFFFF6B7D),
     note = Color(0xFFA49CC4),
 )
