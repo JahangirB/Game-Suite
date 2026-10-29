@@ -1,0 +1,25 @@
+<!-- Stonks sticker. Drawn by hand; scripts/make-stickers.py turns it into ui/art/StickerArt.kt.
+     Classes starting "a " are its animations (see ui/art/Stickers.kt); captions use Anton or Comic Neue. -->
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="480" height="480">
+<defs><linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="39.5" y1="3.6" x2="80.5" y2="116.4"><stop offset="0" stop-color="#0d2b6b"/><stop offset="1" stop-color="#1f56c0"/></linearGradient><radialGradient id="rx-head" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fff3ea"/><stop offset="1" stop-color="#d8a993"/></radialGradient><clipPath id="frame"><rect x="0" y="0" width="120" height="120" rx="12"/></clipPath></defs>
+<g clip-path="url(#frame)">
+<rect id="backdrop" x="0" y="0" width="120" height="120" fill="url(#bg)"/>
+<path d="M0 20 H120 M0 40 H120 M0 60 H120 M0 80 H120 M0 100 H120 M20 0 V120 M40 0 V120 M60 0 V120 M80 0 V120 M100 0 V120" stroke="#ffffff" stroke-opacity=".14" stroke-width="1"/>
+            <polyline class="a rise" pathLength="100" points="6,98 28,76 40,84 64,50 76,60 102,24" fill="none" stroke="#7a3b00" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+            <polyline class="a rise" pathLength="100" points="6,98 28,76 40,84 64,50 76,60 102,24" fill="none" stroke="#ff9f1c" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+            <polygon class="a tip" points="108.7,13.6 108.9,30.5 92.4,19.9" fill="#ff9f1c" stroke="#7a3b00" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M6 120 L10 94 Q32 84 54 94 L58 120 Z" fill="#17171d" stroke="#000" stroke-width="2"/>
+            <path d="M26 89 L32 104 L38 89 Z" fill="#fff"/>
+            <path d="M31 92 h2 l2 12 l-3 4 l-3 -4 Z" fill="#c8102e"/>
+            <g class="a smug">
+              <ellipse cx="32" cy="68" rx="15" ry="18" fill="url(#rx-head)" stroke="#8a5a48" stroke-width="1.5"/>
+              <ellipse cx="17.5" cy="70" rx="2.5" ry="4" fill="#e2b8a4" stroke="#8a5a48" stroke-width="1.2"/>
+              <circle cx="31" cy="66" r="1.8" fill="#111"/><circle cx="41" cy="66" r="1.8" fill="#111"/>
+              <path d="M28 62.5 h5 M38 62.5 h5" stroke="#8a5a48" stroke-width="1.2"/>
+              <path d="M36 70 l1.5 5 h-3" fill="none" stroke="#a87562" stroke-width="1.2"/>
+              <path d="M30 79 q6 2.5 11 -1" fill="none" stroke="#6b3d2e" stroke-width="1.6" stroke-linecap="round"/>
+            </g>
+            <text class="cap" x="86" y="110" style="font-size:19px">STONKS</text>
+</g>
+<rect id="frame-line" x="1.5" y="1.5" width="117" height="117" rx="11" fill="none" stroke="#14121c" stroke-width="3"/>
+</svg>

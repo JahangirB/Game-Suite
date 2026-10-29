@@ -1,0 +1,38 @@
+<!-- This is fine sticker. Drawn by hand; scripts/make-stickers.py turns it into ui/art/StickerArt.kt.
+     Classes starting "a " are its animations (see ui/art/Stickers.kt); captions use Anton or Comic Neue. -->
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="480" height="480">
+<defs><linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="60" y2="120"><stop offset="0" stop-color="#e98a2b"/><stop offset="1" stop-color="#f6b955"/></linearGradient><path id="rx-fl" d="M0 0 C-9 0 -11 -9 -6 -15 C-5 -10 -2 -10 -2 -14 C-2 -19 2 -23 3 -26 C4 -19 11 -14 9 -6 C8 -2 5 0 0 0 Z"/><clipPath id="frame"><rect x="0" y="0" width="120" height="120" rx="12"/></clipPath></defs>
+<g clip-path="url(#frame)">
+<rect id="backdrop" x="0" y="0" width="120" height="120" fill="url(#bg)"/>
+<path d="M0 0 H120 V26 Q104 34 88 26 Q72 36 56 26 Q40 34 24 26 Q12 32 0 26 Z" fill="#4a3b3a" opacity=".9"/>
+            <path d="M84 40 h24 v20 h-24 Z" fill="#c76a20" stroke="#000" stroke-width="2"/>
+            <path d="M86 58 l7 -9 l5 6 l4 -4 l4 7" fill="none" stroke="#7a3c10" stroke-width="2"/>
+            <g transform="translate(10 106) scale(1.7)"><g class="a flame"><use href="#rx-fl" fill="#ff5a1f" stroke="#000" stroke-width="1.4"/><use href="#rx-fl" transform="scale(.55)" fill="#ffd23f"/></g></g>
+            <g transform="translate(14 64) scale(1.1)"><g class="a flame b"><use href="#rx-fl" fill="#ff5a1f" stroke="#000" stroke-width="1.6"/><use href="#rx-fl" transform="scale(.55)" fill="#ffd23f"/></g></g>
+            <g transform="translate(110 106) scale(1.8)"><g class="a flame c"><use href="#rx-fl" fill="#ff5a1f" stroke="#000" stroke-width="1.4"/><use href="#rx-fl" transform="scale(.55)" fill="#ffd23f"/></g></g>
+            <g transform="translate(104 80) scale(1)"><g class="a flame"><use href="#rx-fl" fill="#ff5a1f" stroke="#000" stroke-width="1.8"/></g></g>
+            <g transform="translate(30 36) scale(.8)"><g class="a flame c"><use href="#rx-fl" fill="#ff5a1f" stroke="#000" stroke-width="2"/></g></g>
+            <ellipse cx="44" cy="86" rx="19" ry="15" fill="#d9a066" stroke="#000" stroke-width="2.5"/>
+            <path d="M31 52 q-9 6 -5 19 q7 -1 9 -10 Z" fill="#a8703c" stroke="#000" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M57 52 q9 6 5 19 q-7 -1 -9 -10 Z" fill="#a8703c" stroke="#000" stroke-width="2.2" stroke-linejoin="round"/>
+            <ellipse cx="44" cy="62" rx="15" ry="14" fill="#d9a066" stroke="#000" stroke-width="2.5"/>
+            <ellipse cx="44" cy="68" rx="8" ry="5" fill="#f1d2a8"/>
+            <ellipse cx="44" cy="65" rx="3" ry="2" fill="#000"/>
+            <circle cx="38.5" cy="59" r="1.8" fill="#000"/><circle cx="49.5" cy="59" r="1.8" fill="#000"/>
+            <path d="M40 71 q4 3 8 0" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M33 50 q11 -17 22 0 Z" fill="#3b2f2a" stroke="#000" stroke-width="2.2" stroke-linejoin="round"/>
+            <ellipse cx="44" cy="50" rx="15" ry="2.8" fill="#3b2f2a" stroke="#000" stroke-width="2"/>
+            <rect x="6" y="96" width="74" height="7" rx="1" fill="#8b5a2b" stroke="#000" stroke-width="2.2"/>
+            <path d="M14 103 v14 M72 103 v14" stroke="#000" stroke-width="3"/>
+            <g class="a sip">
+              <rect x="56" y="84" width="10" height="12" rx="2" fill="#fff" stroke="#000" stroke-width="2"/>
+              <path d="M66 87 q5 0 5 3.5 q0 3.5 -5 3.5" fill="none" stroke="#000" stroke-width="2"/>
+              <ellipse cx="55" cy="91" rx="4" ry="3.2" fill="#d9a066" stroke="#000" stroke-width="1.8"/>
+            </g>
+            <g class="a bubble">
+              <path d="M62 30 h48 a6 6 0 0 1 6 6 v12 a6 6 0 0 1 -6 6 h-36 l-8 7 l1 -7 h-5 a6 6 0 0 1 -6 -6 v-12 a6 6 0 0 1 6 -6 Z" fill="#fff" stroke="#000" stroke-width="2"/>
+              <text x="86" y="45.5" text-anchor="middle" style="font: 700 9.5px var(--comic)" fill="#000">This is fine.</text>
+            </g>
+</g>
+<rect id="frame-line" x="1.5" y="1.5" width="117" height="117" rx="11" fill="none" stroke="#14121c" stroke-width="3"/>
+</svg>

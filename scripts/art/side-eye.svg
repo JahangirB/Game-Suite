@@ -1,0 +1,22 @@
+<!-- Hmm. Sure. (side-eye) sticker. Drawn by hand; scripts/make-stickers.py turns it into ui/art/StickerArt.kt.
+     Classes starting "a " are its animations (see ui/art/Stickers.kt); captions use Anton or Comic Neue. -->
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="480" height="480">
+<defs><clipPath id="frame"><rect x="0" y="0" width="120" height="120" rx="12"/></clipPath></defs>
+<g clip-path="url(#frame)">
+<rect id="backdrop" x="0" y="0" width="120" height="120" fill="#efc29c"/>
+<path class="a brow-up" d="M12 34 Q30 20 52 30" fill="none" stroke="#4a2c18" stroke-width="7" stroke-linecap="round"/>
+            <path d="M68 34 L108 37" stroke="#4a2c18" stroke-width="7" stroke-linecap="round"/>
+            <ellipse cx="32" cy="56" rx="20" ry="13" fill="#fff" stroke="#3a2416" stroke-width="3"/>
+            <ellipse cx="88" cy="56" rx="20" ry="13" fill="#fff" stroke="#3a2416" stroke-width="3"/>
+            <g class="a iris">
+              <circle cx="32" cy="57" r="8.5" fill="#6b3f1f"/><circle cx="32" cy="57" r="4.2" fill="#000"/><circle cx="34.5" cy="54.5" r="1.8" fill="#fff"/>
+              <circle cx="88" cy="57" r="8.5" fill="#6b3f1f"/><circle cx="88" cy="57" r="4.2" fill="#000"/><circle cx="90.5" cy="54.5" r="1.8" fill="#fff"/>
+            </g>
+            <path class="a lid" d="M10 57 A22 15 0 0 1 54 57 Z" fill="#dda077" stroke="#3a2416" stroke-width="3" stroke-linejoin="round"/>
+            <path class="a lid" d="M66 57 A22 15 0 0 1 110 57 Z" fill="#dda077" stroke="#3a2416" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M14 70 q18 6 36 0 M70 70 q18 6 36 0" fill="none" stroke="#c98f68" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M60 66 q-5 14 4 17" fill="none" stroke="#c48a63" stroke-width="3" stroke-linecap="round"/>
+            <text class="cap" x="60" y="110" style="font-size:16px">HMM. SURE.</text>
+</g>
+<rect id="frame-line" x="1.5" y="1.5" width="117" height="117" rx="11" fill="none" stroke="#14121c" stroke-width="3"/>
+</svg>

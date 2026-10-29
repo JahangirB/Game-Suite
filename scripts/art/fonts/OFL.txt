@@ -1,0 +1,5 @@
+Anton (anton-latin.woff2) and Comic Neue Bold (comicneue-bold-latin.woff2) are licensed under the
+SIL Open Font License, Version 1.1 (https://openfontlicense.org). Anton: Copyright 2020 The Anton
+Project Authors. Comic Neue: Copyright 2014 The Comic Neue Project Authors. These are the Latin
+subsets from Google Fonts. Only scripts/make-stickers.py reads them, to turn sticker captions into
+outlines; the app itself ships no font files from here.

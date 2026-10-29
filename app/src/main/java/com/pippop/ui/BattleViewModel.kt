@@ -82,16 +82,26 @@ enum class BattleMode { ONLINE, NEARBY }
 data class ShownReaction(val reaction: Reaction, val at: Long)
 
 /**
- * Until when a reaction that takes the game over (Kylian Dictador) is playing, on this phone's
- * clock. Every reaction bar reads it: nothing else can be sent until then.
+ * Kylian Dictador taking the game over, on this phone's clock. [until] is when his song ends:
+ * every reaction bar reads it, and nothing else can be sent until then. [shown] is a takeover
+ * that isn't a reaction from someone else, such as his card played in Colour Clash: the app
+ * shows it over whatever game is open, on every phone, the player's own included.
  */
-object ReactionLock {
+object Takeover {
     val until = MutableStateFlow(0L)
+    val shown = MutableStateFlow<ShownReaction?>(null)
 
     fun locked(now: Long = System.currentTimeMillis()) = now < until.value
 
+    /** Starts [reaction]'s takeover at [at], if it has one. */
     fun takeOver(reaction: Reaction, at: Long) {
         if (reaction.takesOverMs > 0) until.value = maxOf(until.value, at + reaction.takesOverMs)
+    }
+
+    /** Shows [reaction] over the game now and takes the game over with it; its sound is the caller's to play. */
+    fun show(reaction: Reaction, at: Long = System.currentTimeMillis()) {
+        takeOver(reaction, at)
+        shown.value = ShownReaction(reaction, at)
     }
 }
 
@@ -517,8 +527,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val id = playerId ?: return
         val b = backend ?: return
         val now = System.currentTimeMillis()
-        if (ReactionLock.locked(now)) return
-        ReactionLock.takeOver(reaction, now)
+        if (Takeover.locked(now)) return
+        Takeover.takeOver(reaction, now)
         _state.update { it.copy(myReaction = ShownReaction(reaction, now)) }
         viewModelScope.launch {
             try {
@@ -1453,7 +1463,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
         lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
         fresh.maxByOrNull { it.second.seq }?.second?.reaction?.let { reaction ->
-            ReactionLock.takeOver(reaction, now)
+            Takeover.takeOver(reaction, now)
             reaction.sound?.let { sfx.play(it) }
         }
         _state.update { s ->

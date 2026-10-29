@@ -86,6 +86,7 @@ import com.pippop.ui.screens.SoloShipsScreen
 import com.pippop.data.GameKind
 import com.pippop.ui.screens.UpdateDialog
 import com.pippop.ui.art.ReactionBurst
+import com.pippop.ui.art.StickerBurst
 import com.pippop.ui.screens.LocalShipStyle
 import com.pippop.ui.theme.AppTheme
 
@@ -310,6 +311,9 @@ fun PipPopApp(
                 }
                 // A reaction from your opponent plays large over the battle screen.
                 if (inRoomGame) ReactionBurst(battleState.opponentReaction)
+                // Kylian's card in Colour Clash takes over every phone, in a battle or solo.
+                val takeover by Takeover.shown.collectAsStateWithLifecycle()
+                takeover?.let { StickerBurst(it) }
                 if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter))
                 // A game's tutorial, over everything, in the same safe area as every screen.
                 TutorialLayer(tutorials)

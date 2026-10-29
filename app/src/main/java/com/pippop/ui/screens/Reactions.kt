@@ -18,8 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.pippop.data.Reaction
-import com.pippop.ui.ReactionLock
 import com.pippop.ui.ShownReaction
+import com.pippop.ui.Takeover
 import com.pippop.ui.art.ReactionImage
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.Shapes
@@ -35,7 +35,7 @@ private const val REACTION_SHOWN_MS = 3500L
 @Composable
 fun ReactionBar(onReact: (Reaction) -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    val lockedUntil by ReactionLock.until.collectAsState()
+    val lockedUntil by Takeover.until.collectAsState()
     val locked = rememberTicker() < lockedUntil
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),

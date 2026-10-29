@@ -1,0 +1,20 @@
+<!-- Galaxy brain sticker. Drawn by hand; scripts/make-stickers.py turns it into ui/art/StickerArt.kt.
+     Classes starting "a " are its animations (see ui/art/Stickers.kt); captions use Anton or Comic Neue. -->
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="480" height="480">
+<defs><radialGradient id="bg" gradientUnits="userSpaceOnUse" cx="66" cy="48" r="70"><stop offset="0" stop-color="#5a23a8"/><stop offset="1" stop-color="#12062e"/></radialGradient><clipPath id="frame"><rect x="0" y="0" width="120" height="120" rx="12"/></clipPath></defs>
+<g clip-path="url(#frame)">
+<rect id="backdrop" x="0" y="0" width="120" height="120" fill="url(#bg)"/>
+<circle class="a tw" cx="12" cy="30" r="1.2" fill="#fff"/><circle class="a tw b" cx="104" cy="16" r="1.5" fill="#fff"/>
+            <circle class="a tw c" cx="100" cy="96" r="1.2" fill="#fff"/><circle class="a tw b" cx="16" cy="88" r="1.5" fill="#fff"/>
+            <circle class="a tw" cx="110" cy="58" r="1" fill="#fff"/><circle class="a tw c" cx="28" cy="12" r="1" fill="#fff"/>
+            <path d="M40 120 L38 98 Q22 86 26 62 Q30 32 60 28 Q84 28 88 48 L90 56 L97 63 L90 66 L92 70 L89 74 L91 81 Q84 88 74 88 L72 120 Z" fill="#2fd3ff" fill-opacity=".18" stroke="#8ef0ff" stroke-width="2"/>
+            <g class="a rays">
+              <path d="M56 50 L56 6 M56 50 L90 18 M56 50 L104 46 M56 50 L20 22 M56 50 L8 52 M56 50 L84 84 M56 50 L28 84" stroke="#fff6b0" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>
+            </g>
+            <g class="a glow"><circle cx="56" cy="50" r="30" fill="#fff6b0" fill-opacity=".12"/><circle cx="56" cy="50" r="25" fill="#fff6b0" fill-opacity=".18"/><circle cx="56" cy="50" r="21" fill="#fff6b0" fill-opacity=".3"/></g>
+            <ellipse cx="56" cy="50" rx="19" ry="13" fill="#ffe36e" stroke="#f29f05" stroke-width="2"/>
+            <path d="M42 48 q5 -6 10 0 q5 6 10 0 q4 -4 8 0 M46 56 q5 -4 10 0 q4 3 8 0" fill="none" stroke="#f29f05" stroke-width="1.8" stroke-linecap="round"/>
+            <text class="cap" x="60" y="112" style="font-size:15px">GALAXY BRAIN</text>
+</g>
+<rect id="frame-line" x="1.5" y="1.5" width="117" height="117" rx="11" fill="none" stroke="#14121c" stroke-width="3"/>
+</svg>

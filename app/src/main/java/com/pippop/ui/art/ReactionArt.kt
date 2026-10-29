@@ -13,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -77,33 +79,35 @@ fun ReactionBurst(shown: ShownReaction?) {
     }
 }
 
-/** A sticker fades in over its song's first second and out as the song ends. */
-private const val STICKER_FADE_IN_MS = 1000
-private const val STICKER_FADE_OUT_MS = 400
+/** How long a meme sticker stays up, and how quickly stickers fade in and out. */
+private const val STICKER_SHOWN_MS = 3000L
+private const val STICKER_FADE_IN_MS = 200f
+private const val TAKEOVER_FADE_IN_MS = 1000f
+private const val STICKER_FADE_OUT_MS = 400f
 
 /**
- * Shows [shown], a sticker, large and still, fading in and out with its sound. One that takes
- * the game over (Kylian Dictador) freezes the screen under it: no touches, no back button,
- * until its song ends.
+ * Shows [shown], a sticker, large, playing its animation, fading in and out. One that takes
+ * the game over (Kylian Dictador) stays for its song, fading in over the first second, and
+ * freezes the screen under it: no touches, no back button, until the song ends.
  */
 @Composable
-private fun StickerBurst(shown: ShownReaction) {
-    val shownMs = shown.reaction.takesOverMs.takeIf { it > 0 } ?: STICKER_DEFAULT_MS
-    var visible by remember(shown) { mutableStateOf(System.currentTimeMillis() - shown.at < shownMs) }
-    if (!visible) return
-    val alpha = remember(shown) { Animatable(0f) }
-    LaunchedEffect(shown) {
-        alpha.animateTo(1f, tween(STICKER_FADE_IN_MS, easing = LinearEasing))
-        delay(shownMs - STICKER_FADE_IN_MS - STICKER_FADE_OUT_MS)
-        alpha.animateTo(0f, tween(STICKER_FADE_OUT_MS, easing = LinearEasing))
-        visible = false
+internal fun StickerBurst(shown: ShownReaction) {
+    val takeover = shown.reaction.takesOverMs > 0
+    val shownMs = if (takeover) shown.reaction.takesOverMs else STICKER_SHOWN_MS
+    val elapsed by produceState(System.currentTimeMillis() - shown.at, shown) {
+        while (value < shownMs) {
+            withFrameMillis { }
+            value = System.currentTimeMillis() - shown.at
+        }
     }
-    val freeze = shown.reaction.takesOverMs > 0
-    BackHandler(enabled = freeze) {}
+    if (elapsed >= shownMs) return
+    val fadeIn = if (takeover) TAKEOVER_FADE_IN_MS else STICKER_FADE_IN_MS
+    val alpha = minOf(elapsed / fadeIn, (shownMs - elapsed) / STICKER_FADE_OUT_MS, 1f).coerceAtLeast(0f)
+    BackHandler(enabled = takeover) {}
     Box(
         Modifier.fillMaxSize().then(
-            if (!freeze) Modifier
-            else Modifier.background(SCRIM.copy(alpha = SCRIM.alpha * alpha.value)).pointerInput(shown) {
+            if (!takeover) Modifier
+            else Modifier.background(SCRIM.copy(alpha = SCRIM.alpha * alpha)).pointerInput(shown) {
                 // Swallow every touch: the game underneath is frozen until the song ends.
                 awaitPointerEventScope {
                     while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
@@ -112,20 +116,20 @@ private fun StickerBurst(shown: ShownReaction) {
         ),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha.value }) { drawReaction(shown.reaction, 1.0) }
+        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha }) { drawSticker(stickerOf(shown.reaction), elapsed) }
     }
 }
 
-/** How long a sticker without a takeover song stays up. */
-private const val STICKER_DEFAULT_MS = 3000L
-
 private val SCRIM = Color.Black.copy(alpha = 0.45f)
 
-private val STICKER_GREY = Color(0xFF7D7A84) to Color(0xFF5D5A64)
-
-private fun stickerParts(reaction: Reaction): List<Part> = when (reaction) {
+/** The drawing for a sticker reaction. */
+internal fun stickerOf(reaction: Reaction): Sticker = when (reaction) {
     Reaction.KYLIAN -> StickerArt.KYLIAN
-    else -> emptyList()
+    Reaction.SIDE_EYE -> StickerArt.SIDE_EYE
+    Reaction.STONKS -> StickerArt.STONKS
+    Reaction.GALAXY_BRAIN -> StickerArt.GALAXY_BRAIN
+    Reaction.THIS_IS_FINE -> StickerArt.THIS_IS_FINE
+    else -> error("$reaction is not a sticker")
 }
 
 private fun playedFraction(startedAt: Long?): Float =
@@ -134,7 +138,7 @@ private fun playedFraction(startedAt: Long?): Float =
 
 /** Draws [reaction] at animation point [p] (0 = start, 1 = resting pose) filling this draw area. */
 fun DrawScope.drawReaction(reaction: Reaction, p: Double) {
-    if (reaction.sticker) return drawSticker(stickerParts(reaction), STICKER_GREY)
+    if (reaction.sticker) return drawSticker(stickerOf(reaction))
     scale(size.minDimension / 100f, Offset.Zero) {
         val pen = Pen(this)
         when (reaction) {
@@ -148,7 +152,7 @@ fun DrawScope.drawReaction(reaction: Reaction, p: Double) {
             Reaction.COOL -> pen.cool(p)
             Reaction.HEART -> pen.heart(p)
             Reaction.HURRY -> pen.hurry(p)
-            Reaction.KYLIAN -> Unit
+            else -> Unit // Stickers are drawn above.
         }
     }
 }
