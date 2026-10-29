@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +19,7 @@ import com.pippop.data.Reaction
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.Shapes
 import kotlinx.coroutines.delay
 
 /** How long a reaction stays next to a player's name. */
@@ -35,7 +35,7 @@ fun ReactionBar(onReact: (Reaction) -> Unit, modifier: Modifier = Modifier) {
     ) {
         Reaction.entries.forEach { reaction ->
             if (reaction.sticker) {
-                Surface(onClick = { onReact(reaction) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.size(42.dp)) {
+                Surface(onClick = { onReact(reaction) }, shape = Shapes.S, modifier = Modifier.size(42.dp)) {
                     ReactionImage(reaction, 42.dp)
                 }
             } else {
