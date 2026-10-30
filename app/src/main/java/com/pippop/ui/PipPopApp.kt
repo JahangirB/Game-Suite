@@ -298,7 +298,7 @@ fun PipPopApp(
                             onPlayMode = app::setPlayMode,
                             connected = room != null,
                             onConnectNearby = { connectSheet = ConnectKind.NEARBY },
-                            onStartRoom = battle::host,
+                            onStartRoom = { connectSheet = ConnectKind.HOST_ONLINE },
                             onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
                             room = room,
                             nearby = battleState.mode == BattleMode.NEARBY,

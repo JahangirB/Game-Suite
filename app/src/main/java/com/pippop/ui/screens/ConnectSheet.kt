@@ -44,8 +44,8 @@ import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Tracking
 
-/** What the home's connect sheet is for: a nearby room, or joining an online room with its code. */
-enum class ConnectKind { NEARBY, JOIN_ONLINE }
+/** What the home's connect sheet is for: a nearby room, starting an online room, or joining one with its code. */
+enum class ConnectKind { NEARBY, HOST_ONLINE, JOIN_ONLINE }
 
 /** What Android asks for before two phones may find each other directly. */
 internal fun nearbyPermissions(): Array<String> = buildList {
@@ -72,6 +72,7 @@ fun ConnectSheet(kind: ConnectKind, state: BattleUiState, vm: BattleViewModel) {
     ) {
         when (kind) {
             ConnectKind.NEARBY -> NearbyConnect(state, vm)
+            ConnectKind.HOST_ONLINE -> OnlineHost(state, vm)
             ConnectKind.JOIN_ONLINE -> OnlineJoin(state, vm)
         }
     }
@@ -113,6 +114,20 @@ private fun NearbyConnect(state: BattleUiState, vm: BattleViewModel) {
     SecondaryButton("Join with this code", { withPermissions(vm::joinNearby) }, enabled = !state.busy)
     Text("Keep Bluetooth and Wi‑Fi on and the phones close together. No internet needed.", color = p.muted, fontSize = TextSize.Body)
     if (denied) StatusLine("Nearby play needs the nearby devices permission.", Tone.Bad)
+}
+
+@Composable
+private fun OnlineHost(state: BattleUiState, vm: BattleViewModel) {
+    val p = AppTheme.palette
+    Text("Start an online room", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+    Text(
+        "Pick the room's code, or keep the one made for you. Send it to the others: they join with it from " +
+            "anywhere with internet.",
+        color = p.muted,
+        fontSize = TextSize.Body,
+    )
+    CodeField(state.hostCode, vm::setHostCode, label = "Room code", onNew = vm::newHostCode, onGo = vm::host)
+    PrimaryButton("Start the room", vm::host, loading = state.busy)
 }
 
 @Composable
