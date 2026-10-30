@@ -45,6 +45,8 @@ class LocalRoom(
     private val generate: (Int) -> Generator.Result = { Generator.generate(it) },
 ) {
     class Player(val id: String, val name: String, var avatar: Avatar?) {
+        /** The phone this player is on, so it gets this seat back if it joins again. */
+        var deviceId: String? = null
         var ready = false
         var difficulty: Difficulty? = null
         var board: String? = null
@@ -160,18 +162,20 @@ class LocalRoom(
      * Joins as guest, or reconnects when [playerId] belongs to the room. Returns the role.
      * [games] lists the games the joining app knows (null for apps that predate the list).
      */
-    fun join(name: String, avatar: Avatar?, playerId: String?, games: List<String>? = null): String {
+    fun join(name: String, avatar: Avatar?, playerId: String?, games: List<String>? = null, deviceId: String? = null): String {
         if (status == "closed") throw ApiException("The host closed this game.", fatal = true, reason = "closed")
         if (game.key !in (games ?: OLD_APP_GAMES)) {
             throw ApiException("This game needs the latest Pip & Pop. Update the app to join.", fatal = true, reason = "update_needed")
         }
         players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { return it.key }
+        // The same phone coming back without its player id gets its own seat back, not a second one beside it.
+        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { return it.key }
         if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")
         val max = game.maxPlayers
         val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
             ?: throw ApiException(if (max == 2) "This game already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
         if (status == "started") throw ApiException("A game is being played. Join when it ends.", fatal = true, reason = "busy")
-        players[seat] = newPlayer(name, avatar)
+        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId }
         // Everyone gets ready again, so the newcomer is part of the next round.
         for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
         if (status == "waiting") status = "lobby"
@@ -1025,6 +1029,7 @@ class LocalRoom(
         for (r in ROLES) {
             val p = players[r]
             fresh.players[r] = if (p == null || p.left) null else Player(p.id, p.name, p.avatar).also {
+                it.deviceId = p.deviceId
                 it.connected = p.connected
                 it.awaySince = p.awaySince
                 it.emoji = p.emoji

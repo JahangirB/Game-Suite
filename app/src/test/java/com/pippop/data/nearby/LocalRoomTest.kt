@@ -104,6 +104,20 @@ class LocalRoomTest {
     }
 
     @Test
+    fun theSamePhoneJoiningAgainGetsItsOwnSeatBack() {
+        val room = lobby()
+        val bob = room.join("Bob", null, null, deviceId = "device-bob")
+        val bobId = room.playerId(bob)
+        // The same phone without its player id (or with an old one): the same seat, no ghost.
+        assertEquals(bob, room.join("Bob", null, null, deviceId = "device-bob"))
+        assertEquals(bob, room.join("Bob", null, "stale-id", deviceId = "device-bob"))
+        assertEquals(bobId, room.playerId(bob))
+        // A different phone still gets a new seat.
+        val cat = room.join("Cat", null, null, deviceId = "device-cat")
+        assertTrue(cat != bob)
+    }
+
+    @Test
     fun kylianDictadorHasTheFloorUntilHisSongEnds() {
         val room = lobby()
         room.sendEmoji(LocalRoom.HOST, Reaction.KYLIAN, t0)

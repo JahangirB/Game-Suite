@@ -243,7 +243,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     }
                     val playerId = if (msg.isNull("playerId")) null else msg.optString("playerId")
                     val games = if (msg.has("games")) msg.optString("games").split(",") else null
-                    val seat = r.join(msg.optString("name"), Avatar.from(msg.optString("avatar")), playerId, games)
+                    val deviceId = msg.optString("deviceId").takeIf { it.isNotBlank() }
+                    val seat = r.join(msg.optString("name"), Avatar.from(msg.optString("avatar")), playerId, games, deviceId)
                     guests[endpointId] = seat
                     r.setConnected(seat, true, now)
                     if (r.seated().count { it != LocalRoom.HOST } >= r.game.maxPlayers - 1) stopAdvertising()

@@ -2,7 +2,6 @@ package com.pippop.data.nearby
 
 import android.content.Context
 import com.pippop.data.ApiException
-import com.pippop.data.Avatar
 import com.pippop.data.BattleBackend
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
@@ -123,7 +122,7 @@ class NearbyGuest(context: Context) : BattleBackend {
             tried += host.endpointId
             try {
                 connectTo(host, me.name)
-                val json = request(open(me.name, me.avatar, playerId, code), OPEN)
+                val json = request(open(me, playerId, code), OPEN)
                 session = Session(code, host.tag, me, json.getString("playerId"))
                 return json
             } catch (e: ApiException) {
@@ -212,9 +211,11 @@ class NearbyGuest(context: Context) : BattleBackend {
         scope.cancel()
     }
 
-    private fun open(name: String, avatar: Avatar?, playerId: String?, code: String) = JSONObject()
-        .put("type", "open").put("code", code).put("name", name)
-        .put("avatar", avatar?.key ?: JSONObject.NULL)
+    private fun open(me: Hello, playerId: String?, code: String) = JSONObject()
+        .put("type", "open").put("code", code).put("name", me.name)
+        .put("avatar", me.avatar?.key ?: JSONObject.NULL)
+        // So a phone coming back without its player id gets its own seat back.
+        .put("deviceId", me.deviceId)
         .put("playerId", playerId ?: JSONObject.NULL)
         .put("games", BattleBackend.SUPPORTED_GAMES)
 
@@ -280,7 +281,7 @@ class NearbyGuest(context: Context) : BattleBackend {
                     }
                     if (host != null) {
                         connectTo(host, s.me.name)
-                        client.sendPayload(host.endpointId, open(s.me.name, s.me.avatar, s.playerId, s.code).put("id", OPEN).toPayload())
+                        client.sendPayload(host.endpointId, open(s.me, s.playerId, s.code).put("id", OPEN).toPayload())
                         return@launch
                     }
                 } catch (e: Exception) {

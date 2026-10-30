@@ -135,6 +135,13 @@ export function playing(room) {
   return (room.inMatch || ['host', 'guest']).filter((r) => room.players[r] && !room.players[r].left && !room.players[r].out);
 }
 
+/** The seat of a player still in the room on the phone [deviceId], or null. */
+export function findDevice(room, deviceId) {
+  const id = cleanDeviceId(deviceId);
+  if (!id) return null;
+  return ROLES.find((r) => room.players[r] && !room.players[r].left && room.players[r].deviceId === id) || null;
+}
+
 export function findRole(room, playerId) {
   if (!playerId) return null;
   for (const role of ROLES) {
@@ -158,6 +165,10 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     if (id) room.players[known].deviceId = id;
     return known;
   }
+  // The same phone coming back without its player id (a join retried after its answer was
+  // lost, or the app forgot the room) gets its own seat back, not a second one beside it.
+  const mine = findDevice(room, deviceId);
+  if (mine) return mine;
   if (playerId) throw new GameError("You're not in this game.", true, 'not_member');
   const max = maxPlayers(room.game);
   const seat = ROLES.slice(1, max).find((r) => !room.players[r] || room.players[r].left);

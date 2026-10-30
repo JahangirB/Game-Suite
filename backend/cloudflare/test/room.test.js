@@ -119,6 +119,23 @@ test('joining rules: full room, reconnect, strangers', () => {
   assert.throws(() => joinRoom(room, 'Eve', 'forged-id', T0, uuid), (e) => e.fatal);
 });
 
+test('the same phone joining again gets its own seat back, never a ghost beside it', () => {
+  const room = createRoom('GHOST1', 'Alice', T0, uuid, null, 'device-alice');
+  setConnected(room, 'host', true, T0);
+  const bob = joinRoom(room, 'Bob', null, T0, uuid, null, 'device-bob');
+  const bobId = room.players[bob].id;
+  // Bob's join is retried after its answer was lost, or his app forgot the room: same seat.
+  assert.equal(joinRoom(room, 'Bob', null, T0, uuid, null, 'device-bob'), bob);
+  // An old player id from that phone is no reason to refuse it either.
+  assert.equal(joinRoom(room, 'Bob', 'stale-id', T0, uuid, null, 'device-bob'), bob);
+  assert.equal(room.players[bob].id, bobId);
+  // The host's own phone coming in with the code is the host, not a second Alice.
+  assert.equal(joinRoom(room, 'Alice', null, T0, uuid, null, 'device-alice'), 'host');
+  assert.equal(['host', 'guest', 'p3', 'p4'].filter((r) => room.players[r]).length, 2);
+  // A different phone still gets a new seat.
+  assert.equal(joinRoom(room, 'Cat', null, T0, uuid, null, 'device-cat'), 'p3');
+});
+
 test('leaving mid-match forfeits; host leaving closes the room', () => {
   const room = started();
   leave(room, 'guest');
