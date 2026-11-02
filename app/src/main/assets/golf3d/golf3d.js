@@ -502,6 +502,11 @@ let sizedW = 0, sizedH = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (canvas.clientWidth !== sizedW || canvas.clientHeight !== sizedH) { sizedW = canvas.clientWidth; sizedH = canvas.clientHeight; resize(); }
+  // A view with no room to draw in, for a few seconds after the hole came: say so.
+  if (st.hole && (sizedW < 20 || sizedH < 20)) {
+    st.flatSince = st.flatSince || now;
+    if (now - st.flatSince > 3000 && !st.flatTold) { st.flatTold = true; bridge.event(`error the view is ${sizedW} x ${sizedH} pixels`); }
+  } else st.flatSince = 0;
   if (st.play) stepPlay(dt, now);
   const t = now / 1000;
   moveSea(t); waveFlag(t);

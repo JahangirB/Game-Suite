@@ -5,6 +5,7 @@ import android.graphics.Color as AndroidColor
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -88,6 +89,10 @@ fun Golf3D(
     val main = remember { Handler(Looper.getMainLooper()) }
     val web = remember {
         WebView(context).apply {
+            // Fill the space Compose gives it. Without this a WebView is wrap-content, sizes the
+            // page to what's in it, and this page (everything laid over the view) collapses to
+            // nothing tall: an empty sky, the course drawn 0 pixels high.
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setBackgroundColor(AndroidColor.TRANSPARENT)
             settings.javaScriptEnabled = true
             settings.mediaPlaybackRequiresUserGesture = true
