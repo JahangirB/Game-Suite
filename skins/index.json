@@ -1,0 +1,95 @@
+{
+ "skins": [
+  {
+   "id": "candy-cove",
+   "name": "Candy Cove",
+   "tag": "Sweets on a pink lemonade sea",
+   "version": 1,
+   "size": 19832
+  },
+  {
+   "id": "popsicle-pier",
+   "name": "Popsicle Pier",
+   "tag": "Ice lollies on a summer sea",
+   "version": 1,
+   "size": 15787
+  },
+  {
+   "id": "breakfast-table",
+   "name": "Breakfast Table",
+   "tag": "Eggs, bacon and sausages on gingham",
+   "version": 1,
+   "size": 10736
+  },
+  {
+   "id": "bakery",
+   "name": "Bakery",
+   "tag": "Baguettes on a floury board",
+   "version": 1,
+   "size": 13509
+  },
+  {
+   "id": "caterpillar-crawl",
+   "name": "Caterpillar Crawl",
+   "tag": "Caterpillars on a sunny leaf",
+   "version": 1,
+   "size": 35036
+  },
+  {
+   "id": "brick-builders",
+   "name": "Brick Builders",
+   "tag": "Toy bricks on a green baseplate",
+   "version": 1,
+   "size": 104483
+  },
+  {
+   "id": "train-set",
+   "name": "Train Set",
+   "tag": "Wooden trains on the play table",
+   "version": 1,
+   "size": 22734
+  },
+  {
+   "id": "pencil-case",
+   "name": "Pencil Case",
+   "tag": "Coloured pencils on graph paper",
+   "version": 1,
+   "size": 5296
+  },
+  {
+   "id": "domino-run",
+   "name": "Domino Run",
+   "tag": "Dominoes on green felt",
+   "version": 1,
+   "size": 79704
+  },
+  {
+   "id": "sky-fleet",
+   "name": "Sky Fleet",
+   "tag": "Planes over the clouds",
+   "version": 1,
+   "size": 14160
+  },
+  {
+   "id": "zeppelin-skies",
+   "name": "Zeppelin Skies",
+   "tag": "Airships at sunset",
+   "version": 1,
+   "size": 12725
+  },
+  {
+   "id": "submarine-squad",
+   "name": "Submarine Squad",
+   "tag": "A fleet of submarines, deep down",
+   "version": 1,
+   "size": 31038
+  },
+  {
+   "id": "steampunk-brass",
+   "name": "Steampunk Brass",
+   "tag": "Brass ships with gears on copper water",
+   "version": 1,
+   "size": 58881
+  }
+ ]
+}

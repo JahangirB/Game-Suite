@@ -72,7 +72,8 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
 
 /** One button in the dock at the bottom of a game. */
-class DockAction(val label: String, val icon: ImageVector, val enabled: Boolean = true, val onClick: () -> Unit)
+/** A dock button; a [badge] above zero shows as a small count on it (new things to look at). */
+class DockAction(val label: String, val icon: ImageVector, val enabled: Boolean = true, val badge: Int = 0, val onClick: () -> Unit)
 
 /** A player in the chips at the top of a game. [active] gets a glow in the game's colour. */
 class ChipPlayer(
@@ -296,10 +297,19 @@ private fun GameDock(actions: List<DockAction>) {
                         .alpha(if (action.enabled) 1f else 0.4f)
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(46.dp).pressedEdge(p.ink, 23.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape),
-                    ) { Icon(action.icon, contentDescription = null, tint = p.text, modifier = Modifier.size(22.dp)) }
+                    // The button, and a count of new things on its corner (outside the round clip).
+                    Box {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(46.dp).pressedEdge(p.ink, 23.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape),
+                        ) { Icon(action.icon, contentDescription = null, tint = p.text, modifier = Modifier.size(22.dp)) }
+                        if (action.badge > 0) {
+                            Text(
+                                "${action.badge}", color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.TopEnd).clip(CircleShape).background(p.primary).padding(horizontal = 5.dp),
+                            )
+                        }
+                    }
                     Text(action.label, color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                 }
             }

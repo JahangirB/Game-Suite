@@ -14,6 +14,7 @@ class PipPopApplication : Application() {
         WordList.load(this)
         // Mini Golf's 1,000 holes load in the background.
         Courses.load(this)
+        com.pippop.data.SkinStore.init(this)
         // Letter Grid's longer list loads in the background.
         Thread { GridWords.load(this) }.start()
     }

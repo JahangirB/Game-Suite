@@ -58,6 +58,12 @@ android {
             "String", "UPDATE_BASE_URL",
             "\"${if (repository.isEmpty()) "" else "https://github.com/$repository/releases/latest/download"}\"",
         )
+        // Ship Battle skins are files in the same repository's skins/ folder, read straight from
+        // its default branch: publishing a new one needs no app update. Local builds have none.
+        buildConfigField(
+            "String", "SKINS_BASE_URL",
+            "\"${if (repository.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/HEAD/skins"}\"",
+        )
     }
 
     signingConfigs {

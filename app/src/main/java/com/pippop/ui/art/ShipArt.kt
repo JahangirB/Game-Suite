@@ -11,7 +11,13 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 
-/* Ship Battle artwork: Toy Harbor and Pirate Wood, as approved in the fleet style catalogue. */
+/* Ship Battle artwork: Toy Harbor and Pirate Wood, as approved in the fleet style catalogue, and the skins people download (SkinArt). */
+
+/** How the ships look: one of the two built into the app, or a downloaded skin. */
+sealed interface ShipLook {
+    data class BuiltIn(val style: ShipStyle) : ShipLook
+    data class Downloaded(val art: SkinArt) : ShipLook
+}
 
 enum class ShipKind { CARRIER, BATTLESHIP, CRUISER, SUBMARINE, DESTROYER }
 
@@ -32,7 +38,11 @@ private val INK = rgb(0x1e2a3a)
 private val WHITE = rgb(0xffffff)
 
 /** The water and grid of a [cells] × [cells] sea, [s] pixels per cell. */
-fun DrawScope.drawSeaArt(style: ShipStyle, cells: Int, s: Float) {
+fun DrawScope.drawSeaArt(look: ShipLook, cells: Int, s: Float) {
+    val style = when (look) {
+        is ShipLook.Downloaded -> return drawSkinOps(look.art.sea, s)
+        is ShipLook.BuiltIn -> look.style
+    }
     val pen = Pen(this)
     val w = cells * s
     when (style) {
@@ -67,11 +77,17 @@ private fun Pen.waves(w: Float, s: Float, color: Color, count: Double) {
 }
 
 /** Draws [ship] on a sea with [s] pixels per cell; [sunk] ships are shaded dark. */
-fun DrawScope.drawShipArt(style: ShipStyle, kind: ShipKind, ship: Ship, s: Float, sunk: Boolean) {
+fun DrawScope.drawShipArt(look: ShipLook, kind: ShipKind, ship: Ship, s: Float, sunk: Boolean) {
     val pen = Pen(this)
     val draw = {
         pen.translate(ship.x * s, ship.y * s) {
-            val place = { pen.translate(s * 0.07, s / 2) { pen.ship(style, kind, ship.len * s - s * 0.14, s * 0.34, s) } }
+            val place = {
+                when (look) {
+                    is ShipLook.BuiltIn -> pen.translate(s * 0.07, s / 2) { pen.ship(look.style, kind, ship.len * s - s * 0.14, s * 0.34, s) }
+                    // A skin's ship is drawn from the square's corner, already placed across its middle.
+                    is ShipLook.Downloaded -> drawSkinOps(look.art.ships[kind].orEmpty(), s)
+                }
+            }
             if (ship.horizontal) place() else pen.translate(s, 0) { pen.rotate(PI / 2) { place() } }
         }
     }
@@ -79,7 +95,11 @@ fun DrawScope.drawShipArt(style: ShipStyle, kind: ShipKind, ship: Ship, s: Float
 }
 
 /** A hit or a miss marker in the middle of cell (x, y). */
-fun DrawScope.drawShotArt(style: ShipStyle, x: Int, y: Int, hit: Boolean, s: Float) {
+fun DrawScope.drawShotArt(look: ShipLook, x: Int, y: Int, hit: Boolean, s: Float) {
+    val style = when (look) {
+        is ShipLook.Downloaded -> return drawSkinOps(if (hit) look.art.hit else look.art.miss, s, x.toFloat(), y.toFloat())
+        is ShipLook.BuiltIn -> look.style
+    }
     val pen = Pen(this)
     val cx = (x + 0.5) * s
     val cy = (y + 0.5) * s

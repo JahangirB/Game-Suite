@@ -72,6 +72,7 @@ import com.pippop.data.PlayerInfo
 import com.pippop.data.RoomState
 import com.pippop.data.RoomStatus
 import com.pippop.data.ShipStyle
+import com.pippop.ui.art.ShipLook
 import com.pippop.game.ships.Fleet
 import com.pippop.game.ships.Sea
 import com.pippop.game.ships.Ship
@@ -87,8 +88,24 @@ import com.pippop.ui.art.shipKinds
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.OpponentColor
 
-/** How ships look, from the player's profile. */
-val LocalShipStyle = staticCompositionLocalOf { ShipStyle.TOY }
+/** How ships look: the built-in style from the player's profile, or the downloaded skin in use. */
+val LocalShipLook = staticCompositionLocalOf<ShipLook> { ShipLook.BuiltIn(ShipStyle.TOY) }
+
+/** The built-in style picked in the profile, and how to pick another (the skins window can). */
+class BuiltInShips(val style: ShipStyle, val pick: (ShipStyle) -> Unit)
+val LocalBuiltInShips = staticCompositionLocalOf { BuiltInShips(ShipStyle.TOY) {} }
+
+/** The Skins button for Ship Battle's dock, with a count of skins you haven't looked at. */
+@Composable
+private fun skinsAction(onClick: () -> Unit) = DockAction("Skins", GameIcons.Palette, badge = newSkinCount(), onClick = onClick)
+
+/** The skins window, while [open]. */
+@Composable
+private fun SkinsWindow(open: Boolean, onClose: () -> Unit) {
+    if (!open) return
+    val builtIn = LocalBuiltInShips.current
+    SkinStoreSheet(builtIn.style, builtIn.pick, onClose)
+}
 
 /**
  * A 10x10 sea in the player's ship style. Draws [ships] (your fleet, or enemy ships once
@@ -107,7 +124,7 @@ fun ShipsSea(
     pending: Pair<Int, Int>? = null,
 ) {
     val p = AppTheme.palette
-    val style = LocalShipStyle.current
+    val style = LocalShipLook.current
     // The sea moves: wavelets drift and ships bob. [time] goes round once every few seconds.
     val time by loopingFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4200, easing = LinearEasing)), still = 0f, label = "sea")
     // A new shot lands with a blast (hit) or a splash (miss); shots already there when the
@@ -288,6 +305,9 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    var showSkins by remember { mutableStateOf(false) }
+    SkinsWindow(showSkins) { showSkins = false }
+    val skins = skinsAction { showSkins = true }
     val players = listOfNotNull(
         ChipPlayer("You", room.me.avatar, p.primary, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
         opponent?.let {
@@ -305,7 +325,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         focusWhen = myTurn && !finished,
         players = players,
         glow = GameKind.SHIPS.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true }.let { it.take(it.size - 1) + skins + it.last() },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -396,6 +416,9 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
     LaunchedEffect(game) { vm.keepPlaying() }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    var showSkins by remember { mutableStateOf(false) }
+    SkinsWindow(showSkins) { showSkins = false }
+    val skins = skinsAction { showSkins = true }
     GameFrame(
         title = "Ship Battle",
         subtitle = "Against the computer",
@@ -408,6 +431,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         glow = GameKind.SHIPS.color,
         dock = listOf(
             DockAction("Home", Icons.Filled.Home, onClick = onHome),
+            skins,
             DockAction("Rules", Icons.Filled.Info) { showRules = true },
             DockAction("New game", Icons.Filled.Refresh, enabled = game != null, onClick = vm::newBattle),
         ),

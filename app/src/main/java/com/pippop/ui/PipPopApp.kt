@@ -87,7 +87,11 @@ import com.pippop.data.GameKind
 import com.pippop.ui.screens.UpdateDialog
 import com.pippop.ui.art.ReactionBurst
 import com.pippop.ui.art.StickerBurst
-import com.pippop.ui.screens.LocalShipStyle
+import com.pippop.ui.screens.LocalShipLook
+import com.pippop.ui.screens.LocalBuiltInShips
+import com.pippop.ui.screens.BuiltInShips
+import com.pippop.ui.art.ShipLook
+import com.pippop.data.SkinStore
 import com.pippop.ui.theme.AppTheme
 
 private enum class Dest { HOME, PROFILE, ARRANGE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
@@ -206,7 +210,11 @@ fun PipPopApp(
                         onOpenGame = battle::openGame,
                     )
                 }
-                CompositionLocalProvider(LocalShipStyle provides profile.shipStyle, LocalMatchSession provides session) {
+                // Ships look like the downloaded skin in use, or else the built-in style from the profile.
+                val skinId by SkinStore.selected.collectAsStateWithLifecycle()
+                val skins by SkinStore.installed.collectAsStateWithLifecycle()
+                val look = skins.firstOrNull { it.id == skinId }?.let { ShipLook.Downloaded(it) } ?: ShipLook.BuiltIn(profile.shipStyle)
+                CompositionLocalProvider(LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle), LocalMatchSession provides session) {
                     when {
                         !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
                         inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->

@@ -37,6 +37,10 @@ import com.pippop.push.PushApi
 import com.pippop.ui.theme.OpponentColor
 import com.pippop.data.Profile
 import com.pippop.data.ShipStyle
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.collectAsState
+import com.pippop.data.SkinStore
 import com.pippop.ui.art.AvatarImage
 import com.pippop.data.ThemeMode
 import com.pippop.ui.AppViewModel
@@ -176,15 +180,26 @@ fun ProfileScreen(
                     }
                 }
                 Text("Ship Battle style", color = p.muted, fontSize = TextSize.Body)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // The two built in, then any skins downloaded in Ship Battle (its Skins button).
+                val skinId by SkinStore.selected.collectAsState()
+                val skins by SkinStore.installed.collectAsState()
+                val using = skins.firstOrNull { it.id == skinId }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ShipStyle.entries.forEach { style ->
                         FilterChip(
-                            selected = profile.shipStyle == style,
-                            onClick = { app.setShipStyle(style) },
+                            selected = using == null && profile.shipStyle == style,
+                            onClick = {
+                                app.setShipStyle(style)
+                                SkinStore.use(null)
+                            },
                             label = { Text(style.label) },
                         )
                     }
+                    skins.forEach { skin ->
+                        FilterChip(selected = using?.id == skin.id, onClick = { SkinStore.use(skin.id) }, label = { Text(skin.name) })
+                    }
                 }
+                Text("More skins: tap Skins at the bottom of Ship Battle.", color = p.muted, fontSize = TextSize.Label)
             }
 
             AppCard("Sound and touch") {
