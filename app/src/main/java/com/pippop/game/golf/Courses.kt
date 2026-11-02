@@ -3,6 +3,7 @@ package com.pippop.game.golf
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.hypot
 import kotlin.random.Random
 
 /** How hard a game's nine holes are: every hole has this many islands. */
@@ -108,10 +109,11 @@ object Courses {
 
     /**
      * Whether a ball can get from the tee to the cup over dry ground: on the course, out of the
-     * water and the fire, round the walls, with room for the ball on every side (so bridges are
-     * wide enough). The script that designs the holes checks the same before keeping one.
+     * water and the fire, round the walls, handrails and solid [props], with room for the ball on
+     * every side (so bridges are wide enough). The script that designs the holes checks the same
+     * without the props before keeping one; [Props.of] then leaves out any rock that would block.
      */
-    fun playable(hole: Hole): Boolean {
+    fun playable(hole: Hole, props: List<Prop> = hole.props): Boolean {
         val cols = (Golf.W / G).toInt()
         val rows = (hole.len / G).toInt()
         val r = Golf.R
@@ -122,7 +124,8 @@ object Courses {
             if (around.any { !hole.onCourse(it) }) return false
             if (hole.inWater(p)) return false
             if (fire.any { p.x >= it.x0 - r && p.x <= it.x1 + r && p.y >= it.y0 - r && p.y <= it.y1 + r }) return false
-            return hole.walls.none { p.x > it.x0 - r && p.x < it.x1 + r && p.y > it.y0 - r && p.y < it.y1 + r }
+            if (props.any { it.kind.solid && hypot(p.x - it.x, p.y - it.y) < it.r + r }) return false
+            return hole.solids.none { p.x > it.x0 - r && p.x < it.x1 + r && p.y > it.y0 - r && p.y < it.y1 + r }
         }
         fun cell(p: Pt) = (p.x / G).toInt().coerceIn(0, cols - 1) to (p.y / G).toInt().coerceIn(0, rows - 1)
         val (tc, tr) = cell(hole.tee)

@@ -133,8 +133,10 @@ val GameKind.rules: String
             "two or three, and all nine holes are that kind. On your turn, swipe to turn round your ball, pinch to zoom out to " +
             "the whole hole, then slide up the bar on the right and let go to shoot. Low on the bar is a roll; high is a jump, " +
             "which flies over the gaps between islands and over walls. Slide back to the bottom to change your mind; double " +
-            "tap to face the flag again. Walls bounce a roll and sand slows the ball. Fall off an island or stop on a pond and " +
-            "you're back on the tee. Sticker spots: stop on Kylian and he takes your next turn; land or roll into the fire " +
+            "tap to face the flag again. Walls, bridge handrails, rocks, palms, tee markers and portal stones bounce a roll; " +
+            "grass and flowers slow it a little and sand a lot. Fall off an island or stop on a pond and " +
+            "you're back on the tee. Your camera stays behind your own ball while the others play: swipe to look round. " +
+            "Sticker spots: stop on Kylian and he takes your next turn while his statue comes down; land or roll into the fire " +
             "and it's back to the tee; roll onto Stonks and you're thrown up the course; roll into a Galaxy brain portal and " +
             "you come out of the other; stop on Hmm. Sure. and your next shot has no aim line. Everyone tees off in turn, then " +
             "whoever is still out plays until someone is in. Then everyone still out gets three more shots; a ball not in " +

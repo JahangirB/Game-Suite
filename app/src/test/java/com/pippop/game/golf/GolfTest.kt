@@ -127,6 +127,36 @@ class GolfTest {
     }
 
     @Test
+    fun handrailsKeepARollOnTheBridgeAndEverythingSolidBounces() {
+        val hole = Golf.HOLES[2]
+        // A roll that drifts sideways on the bridge bounces off its rail instead of dropping into the sea.
+        val rail = Golf.simulate(hole, Pt(0.84, 1.55), ShotKind.ROLL, -PI / 2 - 0.2, 0.7)
+        assertNull(rail.hazard)
+        assertTrue(rail.events.any { it.what == "wall" })
+        // Straight at a rock: it bounces off.
+        val rock = hole.props.first { it.kind == PropKind.ROCK && it.r > 0.01 }
+        val from = Pt(rock.x + (if (rock.x < 0.5) 0.12 else -0.12), rock.y)
+        val bump = Golf.simulate(hole, from, ShotKind.ROLL, kotlin.math.atan2(rock.y - from.y, rock.x - from.x), 0.4)
+        assertTrue(bump.events.any { it.what == "bump" })
+        assertTrue(bump.frames.none { kotlin.math.hypot(it.x - rock.x, it.y - rock.y) < rock.r + Golf.R - 1e-9 })
+        // The tee's markers are solid too.
+        val marker = Golf.simulate(hole, Pt(hole.tee.x + 0.13, hole.tee.y), ShotKind.ROLL, PI, 0.3)
+        assertTrue(marker.events.any { it.what == "bump" })
+    }
+
+    @Test
+    fun propsAreTheSameOnEveryPhoneAndNeverBlockTheWay() {
+        val hole = Golf.HOLES[2]
+        assertEquals(hole.props, hole.copy().props)
+        val kinds = hole.props.map { it.kind }.toSet()
+        assertTrue(kinds.containsAll(listOf(PropKind.TUFT, PropKind.FLOWER, PropKind.ROCK, PropKind.PALM, PropKind.MARKER, PropKind.STONE, PropKind.EYE)))
+        // Six stones round each portal mouth, and nothing on the tee or the cup.
+        assertEquals(12, hole.props.count { it.kind == PropKind.STONE })
+        assertTrue(hole.props.none { kotlin.math.hypot(it.x - hole.cup.x, it.y - hole.cup.y) < 0.1 })
+        for (h in Golf.HOLES) assertTrue(Courses.playable(h))
+    }
+
+    @Test
     fun kylianTakesTheNextTurnInAMatch() {
         val m = GolfMatch(listOf('h', 'g', '3'))
         assertEquals('g', m.play('h', shot(0.5, 2.0).put("skip", true).put("kind", "jump")).turn)

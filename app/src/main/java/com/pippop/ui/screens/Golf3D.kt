@@ -48,8 +48,10 @@ import java.util.Locale
 data class Golf3DBall(val id: Char, val at: Pt, val color: Color)
 
 /**
- * What the 3D view shows between shots: hole [key] ([hole]), the balls still out, whose turn
- * it is, whether you ([me]) can shoot now, and whether your aim line is hidden (the eyes).
+ * What the 3D view shows between shots: hole [key] ([hole], number [number] of the game), the
+ * balls still out (yours too, on the tee before your first shot), whose turn it is, whether you
+ * ([me]) can shoot now, whether your aim line is hidden (the eyes), and whether you've finished
+ * the hole ([meDone]): until then your camera stays behind your own ball, after it follows play.
  */
 data class Golf3DState(
     val key: String,
@@ -59,10 +61,12 @@ data class Golf3DState(
     val canShoot: Boolean,
     val noGuide: Boolean,
     val me: Char = 'm',
+    val number: Int = 1,
+    val meDone: Boolean = false,
 )
 
-/** A shot for the 3D view to play: [id] tells shots apart, [who] shot it on hole [key]. */
-data class Golf3DShot(val id: String, val key: String, val hole: Hole, val who: Char, val color: Color, val shot: GolfShot)
+/** A shot for the 3D view to play: [id] tells shots apart, [who] shot it on hole [key] (number [number]). */
+data class Golf3DShot(val id: String, val key: String, val hole: Hole, val who: Char, val color: Color, val shot: GolfShot, val number: Int = 1)
 
 /**
  * Mini Golf's 3D course: a WebView running assets/golf3d (three.js), which draws [state],
@@ -193,16 +197,19 @@ fun Hole.toJson(): JSONObject = JSONObject()
             },
         ),
     )
+    // Rocks, palms, plants, tee markers and portal stones, where the physics has them: [kind, x, y, r, h, seed].
+    .put("props", JSONArray(props.map { JSONArray().put(it.kind.key).put(it.x.short()).put(it.y.short()).put(it.r.short()).put(it.h).put(it.seed) }))
 
 private fun Golf3DState.toJson() = JSONObject()
     .put("key", key).put("hole", hole.toJson())
     .put("balls", JSONArray(balls.map { JSONObject().put("id", it.id.toString()).put("x", it.at.x).put("y", it.at.y).put("color", it.color.hex()) }))
     .put("turn", turn?.toString() ?: JSONObject.NULL)
     .put("me", me.toString()).put("canShoot", canShoot).put("noGuide", noGuide)
+    .put("num", number).put("meDone", meDone)
 
 private fun Double.short() = Math.round(this * 10000) / 10000.0
 
 private fun Golf3DShot.toJson() = JSONObject()
-    .put("key", key).put("hole", hole.toJson()).put("id", who.toString()).put("color", color.hex())
+    .put("key", key).put("num", number).put("hole", hole.toJson()).put("id", who.toString()).put("color", color.hex())
     .put("frames", JSONArray(shot.frames.map { JSONArray().put(it.x.short()).put(it.y.short()).put(it.h.short()) }))
     .put("events", JSONArray(shot.events.map { JSONArray().put(it.frame).put(it.what) }))

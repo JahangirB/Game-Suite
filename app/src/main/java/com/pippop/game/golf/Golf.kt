@@ -3,6 +3,7 @@ package com.pippop.game.golf
 import java.util.PriorityQueue
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -103,6 +104,149 @@ data class Hole(
 
     /** The sticker spot at [p], if any. */
     fun zoneAt(p: Pt) = zones.firstOrNull { p in it }
+
+    /** The rocks, palms, plants and posts standing on the hole: the same on every phone (see [Props]). */
+    val props: List<Prop> by lazy { Props.of(this) }
+
+    /** What a low ball bounces off like a wall: the walls, the bridges' handrails and the Stonks ramps' sides. */
+    val solids: List<Box> by lazy {
+        walls + bridges.flatMap { Props.rails(it) } + zones.filter { it.type == ZoneType.STONKS }.mapNotNull { it.box }.flatMap { Props.rampSides(it) }
+    }
+
+    internal val propGrid by lazy { PropGrid(props) }
+}
+
+/**
+ * The things standing on a course. Solid ones are circles the ball bounces off unless it's
+ * flying higher than they stand; grass and flowers are soft: a ball pushes through and slows.
+ */
+enum class PropKind(val key: String, val solid: Boolean) {
+    ROCK("rock", true), PALM("palm", true), MARKER("marker", true), STONE("stone", true), EYE("eye", true),
+    TUFT("tuft", false), FLOWER("flower", false),
+}
+
+/** A thing at ([x], [y]): solid ones are [r] across (course units) and [h] high (world units); [seed] shapes it on screen. */
+data class Prop(val kind: PropKind, val x: Double, val y: Double, val r: Double = 0.0, val h: Double = 0.0, val seed: Int = 0)
+
+/**
+ * Where a hole's props go, worked out from the hole itself with a seeded random, so every phone
+ * puts the same rock in the same place and replays the same bounce. Plants, rocks and a palm
+ * line each island's edges, out of the way of the tee, the cup, the walls, bridges and sticker
+ * spots; the tee has its markers and a flower bed, portals their ring of stones, the eyes are
+ * solid, and so are the Stonks ramp's sides (see [Hole.solids]).
+ */
+object Props {
+    /** How thick a bridge's handrails are. */
+    const val RAIL = 0.014
+    /** How near a plant the ball must pass to brush it. */
+    const val PLANT = 0.028
+
+    /** A bridge's two handrails, along its long sides. */
+    fun rails(b: Box): List<Box> =
+        if (b.y1 - b.y0 > b.x1 - b.x0) listOf(Box(b.x0, b.y0, b.x0 + RAIL, b.y1), Box(b.x1 - RAIL, b.y0, b.x1, b.y1))
+        else listOf(Box(b.x0, b.y0, b.x1, b.y0 + RAIL), Box(b.x0, b.y1 - RAIL, b.x1, b.y1))
+
+    /** The Stonks ramp's solid sides; its front, at the bottom of the box, stays open. */
+    fun rampSides(b: Box): List<Box> {
+        val cx = (b.x0 + b.x1) / 2
+        val half = (b.x1 - b.x0) * 0.4
+        return listOf(Box(cx - half - 0.006, b.y0, cx - half + 0.002, b.y1 - 0.03), Box(cx + half - 0.002, b.y0, cx + half + 0.006, b.y1 - 0.03))
+    }
+
+    fun of(hole: Hole): List<Prop> {
+        val out = mutableListOf<Prop>()
+        val random = Random(((hole.tee.x * 1000).toInt() * 7919) xor ((hole.cup.y * 1000).toInt() * 104729) xor (hole.islands.size * 31) xor (hole.walls.size * 977))
+        fun free(x: Double, y: Double, pad: Double = 0.0): Boolean {
+            val p = Pt(x, y)
+            if (hole.islands.none { it.containsRounded(p, Golf.CORNER + 0.012) && x > it.x0 + 0.008 && x < it.x1 - 0.008 && y > it.y0 + 0.008 && y < it.y1 - 0.008 }) return false
+            if (hypot(x - hole.tee.x, y - hole.tee.y) < 0.12 + pad || hypot(x - hole.cup.x, y - hole.cup.y) < 0.12 + pad) return false
+            if (hole.zones.any { z -> z.box?.let { x > it.x0 - 0.04 && x < it.x1 + 0.04 && y > it.y0 - 0.04 && y < it.y1 + 0.04 } ?: z.at?.let { hypot(it.x - x, it.y - y) < 0.13 } ?: false }) return false
+            if (hole.bridges.any { x > it.x0 - 0.05 && x < it.x1 + 0.05 && y > it.y0 - 0.08 && y < it.y1 + 0.08 }) return false
+            if (hole.walls.any { x > it.x0 - 0.03 && x < it.x1 + 0.03 && y > it.y0 - 0.03 && y < it.y1 + 0.03 }) return false
+            if (hole.sand.any { x > it.x0 - 0.02 && x < it.x1 + 0.02 && y > it.y0 - 0.02 && y < it.y1 + 0.02 }) return false
+            if (hole.water.any { Pond(it.x, it.y, it.rx + 0.03, it.ry + 0.03).contains(p) }) return false
+            return out.none { hypot(it.x - x, it.y - y) < 0.022 }
+        }
+        var seed = 1
+        for (b in hole.islands) {
+            // Along the edges: grass tufts, flowers and the odd rock.
+            val count = ((b.x1 - b.x0 + b.y1 - b.y0) * 2 * 8).toInt()
+            repeat(count) {
+                val side = random.nextInt(4)
+                val t = random.nextDouble()
+                val inset = 0.014 + random.nextDouble() * 0.028
+                val x = when (side) { 0 -> b.x0 + inset; 1 -> b.x1 - inset; else -> b.x0 + 0.05 + t * (b.x1 - b.x0 - 0.1) }
+                val y = when (side) { 2 -> b.y0 + inset; 3 -> b.y1 - inset; else -> b.y0 + 0.05 + t * (b.y1 - b.y0 - 0.1) }
+                val kind = random.nextDouble()
+                val size = 0.08 + random.nextDouble() * 0.1
+                if (!free(x, y)) return@repeat
+                out += when {
+                    kind < 0.55 -> Prop(PropKind.TUFT, x, y, seed = seed++)
+                    kind < 0.85 -> Prop(PropKind.FLOWER, x, y, seed = seed++)
+                    else -> Prop(PropKind.ROCK, x, y, r = size * 0.95 / 10, h = 0.3, seed = seed++)
+                }
+            }
+            // A palm in one corner, a pile of rocks in the opposite one.
+            val px = b.x1 - 0.06
+            val py = b.y0 + 0.08
+            if (free(px, py, 0.05)) out += Prop(PropKind.PALM, px, py, r = 0.017, h = 9.0, seed = seed++)
+            val rx = b.x0 + 0.07
+            val ry = b.y1 - 0.06
+            if (free(rx, ry, 0.05)) repeat(4) {
+                val size = 0.1 + random.nextDouble() * 0.14
+                val ox = (random.nextDouble() - 0.5) * 0.045
+                val oy = (random.nextDouble() - 0.5) * 0.045
+                out += Prop(PropKind.ROCK, rx + ox, ry + oy, r = size * 0.95 / 10, h = 0.4, seed = seed++)
+            }
+        }
+        // A flower bed beside the tee, on whichever side has room.
+        for (side in listOf(1, -1)) {
+            val fx = hole.tee.x + side * 0.2
+            if ((0 until 9).all { i -> free(fx + (i % 3) * 0.035 - 0.035, hole.tee.y + (i / 3) * 0.022 - 0.022, -0.1) }) {
+                for (i in 0 until 9) out += Prop(PropKind.FLOWER, fx + (i % 3) * 0.035 - 0.035, hole.tee.y + (i / 3) * 0.022 - 0.022, seed = 300 + i)
+                break
+            }
+        }
+        // The tee's markers.
+        for (s in listOf(-1, 1)) out += Prop(PropKind.MARKER, hole.tee.x + s * 0.06, hole.tee.y, r = 0.008, h = 0.26, seed = s)
+        for (z in hole.zones) when (z.type) {
+            ZoneType.PORTAL -> z.at?.let { at ->
+                for (i in 0 until 6) {
+                    val a = i * PI / 3
+                    out += Prop(PropKind.STONE, at.x + cos(a) * 0.095, at.y + sin(a) * 0.095, r = 0.009, h = 0.25, seed = seed++)
+                }
+            }
+            ZoneType.EYES -> z.box?.let { b ->
+                for (f in listOf(0.3, 0.7)) out += Prop(PropKind.EYE, b.x0 + (b.x1 - b.x0) * f, b.y0 + (b.y1 - b.y0) * 0.4, r = 0.04, h = 0.7, seed = seed++)
+            }
+            else -> Unit
+        }
+        // Never block the way: a hole the rocks or a palm would close is played without them.
+        if (!Courses.playable(hole, out)) out.removeAll { it.kind == PropKind.ROCK }
+        if (!Courses.playable(hole, out)) out.removeAll { it.kind == PropKind.PALM }
+        return out
+    }
+}
+
+/** The props by where they are, so the ball only looks at the ones near it. */
+internal class PropGrid(props: List<Prop>) {
+    private val cells = HashMap<Int, MutableList<Prop>>()
+
+    init {
+        for (p in props) {
+            val reach = maxOf(p.r, Props.PLANT) + Golf.R + 0.01
+            for (c in cell(p.x - reach)..cell(p.x + reach)) for (r in cell(p.y - reach)..cell(p.y + reach)) cells.getOrPut(key(c, r)) { mutableListOf() } += p
+        }
+    }
+
+    fun near(x: Double, y: Double): List<Prop> = cells[key(cell(x), cell(y))] ?: emptyList()
+
+    private fun cell(v: Double) = floor(v / SIZE).toInt()
+    private fun key(c: Int, r: Int) = (r + 100) * 1000 + (c + 100)
+
+    private companion object {
+        const val SIZE = 0.1
+    }
 }
 
 /** One frame of a shot, a sixtieth of a second: where the ball is and how high ([h], in world units). */
@@ -166,6 +310,8 @@ object Golf {
     const val SEA = -1.7
     /** Lower than this (world units), the ball hits a wall; higher, it flies over. */
     private const val WALL_TOP = 0.45
+    /** Lower than this, the ball brushes grass and flowers. */
+    private const val PLANT_TOP = 0.35
     /** A ball rolling slower than this over the cup drops in. */
     private const val DROP_SPEED = 1.3
     /** Slower than this on a pond, the ball sinks. */
@@ -230,18 +376,48 @@ object Golf {
         var portalCool = 0.0
     }
 
-    /** Moves [b] on by its speed, turning back off any wall it would go into (unless it's flying over). */
+    /**
+     * Moves [b] on by its speed, turning back off any wall, handrail or ramp side it would go
+     * into and bouncing off solid things (unless it's flying over them); grass and flowers slow it.
+     */
     private fun moveWithWalls(hole: Hole, b: Ball, dt: Double, events: MutableList<String>) {
         val nx = b.x + b.vx * dt
         val ny = b.y + b.vy * dt
-        val w = if (b.h < WALL_TOP) hole.walls.firstOrNull { nx > it.x0 - R && nx < it.x1 + R && ny > it.y0 - R && ny < it.y1 + R } else null
-        if (w == null) {
-            b.x = nx
-            b.y = ny
+        val w = if (b.h < WALL_TOP) hole.solids.firstOrNull { nx > it.x0 - R && nx < it.x1 + R && ny > it.y0 - R && ny < it.y1 + R } else null
+        if (w != null) {
+            if (b.x <= w.x0 - R || b.x >= w.x1 + R) b.vx = -b.vx * 0.75 else b.vy = -b.vy * 0.75
+            events += "wall"
             return
         }
-        if (b.x <= w.x0 - R || b.x >= w.x1 + R) b.vx = -b.vx * 0.75 else b.vy = -b.vy * 0.75
-        events += "wall"
+        val near = hole.propGrid.near(nx, ny)
+        for (p in near) {
+            if (!p.kind.solid || b.h >= p.h) continue
+            val dx = nx - p.x
+            val dy = ny - p.y
+            val d = hypot(dx, dy)
+            val min = p.r + R
+            if (d >= min) continue
+            val ux = if (d > 1e-6) dx / d else 1.0
+            val uy = if (d > 1e-6) dy / d else 0.0
+            val vn = b.vx * ux + b.vy * uy
+            if (vn < 0) {
+                b.vx -= 1.7 * vn * ux
+                b.vy -= 1.7 * vn * uy
+            }
+            b.x = p.x + ux * min
+            b.y = p.y + uy * min
+            events += "bump"
+            return
+        }
+        if (b.h < PLANT_TOP) for (p in near) {
+            if (!p.kind.solid && hypot(nx - p.x, ny - p.y) < Props.PLANT) {
+                val k = exp(-dt * 2.2)
+                b.vx *= k
+                b.vy *= k
+            }
+        }
+        b.x = nx
+        b.y = ny
     }
 
     /** One step of [dt] seconds for [b]: what happens goes into [events]. */
@@ -355,7 +531,7 @@ object Golf {
 
     /**
      * Plays a [kind] shot from [from] at [angle] (radians, 0 = right, y down) with [power]
-     * (0 to 1). Events: "wall", "land", "drop" (over the edge), "sea", "water", "fire",
+     * (0 to 1). Events: "wall" (a wall or handrail), "bump" (a rock, palm, post...), "land", "drop" (over the edge), "sea", "water", "fire",
      * "stonks", "portal", "holed", and at the end "kylian" or "eyes" when it stops on one.
      */
     fun simulate(hole: Hole, from: Pt, kind: ShotKind, angle: Double, power: Double): GolfShot {
@@ -414,7 +590,8 @@ object Golf {
             val x = (c + 0.5) * G
             val y = (r + 0.5) * G
             val p = Pt(x, y)
-            return hole.walls.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R } ||
+            return hole.solids.any { x > it.x0 - R && x < it.x1 + R && y > it.y0 - R && y < it.y1 + R } ||
+                hole.props.any { it.kind.solid && it.r > 0.012 && hypot(x - it.x, y - it.y) < it.r + R } ||
                 !hole.onCourse(p) || hole.inWater(p) || hole.zoneAt(p)?.type == ZoneType.FIRE
         }
         val start = floor(hole.cup.y / G).toInt().coerceIn(0, rows - 1) * cols + floor(hole.cup.x / G).toInt().coerceIn(0, cols - 1)

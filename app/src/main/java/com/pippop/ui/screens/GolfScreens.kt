@@ -54,6 +54,7 @@ import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.TextSize
 import kotlinx.coroutines.delay
+import kotlin.math.hypot
 
 private val Grass = GameColors.Grass
 private val CourseSide = GameColors.CourseSide
@@ -124,7 +125,8 @@ fun GolfMap(hole: Hole, balls: Map<Char, Pt?>, modifier: Modifier = Modifier) {
 /**
  * The hole being played, in 3D: everyone's ball still out ([current] waits on the tee for its
  * first shot), and each new last shot played out on every phone, the shooter's included, with
- * its sounds. A shot that stops on Kylian brings on his takeover, on every phone.
+ * its sounds. A shot that stops on Kylian takes the next turn, with his song on every phone
+ * (quieter the further your ball is) and his statue in the 3D view.
  *
  * [game] tells one game from the next: a restarted game counts its shots from 1 again, so the
  * shots already seen are kept per game. (Before, a restart kept the old count, every new shot
@@ -144,7 +146,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         val worked = Golf.simulate(hole, last.from ?: hole.tee, last.kind, last.angle, last.power)
         // The shooter's phone said where it stopped; end there whatever this phone worked out.
         val frames = if (worked.hazard == null && !worked.holed) worked.frames.dropLast(1) + Frame(last.to.x, last.to.y, 0.0) else worked.frames
-        shot = Golf3DShot("$game-${last.seq}", "$game-${last.hole}", hole, last.who, markColor(last.who), worked.copy(frames = frames))
+        shot = Golf3DShot("$game-${last.seq}", "$game-${last.hole}", hole, last.who, markColor(last.who), worked.copy(frames = frames), last.hole + 1)
         sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()))
     }
     // Nobody shoots while Kylian has the game.
@@ -158,9 +160,10 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         }
     }
     val hole = view.holeAt(view.hole.coerceIn(0, view.holes - 1))
-    // Every ball still out; one not hit yet is on the tee, shown when it's that player's turn.
+    // Every ball still out; one not hit yet is on the tee, shown when it's that player's turn
+    // (yours always: your camera stands behind it).
     val balls = view.balls.mapNotNull { (m, p) ->
-        if (view.done[m] == true || (p == null && m != current)) null else Golf3DBall(m, p ?: hole.tee, markColor(m))
+        if (view.done[m] == true || (p == null && m != current && m != 'm')) null else Golf3DBall(m, p ?: hole.tee, markColor(m))
     }
     val waiting = current?.takeIf { c -> view.done[c] != true && balls.none { it.id == c } }?.let { Golf3DBall(it, hole.tee, markColor(it)) }
     val mine = view.balls['m']
@@ -171,6 +174,8 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         turn = current,
         canShoot = canShoot && view.done['m'] != true && now >= lockedUntil,
         noGuide = mine != null && hole.zoneAt(mine)?.type == ZoneType.EYES,
+        number = view.hole + 1,
+        meDone = view.done['m'] == true,
     )
     Golf3D(
         state, shot, onShoot,
@@ -183,15 +188,26 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
                 "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v)
                 "holed" -> sfx.play(Sound.GOLF_CUP)
                 "kylian" -> {
-                    // Kylian Dictador takes over every phone: his sticker and song, and the next turn.
-                    Takeover.show(Reaction.KYLIAN)
-                    sfx.play(Sound.KYLIAN_DICTADOR)
+                    // Kylian Dictador takes the next turn, and nobody shoots while his song plays;
+                    // his statue comes down in the 3D view. The song is as loud as your ball is near
+                    // him (full on your own shot, or once you've finished and are watching).
+                    Takeover.takeOver(Reaction.KYLIAN, System.currentTimeMillis())
+                    val played = shot
+                    val volume = if (played == null || played.who == 'm' || view.done['m'] == true) 1f
+                    else kylianVolume(hypot((view.balls['m'] ?: hole.tee).x - played.shot.end.x, (view.balls['m'] ?: hole.tee).y - played.shot.end.y))
+                    sfx.play(Sound.KYLIAN_DICTADOR, volume)
                 }
             }
         },
         modifier = modifier.clip(Shapes.M),
     )
 }
+
+/**
+ * How loud Kylian's song is on your phone when someone else's ball stops on him [distance] away
+ * (course units): full right beside him, fading as you go further (the 3D view's thump fades the same).
+ */
+internal fun kylianVolume(distance: Double): Float = (1.0 / (1.0 + (distance / 0.6) * (distance / 0.6))).coerceIn(0.06, 1.0).toFloat()
 
 /** "Hole 3 of 9 · par 3" and everyone's total so far. */
 @Composable
