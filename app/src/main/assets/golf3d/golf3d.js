@@ -6,13 +6,16 @@
 //   golf.play({ key, hole, id, color, frames: [[x, y, h], ...], events: [[frame, what], ...] })
 //     a shot to show, 60 frames a second, worked out by the app.
 // and this page answers through window.Android:
-//   ready()                      the page is loaded
+//   ready()                      the page is loaded (or "error ..." through event if it couldn't)
 //   shoot(kind, power, aim)      you let go of the slider: 'roll' or 'jump', 0..1, radians
 //   event(what)                  a shot reached an event (for sounds), and "played" at its end
 //
 // Course units: the course is 1 wide, y down the hole; S world units to one course unit.
 
-const Android = window.Android || { ready() {}, shoot() {}, event() {} };
+// The app's bridge. Not called Android here: the WebView puts window.Android in place itself, and
+// a const of the same name would stop this whole script ("already been declared").
+const bridge = window.Android || { ready() {}, shoot() {}, event() {} };
+// Errors are told to the app by the first script in index.html.
 const S = 10;
 const CORNER = 0.04, CUP = 0.04;
 const WATER_Y = -1.7;
@@ -39,6 +42,7 @@ try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 } catch (e) {
   document.body.insertAdjacentHTML('beforeend', '<div class="nogl">This phone can\'t show the 3D course.</div>');
+  bridge.event('error no WebGL: ' + e.message);
   throw e;
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -381,7 +385,7 @@ function stepPlay(dt, now) {
   while (p.next < p.events.length && p.events[p.next][0] <= i) {
     const what = p.events[p.next][1];
     p.next++;
-    Android.event(what);
+    bridge.event(what);
     if (SAYS[what]) toast(SAYS[what], what === 'holed' ? 2000 : 1300);
     if (what === 'portal') st.trail = [];
     if (what === 'sea' || what === 'water' || what === 'fire') {
@@ -398,7 +402,7 @@ function stepPlay(dt, now) {
 function endPlay() {
   const p = st.play;
   st.play = null; splash.visible = false; st.trail = [];
-  Android.event('played');
+  bridge.event('played');
   if (st.pending) { const s = st.pending; st.pending = null; applyState(s); } else if (p) {
     // Nothing new from the app yet: leave the ball where the shot ended.
     const f = p.frames[p.frames.length - 1];
@@ -494,8 +498,10 @@ function resize() {
   camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 let last = performance.now();
+let sizedW = 0, sizedH = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (canvas.clientWidth !== sizedW || canvas.clientHeight !== sizedH) { sizedW = canvas.clientWidth; sizedH = canvas.clientHeight; resize(); }
   if (st.play) stepPlay(dt, now);
   const t = now / 1000;
   moveSea(t); waveFlag(t);
@@ -596,7 +602,7 @@ for (const type of ['pointerup', 'pointercancel']) slider.addEventListener(type,
   if (st.slideT > 0.04 && type === 'pointerup' && myAim()) {
     st.canShoot = false;
     slider.classList.add('off');
-    Android.shoot(st.mode, st.power, st.aim);
+    bridge.shoot(st.mode, st.power, st.aim);
   }
   setKnob(0);
 });
@@ -604,4 +610,4 @@ for (const type of ['pointerup', 'pointercancel']) slider.addEventListener(type,
 window.addEventListener('resize', resize);
 resize();
 requestAnimationFrame(frame);
-Android.ready();
+bridge.ready();

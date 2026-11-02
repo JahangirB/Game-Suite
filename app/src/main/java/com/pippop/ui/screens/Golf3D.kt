@@ -4,8 +4,16 @@ import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -14,12 +22,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.Space
+import com.pippop.ui.theme.TextSize
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import com.pippop.game.golf.Box
+import com.pippop.game.golf.Box as CourseBox
 import com.pippop.game.golf.GolfShot
 import com.pippop.game.golf.Hole
 import com.pippop.game.golf.Pt
@@ -68,6 +83,8 @@ fun Golf3D(
     val shootNow by rememberUpdatedState(onShoot)
     val eventNow by rememberUpdatedState(onEvent)
     var ready by remember { mutableStateOf(false) }
+    // What went wrong in the page, shown over it (and in the log) instead of an empty sky.
+    var problem by remember { mutableStateOf<String?>(null) }
     val main = remember { Handler(Looper.getMainLooper()) }
     val web = remember {
         WebView(context).apply {
@@ -76,6 +93,12 @@ fun Golf3D(
             settings.mediaPlaybackRequiresUserGesture = true
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    Log.i("Golf3D", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                    return true
+                }
+            }
             // The page calls these on its own thread; everything they do happens on the main one.
             addJavascriptInterface(
                 object {
@@ -91,7 +114,14 @@ fun Golf3D(
 
                     @JavascriptInterface
                     fun event(what: String) {
-                        main.post { eventNow(what) }
+                        main.post {
+                            if (what.startsWith("error ")) {
+                                Log.w("Golf3D", what)
+                                problem = what.removePrefix("error ")
+                            } else {
+                                eventNow(what)
+                            }
+                        }
                     }
                 },
                 "Android",
@@ -107,15 +137,33 @@ fun Golf3D(
         if (!ready) return@LaunchedEffect
         if (shot != null && shot.id != sent) {
             sent = shot.id
-            web.evaluateJavascript("golf.play(${shot.toJson()})", null)
+            web.evaluateJavascript(reporting("golf.play(${shot.toJson()})"), null)
         }
-        web.evaluateJavascript("golf.state($stateJson)", null)
+        web.evaluateJavascript(reporting("golf.state($stateJson)"), null)
     }
-    AndroidView(factory = { web }, modifier = modifier)
+    // A page that hasn't started after a while: say so rather than show an empty course.
+    LaunchedEffect(Unit) {
+        delay(10_000)
+        if (!ready && problem == null) problem = "it didn't start"
+    }
+    Box(modifier) {
+        AndroidView(factory = { web }, modifier = Modifier.fillMaxSize())
+        problem?.let { why ->
+            val p = AppTheme.palette
+            Text(
+                "The 3D course couldn't load on this phone: $why",
+                color = p.text, fontSize = TextSize.Body, textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.Center).padding(Space.L).background(p.card, Shapes.M).padding(Space.L),
+            )
+        }
+    }
 }
 
+/** [call] in the page, with anything it throws told back to the app (which shows it). */
+private fun reporting(call: String) = "try { $call } catch (e) { Android.event('error ' + e.message) }"
+
 private fun Pt.json() = JSONArray().put(x).put(y)
-private fun Box.json() = JSONArray().put(x0).put(y0).put(x1).put(y1)
+private fun CourseBox.json() = JSONArray().put(x0).put(y0).put(x1).put(y1)
 private fun Color.hex() = "#%06X".format(Locale.ROOT, toArgb() and 0xFFFFFF)
 
 /** The hole as the 3D view reads it: the same shape as a line of courses.jsonl. */
