@@ -124,7 +124,7 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
     }
 
     companion object {
-        val HOLES = Golf.HOLES.size
+        const val HOLES = 9
     }
 }
 

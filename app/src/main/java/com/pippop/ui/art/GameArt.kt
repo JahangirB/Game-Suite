@@ -55,7 +55,7 @@ val GameKind.tagline: String
         GameKind.CODE -> "Crack the hidden colour code"
         GameKind.SLIDE -> "Same shuffle, first in order wins"
         GameKind.BINGO -> "Dab the calls, shout first"
-        GameKind.GOLF -> "Islands, bridges, fewest strokes"
+        GameKind.GOLF -> "3D islands, jump shots, sticker spots"
         GameKind.BLOCKS -> "Corner to corner, fill the board"
     }
 
@@ -139,110 +139,6 @@ val GameKind.rules: String
             "you come out of the other; stop on Hmm. Sure. and your next shot has no aim line. Everyone tees off in turn, then " +
             "whoever is still out plays until someone is in. Then everyone still out gets three more shots; a ball not in " +
             "after those is picked up and scores one more. Fewest strokes wins."
-        GameKind.BLOCKS -> Color(0xFF546E7A)
-    }
-
-/** One line describing each game, for its tile and play sheet. */
-val GameKind.tagline: String
-    get() = when (this) {
-        GameKind.SUDOKU -> "Fill the grid, race your partner"
-        GameKind.SHIPS -> "Hide your fleet, sink theirs"
-        GameKind.CONNECT4 -> "Four in a row wins"
-        GameKind.DOTS -> "Close a box, go again"
-        GameKind.MEMORY -> "Find the pairs"
-        GameKind.WORDS -> "Same word, who finds it first?"
-        GameKind.DRAW -> "One draws, one guesses, as a team"
-        GameKind.TTT -> "Three in a row, or nine boards"
-        GameKind.DOMINOES -> "Match the ends, play out your hand"
-        GameKind.NUMBERS -> "A crossword made of sums"
-        GameKind.HOCKEY -> "Fast paddles, one puck"
-        GameKind.CLASH -> "Match the colour, empty your hand"
-        GameKind.LUDO -> "Roll, race home, knock them back"
-        GameKind.GRID -> "Trace words in two minutes"
-        GameKind.BALLOON -> "Guess the letters before they pop"
-        GameKind.CODE -> "Crack the hidden colour code"
-        GameKind.SLIDE -> "Same shuffle, first in order wins"
-        GameKind.BINGO -> "Dab the calls, shout first"
-        GameKind.GOLF -> "Islands, bridges, fewest strokes"
-        GameKind.BLOCKS -> "Corner to corner, fill the board"
-    }
-
-/** How to play, shown from the play sheet and the in-game Rules button. */
-val GameKind.rules: String
-    get() = when (this) {
-        GameKind.SUDOKU -> "Fill every row, column and 3 × 3 box with the digits 1 to 9, each exactly once. " +
-            "Against each other you get the same puzzle at the same moment; the first to solve it wins. " +
-            "Three mistakes end a solo game."
-        GameKind.SHIPS -> "Each player hides five ships (5, 4, 3, 3 and 2 squares) on a 10 × 10 sea. Take turns " +
-            "firing at the other sea. A hit lets you fire again. Sink the whole enemy fleet to win."
-        GameKind.CONNECT4 -> "Take turns dropping a disc into one of seven columns; it falls to the lowest free space. " +
-            "Line up four of your discs across, down or diagonally to win. A full board is a draw."
-        GameKind.DOTS -> "Take turns drawing a line between two neighbouring dots. Draw the fourth side of a box " +
-            "to claim it, then draw again. When all 16 boxes are taken, the most boxes wins."
-        GameKind.MEMORY -> "16 cards lie face down: 8 pairs of pictures. Flip two cards on your turn. A pair is yours " +
-            "and you go again; otherwise they turn back and the next player goes. Most pairs wins."
-        GameKind.WORDS -> "Find the secret word in six tries. Every guess must be a real word of the same length. After " +
-            "each guess the letters turn green (right letter, right place), yellow (in the word, elsewhere) or grey (not in " +
-            "the word). The level sets the length: easy 4 letters, medium 5, hard 6, expert 7 or 8. In a race everyone gets " +
-            "the same word and sees the others' colours, never their letters. Fewest tries wins; on a tie, the faster."
-        GameKind.DRAW -> "You play as a team, four turns, taking turns to draw. The drawer gets a secret word and draws it; " +
-            "the other watches the drawing appear and types guesses. A right guess adds the seconds left (out of 80) " +
-            "to your team score. No letters or words in the drawing!"
-        GameKind.TTT -> "Pick Normal or Ultimate before you start. Normal is one 3 × 3 board: three in a row wins. " +
-            "In Ultimate, nine small boards make one big board. The square you mark sends the other player to " +
-            "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +
-            "Three in a row wins a small board; three small boards in a row wins the game. If you are sent to a " +
-            "board that is already won or full, play in any open board."
-        GameKind.DOMINOES -> "Two to four players, each with a hand of dominoes. On your turn put a tile on either end of " +
-            "the line so its number matches that end. Can't play? In the draw game you take tiles from the boneyard " +
-            "until you can; in the block game you pass. The first to play out their hand (or, if nobody can play, the " +
-            "lightest hand) wins the round and scores the pips left in the others' hands. First to the target wins. " +
-            "With four players you can play two against two, partners opposite."
-        GameKind.NUMBERS -> "A crossword of sums such as 4 + 5 = 9, crossing at shared numbers. Some numbers are " +
-            "missing: tap a blank, then tap a number from the bank below. Every sum, across and down, must work, and " +
-            "each bank number is used once. A sum turns green when it's right. In a race everyone gets the same new " +
-            "puzzle, built on the host's phone; the first to solve it wins."
-        GameKind.HOCKEY -> "Drag your paddle (it stays in your half) to knock the puck into the goal at the far end. " +
-            "The puck bounces off the sides and takes the speed of your paddle, so swing through it to shoot hard. " +
-            "First to 7 goals wins. Against your partner it's live: best nearby, where the phones talk directly."
-        GameKind.CLASH -> "Everyone starts with seven cards. On your turn play a card that matches the top of the pile " +
-            "by colour or by number or symbol. Skip (⦸) skips the next player, reverse (⇄) turns the order round and +2 " +
-            "makes the next player draw two and miss their turn. Wilds (★) go on anything and you name the colour; +4 " +
-            "also makes the next player draw four. Kylian Dictador (one in each colour) makes the next player draw " +
-            "eight and miss their turn, and takes over every phone with his song. Can't play? Draw a card: play it " +
-            "if it fits, or keep it. First to " +
-            "play their last card wins."
-        GameKind.LUDO -> "Each player has four tokens in their corner. Roll the die on your turn: a 6 brings a token " +
-            "out onto its start square and gives you another roll (but a third 6 in a row ends your turn). Move a token " +
-            "the number rolled, clockwise round the board and up your coloured column to the centre. Land on someone " +
-            "else's token to send it back to their corner, except on the start squares and stars, which are safe. You " +
-            "need the exact roll to get home. First with all four tokens home wins."
-        GameKind.GRID -> "Sixteen letters, two minutes. Spell words by dragging through letters that touch, sideways or " +
-            "corner to corner, each letter once per word, three letters or more. Words of 3-4 letters score 1, 5 letters 2, " +
-            "6 letters 3, 7 letters 5 and 8 letters 11. When time is up, a word nobody else found scores double. In a " +
-            "race everyone gets the same grid, rolled on the host's phone."
-        GameKind.BALLOON -> "Each round one player types a secret word (any word: names and in-jokes work). The others " +
-            "take turns guessing letters. A right letter scores 1 for each time it's in the word, and whoever fills in the " +
-            "last letter scores 3 more. Each wrong letter pops one of the seven balloons; if they all pop, the picker scores " +
-            "5. Everyone picks once, and the most points wins."
-        GameKind.CODE -> "Each of you hides a code of four coloured pegs (colours can repeat) for the other to crack. " +
-            "After each guess you get a red pin for every right colour in the right place and a white pin for every " +
-            "right colour in the wrong place. You see each other's pins but never the guesses. Fewest guesses wins; " +
-            "on a tie, the faster. Ten guesses each."
-        GameKind.SLIDE -> "Put the numbered tiles back in order, 1 to the last, with the gap at the end. Tap a tile in line " +
-            "with the gap and it slides over (with any tiles between), or swipe anywhere on the screen to slide the tile next to " +
-            "the gap into it. In a race everyone gets the same shuffle, made on the " +
-            "host's phone with real slides so it can always be solved; the first to finish wins. Tiles in their place turn orange."
-        GameKind.BINGO -> "Everyone gets a card of 24 numbers around a free centre: B is 1–15, I 16–30, N 31–45, G 46–60 and O 61–75. " +
-            "A number from 1 to 75 is called every few seconds. Tap it on your card to dab it. Fill a whole row, column or " +
-            "diagonal (the star counts) and the Bingo button lights up: the first to press it wins."
-        GameKind.GOLF -> "Nine holes of mini golf, new every game from a library of a thousand designed holes. Pick the " +
-            "level first: Easy holes are one island, Medium two islands, Hard three, and all nine holes are that kind. On your turn, pull back from anywhere on the course like a slingshot and let go: the " +
-            "further you pull, the harder the shot. Walls bounce the ball and sand slows it. Islands are joined by narrow " +
-            "bridges: roll off an island or a bridge and the ball falls, and a ball that slows down on a pond sinks. Either " +
-            "way it costs the stroke and you play again from the tee. Everyone tees off in turn, then whoever is still out " +
-            "plays, for as long as it takes until someone is in. Then everyone still out gets three more shots, counted down " +
-            "on screen; a ball not in after those is picked up and scores one more. Fewest strokes wins."
         GameKind.BLOCKS -> "Everyone has the same 21 pieces in their colour. Your first piece must cover your ringed start square. " +
             "After that, each new piece must touch one of your own pieces corner to corner and never along an edge (other colours " +
             "can touch you anywhere). Pick a piece, turn or flip it, tap the board to put it there and Place. Stuck players are " +
