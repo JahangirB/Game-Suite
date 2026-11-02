@@ -184,6 +184,12 @@ object GameColors {
     val WaterEdge = Color(0xFF2F7FB8)
     val Wood = Color(0xFFC8A27A)
     val WoodDark = Color(0xFF9C7550)
+    /** Mini Golf's sticker spots on the hole map: Kylian, the fire, Stonks, the portals, the eyes. */
+    val ZoneKylian = Color(0xFF6F6C78)
+    val ZoneFire = Color(0xFFFF6A1F)
+    val ZoneStonks = Color(0xFF1F56C0)
+    val ZonePortal = Color(0xFF8A5CF0)
+    val ZoneEyes = Color(0xFFEFC29C)
     // Number Cross grid and stone blocks.
     val GridFrame = Color(0xFF6E6A7C)
     val OperatorTile = Color(0xFFEDE8F7)

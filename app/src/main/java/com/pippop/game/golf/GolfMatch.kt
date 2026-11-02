@@ -7,7 +7,8 @@ import org.json.JSONObject
 
 /**
  * Mini Golf's turns and strokes, matching the server (backend/cloudflare/src/golf.js). A move
- * is a shot the player's phone already worked out: { angle, power, x, y, holed }. [course] is
+ * is a shot the player's phone already worked out: { kind, angle, power, x, y, holed, skip }
+ * (skip: it stopped on Kylian, who takes the player's next turn). [course] is
  * the nine holes from the [Courses] library everyone plays, all of the level picked for the game.
  */
 class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(GolfLevel.EASY)) : TurnMatch {
@@ -18,6 +19,8 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
     private val done = marks.associateWith { false }.toMutableMap()
     /** The stroke count each player still out must hole by, once someone is in (null till then). */
     private val deadline = marks.associateWith<Char, Int?> { null }.toMutableMap()
+    /** Players whose next turn Kylian takes. */
+    private val skip = marks.associateWith { false }.toMutableMap()
     private var last: JSONObject? = null
     private var shots = 0
 
@@ -34,6 +37,21 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
         return null
     }
 
+    /**
+     * Who plays after [mark]: the next player still out, passing over one whose turn Kylian
+     * took. If nobody else is out, the turn lost is a shot added instead.
+     */
+    private fun nextTurn(mark: Char): Char? {
+        val next = nextOut(mark) ?: return null
+        if (skip[next] != true) return next
+        skip[next] = false
+        val after = nextOut(next)
+        if (after != null && after != next) return after
+        val mine = strokes.getValue(next)
+        mine[hole] = mine[hole] + 1
+        return next
+    }
+
     override fun play(mark: Char, move: JSONObject): TurnResult {
         require(hole < HOLES) { "The game is over." }
         require(done[mark] != true) { "You're in the hole already." }
@@ -41,8 +59,10 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
         val power = move.optDouble("power")
         val x = move.optDouble("x")
         val y = move.optDouble("y")
-        require(angle.isFinite() && power > 0 && power <= 1 && x in 0.0..2.0 && y in 0.0..2.0) { "That shot is not valid." }
+        require(angle.isFinite() && power > 0 && power <= 1 && x in 0.0..4.0 && y in 0.0..4.0) { "That shot is not valid." }
         val holed = move.optBoolean("holed")
+        val kind = ShotKind.from(move.optString("kind"))
+        val skipped = move.optBoolean("skip") && !holed
         val from = balls[mark]
         val mine = strokes.getValue(mark)
         mine[hole] = mine[hole] + 1
@@ -57,10 +77,12 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
             done[mark] = true
             mine[hole] = taken + 1
         }
+        if (skipped && done[mark] != true) skip[mark] = true
         shots++
         last = JSONObject().put("mark", mark.toString()).put("hole", hole).put("from", from?.toJson() ?: JSONObject.NULL)
-            .put("angle", angle).put("power", power).put("to", Pt(x, y).toJson()).put("holed", holed).put("seq", shots)
-        nextOut(mark)?.let { return TurnResult(again = false, turn = it) }
+            .put("kind", kind.key).put("angle", angle).put("power", power).put("to", Pt(x, y).toJson()).put("holed", holed)
+            .put("skip", skipped).put("seq", shots)
+        nextTurn(mark)?.let { return TurnResult(again = false, turn = it) }
         if (hole + 1 >= HOLES) {
             hole = HOLES
             val ranked = marks.sortedBy { total(it) }
@@ -73,6 +95,7 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
             balls[m] = null
             done[m] = false
             deadline[m] = null
+            skip[m] = false
         }
         return TurnResult(again = false, turn = marks[hole % marks.size])
     }
@@ -107,8 +130,22 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
 
 private fun Pt.toJson() = JSONArray().put(x).put(y)
 
-/** The last shot played: by [who] on [hole], from [from] (null: the tee) to [to]. */
-data class GolfLastShot(val who: Char, val hole: Int, val from: Pt?, val angle: Double, val power: Double, val to: Pt, val holed: Boolean, val seq: Int)
+/**
+ * The last shot played: by [who] on [hole], a [kind] shot from [from] (null: the tee) to [to].
+ * [skip]: it stopped on Kylian, who takes [who]'s next turn.
+ */
+data class GolfLastShot(
+    val who: Char,
+    val hole: Int,
+    val from: Pt?,
+    val angle: Double,
+    val power: Double,
+    val to: Pt,
+    val holed: Boolean,
+    val seq: Int,
+    val kind: ShotKind = ShotKind.ROLL,
+    val skip: Boolean = false,
+)
 
 /** Mini Golf as one player sees it: everyone's strokes per hole, balls ('m' is you) and the last shot. */
 data class GolfView(
@@ -148,6 +185,7 @@ data class GolfView(
                         who = l.optString("who", "o")[0], hole = l.optInt("hole"), from = pt(l.optJSONArray("from")),
                         angle = l.optDouble("angle"), power = l.optDouble("power"), to = pt(l.optJSONArray("to")) ?: Pt(0.0, 0.0),
                         holed = l.optBoolean("holed"), seq = l.optInt("seq"),
+                        kind = ShotKind.from(l.optString("kind")), skip = l.optBoolean("skip"),
                     )
                 },
                 left = each("left") { o, k -> if (o.isNull(k)) null else o.optInt(k) }.filterValues { it != null }.mapValues { it.value!! },

@@ -69,36 +69,89 @@ class GolfTest {
     }
 
     @Test
-    fun physicsIsRepeatableAndStaysOnTheCourse() {
-        val hole = Golf.HOLES[1]
-        val a = Golf.simulate(hole, hole.tee, -PI / 2, 0.8)
-        val b = Golf.simulate(hole, hole.tee, -PI / 2, 0.8)
+    fun physicsIsRepeatableAndWallsTurnARollBack() {
+        val hole = Golf.HOLES[0]
+        val a = Golf.simulate(hole, Pt(0.4, 2.0), ShotKind.ROLL, -PI / 2, 0.8)
+        val b = Golf.simulate(hole, Pt(0.4, 2.0), ShotKind.ROLL, -PI / 2, 0.8)
         assertEquals(a, b)
-        // Straight up into the block: it bounces back, never through it.
-        assertFalse(a.holed)
-        assertTrue(a.path.none { it.x in 0.3..0.7 && it.y in 0.72..0.84 })
-        for (k in 0 until 40) {
-            val s = Golf.simulate(Golf.HOLES[k % 9], Golf.HOLES[k % 9].tee, k * 0.7, 1.0)
-            assertTrue(s.path.all { it.x in 0.0..Golf.W && it.y in 0.0..Golf.H })
-        }
-        // A gentle straight putt on the first hole drops.
-        val first = Golf.HOLES[0]
-        assertTrue((1..40).any { Golf.simulate(first, first.tee, -PI / 2, it / 40.0).holed })
+        // Straight up into the wall at y 1.6: it turns back, never through it.
+        assertTrue(a.frames.none { it.x in 0.2..0.7 && it.y in 1.6..1.64 })
+        assertTrue(a.end.y > 1.64)
+        assertTrue(a.events.any { it.what == "wall" })
+        // A high jump flies over the same wall.
+        val over = Golf.simulate(hole, Pt(0.4, 1.9), ShotKind.JUMP, -PI / 2, 1.0)
+        assertTrue(over.end.y < 1.6)
     }
 
     @Test
-    fun theComputerFinishesEveryHole() {
+    fun aJumpClearsTheGapThatARollFallsInto() {
+        val hole = Hole(
+            4, Pt(0.5, 3.0), Pt(0.5, 0.3),
+            islands = listOf(Box(0.0, 0.05, 1.0, 1.5), Box(0.0, 1.75, 1.0, 3.15)),
+            bridges = listOf(Box(0.85, 1.48, 0.97, 1.77)),
+        )
+        val roll = Golf.simulate(hole, Pt(0.5, 1.9), ShotKind.ROLL, -PI / 2, 0.6)
+        assertEquals(Hazard.DROP, roll.hazard)
+        assertEquals(hole.tee, roll.rest(hole))
+        assertTrue(roll.events.any { it.what == "drop" })
+        val jump = Golf.simulate(hole, Pt(0.5, 1.9), ShotKind.JUMP, -PI / 2, 0.9)
+        assertNull(jump.hazard)
+        assertTrue(jump.end.y < 1.5)
+        // Over the bridge a roll gets across.
+        val bridge = Golf.simulate(hole, Pt(0.91, 1.9), ShotKind.ROLL, -PI / 2, 0.6)
+        assertNull(bridge.hazard)
+        assertTrue(bridge.end.y < 1.5)
+    }
+
+    @Test
+    fun stickerSpotsDoWhatTheySay() {
+        val hole = Golf.HOLES[2]
+        // Rolling into the fire: back to the tee.
+        val fire = Golf.simulate(hole, Pt(0.72, 2.095), ShotKind.ROLL, -PI / 2, 0.4)
+        assertEquals(Hazard.FIRE, fire.hazard)
+        // Onto Stonks: thrown up the course.
+        val stonks = Golf.simulate(hole, Pt(0.21, 1.62), ShotKind.ROLL, -PI / 2, 0.35)
+        assertTrue(stonks.events.any { it.what == "stonks" })
+        assertTrue(stonks.frames.any { it.h > 0.5 })
+        // Into a portal: out of the other.
+        val portal = Golf.simulate(hole, Pt(0.15, 2.9), ShotKind.ROLL, PI / 2, 0.38)
+        assertTrue(portal.events.any { it.what == "portal" })
+        assertTrue(portal.end.y < 1.0)
+        // Stopping on Kylian takes the next turn; on the eyes, the aim line.
+        val kylian = Golf.simulate(hole, Pt(0.2, 1.0), ShotKind.ROLL, -PI / 2, 0.3)
+        assertEquals(ZoneType.KYLIAN, kylian.restZone)
+        assertTrue(kylian.skip)
+        val eyes = Golf.simulate(hole, Pt(0.4, 0.4), ShotKind.ROLL, -PI / 2, 0.25)
+        assertEquals(ZoneType.EYES, eyes.restZone)
+        assertFalse(eyes.skip)
+    }
+
+    @Test
+    fun kylianTakesTheNextTurnInAMatch() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        assertEquals('g', m.play('h', shot(0.5, 2.0).put("skip", true).put("kind", "jump")).turn)
+        assertEquals("jump", GolfView.from(m.view('g', mapOf('h' to 'o', '3' to 'p'))).last!!.kind.key)
+        assertEquals('3', m.play('g', shot(0.5, 2.0)).turn)
+        assertEquals('g', m.play('3', shot(0.5, 2.0)).turn)
+        // Alone on the hole, the lost turn is a shot added.
+        val solo = GolfMatch(listOf('h'))
+        assertEquals('h', solo.play('h', shot(0.5, 2.0).put("skip", true)).turn)
+        assertEquals(listOf(2), solo.strokes['h'])
+    }
+
+    @Test
+    fun theComputerFinishesTheBuiltInHoles() {
         val random = Random(3)
         for (hole in Golf.HOLES) {
             val field = Golf.distanceField(hole)
             var at = hole.tee
             var strokes = 0
             var holed = false
-            while (!holed && strokes < 7) {
+            while (!holed && strokes < 12) {
                 strokes++
-                val (angle, power) = Golf.computerShot(hole, at, 0.9, field, random)
-                val s = Golf.simulate(hole, at, angle, power)
-                at = s.end
+                val plan = Golf.computerShot(hole, at, 0.9, field, random)
+                val s = Golf.simulate(hole, at, plan.kind, plan.angle, plan.power)
+                at = s.rest(hole)
                 holed = s.holed
             }
             assertTrue("hole par ${hole.par} took $strokes", holed)
@@ -113,11 +166,11 @@ class GolfTest {
         room.setTurnReady(guest, true, 0)
         val host = parseRoom(room.view(LocalRoom.HOST, 1))
         assertEquals("me", host.turns!!.turn)
-        room.move(LocalRoom.HOST, shot(0.5, 0.6), 2)
+        room.move(LocalRoom.HOST, shot(0.5, 2.6), 2)
         val bob = parseRoom(room.view(guest, 3)).turns!!
         assertEquals("me", bob.turn)
         assertEquals(listOf(1), bob.golf!!.strokes['o'])
-        assertEquals(Pt(0.5, 0.6), bob.golf!!.balls['o'])
+        assertEquals(Pt(0.5, 2.6), bob.golf!!.balls['o'])
         assertEquals(RoomStatus.PLAYING, parseRoom(room.view(guest, 3)).status)
     }
 }

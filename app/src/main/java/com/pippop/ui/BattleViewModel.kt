@@ -19,6 +19,7 @@ import com.pippop.game.blocks.Placement
 import com.pippop.game.code.CodeBreaker
 import com.pippop.game.golf.Golf
 import com.pippop.game.golf.GolfLastShot
+import com.pippop.game.golf.ShotKind
 import com.pippop.game.golf.GolfLevel
 import com.pippop.game.slide.Slide
 import com.pippop.game.slide.SlideLevel
@@ -674,21 +675,23 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playMove(JSONObject().put("letter", letter.toString()), turns.copy(balloon = view.copy(guessed = view.guessed + letter)))
     }
 
-    /** Mini Golf: shoot at [angle] with [power]; this phone works out where the ball stops. */
-    fun shootGolf(angle: Double, power: Double) {
+    /** Mini Golf: a [kind] shot at [angle] with [power]; this phone works out where the ball stops. */
+    fun shootGolf(kind: ShotKind, power: Double, angle: Double) {
         val turns = _state.value.room?.turns ?: return
         val golf = turns.golf ?: return
+        if (turns.turn != "me") return
         val hole = golf.holeAt()
         val from = golf.balls['m']
-        val shot = Golf.simulate(hole, from ?: hole.tee, angle, power)
-        // In the water or over the edge, the ball goes back on the tee.
+        val shot = Golf.simulate(hole, from ?: hole.tee, kind, angle, power)
+        // Lost in the sea, a pond or the fire, the ball goes back on the tee.
         val rest = shot.rest(hole)
         val shown = golf.copy(
             balls = golf.balls + ('m' to rest),
-            last = GolfLastShot('m', golf.hole, from, angle, power, rest, shot.holed, (golf.last?.seq ?: 0) + 1),
+            last = GolfLastShot('m', golf.hole, from, angle, power, rest, shot.holed, (golf.last?.seq ?: 0) + 1, kind, shot.skip),
         )
         playMove(
-            JSONObject().put("angle", angle).put("power", power).put("x", rest.x).put("y", rest.y).put("holed", shot.holed),
+            JSONObject().put("kind", kind.key).put("angle", angle).put("power", power).put("x", rest.x).put("y", rest.y)
+                .put("holed", shot.holed).put("skip", shot.skip),
             turns.copy(turn = "opponent", golf = shown),
         )
     }

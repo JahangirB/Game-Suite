@@ -40,10 +40,8 @@ import com.pippop.game.BoardState
 import com.pippop.game.blocks.Blocks
 import com.pippop.game.blocks.BlocksView
 import com.pippop.game.dominoes.Tile
-import com.pippop.game.golf.Courses
 import com.pippop.game.golf.Golf
-import com.pippop.game.golf.GolfLevel
-import com.pippop.game.golf.GolfView
+import com.pippop.game.golf.Hole
 import com.pippop.game.golf.Pt
 import com.pippop.game.hockey.Body
 import com.pippop.game.hockey.Hockey
@@ -442,19 +440,16 @@ private fun bingo(): List<TutorialStep> {
 }
 
 private fun golf(): List<TutorialStep> {
-    fun course(hole: Int, me: Pt?, them: Pt?, course: List<Int>? = null) = @Composable { m: Modifier ->
-        val view = GolfView(hole, Golf.HOLES.size, mapOf('m' to emptyList(), 'o' to emptyList()), mapOf('m' to me, 'o' to them), emptyMap(), null, course)
-        GolfCourse(view, 'm', false, { _, _ -> }, m)
-    }
-    // A two-island hole from the library with a pond on it.
-    val islands = Courses.of(GolfLevel.MEDIUM).firstOrNull { Courses.hole(it).water.isNotEmpty() } ?: Courses.MEDIUM
+    fun map(hole: Hole, me: Pt?, them: Pt?) = @Composable { m: Modifier -> GolfMap(hole, mapOf('m' to me, 'o' to them), m) }
+    val one = Golf.HOLES[0]
+    val stickers = Golf.HOLES[2]
     val aspect = (Golf.W / Golf.H).toFloat()
     return listOf(
-        TutorialStep("Nine holes", "Everyone tees off in turn. Get the ball into the cup at the flag.", course(0, null, null), aspect),
-        TutorialStep("Pull back and let go", "Pull from anywhere, like a slingshot. The further you pull, the harder the shot.", course(1, null, Pt(0.62, 1.0)), aspect),
-        TutorialStep("Walls bounce, sand slows", "Play off the walls to get round corners.", course(4, Pt(0.4, 1.05), Pt(0.56, 0.5)), aspect),
-        TutorialStep("Mind the drop and the ponds", "Cross between islands by the bridges. Fall off, or stop in a pond, and you're back on the tee.", course(0, null, null, List(9) { islands }), aspect),
-        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in by then: picked up, plus one.", course(0, Pt(0.52, 0.34), null), aspect),
+        TutorialStep("Nine holes in 3D", "Everyone tees off in turn. Get the ball into the cup at the flag.", map(one, one.tee, null), aspect),
+        TutorialStep("Swipe, pinch, slide", "Swipe to turn round your ball and pinch to see the whole hole. Slide up the bar on the right and let go to shoot.", map(one, Pt(0.5, 2.3), null), aspect),
+        TutorialStep("Roll or jump", "Low on the bar rolls; high jumps, over walls and the gaps between islands. Fall in the sea and you're back on the tee.", map(stickers, Pt(0.3, 2.7), Pt(0.6, 1.5)), aspect),
+        TutorialStep("Sticker spots", "Kylian takes your next turn, the fire sends you back to the tee, Stonks throws you up the course, portals swap ends, and Hmm. Sure. hides your aim line.", map(stickers, Pt(0.2, 0.75), null), aspect),
+        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in by then: picked up, plus one.", map(stickers, Pt(0.24, 0.3), null), aspect),
     )
 }
 

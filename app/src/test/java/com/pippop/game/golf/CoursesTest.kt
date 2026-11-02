@@ -24,9 +24,14 @@ class CoursesTest {
         for (id in 0 until Courses.SIZE) {
             val hole = Courses.hole(id)
             assertTrue("hole $id can't be played", Courses.playable(hole))
-            assertEquals(Courses.islands(id), hole.islands?.size ?: 1)
+            assertEquals(Courses.islands(id), hole.islands.size)
             assertEquals(Courses.islands(id) - 1, hole.bridges.size)
-            assertEquals(Courses.islands(id) + 1, hole.par)
+            assertEquals(Courses.islands(id) + 3, hole.par)
+            assertEquals(Golf.H, hole.len, 0.0)
+            // Sticker spots: none on easy holes, one or two on medium, two or three on hard
+            // (the two portals of a pair count as one).
+            val spots = hole.zones.count { it.type != ZoneType.PORTAL } + hole.zones.count { it.type == ZoneType.PORTAL } / 2
+            assertTrue("hole $id has $spots spots", spots in when (Courses.islands(id)) { 1 -> 0..0; 2 -> 1..2; else -> 2..3 })
         }
     }
 
@@ -43,11 +48,11 @@ class CoursesTest {
         val view = GolfView.from(match.view('h', mapOf('g' to 'o')))
         assertEquals(match.course, view.course)
         assertEquals(Courses.hole(703), view.holeAt(3))
-        assertEquals(3, view.holeAt(3).islands?.size)
+        assertEquals(3, view.holeAt(3).islands.size)
     }
 
     @Test
-    fun anOldServerWithoutACoursePlaysTheClassicNine() {
+    fun anOldServerWithoutACoursePlaysTheBuiltInHoles() {
         val turns = JSONObject().put("golf", JSONObject().put("hole", 2).put("holes", 9))
         val view = GolfView.from(turns)
         assertNull(view.course)
@@ -55,30 +60,14 @@ class CoursesTest {
     }
 
     @Test
-    fun aBallOverTheEdgeFallsAndGoesBackToTheTee() {
-        val hole = Hole(
-            3, Pt(0.5, 1.4), Pt(0.5, 0.2),
-            islands = listOf(Box(0.0, 0.05, 1.0, 0.6), Box(0.0, 0.9, 1.0, 1.55)),
-            bridges = listOf(Box(0.45, 0.58, 0.55, 0.92)),
-        )
-        // Straight up the bridge: still on the course past the gap.
-        assertNull(Golf.simulate(hole, hole.tee, -PI / 2, 0.75).hazard)
-        // Up the left side, where there's no bridge: into the drop.
-        val off = Golf.simulate(hole, Pt(0.15, 1.4), -PI / 2, 0.75)
-        assertEquals(Hazard.DROP, off.hazard)
-        assertTrue(off.end.y in 0.6..0.9)
-        assertEquals(hole.tee, off.rest(hole))
-    }
-
-    @Test
     fun aBallThatSlowsOnAPondSinksButAFastOneRollsAcross() {
-        val hole = Hole(2, Pt(0.5, 1.4), Pt(0.5, 0.2), water = listOf(Pond(0.5, 1.0, 0.2, 0.12)))
-        val sinks = Golf.simulate(hole, hole.tee, -PI / 2, 0.42)
+        val hole = Hole(4, Pt(0.5, 3.0), Pt(0.5, 0.2), islands = listOf(Box(0.0, 0.05, 1.0, 3.15)), water = listOf(Pond(0.5, 2.4, 0.2, 0.12)))
+        val sinks = Golf.simulate(hole, hole.tee, ShotKind.ROLL, -PI / 2, 0.68)
         assertEquals(Hazard.WATER, sinks.hazard)
         assertEquals(hole.tee, sinks.rest(hole))
-        val across = Golf.simulate(hole, hole.tee, -PI / 2, 0.8)
+        val across = Golf.simulate(hole, hole.tee, ShotKind.ROLL, -PI / 2, 0.9)
         assertNull(across.hazard)
-        assertTrue(across.end.y < 0.85)
+        assertTrue(across.end.y < 2.2)
     }
 
     @Test
@@ -90,8 +79,8 @@ class CoursesTest {
             var at = hole.tee
             var holed = false
             for (stroke in 1..Golf.MAX_STROKES) {
-                val (angle, power) = Golf.computerShot(hole, at, 1.0, field, Random(id + stroke))
-                val shot = Golf.simulate(hole, at, angle, power)
+                val plan = Golf.computerShot(hole, at, 1.0, field, Random(id + stroke))
+                val shot = Golf.simulate(hole, at, plan.kind, plan.angle, plan.power)
                 if (shot.holed) {
                     holed = true
                     break

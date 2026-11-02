@@ -3,14 +3,13 @@ package com.pippop.game.golf
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.math.hypot
 import kotlin.random.Random
 
 /** How hard a game's nine holes are: every hole has this many islands. */
 enum class GolfLevel(val key: String, val label: String, val islands: Int) {
     EASY("easy", "Easy · one island", 1),
-    MEDIUM("medium", "Medium · two islands", 2),
-    HARD("hard", "Hard · three islands", 3);
+    MEDIUM("medium", "Medium · two islands, sticker spots", 2),
+    HARD("hard", "Hard · three islands, more sticker spots", 3);
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: EASY
@@ -19,8 +18,9 @@ enum class GolfLevel(val key: String, val label: String, val islands: Int) {
 
 /**
  * Mini Golf's library of [SIZE] designed holes, read from assets/golf/courses.jsonl (made by
- * scripts/make-golf-courses.py, one hole per line). Holes 0-332 are one piece of ground (easy),
- * 333-665 two islands joined by a bridge (medium), 666-999 three islands and two bridges (hard).
+ * scripts/make-golf-courses.py, one hole per line). Holes 0-332 are one island (easy), 333-665
+ * two islands joined by a bridge with one or two sticker spots (medium), 666-999 three islands
+ * and two bridges with two or three sticker spots (hard).
  * A game plays nine holes of the level picked for it; only their numbers travel between phones.
  */
 object Courses {
@@ -48,8 +48,8 @@ object Courses {
         holes ?: read?.invoke()?.let { install(it); holes } ?: emptyList()
     }
 
-    /** Hole number [id]; the classic holes stand in if the library isn't there (as in some tests). */
-    fun hole(id: Int): Hole = all().getOrNull(id.mod(SIZE)) ?: Golf.HOLES[id.mod(Golf.HOLES.size)]
+    /** Hole number [id]; the built-in holes stand in if the library isn't there (as in some tests). */
+    fun hole(id: Int): Hole = all().getOrNull(id.mod(SIZE)) ?: Golf.HOLES[(islands(id) - 1).coerceIn(0, Golf.HOLES.size - 1)]
 
     /** How many islands hole [id] has: 1 easy, 2 medium, 3 hard. */
     fun islands(id: Int) = when (id.mod(SIZE)) {
@@ -71,22 +71,36 @@ object Courses {
     private fun parse(line: String): Hole {
         val o = JSONObject(line)
         fun pt(a: JSONArray) = Pt(a.getDouble(0), a.getDouble(1))
-        fun boxes(key: String) = o.optJSONArray(key)?.let { a ->
-            (0 until a.length()).map { i -> a.getJSONArray(i).let { Box(it.getDouble(0), it.getDouble(1), it.getDouble(2), it.getDouble(3)) } }
-        }
+        fun bx(a: JSONArray) = Box(a.getDouble(0), a.getDouble(1), a.getDouble(2), a.getDouble(3))
+        fun boxes(key: String) = o.optJSONArray(key)?.let { a -> (0 until a.length()).map { bx(a.getJSONArray(it)) } }.orEmpty()
         val water = o.optJSONArray("water")?.let { a ->
             (0 until a.length()).map { i -> a.getJSONArray(i).let { Pond(it.getDouble(0), it.getDouble(1), it.getDouble(2), it.getDouble(3)) } }
+        }.orEmpty()
+        val zones = o.optJSONArray("zones")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val z = a.getJSONObject(i)
+                ZoneType.from(z.optString("type"))?.let { type ->
+                    Zone(
+                        type,
+                        box = z.optJSONArray("box")?.let(::bx),
+                        at = z.optJSONArray("at")?.let(::pt),
+                        to = z.optJSONArray("to")?.let(::pt),
+                        dir = z.optJSONArray("dir")?.let(::pt),
+                    )
+                }
+            }
         }.orEmpty()
         return Hole(
             par = o.getInt("par"),
             tee = pt(o.getJSONArray("tee")),
             cup = pt(o.getJSONArray("cup")),
-            walls = boxes("walls").orEmpty(),
-            sand = boxes("sand").orEmpty(),
-            cuts = boxes("cuts").orEmpty(),
+            islands = boxes("islands"),
+            bridges = boxes("bridges"),
+            walls = boxes("walls"),
+            sand = boxes("sand"),
             water = water,
-            islands = if (o.isNull("islands")) null else boxes("islands"),
-            bridges = boxes("bridges").orEmpty(),
+            zones = zones,
+            len = o.optDouble("len", Golf.H),
         )
     }
 
@@ -94,26 +108,26 @@ object Courses {
 
     /**
      * Whether a ball can get from the tee to the cup over dry ground: on the course, out of the
-     * water, round the walls, with room for the ball on every side (so bridges are wide enough).
-     * The script that designs the holes checks the same before keeping one.
+     * water and the fire, round the walls, with room for the ball on every side (so bridges are
+     * wide enough). The script that designs the holes checks the same before keeping one.
      */
     fun playable(hole: Hole): Boolean {
         val cols = (Golf.W / G).toInt()
-        val rows = (Golf.H / G).toInt()
+        val rows = (hole.len / G).toInt()
         val r = Golf.R
+        val fire = hole.zones.filter { it.type == ZoneType.FIRE }.mapNotNull { it.box }
         fun open(c: Int, row: Int): Boolean {
             val p = Pt((c + 0.5) * G, (row + 0.5) * G)
-            if (p.x < r || p.x > Golf.W - r || p.y < r || p.y > Golf.H - r) return false
             val around = listOf(p, Pt(p.x - r, p.y), Pt(p.x + r, p.y), Pt(p.x, p.y - r), Pt(p.x, p.y + r))
             if (around.any { !hole.onCourse(it) }) return false
             if (hole.inWater(p)) return false
-            return hole.solid.none { p.x > it.x0 - r && p.x < it.x1 + r && p.y > it.y0 - r && p.y < it.y1 + r }
+            if (fire.any { p.x >= it.x0 - r && p.x <= it.x1 + r && p.y >= it.y0 - r && p.y <= it.y1 + r }) return false
+            return hole.walls.none { p.x > it.x0 - r && p.x < it.x1 + r && p.y > it.y0 - r && p.y < it.y1 + r }
         }
         fun cell(p: Pt) = (p.x / G).toInt().coerceIn(0, cols - 1) to (p.y / G).toInt().coerceIn(0, rows - 1)
         val (tc, tr) = cell(hole.tee)
         val (cc, cr) = cell(hole.cup)
         if (!open(tc, tr) || !open(cc, cr)) return false
-        if (hypot(hole.tee.x - hole.cup.x, hole.tee.y - hole.cup.y) < 0.5) return false
         val seen = BooleanArray(cols * rows)
         val queue = ArrayDeque<Int>()
         seen[tr * cols + tc] = true

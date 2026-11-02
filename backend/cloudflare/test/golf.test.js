@@ -114,3 +114,28 @@ test('whoever opened the golf game picks the level, and the match uses it', () =
   setTurnReady(room, guest, true, T0 + 4);
   room.turnState.course.forEach((id) => assert.ok(id >= 666 && id < 1000));
 });
+
+test('jump shots on the longer holes are kept; Kylian takes the next turn', () => {
+  const s = golf.start(Math.random, ['h', 'g', '3']);
+  // A jump up the 3.2-long hole that stops on Kylian.
+  assert.equal(golf.play(s, 'h', { kind: 'jump', angle: -1.5, power: 0.8, x: 0.5, y: 2.6, holed: false, skip: true }).turn, 'g');
+  assert.equal(golf.view(s, 'g').golf.last.kind, 'jump');
+  assert.equal(golf.view(s, 'g').golf.last.skip, true);
+  assert.equal(golf.play(s, 'g', shot(0.5, 2.5)).turn, '3');
+  // h's turn is passed over.
+  assert.equal(golf.play(s, '3', shot(0.5, 2.5)).turn, 'g');
+  assert.equal(golf.play(s, 'g', shot(0.5, 2.2)).turn, '3');
+  assert.equal(golf.play(s, '3', shot(0.5, 2.2)).turn, 'h');
+  assert.deepEqual(s.strokes.h, [1]);
+});
+
+test('alone on the hole, the turn Kylian takes is a shot added', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  golf.play(s, 'h', shot(0.5, 0.2, true));
+  assert.equal(golf.play(s, 'g', { ...shot(0.5, 1.5), skip: true }).turn, 'g');
+  assert.deepEqual(s.strokes.g, [2]);
+  // A ball that drops in never loses a turn.
+  const t = golf.start(Math.random, ['h', 'g']);
+  golf.play(t, 'h', { ...shot(0.5, 0.2, true), skip: true });
+  assert.equal(t.skip.h, false);
+});

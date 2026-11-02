@@ -1,8 +1,10 @@
 // Mini Golf: nine holes, two to four players taking turns, fewest strokes wins.
 //
 // The courses and the physics live in the app: the player shooting works the shot out on
-// their phone and sends it with where the ball stopped ({ angle, power, x, y, holed }); the
-// other phones replay the same shot. This module keeps the strokes and whose turn it is.
+// their phone and sends it with where the ball stopped ({ kind, angle, power, x, y, holed, skip });
+// the other phones replay the same shot. This module keeps the strokes and whose turn it is.
+// kind is 'roll' or 'jump'. skip says the ball stopped on the Kylian sticker spot: he takes the
+// player's next turn (passed over; if nobody else is still out, that turn is a shot added).
 // Everyone tees off in seat order, then whoever is still out plays in turn. Nobody is picked up
 // before someone is in: once the first player holes out, everyone still out gets AFTER_FIRST_IN
 // more shots, and a ball still out after those is picked up and scores one more. (MAX_STROKES
@@ -43,6 +45,8 @@ export function start(random = Math.random, marks = ['h', 'g'], options = {}) {
     done: Object.fromEntries(marks.map((m) => [m, false])),
     // The stroke count each player still out must hole by, once someone is in (null till then).
     deadline: Object.fromEntries(marks.map((m) => [m, null])),
+    // Players whose next turn Kylian takes.
+    skip: Object.fromEntries(marks.map((m) => [m, false])),
     last: null, shots: 0,
     turn: marks[0],
   };
@@ -62,7 +66,22 @@ function nextOut(s, mark) {
   return null;
 }
 
-const unit = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 2;
+/**
+ * Who plays after [mark]: the next player still out, passing over one whose turn Kylian took.
+ * If nobody else is out, the turn lost is a shot added instead.
+ */
+function nextTurn(s, mark) {
+  const next = nextOut(s, mark);
+  if (!next || !s.skip?.[next]) return next;
+  s.skip[next] = false;
+  const after = nextOut(s, next);
+  if (after && after !== next) return after;
+  s.strokes[next][s.hole] += 1;
+  return next;
+}
+
+// The holes are 1 wide and 3.2 long (older ones 1.6).
+const unit = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 4;
 
 export function play(s, mark, move) {
   if (s.hole >= HOLES) throw new Error('The game is over.');
@@ -73,6 +92,8 @@ export function play(s, mark, move) {
   const y = Number(move?.y);
   if (!Number.isFinite(angle) || !(power > 0 && power <= 1) || !unit(x) || !unit(y)) throw new Error('That shot is not valid.');
   const holed = move?.holed === true;
+  const kind = move?.kind === 'jump' ? 'jump' : 'roll';
+  const skipped = move?.skip === true && !holed;
   const from = s.balls[mark];
   s.deadline ||= {};
   s.strokes[mark][s.hole] += 1;
@@ -89,9 +110,11 @@ export function play(s, mark, move) {
     s.done[mark] = true;
     s.strokes[mark][s.hole] = taken + 1;
   }
+  s.skip ||= {};
+  if (skipped && !s.done[mark]) s.skip[mark] = true;
   s.shots += 1;
-  s.last = { mark, hole: s.hole, from, angle, power, to: [x, y], holed, seq: s.shots };
-  const next = nextOut(s, mark);
+  s.last = { mark, hole: s.hole, from, kind, angle, power, to: [x, y], holed, skip: skipped, seq: s.shots };
+  const next = nextTurn(s, mark);
   if (next) return result(next);
   // Everyone is in: the next hole, or the end.
   if (s.hole + 1 >= HOLES) {
@@ -106,6 +129,7 @@ export function play(s, mark, move) {
     s.balls[m] = null;
     s.done[m] = false;
     s.deadline[m] = null;
+    s.skip[m] = false;
   }
   return result(s.marks[s.hole % s.marks.length]);
 }
