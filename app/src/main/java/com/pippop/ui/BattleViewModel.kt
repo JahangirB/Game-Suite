@@ -138,6 +138,8 @@ data class BattleUiState(
     val pendingCard: Int? = null,
     /** Word Race: the letters typed for the next guess, and the round they belong to. */
     val wordInput: String = "",
+    /** Word Race: goes up each time a guess is refused, to shake the row being typed. */
+    val wordShake: Int = 0,
     val wordRound: Int = -1,
     /** Draw & Guess: the strokes on the canvas this turn (yours appear before the server confirms them). */
     val drawStrokes: List<DrawStroke> = emptyList(),
@@ -914,11 +916,21 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (s.firing || word.length < (room.words?.length ?: 5)) return
         // Only real words count: say so at once instead of after a trip to the server.
         if (!WordList.isWord(word)) return showMessage("\"${word.uppercase()}\" isn't in the word list.")
+        // Hard mode: a guess that leaves out a found letter shakes and says which, before sending.
+        val hard = store.profile.value.wordsHard
+        if (hard) {
+            Words.hardMiss(room.words?.mine.orEmpty().mapNotNull { g -> g.word?.let { it to g.score } }, word)?.let {
+                haptics.play(Buzz.NOT_ALLOWED)
+                sfx.play(Sound.ERROR)
+                _state.update { s2 -> s2.copy(wordShake = s2.wordShake + 1) }
+                return showMessage("$it (hard mode).")
+            }
+        }
         _state.update { it.copy(firing = true) }
         viewModelScope.launch {
             try {
                 val sentAt = System.currentTimeMillis()
-                applyResponse(b.guess(room.code, id, word), sentAt)
+                applyResponse(b.guess(room.code, id, word, hard), sentAt)
                 _state.update { it.copy(wordInput = "") }
             } catch (e: CancellationException) {
                 throw e

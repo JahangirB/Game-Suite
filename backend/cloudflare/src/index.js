@@ -225,7 +225,7 @@ export class Room extends DurableObject {
           else if (this.room.game === 'code') codeMove(this.room, role, msg.word, now);
           else if (this.room.game === 'grid') findWord(this.room, role, msg.word, now);
           else if (this.room.game === 'draw') drawGuess(this.room, role, msg.word, now);
-          else guessWord(this.room, role, msg.word, now);
+          else guessWord(this.room, role, msg.word, now, msg.hard === true);
           break;
         case 'stroke': {
           // Strokes go straight to the guesser as their own small message, not as a new room

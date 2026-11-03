@@ -11,6 +11,24 @@ import kotlin.random.Random
 object Words {
     const val TRIES = 6
 
+    private val ORDINALS = listOf("1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th")
+
+    /**
+     * Hard mode: every letter found so far must be used again, green ones in the same place and
+     * yellow ones somewhere. Returns what [word] leaves out ("The 2nd letter must be R"), or
+     * null. [guesses] are (word, colours) pairs. As on the server (words.js hardMiss).
+     */
+    fun hardMiss(guesses: List<Pair<String, String>>, word: String): String? {
+        for ((g, score) in guesses) {
+            for (i in score.indices) {
+                if (score[i] == 'g' && word.getOrNull(i) != g[i]) return "The ${ORDINALS[i]} letter must be ${g[i].uppercaseChar()}"
+            }
+            val need = g.indices.filter { score.getOrNull(it) != '.' }.groupingBy { g[it] }.eachCount()
+            for ((c, n) in need) if (word.count { it == c } < n) return "Use the ${c.uppercaseChar()}"
+        }
+        return null
+    }
+
     /** Colours for [guess] against [answer]. A repeated letter only counts as often as the answer has it. */
     fun score(guess: String, answer: String): String {
         val n = answer.length

@@ -126,14 +126,14 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?) =
         local { setNumbersReady(LocalRoom.HOST, ready, NumberPuzzle.from(puzzle), now()) }
 
-    override suspend fun guess(code: String, playerId: String, word: String) =
+    override suspend fun guess(code: String, playerId: String, word: String, hard: Boolean) =
         local {
             when (game) {
                 GameKind.DRAW -> drawGuess(LocalRoom.HOST, word, now())
                 GameKind.GRID -> findWord(LocalRoom.HOST, word, now())
                 GameKind.CODE -> codeMove(LocalRoom.HOST, word, now())
                 GameKind.BINGO -> claimBingo(LocalRoom.HOST, now())
-                else -> guessWord(LocalRoom.HOST, word, now())
+                else -> guessWord(LocalRoom.HOST, word, now(), hard)
             }
         }
 
@@ -299,7 +299,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 } else if (r.game == GameKind.GRID) {
                     r.findWord(role!!, msg.optString("word"), now)
                 } else {
-                    r.guessWord(role!!, msg.optString("word"), now)
+                    r.guessWord(role!!, msg.optString("word"), now, msg.optBoolean("hard"))
                 }
                 "stroke" -> {
                     // Straight to the other screens; the drawer gets a plain acknowledgement.

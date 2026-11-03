@@ -58,7 +58,8 @@ interface BattleBackend {
     suspend fun setOptions(code: String, playerId: String, options: JSONObject): JSONObject
 
     /** Word Race and Draw & Guess: guess [word]. Readiness goes through [ready]. */
-    suspend fun guess(code: String, playerId: String, word: String): JSONObject
+    /** A guess; [hard] says Word Race's hard mode is on (found letters must be used again). */
+    suspend fun guess(code: String, playerId: String, word: String, hard: Boolean = false): JSONObject
 
     /** Draw & Guess: add a stroke. The reply is only an acknowledgement, not a room state. */
     suspend fun stroke(code: String, playerId: String, stroke: JSONObject): JSONObject

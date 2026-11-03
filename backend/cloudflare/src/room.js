@@ -446,7 +446,7 @@ export function setWordsReady(room, role, ready, now, random = Math.random) {
   checkCanReady(room);
   room.players[role].ready = ready !== false;
   if (allReady(room)) {
-    beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random, words.cleanOptions(room.options).level) }, { guesses: [], solved: false });
+    beginMatch(room, { startAt: now + COUNTDOWN_MS, answer: words.randomAnswer(random, words.cleanOptions(room.options).level) }, { guesses: [], solved: false, hard: false });
   }
   bump(room);
 }
@@ -562,7 +562,7 @@ function gridView(room, role, status) {
 }
 
 /** One guess at the secret word. */
-export function guessWord(room, role, word, now) {
+export function guessWord(room, role, word, now, hard = false) {
   if (room.game !== 'words' || room.status !== 'started') throw new GameError('The game is not running.');
   if (now < room.startAt) throw new GameError('Wait for the countdown.');
   const me = room.players[role];
@@ -572,6 +572,10 @@ export function guessWord(room, role, word, now) {
   const n = room.answer.length;
   if (word.length !== n || !/^[a-z]+$/.test(word)) throw new GameError(`Guess a ${n}-letter word.`);
   if (!words.isWord(word)) throw new GameError(`"${word.toUpperCase()}" isn't in the word list.`);
+  // Hard mode: once on, every letter found must be used again.
+  if (hard) me.hard = true;
+  const miss = me.hard ? words.hardMiss(me.guesses, word) : null;
+  if (miss) throw new GameError(miss + ' (hard mode).');
   const colours = words.score(word, room.answer);
   me.guesses.push({ word, score: colours });
   if (colours === 'g'.repeat(n)) {
@@ -1362,5 +1366,7 @@ function playerView(player, room, includeProgress, now) {
     pausedMs: player.pausedUntil ? Math.max(0, player.pausedUntil - now) : null,
     // Asked to start this match again.
     restart: !!player.restart,
+    // Word Race: playing in hard mode.
+    hard: !!player.hard,
   };
 }

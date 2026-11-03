@@ -48,3 +48,24 @@ export function score(guess, answer) {
   }
   return result.join('');
 }
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+/**
+ * Hard mode: every letter found so far must be used again, green ones in the same place and
+ * yellow ones somewhere. Returns what [word] leaves out ("The 2nd letter must be R"), or null.
+ */
+export function hardMiss(guesses, word) {
+  for (const g of guesses) {
+    for (let i = 0; i < g.score.length; i++) {
+      if (g.score[i] === 'g' && word[i] !== g.word[i]) return `The ${ORDINALS[i]} letter must be ${g.word[i].toUpperCase()}`;
+    }
+    // Each yellow (or green) letter as many times as the guess showed it.
+    const need = {};
+    for (let i = 0; i < g.score.length; i++) if (g.score[i] !== '.') need[g.word[i]] = (need[g.word[i]] || 0) + 1;
+    for (const [c, n] of Object.entries(need)) {
+      if ([...word].filter((x) => x === c).length < n) return `Use the ${c.toUpperCase()}`;
+    }
+  }
+  return null;
+}

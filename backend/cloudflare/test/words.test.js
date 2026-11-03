@@ -118,3 +118,22 @@ test('three-way race: the round ends once nobody can beat the best solver', () =
   assert.equal(v.others.length, 2);
   assert.equal(v.others[0].guesses[1].word, 'crane');
 });
+
+test('hard mode: found letters must be used again', async () => {
+  const w = await import('../src/words.js');
+  const g = [{ word: 'crane', score: 'g.y..' }];
+  assert.equal(w.hardMiss(g, 'cloud'), 'Use the A');
+  assert.equal(w.hardMiss(g, 'blast'), 'The 1st letter must be C');
+  assert.equal(w.hardMiss(g, 'chaos'), null);
+  assert.equal(w.hardMiss([], 'zzzzz'), null);
+});
+
+test('a hard-mode guess that leaves a found letter out is refused, and the badge shows', () => {
+  const room = race('crane');
+  const GO = T0 + COUNTDOWN_MS;
+  guessWord(room, 'host', 'cloth', GO, true);
+  assert.throws(() => guessWord(room, 'host', 'brine', GO), /1st letter must be C/);
+  guessWord(room, 'host', 'crane', GO);
+  assert.equal(view(room, 'guest', GO).opponent.hard, true);
+  assert.equal(view(room, 'host', GO).opponent.hard, false);
+});

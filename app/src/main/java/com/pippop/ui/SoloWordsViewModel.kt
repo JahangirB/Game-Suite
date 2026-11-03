@@ -63,6 +63,13 @@ class SoloWordsViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(message = "\"${s.input.uppercase()}\" isn't in the word list.") }
             return
         }
+        // Hard mode: every letter found must be used again.
+        if (com.pippop.data.ProfileStore.get(getApplication()).profile.value.wordsHard) {
+            Words.hardMiss(s.guesses.mapNotNull { g -> g.word?.let { it to g.score } }, s.input)?.let { miss ->
+                _state.update { it.copy(message = "$miss (hard mode).") }
+                return
+            }
+        }
         val guesses = s.guesses + WordGuess(s.input, Words.score(s.input, s.answer))
         _state.update { it.copy(guesses = guesses, input = "", message = null) }
         if (s.daily == true) {

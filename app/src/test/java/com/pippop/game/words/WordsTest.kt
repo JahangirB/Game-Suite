@@ -83,4 +83,12 @@ class WordsTest {
         assertNull(guest.theirs[0].word)
         assertEquals(RoomStatus.PLAYING, parseRoom(room.view(LocalRoom.HOST, go)).status)
     }
+
+    @Test
+    fun hardModeNeedsEveryFoundLetter() {
+        val g = listOf("crane" to "g.y..")
+        org.junit.Assert.assertEquals("Use the A", Words.hardMiss(g, "cloud"))
+        org.junit.Assert.assertEquals("The 1st letter must be C", Words.hardMiss(g, "blast"))
+        org.junit.Assert.assertNull(Words.hardMiss(g, "chaos"))
+    }
 }

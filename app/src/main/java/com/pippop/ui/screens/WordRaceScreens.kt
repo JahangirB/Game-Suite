@@ -1,5 +1,10 @@
 package com.pippop.ui.screens
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import com.pippop.ui.Sound
 import com.pippop.ui.Sfx
 import com.pippop.ui.SoundOnChange
@@ -72,8 +77,14 @@ private fun tileColor(score: Char) = when (score) {
 
 /** Six rows of [length] tiles: [guesses] with their colours, then [input] being typed. */
 @Composable
-internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier) {
+internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier, shake: Int = 0) {
     val p = AppTheme.palette
+    // A refused guess (hard mode): the row being typed shakes from side to side.
+    val nudge = remember { Animatable(0f) }
+    LaunchedEffect(shake) {
+        if (shake == 0) return@LaunchedEffect
+        for (x in listOf(14f, -12f, 9f, -6f, 3f, 0f)) nudge.animateTo(x, tween(55))
+    }
     // Rows scored before this screen opened don't drop again; a new round starts over.
     var seen by remember { mutableStateOf(guesses.size) }
     if (guesses.size < seen) seen = 0
@@ -94,7 +105,7 @@ internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, lengt
             val guess = guesses.getOrNull(row)
             val typed = if (row == guesses.size) input else ""
             val fresh = guess != null && row >= seen
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = if (row == guesses.size) Modifier.offset(x = nudge.value.dp) else Modifier) {
                 for (i in 0 until length) {
                     val letter = guess?.word?.getOrNull(i) ?: typed.getOrNull(i)
                     val fill = guess?.let { tileColor(it.score[i]) }
@@ -241,7 +252,8 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         else -> "${guesses.size}/${words.tries} tries"
     }
     val players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
-        if (isMe) {
+        // Players in hard mode wear a small "Hard" badge.
+        (if (player.hard) "Hard · " else "") + if (isMe) {
             status(words.mine, words.meDone)
         } else {
             val i = room.others.indexOf(player)
@@ -304,7 +316,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
     val opponent = room.opponent
     BoardArea(0.95f * words.length / 5f) { size ->
         Row(size, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, words.length, Modifier.weight(1f))
+            WordGrid(words.mine, if (words.meDone || finished) "" else state.wordInput, words.tries, words.length, Modifier.weight(1f), shake = state.wordShake)
             // Everyone else's colours, stacked smaller when there are several of them.
             val rows = otherRounds(words)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -371,6 +383,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
                 PrimaryButton("Today's word", vm::playDaily)
                 Text("Practice: pick the length of the word.", color = p.muted, fontSize = TextSize.Body)
                 WordLevel.entries.forEach { level -> SecondaryButton(level.label, { vm.playPractice(level) }) }
+                WordsHardSwitch()
             }
         } else {
             SoloWordsRound(state, vm)
@@ -398,6 +411,8 @@ fun WordLevelCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (WordL
         } else {
             Text("${level.label}: the length of the word, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
+        // Each player's own choice.
+        WordsHardSwitch()
     }
 }
 
@@ -416,4 +431,19 @@ private fun WordLetters(guesses: List<WordGuess>) {
     LetterTiles("IN THE RIGHT PLACE", best.filterValues { it == 'g' }.keys.toList(), tileColor('g'))
     LetterTiles("IN THE WORD, ELSEWHERE", best.filterValues { it == 'y' }.keys.toList(), tileColor('y'))
     LetterTiles("NOT IN THE WORD", best.filterValues { it == '.' }.keys.toList(), tileColor('.'))
+}
+
+/** Word Race's hard mode, on this phone: every letter found must be used again. */
+@Composable
+fun WordsHardSwitch() {
+    val p = AppTheme.palette
+    val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
+    val on = store.profile.collectAsState().value.wordsHard
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            Text("Hard mode", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+            Text("Green letters stay in place, yellow ones must be used. Others see a Hard badge.", color = p.muted, fontSize = TextSize.Label)
+        }
+        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setWordsHard)
+    }
 }

@@ -289,6 +289,8 @@ data class PlayerInfo(
     val pausedMs: Long? = null,
     /** Asked to start this match again. */
     val wantsRestart: Boolean = false,
+    /** Word Race: playing in hard mode. */
+    val hard: Boolean = false,
 )
 
 data class RoomState(
@@ -418,6 +420,7 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     at = if (!json.has("at")) game else json.stringOrNull("at")?.let { key -> GameKind.entries.firstOrNull { it.key == key } },
     pausedMs = if (json.isNull("pausedMs")) null else json.optLong("pausedMs"),
     wantsRestart = json.optBoolean("restart"),
+    hard = json.optBoolean("hard"),
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(

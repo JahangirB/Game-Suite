@@ -82,6 +82,8 @@ class LocalRoom(
         var pausedUntil: Long? = null
         /** Asked to start this match again. */
         var restart = false
+        /** Word Race: playing in hard mode. */
+        var hard = false
     }
 
     var status = "waiting"
@@ -389,6 +391,7 @@ class LocalRoom(
             answer = WordList.random(wordLevel, random)
             beginMatch(now + COUNTDOWN_MS) {
                 it.guesses = emptyList()
+                it.hard = false
                 it.solved = false
             }
         }
@@ -396,7 +399,7 @@ class LocalRoom(
     }
 
     /** Word Race: one guess at the secret word. */
-    fun guessWord(role: String, guess: String, now: Long) {
+    fun guessWord(role: String, guess: String, now: Long, hard: Boolean = false) {
         val secret = answer
         val start = startAt
         if (game != GameKind.WORDS || status != "started" || secret == null || start == null) throw ApiException("The game is not running.")
@@ -407,6 +410,9 @@ class LocalRoom(
         val word = guess.lowercase()
         if (word.length != secret.length || !Regex("[a-z]+").matches(word)) throw ApiException("Guess a ${secret.length}-letter word.")
         if (!WordList.isWord(word)) throw ApiException("\"${word.uppercase()}\" isn't in the word list.")
+        // Hard mode: once on, every letter found must be used again.
+        if (hard) me.hard = true
+        if (me.hard) Words.hardMiss(me.guesses, word)?.let { throw ApiException("$it (hard mode).") }
         val colours = Words.score(word, secret)
         me.guesses = me.guesses + (word to colours)
         if (colours == "g".repeat(secret.length)) {
@@ -1275,6 +1281,7 @@ class LocalRoom(
         .put("at", p.at?.key ?: JSONObject.NULL)
         .put("pausedMs", p.pausedUntil?.let { maxOf(0, it - now) } ?: JSONObject.NULL)
         .put("restart", p.restart)
+        .put("hard", p.hard)
 
     private val host get() = players.getValue(HOST)!!
 
