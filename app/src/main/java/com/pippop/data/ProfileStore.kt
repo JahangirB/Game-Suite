@@ -70,6 +70,8 @@ data class Profile(
     val blocksHints: Boolean = true,
     /** Word Race: hard mode (letters found must be used again). */
     val wordsHard: Boolean = false,
+    /** Mini Golf's look: "day", "sunset", "night" or "mixed" (each hole picks one). */
+    val golfTime: String = "day",
     /**
      * The notification question: due once an invitation has been sent or received, and
      * answered (allowed or "Not now") for good, so it is never asked again on every launch.
@@ -157,6 +159,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val seen = _profile.value.tutorialsSeen + kind
         prefs.edit { putString(KEY_TUTORIALS, seen.joinToString(",") { it.key }) }
         _profile.update { it.copy(tutorialsSeen = seen) }
+    }
+
+    fun setGolfTime(time: String) {
+        prefs.edit { putString(KEY_GOLF_TIME, time) }
+        _profile.update { it.copy(golfTime = time) }
     }
 
     fun setWordsHard(on: Boolean) {
@@ -259,6 +266,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             sound = prefs.getBoolean(KEY_SOUND, true),
             blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             wordsHard = prefs.getBoolean(KEY_WORDS_HARD, false),
+            golfTime = prefs.getString(KEY_GOLF_TIME, "day") ?: "day",
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
@@ -295,6 +303,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_SOUND = "sound"
         private const val KEY_BLOCKS_HINTS = "blocks_hints"
         private const val KEY_WORDS_HARD = "words_hard"
+        private const val KEY_GOLF_TIME = "golf_time"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"

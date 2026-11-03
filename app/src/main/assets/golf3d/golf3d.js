@@ -64,7 +64,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog('#dff1fd', 70, 170);
 const camera = new THREE.PerspectiveCamera(52, 9 / 16, 0.1, 400);
-scene.add(new THREE.HemisphereLight('#e8f6ff', '#3f6b3a', 0.9));
+const hemi = new THREE.HemisphereLight('#e8f6ff', '#3f6b3a', 0.9);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight('#fff4dc', 0.95);
 sun.position.set(7, 16, 5);
 sun.castShadow = true;
@@ -630,6 +631,69 @@ function buildHole(h, num) {
 }
 
 function panelArt(g, w, h, fill, edge) { panel(g, w, h, fill, edge); }
+
+// ---- Time of day: day, sunset or night (only the look changes, never the rules) -----------------
+const TIMES = {
+  day: { sky: ['#4e9fe6', '#9fd2fa', '#e8f6ff'], fog: '#dff1fd', hemi: ['#e8f6ff', '#3f6b3a', 0.9], sun: ['#fff4dc', 0.95, [7, 16, 5]], sea: '#ffffff', seaGlow: ['#000000', 0], spec: '#e8f8ff', pondSpec: '#ffffff', cloud: '#c9d9e8', glow: 0, stars: false },
+  // The sea takes the sky's orange: a warm glow of its own, the waves showing through.
+  sunset: { sky: ['#3d2c6e', '#f07f5a', '#ffcf8a'], fog: '#f2b28c', hemi: ['#ffd2ae', '#5a3d48', 0.72], sun: ['#ffae6b', 0.95, [-15, 5, -9]], sea: '#ffd2b0', seaGlow: ['#d9663a', 0.55], spec: '#4a2a1a', pondSpec: '#ffcf9a', cloud: '#ff9e86', glow: 0.25, stars: false },
+  // Moonlight: dark blue water with only a faint shine, so it never glares.
+  night: { sky: ['#050a22', '#122050', '#28396b'], fog: '#0d1736', hemi: ['#8ea4ff', '#0d161c', 0.38], sun: ['#bccbff', 0.42, [-6, 18, -8]], sea: '#6f86c0', seaGlow: ['#0a1430', 0.6], spec: '#1a2440', pondSpec: '#2a3a66', cloud: '#2b375e', glow: 1, stars: true },
+};
+const todStars = (() => {
+  const r = rng(77), n = 420, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = r() * TAU, e = 0.12 + r() * 1.3, d = 280;
+    pos[i * 3] = Math.cos(a) * Math.cos(e) * d; pos[i * 3 + 1] = Math.sin(e) * d; pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * d;
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: '#ffffff', size: 1.6, sizeAttenuation: false, fog: false }));
+  pts.visible = false; scene.add(pts);
+  return pts;
+})();
+// The moon at night, the low sun at sunset: a disc on the sky in the light's direction.
+const todDisc = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: '#fff3c4', fog: false }));
+todDisc.visible = false; scene.add(todDisc);
+let tod = 'day';
+/** The look for hole [num] under the setting [pick]: Mixed gives each hole its own. */
+function todFor(pick, num) {
+  if (pick === 'mixed') return ['day', 'sunset', 'night'][((num || 1) - 1) % 3];
+  return TIMES[pick] ? pick : 'day';
+}
+function setTimeOfDay(t) {
+  if (t === tod && skyDome.userData.done) return;
+  tod = t; skyDome.userData.done = true;
+  const T = TIMES[t];
+  skyDome.material.map = canvasTex(8, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, T.sky[0]); gr.addColorStop(0.42, T.sky[1]); gr.addColorStop(0.5, T.sky[2]); gr.addColorStop(1, T.sky[2]);
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  skyDome.material.needsUpdate = true;
+  scene.fog.color.set(T.fog);
+  hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2];
+  sun.color.set(T.sun[0]); sun.intensity = T.sun[1]; sun.position.set(...T.sun[2]);
+  sea.material.color.set(T.sea); sea.material.specular.set(T.spec);
+  sea.material.emissive.set(T.seaGlow[0]); sea.material.emissiveIntensity = T.seaGlow[1];
+  M.pond.specular.set(T.pondSpec);
+  if (clouds.children[0]) clouds.children[0].children[0].material.emissive.set(T.cloud);
+  todStars.visible = T.stars;
+  gulls.visible = gulls.visible && t === 'day';
+  todDisc.visible = t !== 'day';
+  if (t !== 'day') {
+    const d = new THREE.Vector3(...T.sun[2]).normalize().multiplyScalar(270);
+    todDisc.position.copy(d); todDisc.lookAt(0, 0, 0);
+    todDisc.material.color.set(t === 'night' ? '#f4f1dc' : '#ffcf7a');
+  }
+  glowNow();
+}
+/** At night the balls carry their own light, and the cup's rim and the flag catch it. */
+function glowNow() {
+  const k = TIMES[tod].glow;
+  for (const [, b] of balls) { b.mesh.material.emissive.set(b.color); b.mesh.material.emissiveIntensity = 0.55 * k; }
+  if (cupRing) cupRing.material.color.set(k > 0 ? '#ffd76a' : '#ffffff');
+  if (flag) { flag.material.emissive = new THREE.Color(k > 0.5 ? '#ffcc66' : '#000000'); flag.material.emissiveIntensity = 0.35 * k; }
+}
 /** The sticker spots: a sign set into the grass for each, and what stands on them. */
 function buildZones() {
   for (const z of HOLE.zones) {
@@ -1244,6 +1308,8 @@ function titleCard(num, h) {
 function newHole(key, h, num, flyOver) {
   st.key = key; st.hole = h; st.num = num || st.num;
   buildHole(h, st.num);
+  setTimeOfDay(todFor(st.tod || 'day', st.num));
+  glowNow();
   st.overviewUntil = flyOver && !reduceMotion ? W.t + 3.2 : 0;
   st.zoom = 1;
   if (flyOver) titleCard(st.num, h);
@@ -1259,6 +1325,9 @@ function applyState(s) {
   }
   for (const [id, b] of balls) if (!seen.has(id)) b.mesh.visible = false;
   st.turn = s.turn; st.me = s.me || 'm'; st.meDone = !!s.meDone; st.canShoot = !!s.canShoot; st.noGuide = !!s.noGuide;
+  st.tod = s.tod || 'day';
+  setTimeOfDay(todFor(st.tod, st.num));
+  glowNow();
   // Your aim on this hole: where you left it, or at the flag the first time.
   if (st.aims[st.key] == null && myBall()) { aimAtFlag(); st.aims[st.key] = st.aim; }
   if (st.aims[st.key] != null) st.aim = st.aims[st.key];

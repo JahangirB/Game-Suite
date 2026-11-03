@@ -177,6 +177,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         noGuide = mine != null && hole.zoneAt(mine)?.type == ZoneType.EYES,
         number = view.hole + 1,
         meDone = view.done['m'] == true,
+        timeOfDay = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current).profile.collectAsState().value.golfTime,
     )
     Golf3D(
         state, shot, onShoot,
@@ -339,6 +340,7 @@ fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
             Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
         Text("All nine holes are this kind, new from the 1,000 each game.", color = p.muted, fontSize = TextSize.Body)
+        GolfTimePicker()
     }
 }
 
@@ -371,6 +373,7 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
                 Text("Swipe to turn, pinch to zoom, and slide up the bar on the right to shoot: low rolls, high jumps over gaps and walls. Fewest strokes over nine holes wins.", color = p.muted, fontSize = TextSize.Body)
                 Text("Holes", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 OptionGroup(GolfLevel.entries.map { it to it.label }, state.level, enabled = true, onPick = vm::setLevel)
+                GolfTimePicker()
                 Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (n in 0..3) {
@@ -403,4 +406,15 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
             GolfPlay(view, state.turn, myTurn, state.game, vm::shoot, Modifier.weight(1f).fillMaxWidth())
         }
     }
+}
+
+/** Mini Golf's look, on this phone: day, sunset, night, or mixed (each hole picks one). Only the look changes. */
+@Composable
+fun GolfTimePicker() {
+    val p = AppTheme.palette
+    val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
+    val time = store.profile.collectAsState().value.golfTime
+    Text("Time of day", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+    OptionGroup(listOf("day" to "Day", "sunset" to "Sunset", "night" to "Night", "mixed" to "Mixed"), time, enabled = true, onPick = store::setGolfTime)
+    Text("At night the balls glow and leave a streak; the cup's rim shines gold. Nothing about the rules changes.", color = p.muted, fontSize = TextSize.Label)
 }

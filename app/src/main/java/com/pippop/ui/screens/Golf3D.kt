@@ -63,6 +63,8 @@ data class Golf3DState(
     val me: Char = 'm',
     val number: Int = 1,
     val meDone: Boolean = false,
+    /** The look: "day", "sunset", "night" or "mixed" (each hole its own). */
+    val timeOfDay: String = "day",
 )
 
 /** A shot for the 3D view to play: [id] tells shots apart, [who] shot it on hole [key] (number [number]). */
@@ -205,7 +207,7 @@ private fun Golf3DState.toJson() = JSONObject()
     .put("balls", JSONArray(balls.map { JSONObject().put("id", it.id.toString()).put("x", it.at.x).put("y", it.at.y).put("color", it.color.hex()) }))
     .put("turn", turn?.toString() ?: JSONObject.NULL)
     .put("me", me.toString()).put("canShoot", canShoot).put("noGuide", noGuide)
-    .put("num", number).put("meDone", meDone)
+    .put("num", number).put("meDone", meDone).put("tod", timeOfDay)
 
 private fun Double.short() = Math.round(this * 10000) / 10000.0
 
