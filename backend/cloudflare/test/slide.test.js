@@ -37,3 +37,9 @@ test('moves are replayed; the first to solve wins', () => {
   assert.equal(end.status, 'finished');
   assert.equal(end.winner, 'opponent');
 });
+
+test('the expert level is a 6 x 6 board', () => {
+  assert.equal(slide.LEVELS.expert, 6);
+  assert.deepEqual(slide.cleanOptions({ level: 'expert' }), { level: 'expert' });
+  assert.equal(slide.solvedTiles(6).length, 36);
+});

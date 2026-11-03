@@ -109,7 +109,7 @@ data class TurnsView(
     val boxes: String? = null,
     val lastLine: Int? = null,
     /** Memory Pairs: each card's picture when face up or matched, and who found it. */
-    val faces: List<Avatar?> = emptyList(),
+    val faces: List<com.pippop.game.memory.CardFace?> = emptyList(),
     val owners: String? = null,
     /** Whose turn it is, by name (with more than two players "opponent" doesn't say who). */
     val turnName: String? = null,
@@ -333,6 +333,8 @@ data class RoomState(
     val tttClassic: Boolean = false,
     /** Mini Golf: the level chosen for the next game's holes; null from a server without levels. */
     val golfLevel: GolfLevel? = null,
+    /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
+    val memoryCards: Int = 16,
     /** Whether this player sets the open game's options: whoever opened it (the host at first). */
     val setsOptions: Boolean = role == "host",
     /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
@@ -391,6 +393,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
     golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
     inSession = json.getJSONObject("me").has("at"),
@@ -521,7 +524,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         lines = json.stringOrNull("lines"),
         boxes = json.stringOrNull("boxes"),
         lastLine = last?.takeIf { it.has("line") }?.optInt("line"),
-        faces = json.optJSONArray("faces")?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else Avatar.from(a.optString(it)) } }.orEmpty(),
+        faces = json.optJSONArray("faces")?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else com.pippop.game.memory.CardFace.from(a.optString(it)) } }.orEmpty(),
         owners = json.stringOrNull("owners"),
         turnName = json.stringOrNull("turnName"),
         smallBoards = json.stringOrNull("boards"),

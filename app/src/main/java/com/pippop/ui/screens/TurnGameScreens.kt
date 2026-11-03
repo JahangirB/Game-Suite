@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import androidx.compose.material3.FilterChip
+
+import com.pippop.game.memory.MemoryMatch
+import com.pippop.game.memory.CardFace
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
@@ -465,12 +469,12 @@ fun DotsBoard(
 // ---- Memory Pairs -------------------------------------------------------------------------
 
 /**
- * A Memory Pairs table: 4 × 4 cards. [faces] holds a card's picture when it is face up or
- * matched; [owners] 'm', 'o' or '.'. Cards turn over with a flip. With [onFlip] set, tapping
- * a face-down card flips it.
+ * A Memory Pairs table: 4 × 4, 4 × 6 or 6 × 6 cards, from the deck's size. [faces] holds a
+ * card's picture when it is face up or matched; [owners] 'm', 'o' or '.'. Cards turn over with
+ * a flip. With [onFlip] set, tapping a face-down card flips it.
  */
 @Composable
-fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
+fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
     // Two face-up cards nobody owns are a missed pair: the rules leave them up until the next
     // flip, but after a look they turn back here, so nobody waits on the next player.
     val missed = faces.indices.filter { faces[it] != null && owners.getOrNull(it) == '.' }.takeIf { it.size == 2 }
@@ -483,11 +487,14 @@ fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, 
         hidden = missed
     }
     val shownFaces = if (missed != null && missed == hidden) faces.mapIndexed { i, f -> if (i in missed) null else f } else faces
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        for (row in 0 until 4) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (col in 0 until 4) {
-                    val i = row * 4 + col
+    val cols = MemoryMatch.columns(faces.size)
+    val rows = (faces.size + cols - 1) / cols
+    val gap = if (faces.size > 16) 5.dp else 8.dp
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(gap), horizontalAlignment = Alignment.CenterHorizontally) {
+        for (row in 0 until rows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                for (col in 0 until cols) {
+                    val i = row * cols + col
                     MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending)
                 }
             }
@@ -499,7 +506,7 @@ fun MemoryBoard(faces: List<Avatar?>, owners: String, onFlip: ((Int) -> Unit)?, 
 private const val MISSED_LOOK_MS = 1400L
 
 @Composable
-private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false) {
+private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false) {
     val p = AppTheme.palette
     // Remember the last picture so the card still shows it while turning back.
     var shown by remember { mutableStateOf(face) }
@@ -529,16 +536,16 @@ private fun MemoryCard(face: Avatar?, owner: Char, onFlip: (() -> Unit)?, modifi
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { rotationY = 180f }
-                    .background(p.card)
+                    .background(if (shown?.gold == true) Pieces.Gold else p.card)
                     .border(if (owner == '.') 2.dp else 4.dp, edge, Shapes.M),
-            ) { shown?.let { AvatarImage(it, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) } }
+            ) { shown?.let { AvatarImage(it.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) } }
         }
     }
 }
 
 /** The pairs each player has found, as small pictures under the chips. */
 @Composable
-private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<String, Char>>) {
+private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pair<String, Char>>) {
     val p = AppTheme.palette
     @Composable
     fun line(label: String, mark: Char, color: Color) {
@@ -546,7 +553,7 @@ private fun FoundPairs(faces: List<Avatar?>, owners: String, players: List<Pair<
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
             if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = TextSize.Label)
-            found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
+            found.forEach { CardPicture(it, 24.dp) }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -707,7 +714,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             )
         }
 
-        BoardArea(if (game == GameKind.MEMORY) MEMORY_ASPECT else 1f) { size ->
+        BoardArea(if (game == GameKind.MEMORY) memoryAspect(turns.faces.size.takeIf { it > 0 } ?: 16) else 1f) { size ->
             when (game) {
                 GameKind.DOTS -> DotsBoard(
                     turns.lines ?: ".".repeat(Dots.LINES), turns.boxes ?: ".".repeat(16), turns.lastLine,
@@ -716,7 +723,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     modifier = size,
                     replay = replay,
                 )
-                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
+                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
                 GameKind.TTT -> TttBoard(
                     board = turns.board ?: ".".repeat(81),
                     boards = turns.smallBoards ?: ".".repeat(9),
@@ -761,6 +768,19 @@ private fun turnResultDetail(game: GameKind, winner: String?, endReason: String?
 
 /** Memory Pairs' 4 × 4 cards with their gaps, width per unit of height. */
 internal const val MEMORY_ASPECT = 0.75f
+
+/** The table's width per unit of height for a deck of [cards]: 4 × 4, 4 × 6 or 6 × 6. */
+internal fun memoryAspect(cards: Int): Float {
+    val cols = MemoryMatch.columns(cards)
+    val rows = (cards + cols - 1) / cols
+    return (cols * 0.78f) / rows * 0.96f
+}
+
+/** A small card picture: the animal, on gold for the gold cards. */
+@Composable
+private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(size).clip(Shapes.S).background(if (face.gold) Pieces.Gold else Color.Transparent)) { AvatarImage(face.avatar, Modifier.size(size)) }
+}
 
 // ---- On your own --------------------------------------------------------------------------
 
@@ -972,11 +992,17 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Found", color = p.muted, fontSize = TextSize.Body, modifier = Modifier.width(52.dp))
             val found = state.faces.indices.filter { state.found[it] != '.' }.mapNotNull { state.faces[it] }.distinct()
-            if (found.isEmpty()) Text("Find all 8 pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
-            found.forEach { AvatarImage(it, Modifier.size(24.dp)) }
+            if (found.isEmpty() && state.flips > 0) Text("Find all ${state.cards / 2} pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
+            // Before the first flip: the deck size.
+            if (state.flips == 0) {
+                MemoryMatch.DECKS.forEach { n ->
+                    FilterChip(selected = state.cards == n, onClick = { vm.newGame(n) }, label = { Text("$n cards") }, modifier = Modifier.padding(end = 6.dp))
+                }
+            }
+            found.forEach { CardPicture(it, 24.dp) }
             Spacer(Modifier.width(4.dp))
         }
-        BoardArea(MEMORY_ASPECT) { size ->
+        BoardArea(memoryAspect(state.cards)) { size ->
             MemoryBoard(state.faces, state.found, onFlip = if (finished == null) vm::flip else null, modifier = size)
         }
     }
@@ -985,4 +1011,18 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
 /** An X (yours) or an O (theirs) chalked on a Tic-Tac-Toe board. */
 private fun Sfx.tttSound(mark: Char?) {
     if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS)
+}
+
+/** Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. */
+@Composable
+fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("Deck") {
+        if (room.setsOptions) {
+            OptionGroup(MemoryMatch.DECKS.map { it to "$it cards" }, room.memoryCards, enabled = !busy, onPick = onPick)
+            Text("Bigger decks bring in more pictures and a longer game.", color = p.muted, fontSize = TextSize.Label)
+        } else {
+            Text("${room.memoryCards} cards, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+        }
+    }
 }

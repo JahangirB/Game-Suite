@@ -161,3 +161,19 @@ test('three players: a leaver hands on the turn and the rest play on', () => {
   assert.equal(room.turn, 'p3');
   assert.ok(view(room, 'host', T0).others[0].left);
 });
+
+test('memory decks of 24 and 36 cards: more pictures, gold ones once the animals run out', () => {
+  for (const cards of [16, 24, 36]) {
+    const s = memory.start(Math.random, ['h', 'g'], { cards });
+    assert.equal(s.deck.length, cards);
+    assert.equal(s.owners.length, cards);
+    const counts = {};
+    for (const f of s.deck) counts[f] = (counts[f] || 0) + 1;
+    assert.ok(Object.values(counts).every((n) => n === 2));
+    assert.equal(s.deck.some((f) => f.endsWith('*')), cards === 36);
+  }
+  assert.deepEqual(memory.cleanOptions({ cards: 99 }), { cards: 16 });
+  const s = memory.start(Math.random, ['h', 'g'], { cards: 36 });
+  assert.throws(() => memory.play(s, 'h', { card: 36 }));
+  memory.play(s, 'h', { card: 35 });
+});

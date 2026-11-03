@@ -6,7 +6,8 @@ import kotlin.random.Random
 enum class SlideLevel(val key: String, val label: String, val size: Int) {
     EASY("easy", "Easy · 3 × 3", 3),
     MEDIUM("medium", "Medium · 4 × 4", 4),
-    HARD("hard", "Hard · 5 × 5", 5);
+    HARD("hard", "Hard · 5 × 5", 5),
+    EXPERT("expert", "Expert · 6 × 6", 6);
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key } ?: EASY

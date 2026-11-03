@@ -7,22 +7,30 @@
 import { side, winnerOf } from './dots.js';
 
 export const CARDS = 16;
+/** The deck sizes to pick from: 4 x 4, 4 x 6 or 6 x 6. */
+export const DECKS = [16, 24, 36];
 const FACES = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'unicorn', 'robot', 'alien', 'lion', 'penguin'];
 
-export function start(random = Math.random) {
-  const faces = [...FACES].sort(() => random() - 0.5).slice(0, CARDS / 2);
+export const cleanOptions = (o) => ({ cards: DECKS.includes(Number(o?.cards)) ? Number(o.cards) : CARDS });
+
+export function start(random = Math.random, marks = [], options = {}) {
+  const cards = cleanOptions(options).cards;
+  // Plain animals first; gold ones only once the plain ones run out.
+  const plain = [...FACES].sort(() => random() - 0.5);
+  const gold = FACES.map((f) => f + '*').sort(() => random() - 0.5);
+  const faces = [...plain, ...gold].slice(0, cards / 2);
   const deck = [...faces, ...faces];
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
-  return { deck, owners: '.'.repeat(CARDS), up: [], last: null };
+  return { deck, owners: '.'.repeat(cards), up: [], last: null };
 }
 
 /** Flips { card } for `mark`. Returns { again, over, winner, reason }. */
 export function play(state, mark, move) {
   const card = Number(move?.card);
-  if (!Number.isInteger(card) || card < 0 || card >= CARDS) throw new Error('Pick a card.');
+  if (!Number.isInteger(card) || card < 0 || card >= state.deck.length) throw new Error('Pick a card.');
   if (state.owners[card] !== '.') throw new Error('That pair is already found.');
   // A pair that didn't match stays up until the next flip.
   if (state.up.length === 2) state.up = [];

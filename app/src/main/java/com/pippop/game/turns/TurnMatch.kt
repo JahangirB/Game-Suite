@@ -50,6 +50,8 @@ interface TurnMatch {
             tttClassic: Boolean = false,
             /** Mini Golf: how many islands every hole has. */
             golfLevel: GolfLevel = GolfLevel.EASY,
+            /** Memory Pairs: the deck size (16, 24 or 36). */
+            memoryCards: Int = MemoryMatch.CARDS,
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -59,7 +61,7 @@ interface TurnMatch {
             GameKind.GOLF -> GolfMatch(marks, Courses.pick(golfLevel, random))
             GameKind.BLOCKS -> BlocksMatch(marks)
             GameKind.DOTS -> DotsMatch()
-            GameKind.MEMORY -> MemoryMatch(random)
+            GameKind.MEMORY -> MemoryMatch(random, memoryCards)
             GameKind.TTT -> TttMatch(tttClassic)
             else -> C4Match()
         }

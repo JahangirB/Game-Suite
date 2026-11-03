@@ -239,7 +239,7 @@ private fun dots(): List<TutorialStep> {
 
 private fun memory(): List<TutorialStep> {
     val none = List<Avatar?>(16) { null }
-    fun table(faces: List<Avatar?>, owners: String) = @Composable { m: Modifier -> MemoryBoard(faces, owners, null, modifier = m) }
+    fun table(faces: List<Avatar?>, owners: String) = @Composable { m: Modifier -> MemoryBoard(faces.map { it?.let { a -> com.pippop.game.memory.CardFace(a) } }, owners, null, modifier = m) }
     val two = none.toMutableList().also { it[0] = Avatar.FOX; it[5] = Avatar.CAT }
     val pair = none.toMutableList().also { it[0] = Avatar.FOX; it[9] = Avatar.FOX }
     return listOf(

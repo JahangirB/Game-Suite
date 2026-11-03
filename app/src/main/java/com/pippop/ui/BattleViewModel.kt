@@ -841,6 +841,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. */
+    fun setMemoryCards(cards: Int) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.memoryCards == cards) return
+        sendReady(room.copy(memoryCards = cards, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("cards", cards))
+        }
+    }
+
     /** Tic-Tac-Toe: whoever opened the game picks normal (3 × 3) or Ultimate; everyone gets ready again. */
     fun setTttClassic(classic: Boolean) {
         val room = _state.value.room ?: return

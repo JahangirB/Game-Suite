@@ -5,7 +5,7 @@
 // the gap last. Each phone sends its whole list of moves (the tile slid into the gap each time);
 // the server replays it from the start, so only real slides count.
 
-export const LEVELS = { easy: 3, medium: 4, hard: 5 };
+export const LEVELS = { easy: 3, medium: 4, hard: 5, expert: 6 };
 
 export function cleanOptions(options) {
   const level = String(options?.level || '').toLowerCase();

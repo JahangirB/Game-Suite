@@ -145,8 +145,10 @@ class SoloTttViewModel : ViewModel() {
 
 /** Memory Pairs on your own: find all pairs in as few flips as you can. */
 data class SoloMemoryUiState(
-    val faces: List<Avatar?> = List(MemoryMatch.CARDS) { null },
+    val faces: List<com.pippop.game.memory.CardFace?> = List(MemoryMatch.CARDS) { null },
     val found: String = ".".repeat(MemoryMatch.CARDS),
+    /** The deck size: 16, 24 or 36 cards. */
+    val cards: Int = MemoryMatch.CARDS,
     val flips: Int = 0,
     val startedAt: Long? = null,
     val finishedMs: Long? = null,
@@ -159,10 +161,10 @@ class SoloMemoryViewModel : ViewModel() {
     private val _state = MutableStateFlow(SoloMemoryUiState())
     val state: StateFlow<SoloMemoryUiState> = _state.asStateFlow()
 
-    fun newGame() {
+    fun newGame(cards: Int = _state.value.cards) {
         hideJob?.cancel()
-        match = MemoryMatch()
-        _state.value = SoloMemoryUiState(bestFlips = _state.value.bestFlips)
+        match = MemoryMatch(cards = cards)
+        _state.value = SoloMemoryUiState(faces = List(match.cards) { null }, found = match.owners, cards = match.cards, bestFlips = _state.value.bestFlips.takeIf { cards == _state.value.cards })
     }
 
     fun flip(card: Int) {
