@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.alpha
 import com.pippop.game.code.CodeRules
 import androidx.compose.material.icons.filled.Clear
@@ -280,6 +284,14 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     },
                     !countdown && !code.meDone, GameKind.CODE.color,
                 )
+                // The safe: yours big, your partner's small in the corner, so you see theirs open too.
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    CodeSafe(code.mine, code.rules.pegs, Modifier.weight(1f).height(108.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CodeSafe(code.theirs, code.rules.pegs, Modifier.size(64.dp))
+                        Text(name, color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     GuessRows(code.mine, Modifier.weight(1f), pegs = code.rules.pegs)
                     // Their progress: only the scores, never their guesses.
@@ -331,6 +343,7 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
             }
         } else {
             TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
+            CodeSafe(state.guesses, state.rules.pegs, Modifier.fillMaxWidth().height(108.dp))
             GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth(), pegs = state.rules.pegs)
             CodeEntry(!state.done, "Guess", vm::guess, rules = state.rules)
         }
@@ -358,5 +371,62 @@ fun CodeRulesCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (CodeR
     AppCard("Code") {
         if (room.setsOptions) CodeRulesPicker(room.codeRules, enabled = !busy, onChange = onPick)
         else Text("${room.codeRules.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+    }
+}
+
+/**
+ * The safe your guesses go into: its dial turns a click for each red pin of every guess, its
+ * row of lights shows the best guess so far (one lit per red pin), and when the code is cracked
+ * the bolts slide back and the door swings open on the gold inside.
+ */
+@Composable
+fun CodeSafe(guesses: List<CodeGuess>, pegs: Int, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    val reduce = com.pippop.ui.theme.LocalReduceMotion.current
+    val clicks = guesses.sumOf { it.black + 1 }
+    val dial by androidx.compose.animation.core.animateFloatAsState(clicks * 36f, androidx.compose.animation.core.tween(if (reduce) 0 else 700), label = "dial")
+    val cracked = guesses.any { it.black == pegs }
+    val open by androidx.compose.animation.core.animateFloatAsState(if (cracked) 1f else 0f, androidx.compose.animation.core.tween(if (reduce) 0 else 900, delayMillis = 500), label = "door")
+    val best = guesses.maxOfOrNull { it.black } ?: 0
+    val steel = Pieces.SafeSteel
+    val dark = Pieces.SafeDark
+    val gold = Pieces.Gold
+    Canvas(modifier) {
+        val side = minOf(size.width, size.height)
+        val left = (size.width - side) / 2
+        val box = androidx.compose.ui.geometry.Size(side, side)
+        val corner = androidx.compose.ui.geometry.CornerRadius(side * 0.08f)
+        // The body and the gold inside, seen once the door swings away.
+        drawRoundRect(dark, Offset(left, 0f), box, corner)
+        drawRoundRect(gold, Offset(left + side * 0.1f, side * 0.1f), androidx.compose.ui.geometry.Size(side * 0.8f, side * 0.8f), androidx.compose.ui.geometry.CornerRadius(side * 0.05f))
+        for (k in 0 until 3) drawRoundRect(Pieces.GoldBar, Offset(left + side * (0.18f + k * 0.22f), side * 0.55f), androidx.compose.ui.geometry.Size(side * 0.18f, side * 0.12f), androidx.compose.ui.geometry.CornerRadius(side * 0.02f))
+        // The door narrows towards its hinge as it opens.
+        val w = side * (1f - 0.88f * open)
+        drawRoundRect(steel, Offset(left, 0f), androidx.compose.ui.geometry.Size(w, side), corner)
+        drawRoundRect(p.ink, Offset(left, 0f), androidx.compose.ui.geometry.Size(w, side), corner, style = Stroke(side * 0.025f))
+        if (open < 0.6f) {
+            val c = Offset(left + w * 0.5f, side * 0.44f)
+            val r = side * 0.24f
+            // The dial, with ticks that turn.
+            drawCircle(dark, r * 1.08f, c)
+            drawCircle(Pieces.SafeDial, r, c)
+            for (t in 0 until 12) {
+                val a = Math.toRadians((dial + t * 30).toDouble())
+                val inner = if (t == 0) 0.55f else 0.75f
+                drawLine(p.ink, Offset(c.x + (r * inner * kotlin.math.cos(a)).toFloat(), c.y + (r * inner * kotlin.math.sin(a)).toFloat()), Offset(c.x + (r * 0.95f * kotlin.math.cos(a)).toFloat(), c.y + (r * 0.95f * kotlin.math.sin(a)).toFloat()), side * if (t == 0) 0.03f else 0.012f)
+            }
+            drawCircle(dark, r * 0.2f, c)
+            // The lights: one lit for each red pin of the best guess.
+            val lw = side * 0.08f
+            val gap = (w * 0.8f - pegs * lw) / (pegs - 1).coerceAtLeast(1)
+            for (k in 0 until pegs) {
+                val x = left + w * 0.1f + k * (lw + gap) + lw / 2
+                drawCircle(if (k < best) Pieces.Red else Pieces.SafeLightOff, lw / 2, Offset(x, side * 0.84f))
+            }
+            // The bolts slide back as it opens.
+            val slide = open * side * 0.2f
+            drawRoundRect(dark, Offset(left + w - side * 0.05f - slide, side * 0.2f), androidx.compose.ui.geometry.Size(side * 0.08f, side * 0.06f), androidx.compose.ui.geometry.CornerRadius(4f))
+            drawRoundRect(dark, Offset(left + w - side * 0.05f - slide, side * 0.66f), androidx.compose.ui.geometry.Size(side * 0.08f, side * 0.06f), androidx.compose.ui.geometry.CornerRadius(4f))
+        }
     }
 }

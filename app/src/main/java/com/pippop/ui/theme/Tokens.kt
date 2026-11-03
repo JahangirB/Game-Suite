@@ -97,6 +97,12 @@ object Pieces {
     val Pink = Color(0xFFEC6FA9)
     /** Code Breaker's seventh colour, in the harder setting. */
     val Teal = Color(0xFF14B8A6)
+    /** Code Breaker's safe: its steel door, dark body and dial face, a light that's off, and the gold bars. */
+    val SafeSteel = Color(0xFF6E7B8E)
+    val SafeDark = Color(0xFF3B4454)
+    val SafeDial = Color(0xFFCBD3DE)
+    val SafeLightOff = Color(0xFF2A303A)
+    val GoldBar = Color(0xFFE0A93A)
     /** The gold card behind Memory's extra pictures in the big deck. */
     val Gold = Color(0xFFF5C451)
 }
