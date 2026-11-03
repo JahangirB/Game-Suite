@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
+import com.pippop.ui.screens.ScoreboardScreen
 import com.pippop.ui.screens.LocalRoomControls
 import com.pippop.ui.screens.RoomControls
 import com.pippop.ui.screens.RoomOptions
@@ -101,7 +102,7 @@ import com.pippop.ui.art.ShipLook
 import com.pippop.data.SkinStore
 import com.pippop.ui.theme.AppTheme
 
-private enum class Dest { HOME, PROFILE, ARRANGE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, ARRANGE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -295,6 +296,7 @@ fun PipPopApp(
                             onUpdate = updates::update,
                             onBack = { dest = Dest.HOME },
                         )
+                        dest == Dest.SCORES -> ScoreboardScreen(onBack = { dest = Dest.HOME })
                         dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
                         else -> HomeScreen(
                             solo = soloState,
@@ -334,6 +336,7 @@ fun PipPopApp(
                                 }
                             },
                             onArrange = { dest = Dest.ARRANGE },
+                            onScores = { dest = Dest.SCORES },
                             partnerBusy = battleState.busy,
                             onPlayWithPartner = battle::playWithPartner,
                             onInvitePartner = battle::invitePartner,

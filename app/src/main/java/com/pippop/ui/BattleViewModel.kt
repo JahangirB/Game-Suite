@@ -45,6 +45,8 @@ import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
 import com.pippop.data.Reaction
 import com.pippop.data.RoomState
+import com.pippop.data.MatchRecord
+import com.pippop.data.ScoreStore
 import com.pippop.data.RoomStatus
 import com.pippop.data.TurnsView
 import com.pippop.data.nearby.NearbyGuest
@@ -205,6 +207,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var strokesTurn = -1 to -1
     private var strokesClears = 0
     private var recordedRound = -1
+
+    /** The round last added to the Scoreboard, so each match counts once. */
+    private var scoredRound = -1
     private var lastSentBoard: String? = null
     private var bestRoundTripMs = Long.MAX_VALUE
     /** Room version from the last full reply; -1 forces the server to send everything. */
@@ -448,6 +453,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         playerId = json.getString("playerId")
         loadedRound = -1
         recordedRound = -1
+        scoredRound = -1
         lastSentBoard = null
         bestRoundTripMs = Long.MAX_VALUE
         lastVersion = -1
@@ -456,7 +462,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap()) }
         val room = applyResponse(json, sentAt, record = false)
         // Joining a finished room must not count its old result again.
-        if (room.status == RoomStatus.FINISHED) recordedRound = room.round
+        if (room.status == RoomStatus.FINISHED) {
+            recordedRound = room.round
+            scoredRound = room.round
+        }
         if (newBackend.pushes != null) startListening(newBackend) else startPolling()
         val id = playerId
         val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
@@ -1592,6 +1601,18 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round
             store.recordBattle(won = room.winner == "me")
+        }
+        // The Scoreboard keeps every match you finished with others, ties too (a restart isn't one).
+        if (record && room.atGame && room.status == RoomStatus.FINISHED && room.round > 0 && room.round != scoredRound &&
+            room.endReason != "restart" && room.others.isNotEmpty()
+        ) {
+            scoredRound = room.round
+            val winner = when (room.winner) {
+                "me" -> MatchRecord.ME
+                "opponent" -> room.winnerName ?: room.opponent?.name
+                else -> null
+            }
+            ScoreStore.get(getApplication()).add(MatchRecord(System.currentTimeMillis(), room.game, room.others.map { it.name }, winner))
         }
         return room
     }

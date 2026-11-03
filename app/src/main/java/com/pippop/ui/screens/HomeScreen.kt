@@ -106,6 +106,8 @@ fun HomeScreen(
     onSolo: (GameKind) -> Unit,
     /** The Arrange games screen (also a long press on a game). */
     onArrange: () -> Unit,
+    /** Our scoreboard: this month against your partner, every game, the trophies. */
+    onScores: () -> Unit = {},
     partnerBusy: Boolean,
     onPlayWithPartner: (GameKind) -> Unit,
     onInvitePartner: (GameKind) -> Unit,
@@ -169,6 +171,7 @@ fun HomeScreen(
                     Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
                     Text("Hold a game to move it", color = p.muted, fontSize = TextSize.Label)
                 }
+                TextButton(onClick = onScores) { Text("🏆 Scores", color = p.primaryText, fontWeight = FontWeight.Bold) }
                 TextButton(onClick = onArrange) { Text("Arrange", color = p.primaryText, fontWeight = FontWeight.Bold) }
             }
 
