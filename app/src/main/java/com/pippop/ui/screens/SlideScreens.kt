@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.Row
+
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
@@ -62,7 +65,7 @@ import kotlin.math.sign
 
 /** The puzzle: tiles glide to their new place; tap a tile in line with the gap to slide it. Swipes come from [slideSwipes]. */
 @Composable
-fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier, photo: androidx.compose.ui.graphics.ImageBitmap? = null) {
     // A tile taps along one square; the last one in place sets off the cascade and chime.
     SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
     val p = AppTheme.palette
@@ -79,11 +82,31 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
             Surface(
                 color = if (home) GameKind.SLIDE.color else p.card,
                 shape = Shapes.M,
-                border = BorderStroke(2.dp, p.ink),
+                // With a photo, pieces in place get a soft orange edge.
+                border = BorderStroke(if (photo != null && home) 3.dp else 2.dp, if (photo != null && home) GameKind.SLIDE.color else p.ink),
                 modifier = Modifier.offset(x, y).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(tile.toString(), color = if (home) Color.White else p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
+                if (photo != null) {
+                    // This tile's piece of the photo, and its number small in the corner.
+                    Box {
+                        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                            val piece = photo.width / size
+                            val r = (tile - 1) / size
+                            val c = (tile - 1) % size
+                            drawImage(
+                                photo, srcOffset = androidx.compose.ui.unit.IntOffset(c * piece, r * piece), srcSize = androidx.compose.ui.unit.IntSize(piece, piece),
+                                dstSize = androidx.compose.ui.unit.IntSize(this.size.width.toInt(), this.size.height.toInt()),
+                            )
+                        }
+                        Text(
+                            tile.toString(), color = Color.White, fontSize = (cell.value * 0.16f).sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.align(Alignment.TopStart).padding(3.dp).background(p.scrim.copy(alpha = 0.45f), Shapes.S).padding(horizontal = 3.dp),
+                        )
+                    }
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(tile.toString(), color = if (home) Color.White else p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
+                    }
                 }
             }
         }
@@ -132,6 +155,7 @@ fun SlideLevelCard(room: RoomState, busy: Boolean, onPick: (SlideLevel) -> Unit)
     AppCard("Level") {
         if (room.setsOptions) {
             OptionGroup(SlideLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
+            LocalSlidePhoto.current?.let { (has, set) -> SlidePhotoPicker(has, enabled = !busy, onPhoto = set) }
         } else {
             Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
@@ -208,9 +232,17 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             val playing = phase == RoomStatus.PLAYING
             Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(playing, vm::swipeSlide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
+                val photo = remember(state.slidePhoto) { slidePicture(state.slidePhoto) }
+                // When someone finishes, the whole photo fades in for everyone.
+                val reveal by androidx.compose.animation.core.animateFloatAsState(if (finished && photo != null) 1f else 0f, androidx.compose.animation.core.tween(1200), label = "photo")
                 BoardArea(1f) { size ->
-                    if (peeking) SlideBoard(Slide.solved(slide.size), slide.size, false, {}, size.alpha(0.85f))
-                    else SlideBoard(tiles, slide.size, playing, vm::tapSlideTile, size)
+                    Box(size) {
+                        if (peeking) SlideBoard(Slide.solved(slide.size), slide.size, false, {}, Modifier.fillMaxSize().alpha(0.85f), photo = photo)
+                        else SlideBoard(tiles, slide.size, playing, vm::tapSlideTile, Modifier.fillMaxSize(), photo = photo)
+                        if (photo != null && reveal > 0f) {
+                            androidx.compose.foundation.Image(photo, contentDescription = null, modifier = Modifier.fillMaxSize().alpha(reveal).clip(Shapes.L))
+                        }
+                    }
                 }
             }
         }
@@ -258,3 +290,53 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
         }
     }
 }
+
+/** A Slide Race photo (base64 JPEG) as a picture, or null. */
+internal fun slidePicture(photo: String?): androidx.compose.ui.graphics.ImageBitmap? = photo?.let {
+    runCatching {
+        val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    }.getOrNull()
+}
+
+/**
+ * A photo from the phone for Slide Race: cropped to its middle square and made small enough to
+ * send to every phone (under [PHOTO_LIMIT] as base64, which also fits a Nearby message).
+ */
+internal fun photoForSlide(context: android.content.Context, uri: android.net.Uri): String? = runCatching {
+    val src = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) } ?: return null
+    val side = minOf(src.width, src.height)
+    val square = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+    var px = 240
+    var quality = 70
+    while (true) {
+        val small = android.graphics.Bitmap.createScaledBitmap(square, px, px, true)
+        val out = java.io.ByteArrayOutputStream()
+        small.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+        val b64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+        if (b64.length <= PHOTO_LIMIT || px <= 120) return b64.takeIf { it.length <= PHOTO_LIMIT }
+        if (quality > 45) quality -= 10 else px -= 40
+    }
+    @Suppress("UNREACHABLE_CODE") null
+}.getOrNull()
+
+/** Base64 characters a photo may take. */
+private const val PHOTO_LIMIT = 22_000
+
+/** Photo or numbers for the race, picked by whoever opened the game. */
+@Composable
+fun SlidePhotoPicker(hasPhoto: Boolean, enabled: Boolean, onPhoto: (String?) -> Unit) {
+    val p = AppTheme.palette
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { photoForSlide(context, it) }?.let(onPhoto)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        SecondaryButton(if (hasPhoto) "Another photo" else "Use a photo", { pick.launch("image/*") }, Modifier.weight(1f), enabled = enabled)
+        if (hasPhoto) SecondaryButton("Numbers", { onPhoto(null) }, Modifier.weight(1f), enabled = enabled)
+    }
+    Text(if (hasPhoto) "Everyone slides your photo back together; small numbers stay in the corners." else "Slide a photo from your phone instead of numbers.", color = p.muted, fontSize = TextSize.Label)
+}
+
+/** The opener's photo switch for the level card: whether there is one, and how to set it. */
+val LocalSlidePhoto = androidx.compose.runtime.compositionLocalOf<Pair<Boolean, (String?) -> Unit>?> { null }

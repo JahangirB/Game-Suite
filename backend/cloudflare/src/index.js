@@ -20,7 +20,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, setSlidePhoto, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -251,6 +251,12 @@ export class Room extends DurableObject {
         case 'clear':
           clearDrawing(this.room, role);
           break;
+        case 'photo':
+          setSlidePhoto(this.room, role, msg.photo ?? null);
+          break;
+        case 'getphoto':
+          this.send(ws, role, { re: msg.id, photo: this.room.slidePhoto || null });
+          return;
         case 'unstroke':
           undoStroke(this.room, role);
           break;

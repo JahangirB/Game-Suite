@@ -150,6 +150,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun undoStroke(code: String, playerId: String) =
         local { undoStroke(LocalRoom.HOST, now()) }
 
+    override suspend fun setSlidePhoto(code: String, playerId: String, photo: String?) =
+        local { setSlidePhoto(LocalRoom.HOST, photo) }
+
+    override suspend fun slidePhoto(code: String, playerId: String): String? = withContext(Dispatchers.Main.immediate) { room?.slidePhoto }
+
     override suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The game is over.", fatal = true)
         room = r.openGame(LocalRoom.HOST, game)
@@ -336,6 +341,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     return
                 }
                 "menu" -> r.toMenu(role!!, now)
+                "photo" -> r.setSlidePhoto(role!!, if (msg.isNull("photo")) null else msg.optString("photo"))
+                "getphoto" -> {
+                    send(endpointId, r.view(role!!, now).put("re", id).put("photo", r.slidePhoto ?: JSONObject.NULL))
+                    return
+                }
                 "pause" -> r.setPaused(role!!, msg.optBoolean("on", true), now)
                 "restart" -> r.wantRestart(role!!, msg.optBoolean("want", true))
                 "sync" -> Unit

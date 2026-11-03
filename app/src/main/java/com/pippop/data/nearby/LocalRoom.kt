@@ -563,6 +563,23 @@ class LocalRoom(
 
     // Slide Race: the host's level, the start being played and the next one from the host.
     var slideLevel = SlideLevel.EASY
+    /** Slide Race: the photo every phone slides (a small JPEG as base64), and its id. */
+    var slidePhoto: String? = null
+        private set
+    private var slidePhotoId = 0
+
+    /** Slide Race: the opener sets (or with null removes) the photo, between matches. As on the server. */
+    fun setSlidePhoto(role: String, photo: String?) {
+        if (game != GameKind.SLIDE) throw ApiException("Only Slide Race has a photo.")
+        if (role != openedBy) throw ApiException("Only whoever opened the game can pick the photo.")
+        if (status == "started") throw ApiException("The photo can only change between matches.")
+        slidePhoto = photo?.takeIf { it.isNotEmpty() }?.also {
+            if (it.length > MAX_PHOTO || !it.all { c -> c.isLetterOrDigit() || c == '+' || c == '/' || c == '=' }) throw ApiException("That photo is too big.")
+        }
+        slidePhotoId++
+        for (r in seated()) player(r).ready = false
+        version++
+    }
 
     /** Mini Golf: how many islands every hole of the next game has. */
     var golfLevel = GolfLevel.EASY
@@ -624,6 +641,7 @@ class LocalRoom(
         val show = shown == "playing" || shown == "finished"
         return JSONObject()
             .put("level", slideLevel.key)
+            .put("photoId", if (slidePhoto != null) slidePhotoId else JSONObject.NULL)
             .put("size", start?.let { kotlin.math.sqrt(it.size.toDouble()).toInt() } ?: slideLevel.size)
             .put("start", if (show && start != null) JSONArray(start) else JSONObject.NULL)
             .put("moves", JSONArray(player(role).slideMoves))
@@ -1374,6 +1392,8 @@ class LocalRoom(
         const val FORFEIT_MS = 45_000L
         /** Draw & Guess: pen colours (8 and the eraser), the race's points, and a right guess in the feed. */
         const val DRAW_COLORS = 9
+        /** The biggest Slide Race photo, as base64 (the server's MAX_PHOTO). */
+        const val MAX_PHOTO = 40_000
         val RACE_POINTS = listOf(80, 60, 40)
         const val DRAWER_POINTS = 20
         private const val RIGHT = "\u0000right"

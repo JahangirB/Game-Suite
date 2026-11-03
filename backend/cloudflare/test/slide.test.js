@@ -43,3 +43,18 @@ test('the expert level is a 6 x 6 board', () => {
   assert.deepEqual(slide.cleanOptions({ level: 'expert' }), { level: 'expert' });
   assert.equal(slide.solvedTiles(6).length, 36);
 });
+
+test('a photo for the race: only the opener, between matches, small, fetched by id', async () => {
+  const { setSlidePhoto } = await import('../src/room.js');
+  const room = createRoom('PHOTO', 'Alice', T0, uuid, null, null, 'slide');
+  setConnected(room, 'host', true, T0);
+  setConnected(room, joinRoom(room, 'Bob', null, T0, uuid, null, null, ['slide']), true, T0);
+  assert.throws(() => setSlidePhoto(room, 'guest', 'abcd'), /opened/);
+  assert.throws(() => setSlidePhoto(room, 'host', 'not base64!'), /too big/);
+  assert.throws(() => setSlidePhoto(room, 'host', 'A'.repeat(50_000)), /too big/);
+  setSlidePhoto(room, 'host', 'abcd');
+  const id = view(room, 'guest', T0).slide.photoId;
+  assert.ok(id > 0);
+  setSlidePhoto(room, 'host', null);
+  assert.equal(view(room, 'guest', T0).slide.photoId, null);
+});

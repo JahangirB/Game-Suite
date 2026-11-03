@@ -67,6 +67,12 @@ interface BattleBackend {
     /** Draw & Guess: wipe the drawing. */
     suspend fun clearDrawing(code: String, playerId: String): JSONObject
 
+    /** Slide Race: set the photo everyone slides (base64 JPEG), or null for numbers. */
+    suspend fun setSlidePhoto(code: String, playerId: String, photo: String?): JSONObject = throw ApiException("Photos need the latest Pip & Pop.")
+
+    /** Slide Race: the photo being slid (base64 JPEG), or null. */
+    suspend fun slidePhoto(code: String, playerId: String): String? = null
+
     /** Draw & Guess: the drawer takes back the last line. */
     suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
 

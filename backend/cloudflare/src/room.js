@@ -711,9 +711,36 @@ export function slideMoves(room, role, text, now) {
   return true;
 }
 
+/** The biggest Slide Race photo accepted: a small square JPEG, as base64. */
+export const MAX_PHOTO = 40_000;
+
+/**
+ * Slide Race: whoever opened the game sets the photo every phone slides together (a small square
+ * JPEG as base64), or takes it away (null) for numbers. Between matches only; everyone gets ready
+ * again. Phones fetch it once by its id ('getphoto'), so it never rides along with every move.
+ */
+export function setSlidePhoto(room, role, photo) {
+  if (room.game !== 'slide') throw new GameError('Only Slide Race has a photo.');
+  const opener = room.openedBy || 'host';
+  if (role !== opener) throw new GameError('Only whoever opened the game can pick the photo.');
+  if (room.status === 'started') throw new GameError('The photo can only change between matches.');
+  if (photo == null || photo === '') {
+    room.slidePhoto = null;
+  } else {
+    const p = String(photo);
+    if (p.length > MAX_PHOTO || !/^[A-Za-z0-9+/=]+$/.test(p)) throw new GameError('That photo is too big.');
+    room.slidePhoto = p;
+  }
+  room.slidePhotoId = (room.slidePhotoId || 0) + 1;
+  for (const r of seated(room)) room.players[r].ready = false;
+  bump(room);
+}
+
 function slideView(room, role, status) {
   const show = status === 'playing' || status === 'finished';
   return {
+    // The photo being slid, by id (fetch it with 'getphoto'); null for numbers.
+    photoId: room.slidePhoto ? room.slidePhotoId : null,
     level: slideGame.cleanOptions(room.options).level,
     size: room.slideSize || slideGame.LEVELS[slideGame.cleanOptions(room.options).level],
     start: show ? room.slideStart || null : null,

@@ -142,7 +142,7 @@ data class NumberBoard(val w: Int, val h: Int, val cells: List<String>, val blan
 data class NumbersView(val level: NumberLevel, val board: NumberBoard?, val entries: List<String>?, val solution: List<String>?)
 
 /** A Slide Race round: the host's level, the puzzle's size, the shuffled start (once playing) and your moves so far. */
-data class SlideView(val level: SlideLevel, val size: Int, val start: List<Int>?, val moves: List<Int>)
+data class SlideView(val level: SlideLevel, val size: Int, val start: List<Int>?, val moves: List<Int>, val photoId: Int? = null)
 
 /**
  * A Bingo round: your card and the call order (once playing; the calls so far follow from the
@@ -415,7 +415,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     codeGame = json.optJSONObject("codeGame")?.let(::parseCode),
     slide = json.optJSONObject("slide")?.let { s ->
         fun ints(k: String) = s.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
-        SlideView(SlideLevel.from(s.stringOrNull("level")), s.optInt("size", 3), ints("start"), ints("moves").orEmpty())
+        SlideView(SlideLevel.from(s.stringOrNull("level")), s.optInt("size", 3), ints("start"), ints("moves").orEmpty(), if (s.isNull("photoId")) null else s.optInt("photoId"))
     },
     bingo = json.optJSONObject("bingo")?.let { b ->
         fun ints(k: String) = b.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }

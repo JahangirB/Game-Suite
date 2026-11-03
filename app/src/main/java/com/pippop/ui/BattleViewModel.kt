@@ -151,6 +151,9 @@ data class BattleUiState(
     val numbersRound: Int = -1,
     /** Slide Race: your slides so far this round, and the round they belong to. */
     val slideMoves: List<Int> = emptyList(),
+    /** Slide Race: the photo being slid (base64 JPEG) and its id, once fetched. */
+    val slidePhoto: String? = null,
+    val slidePhotoId: Int? = null,
     val slideRound: Int = -1,
     /** Bingo: the squares you dabbed, for round [bingoRound]. */
     val bingoDabs: Set<Int> = emptySet(),
@@ -1355,6 +1358,28 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Slide Race: the host picks the size of the next puzzle; everyone gets ready again. */
+    /** Slide Race: the opener sets the photo everyone slides (base64 JPEG), or null for numbers. */
+    fun setSlidePhoto(photo: String?) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions) return
+        _state.update { it.copy(slidePhoto = photo) }
+        send { b, id -> b.setSlidePhoto(room.code, id, photo) }
+    }
+
+    /** Fetches the room's photo once its id is new, so it never rides along with every move. */
+    private fun fetchSlidePhoto(room: RoomState) {
+        val want = room.slide?.photoId
+        if (want == _state.value.slidePhotoId) return
+        _state.update { it.copy(slidePhotoId = want, slidePhoto = if (want == null) null else it.slidePhoto) }
+        if (want == null) return
+        val id = playerId ?: return
+        val b = backend ?: return
+        viewModelScope.launch {
+            val photo = runCatching { b.slidePhoto(room.code, id) }.getOrNull()
+            _state.update { if (it.slidePhotoId == want) it.copy(slidePhoto = photo) else it }
+        }
+    }
+
     fun setSlideLevel(level: SlideLevel) {
         val room = _state.value.room ?: return
         val slide = room.slide ?: return
@@ -1675,6 +1700,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
         rememberPartner(room)
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
+        if (room.game == GameKind.SLIDE) fetchSlidePhoto(room)
         countForTonight(room)
         // A match counts for the players who were in it, not for someone waiting in the menu.
         if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {

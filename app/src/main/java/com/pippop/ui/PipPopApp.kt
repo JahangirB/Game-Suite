@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
+import com.pippop.ui.screens.LocalSlidePhoto
 import com.pippop.ui.screens.ScoreboardScreen
 import com.pippop.ui.screens.LocalRoomControls
 import com.pippop.ui.screens.RoomControls
@@ -249,6 +250,7 @@ fun PipPopApp(
                 CompositionLocalProvider(
                     LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle),
                     LocalMatchSession provides session, LocalRoomControls provides controls,
+                    LocalSlidePhoto provides room?.takeIf { it.game == GameKind.SLIDE }?.let { r -> (r.slide?.photoId != null) to battle::setSlidePhoto },
                 ) {
                     when {
                         !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)

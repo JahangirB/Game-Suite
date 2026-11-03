@@ -71,4 +71,17 @@ class LocalDrawTest {
         assertEquals(3, draw.lastTurn!!.rights.size)
         assertEquals(2, draw.turn)
     }
+
+    @Test
+    fun slideRacePhotoIsSetByTheOpenerAndFetchedById() {
+        val r = LocalRoom("SLID", "Alice", Avatar.FOX, com.pippop.data.GameKind.SLIDE)
+        val guest = r.join("Bob", Avatar.OWL, null, listOf("slide"))
+        assertThrows(com.pippop.data.ApiException::class.java) { r.setSlidePhoto(guest, "abcd") }
+        assertThrows(com.pippop.data.ApiException::class.java) { r.setSlidePhoto(LocalRoom.HOST, "not base64!") }
+        r.setSlidePhoto(LocalRoom.HOST, "abcd")
+        assertTrue((parseRoom(r.view(guest, t0)).slide?.photoId ?: 0) > 0)
+        assertEquals("abcd", r.slidePhoto)
+        r.setSlidePhoto(LocalRoom.HOST, null)
+        assertNull(parseRoom(r.view(guest, t0)).slide?.photoId)
+    }
 }
