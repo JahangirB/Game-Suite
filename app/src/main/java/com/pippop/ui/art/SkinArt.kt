@@ -35,6 +35,8 @@ class SkinArt(
     val ships: Map<ShipKind, List<SkinOp>>,
     val hit: List<SkinOp>,
     val miss: List<SkinOp>,
+    /** "3d": Ship Battle draws in 3D with this skin (ui/screens/Ships3D.kt); its flat art is for older apps. */
+    val kind: String = "flat",
 ) {
     companion object {
         private val KINDS = mapOf(
@@ -57,6 +59,7 @@ class SkinArt(
                 ships = parsed,
                 hit = ops(o.getJSONArray("hit")),
                 miss = ops(o.getJSONArray("miss")),
+                kind = o.optString("kind", "flat"),
             )
         }
 

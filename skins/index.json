@@ -85,6 +85,13 @@
    "size": 31038
   },
   {
+   "id": "3d-fleet",
+   "name": "3D Fleet",
+   "tag": "Warships in 3D, with their own animations",
+   "version": 1,
+   "size": 12377
+  },
+  {
    "id": "steampunk-brass",
    "name": "Steampunk Brass",
    "tag": "Brass ships with gears on copper water",

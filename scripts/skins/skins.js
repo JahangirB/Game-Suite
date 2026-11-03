@@ -64,5 +64,14 @@ const SKINS = [
   S('vehicles', 'Sky Fleet', 'Planes over the clouds', 'aeroplanes, wingtip to wingtip', SEA.sky('#6ec3ff', '#d6f0ff', 'rgba(255,255,255,0.75)'), LONG.plane(['#e5302a', '#2f6fb3', '#ffc61a', '#2fbf6a', '#9d7bff']), HIT.puff('rgba(70,70,80,0.75)'), MISS.item(ITEM.cloud, '#ffffff')),
   S('vehicles', 'Zeppelin Skies', 'Airships at sunset', 'airships with gondolas', SEA.sky('#ff9a6b', '#ffd6a0', 'rgba(255,255,255,0.45)'), LONG.blimp(['#c9ccd4', '#e8b923', '#b8322a', '#7a8ea0', '#9d7bff']), HIT.flame(), MISS.ring('#ffffff')),
   S('vehicles', 'Submarine Squad', 'A fleet of submarines, deep down', 'portholed submarines', SEA.bubbles('#0b4a6b', 'rgba(150,220,255,0.6)', 'rgba(150,220,255,0.15)'), LONG.sub(['#ffd23f', '#ff8a1f', '#3ddc84', '#ff4f9a', '#4cc2e6']), HIT.burst('#ff8a1f'), MISS.rings('#7fd6ff')),
+  // Drawn in 3D by the app (assets/ships3d); this flat art is what apps from before 3D show.
+  { id: '3d-fleet', kind: '3d', version: 1, name: '3D Fleet', tag: 'Warships in 3D, with their own animations', about: 'grey warships in 3D',
+    sea: SEA.waves('#0f5a86', 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0.4)'),
+    ship(c, kind, L, w, s) {
+      hull(c, L, w, w * 1.6, w * 0.4); paint(c, '#5f6b76', '#2b3138', s * 0.025);
+      rrect(c, L * 0.42, -w * 0.5, L * 0.18, w, w * 0.15); paint(c, '#e9edf1', '#2b3138', 1);
+      dot(c, L * 0.78, 0, w * 0.22, '#7e8a95');
+    },
+    hit: HIT.flame(), miss: MISS.ring('#ffffff') },
   S('art', 'Steampunk Brass', 'Brass ships with gears on copper water', 'brass hulls, rivets and gears', SEA.waves('#2f5a52', 'rgba(200,170,110,0.3)', 'rgba(200,170,110,0.2)'), LONG.brassShip(), HIT.burst('#e8c070', '#5a3a10', '#5a3a10'), MISS.ring('#c9a46a')),
 ];

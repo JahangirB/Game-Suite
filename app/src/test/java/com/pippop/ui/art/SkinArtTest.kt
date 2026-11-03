@@ -31,7 +31,11 @@ class SkinArtTest {
             val all = art.sea + art.ships.values.flatten() + art.hit + art.miss
             assertEquals(all.count { it == SkinOp.Save }, all.count { it == SkinOp.Restore })
             assertTrue("$id has no store picture", File(dir, "$id.png").length() > 0)
+            assertTrue("$id is an unknown kind", art.kind == "flat" || art.kind == "3d")
         }
+        // The 3D Fleet is drawn by the app's own 3D page, which has to be there.
+        assertEquals("3d", SkinArt.parse(File(dir, "3d-fleet.json").readText()).kind)
+        assertTrue(File("src/main/assets/ships3d/ships3d.js").length() > 0)
     }
 
     @Test

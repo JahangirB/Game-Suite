@@ -20,3 +20,9 @@ own skins. Local builds have no store.
 3. Commit the files. The app's tests check every listed skin reads.
 
 `scripts/make-skins.js` describes the file format.
+
+## The 3D Fleet
+
+`3d-fleet` is drawn in 3D by the app itself (`app/src/main/assets/ships3d`, shown by
+`ui/screens/Ships3D.kt`): its file says `"kind": "3d"`. Its flat art is what apps from before
+the 3D view show. Its store picture is a screenshot of that 3D page, made by the same script.

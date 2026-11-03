@@ -17,6 +17,9 @@ import kotlin.math.sin
 sealed interface ShipLook {
     data class BuiltIn(val style: ShipStyle) : ShipLook
     data class Downloaded(val art: SkinArt) : ShipLook
+
+    /** The 3D Fleet: Ship Battle draws its seas in 3D (ui/screens/Ships3D.kt). */
+    val is3d get() = this is Downloaded && art.kind == "3d"
 }
 
 enum class ShipKind { CARRIER, BATTLESHIP, CRUISER, SUBMARINE, DESTROYER }

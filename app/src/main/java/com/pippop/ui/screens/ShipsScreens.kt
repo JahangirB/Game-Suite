@@ -126,6 +126,8 @@ fun ShipsSea(
     pending: Pair<Int, Int>? = null,
     /** Going up plays [lastShot]'s blast again: the dock's "Last shot". */
     replay: Int = 0,
+    /** The sea you fire at (the 3D Fleet's shells come in from your side). */
+    enemy: Boolean = false,
 ) {
     val p = AppTheme.palette
     val style = LocalShipLook.current
@@ -153,6 +155,11 @@ fun ShipsSea(
     SoundOnChange(sunk.size.takeIf { it > 0 }) {
         delay(700)
         play(Sound.SHIPS_SUNK)
+    }
+    // The 3D Fleet skin draws the same sea in 3D, with its own animations.
+    if (style.is3d) {
+        Ships3DSea(ships, shots, modifier, sunk, lastShot, onTap, pending, replay, enemy)
+        return
     }
     // A tap is watched on the way down to the board, before the screen's swipe (which folds
     // the players) can take it: a touch that lifts within [SHOT_SLOP_DP] of where it landed
@@ -366,6 +373,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                     lastShot = ships.myShots.lastOrNull()?.takeIf { ships.lastShotByMe == true },
                     onTap = if (myTurn && !finished && !state.firing) vm::fire else null,
                     pending = state.pendingShot,
+                    enemy = true,
                     modifier = it,
                     replay = if (ships.lastShotByMe == true) replay else 0,
                 )
@@ -482,6 +490,7 @@ private fun ColumnScope.SoloShipsBattle(game: com.pippop.game.ships.SoloShips, v
                 sunk = game.sunkEnemy,
                 lastShot = game.myShots.lastOrNull(),
                 onTap = if (game.myTurn && game.winner == null) vm::fire else null,
+                enemy = true,
                 modifier = it,
             )
         },
@@ -519,7 +528,52 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
     val current by rememberUpdatedState(fleet)
     val report by rememberUpdatedState(onChange)
     val shown = drag?.let { (i, ship, _) -> fleet.toMutableList().also { it[i] = ship } } ?: fleet
-    val gestures = if (onChange == null) Modifier else Modifier.pointerInput(Unit) {
+    // A finger lifted at square (gx, gy) where it went down on ship [index] (-1: the sea).
+    fun release(fleetNow: List<Ship>, index: Int, gx: Int, gy: Int, moved: Boolean) {
+        val landed = drag
+        drag = null
+        val holding = picked
+        when {
+            moved && index >= 0 -> {
+                picked = null
+                if (landed != null && landed.third) report?.invoke(fleetNow.toMutableList().also { it[index] = landed.second })
+            }
+            moved -> Unit
+            // A tap on a ship picks it up, or puts it back down if it's the one picked.
+            index >= 0 -> picked = if (holding == index) null else index
+            // A tap on the sea puts the picked ship there, starting at that square.
+            holding != null -> {
+                val target = fleetNow[holding].copy(x = gx, y = gy)
+                if (Fleet.canPlace(fleetNow, holding, target)) {
+                    report?.invoke(fleetNow.toMutableList().also { it[holding] = target })
+                    picked = null
+                } else {
+                    refused = target
+                }
+            }
+        }
+    }
+    // The 3D Fleet: the sea tells which square a finger is on, and the same rules follow.
+    val in3d = LocalShipLook.current.is3d
+    var touchStart by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    val touch3d: ((String, Int, Int, Boolean) -> Unit)? = if (onChange == null || !in3d) null else { kind, x, y, moved ->
+        val fleetNow = current
+        when (kind) {
+            "down" -> touchStart = Triple(fleetNow.indexOfFirst { Sea.cell(x, y) in it.cells }, x, y)
+            "move" -> touchStart?.let { (index, gx, gy) ->
+                if (index >= 0) {
+                    val ship = fleetNow[index]
+                    val target = ship.copy(x = ship.x + x - gx, y = ship.y + y - gy)
+                    drag = Triple(index, target, Fleet.canPlace(fleetNow, index, target))
+                }
+            }
+            "up" -> touchStart?.let { (index, gx, gy) ->
+                touchStart = null
+                release(fleetNow, index, if (moved) x else gx, if (moved) y else gy, moved)
+            }
+        }
+    }
+    val gestures = if (onChange == null || in3d) Modifier else Modifier.pointerInput(Unit) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val cell = size.width / Sea.SIZE.toFloat()
@@ -542,32 +596,17 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
                     drag = Triple(index, target, Fleet.canPlace(fleetNow, index, target))
                 }
             }
-            val landed = drag
-            drag = null
-            val holding = picked
-            when {
-                moved && index >= 0 -> {
-                    picked = null
-                    if (landed != null && landed.third) report?.invoke(fleetNow.toMutableList().also { it[index] = landed.second })
-                }
-                moved -> Unit
-                // A tap on a ship picks it up, or puts it back down if it's the one picked.
-                index >= 0 -> picked = if (holding == index) null else index
-                // A tap on the sea puts the picked ship there, starting at that square.
-                holding != null -> {
-                    val target = fleetNow[holding].copy(x = gx, y = gy)
-                    if (Fleet.canPlace(fleetNow, holding, target)) {
-                        report?.invoke(fleetNow.toMutableList().also { it[holding] = target })
-                        picked = null
-                    } else {
-                        refused = target
-                    }
-                }
-            }
+            release(fleetNow, index, gx, gy, moved)
         }
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.S)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).then(gestures)) {
+        if (in3d) {
+            Ships3DSea(
+                ships = fleet, shots = emptyList(), onTouch = touch3d,
+                ghost = (drag ?: refused?.let { Triple(-1, it, false) })?.let { (i, ship, ok) -> Sea3DGhost(i, ship, ok) },
+                picked = picked,
+            )
+        } else Box(Modifier.fillMaxWidth().aspectRatio(1f).then(gestures)) {
             ShipsSea(ships = shown, shots = emptyList())
             val ghost = drag ?: refused?.let { Triple(-1, it, false) }
             val holding = picked?.let { fleet.getOrNull(it) }

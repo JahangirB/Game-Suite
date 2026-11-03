@@ -11,7 +11,8 @@
 // app update: publish its file and phones list it under Available.
 //
 // A skin file:
-//   { "id", "name", "tag", "about", "version",
+//   { "id", "name", "tag", "about", "version", "kind" (only "3d": the app draws it in 3D,
+//     assets/ships3d; the flat art below is for apps from before 3D),
 //     "sea": [ops],            the whole 10 x 10 sea, grid lines included
 //     "ships": { "carrier": [ops], ... }   each lying flat from (0, 0) to (length, 1)
 //     "hit": [ops], "miss": [ops] }        each in a square from (0, 0) to (1, 1)
@@ -219,6 +220,7 @@ function main() {
       hit: record((c) => skin.hit(c, S / 2, S / 2, S)),
       miss: record((c) => skin.miss(c, S / 2, S / 2, S)),
     };
+    if (skin.kind) file.kind = skin.kind;
     const text = JSON.stringify(file);
     fs.writeFileSync(path.join(OUT, skin.id + '.json'), text);
     index.push({ id: skin.id, name: skin.name, tag: skin.tag, version: file.version, size: Buffer.byteLength(text) });
@@ -231,12 +233,16 @@ function main() {
 // Pictures for the store, drawn from the same skins in a real browser: a game in progress.
 async function previews(skins) {
   const { chromium } = require('playwright');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage();
   await page.setContent('<canvas id="c" width="240" height="240"></canvas>');
   const code = ['helpers', 'kit', 'skins'].map((f) => fs.readFileSync(path.join(__dirname, 'skins', f + '.js'), 'utf8')).join('\n');
   await page.addScriptTag({ content: `const TAU = Math.PI * 2, N = ${N};\n${code}\nwindow.SKINS_ = SKINS;` });
   for (const skin of skins) {
+    if (skin.kind === '3d') {
+      fs.writeFileSync(path.join(OUT, skin.id + '.png'), await preview3d(browser));
+      continue;
+    }
     const png = await page.evaluate((id) => {
       const skin = window.SKINS_.find((k) => k.id === id);
       const cv = document.getElementById('c'), c = cv.getContext('2d'), s = 24;
@@ -256,6 +262,26 @@ async function previews(skins) {
   }
   await browser.close();
   console.log('previews written');
+}
+
+// The 3D Fleet's picture: the app's own 3D page with a game in progress, as a phone draws it.
+async function preview3d(browser) {
+  const page = await browser.newPage({ viewport: { width: 240, height: 240 } });
+  await page.addInitScript(() => { window.Android = { ready() {}, event() {}, cell() {} }; });
+  await page.goto('file://' + path.join(ROOT, 'app/src/main/assets/ships3d/index.html'));
+  await page.waitForFunction(() => typeof fleet !== 'undefined');
+  await page.evaluate(() => fleet.state({
+    ships: [
+      { kind: 'carrier', x: 1, y: 1, len: 5, h: true }, { kind: 'battleship', x: 8, y: 0, len: 4, h: false },
+      { kind: 'cruiser', x: 2, y: 5, len: 3, h: true, sunk: true }, { kind: 'submarine', x: 6, y: 6, len: 3, h: false },
+      { kind: 'destroyer', x: 1, y: 8, len: 2, h: true },
+    ],
+    shots: [[0, 3, 0], [5, 3, 0], [7, 4, 0], [4, 8, 0], [2, 1, 1], [3, 1, 1], [2, 5, 1], [3, 5, 1], [4, 5, 1]].map(([x, y, h]) => ({ x, y, hit: !!h })),
+  }));
+  await page.waitForTimeout(800);
+  const png = await page.screenshot();
+  await page.close();
+  return png;
 }
 
 module.exports = { Recorder, load };
