@@ -79,7 +79,10 @@ val GameKind.rules: String
             "the same word and sees the others' colours, never their letters. Fewest tries wins; on a tie, the faster."
         GameKind.DRAW -> "You play as a team, four turns, taking turns to draw. The drawer gets a secret word and draws it; " +
             "the other watches the drawing appear and types guesses. A right guess adds the seconds left (out of 80) " +
-            "to your team score. No letters or words in the drawing!"
+            "to your team score. No letters or words in the drawing! The tray has eight colours, an eraser, three brush " +
+            "sizes and a fill bucket; Undo in the dock takes back your last line. Each drawing replays when its turn ends: " +
+            "Keep it for the Sketchbook. With three or four, try the guess race: one draws, everyone else guesses at once, " +
+            "80, 60 and 40 points for the first right guesses and 20 to the drawer for each; the most points wins."
         GameKind.TTT -> "Pick Normal or Ultimate before you start. Normal is one 3 × 3 board: three in a row wins. " +
             "In Ultimate, nine small boards make one big board. The square you mark sends the other player to " +
             "the small board in the same spot: mark a top-right square and they must play in the top-right board. " +

@@ -185,6 +185,9 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun clearDrawing(code: String, playerId: String) =
         request(JSONObject().put("type", "clear"))
 
+    override suspend fun undoStroke(code: String, playerId: String) =
+        request(JSONObject().put("type", "unstroke"))
+
     override suspend fun openGame(code: String, playerId: String, game: GameKind) =
         request(JSONObject().put("type", "game").put("game", game.key))
 

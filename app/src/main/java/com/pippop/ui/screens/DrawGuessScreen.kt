@@ -1,5 +1,10 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.Digits
@@ -69,8 +74,6 @@ import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.OpponentColor
 import kotlinx.coroutines.delay
 
-/** The six pen colours; the last one is white, for rubbing out. Indexes match the server. */
-private val PenColors = listOf(Board.Ink, Pieces.Red, Pieces.Blue, GameColors.PenGreen, GameColors.PenOrange, Color.White)
 
 /** Points per stroke message: small enough that the drawing appears on the other phone as it is drawn. */
 private const val CHUNK_POINTS = 12
@@ -81,7 +84,7 @@ private const val GOOD_TEAM_SCORE = 80
 private fun DrawScope.drawStroke(points: FloatArray, color: Int, width: Int) {
     if (points.size < 2) return
     val c = PenColors.getOrElse(color) { PenColors[0] }
-    val w = size.width * if (width == 2) 0.03f else 0.012f
+    val w = size.width * penWidth(width)
     if (points.size == 2) {
         drawCircle(c, w / 2, Offset(points[0] * size.width, points[1] * size.height))
         return
@@ -97,15 +100,18 @@ private fun DrawScope.drawStroke(points: FloatArray, color: Int, width: Int) {
  * are drawing is sent in short pieces so your partner sees it appear.
  */
 @Composable
-internal fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier = Modifier) {
+internal fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier = Modifier, fillMode: Boolean = false) {
     val p = AppTheme.palette
     val current = remember { mutableStateListOf<Float>() }
-    val pen = rememberUpdatedState(color to width)
+    val pen = rememberUpdatedState(Triple(color, width, fillMode))
     val input = if (onStroke == null) Modifier else Modifier.pointerInput(onStroke) {
         fun at(o: Offset) = listOf((o.x / size.width).coerceIn(0f, 1f), (o.y / size.height).coerceIn(0f, 1f))
+        // The first piece of each line is marked, so undo takes the whole line back.
+        var first = true
         fun flush(keepLast: Boolean) {
             if (current.size < 2) return
-            onStroke(DrawStroke(current.toFloatArray(), pen.value.first, pen.value.second))
+            onStroke(DrawStroke(current.toFloatArray(), pen.value.first, pen.value.second, start = first))
+            first = false
             val last = current.takeLast(2)
             current.clear()
             if (keepLast) current.addAll(last)
@@ -113,6 +119,13 @@ internal fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStr
         awaitEachGesture {
             val down = awaitFirstDown()
             down.consume()
+            // The bucket: a tap pours the colour into the shape under the finger.
+            if (pen.value.third) {
+                val (x, y) = at(down.position)
+                onStroke(DrawStroke(floatArrayOf(x, y), pen.value.first, 1, fill = true, start = true))
+                return@awaitEachGesture
+            }
+            first = true
             current.clear()
             current.addAll(at(down.position))
             while (true) {
@@ -131,8 +144,11 @@ internal fun DrawingPad(strokes: List<DrawStroke>, color: Int, width: Int, onStr
         modifier.fillMaxWidth().aspectRatio(1f).pressedEdge(p.ink, Radius.L).clip(Shapes.L)
             .background(Color.White).border(2.dp, p.ink, Shapes.L),
     ) {
+        // With a fill in it the drawing is painted as a picture (fills need its pixels).
+        val picture = remember(strokes) { if (strokes.any { it.fill }) renderDrawing(strokes) else null }
+        if (picture != null) androidx.compose.foundation.Image(picture, contentDescription = null, modifier = Modifier.fillMaxSize())
         Canvas(Modifier.fillMaxSize().then(input)) {
-            strokes.forEach { drawStroke(it.points, it.color, it.width) }
+            if (picture == null) strokes.forEach { drawStroke(it.points, it.color, it.width) }
             if (current.isNotEmpty()) drawStroke(current.toFloatArray(), pen.value.first, pen.value.second)
         }
     }
@@ -165,19 +181,43 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         if (isMe) drawing else !drawing && (draw.drawerName == null || draw.drawerName == player.name)
     val players = battleChips(
         room, state, localNow, p.primary,
-        detail = { player, isMe -> if (!playing) null else if (draws(player, isMe)) "Drawing" else "Guessing" },
+        detail = { player, isMe ->
+            val pts = draw.scores.firstOrNull { if (isMe) it.me else it.name == player.name }?.points
+            listOfNotNull(pts?.let { "$it pts" }, if (!playing) null else if (draws(player, isMe)) "Drawing" else "Guessing").joinToString(" · ").ifEmpty { null }
+        },
         active = { player, isMe -> playing && draws(player, isMe) },
     )
     val secondsLeft = draw.endsAt?.let { ((it - now + 999) / 1000).coerceAtLeast(0) }
+    val context = LocalContext.current
+    val sketchbook = remember { Sketchbook.get(context) }
+    var showSketchbook by remember { mutableStateOf(false) }
+    val keepLast: (com.pippop.data.DrawTurnResult) -> Unit = { last ->
+        sketchbook.keep(Sketch(System.currentTimeMillis(), last.word, if (last.drewIt) "You" else last.drawerName ?: "", last.strokes))
+    }
+    if (showSketchbook) SketchbookSheet(sketchbook, draw.lastTurn?.takeIf { it.strokes.isNotEmpty() }, keepLast) { showSketchbook = false }
+    // When a turn ends its drawing replays, quickly, with the word; Keep saves it. Whoever draws
+    // next isn't held up: the last drawing waits for them in the Sketchbook.
+    fun keyOf(last: com.pippop.data.DrawTurnResult?) = last?.let { "${room.round}-${draw.turn}-${it.word}" }
+    var replayed by remember { mutableStateOf(keyOf(draw.lastTurn)) }
+    val replay = draw.lastTurn?.takeIf { keyOf(it) != replayed && it.strokes.isNotEmpty() }
+    if (replay != null && !(drawing && playing)) {
+        ReplaySheet(replay, onKeep = { keepLast(replay) }) { replayed = keyOf(replay) }
+    }
 
     GameFrame(
         title = "Draw & Guess",
-        subtitle = (if (finished) "Game over" else "Turn ${draw.turn} of ${draw.turns}") + " · Team score ${draw.score}" +
+        subtitle = (if (finished) "Game over" else "Turn ${draw.turn} of ${draw.turns}") + (if (draw.race) " · Guess race" else " · Team score ${draw.score}") +
             if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.DRAW.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        // Undo only while you draw; the sketchbook any time.
+        myTurn = drawing && playing,
+        tools = listOf(
+            DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
+            DockTool("Sketchbook", GameIcons.Book, badge = 0) { showSketchbook = true },
+        ),
         trailing = {
             if (playing && secondsLeft != null) {
                 Text(style = Digits, text = "${secondsLeft}s", color = if (secondsLeft <= 10) p.bad else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -188,6 +228,15 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             // A team game: the score decides the picture, not a winner.
+            if (draw.race) {
+                MatchPopup(
+                    room, GameKind.DRAW, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
+                    if (room.endReason == "draw") "Top scores are level." else "The fastest right guesses scored the most.",
+                    onRematch = vm::readyTurns, onFinish = onLeave,
+                    scores = draw.scores.sortedByDescending { it.points }.map { "${if (it.me) "You" else it.name} ${it.points}" },
+                )
+                return@popupContent
+            }
             val good = draw.score >= GOOD_TEAM_SCORE
             MatchPopup(
                 room, GameKind.DRAW, if (good) Outcome.WIN else Outcome.LOSE,
@@ -236,28 +285,41 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
     val p = AppTheme.palette
     var color by rememberSaveable { mutableStateOf(0) }
     var width by rememberSaveable { mutableStateOf(1) }
+    var bucket by rememberSaveable { mutableStateOf(false) }
     Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-    BoardArea(1f) { size -> DrawingPad(strokes, color, width, vm::sendStroke, size) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        PenColors.forEachIndexed { i, c ->
+    BoardArea(1f) { size -> DrawingPad(strokes, color, width, vm::sendStroke, size, fillMode = bucket) }
+    // The tray: eight colours and the eraser, three brush sizes, the bucket, and Clear.
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        (TrayColors + ERASER).forEach { i ->
+            val on = color == i
             Box(
-                Modifier.size(if (color == i) 34.dp else 28.dp).clip(CircleShape).background(c)
-                    .border(if (color == i) 3.dp else 2.dp, p.ink, CircleShape).clickable { color = i },
-            )
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(if (on) 30.dp else 25.dp).clip(CircleShape).background(PenColors[i])
+                    .border(if (on) 3.dp else 2.dp, p.ink, CircleShape).clickable { color = i },
+            ) { if (i == ERASER) Text("⌫", color = p.ink, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold) }
         }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        // The dot shows the brush: its size, in the colour picked.
+        for (w in 1..3) {
+            val on = width == w && !bucket
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(38.dp).clip(Shapes.S).background(if (on) p.accent else p.card).border(2.dp, p.ink, Shapes.S)
+                    .clickable { width = w; bucket = false },
+            ) { Box(Modifier.size((4 + w * w * 3).dp).clip(CircleShape).background(PenColors[color]).border(1.dp, p.ink, CircleShape)) }
+        }
+        Text(
+            "🪣 Fill", color = p.text, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(Shapes.S).background(if (bucket) p.accent else p.card).border(2.dp, p.ink, Shapes.S).clickable { bucket = !bucket }.padding(horizontal = 10.dp, vertical = 8.dp),
+        )
         Box(Modifier.weight(1f))
         Text(
-            if (width == 2) "Thick" else "Thin", color = p.text, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(Shapes.S).border(2.dp, p.ink, Shapes.S).clickable { width = 3 - width }.padding(horizontal = 10.dp, vertical = 6.dp),
-        )
-        Text(
             "Clear", color = p.bad, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(Shapes.S).border(2.dp, p.ink, Shapes.S).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.clip(Shapes.S).border(2.dp, p.ink, Shapes.S).clickable { vm.clearDrawing() }.padding(horizontal = 10.dp, vertical = 8.dp),
         )
     }
-    if (draw.guesses.isNotEmpty()) {
-        Text("Guesses: " + guessList(draw), color = p.muted, fontSize = TextSize.Body)
-    }
+    if (draw.guesses.isNotEmpty()) GuessFeed(draw)
 }
 
 @Composable
@@ -268,12 +330,14 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         vm.guessDrawing(guess)
         guess = ""
     }
+    // The race: once you've got it you see the word, and wait for the others.
     Text(
-        draw.hint.orEmpty().map { it }.joinToString(" "), color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
+        if (draw.gotIt && draw.word != null) "You got it: ${draw.word.uppercase()}!" else draw.hint.orEmpty().map { it }.joinToString(" "),
+        color = if (draw.gotIt) p.good else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
     )
     BoardArea(1f) { size -> DrawingPad(strokes, 0, 1, null, size) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (!draw.gotIt) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = guess,
             onValueChange = { guess = it.take(30) },
@@ -285,8 +349,114 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         )
         PrimaryButton("Guess", send, Modifier.weight(0.45f), enabled = guess.isNotBlank())
     }
-    if (draw.guesses.isNotEmpty()) {
+    if (draw.guesses.isNotEmpty()) GuessFeed(draw)
+}
+
+/**
+ * The guesses this turn, newest last: wrong ones in grey, and in the race right ones in green
+ * ("Alex got it! +80") with the word still hidden from those guessing.
+ */
+@Composable
+private fun GuessFeed(draw: DrawView) {
+    val p = AppTheme.palette
+    if (!draw.race) {
         Text("Not it: " + guessList(draw), color = p.muted, fontSize = TextSize.Body)
+        return
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        draw.guesses.forEachIndexed { i, (byMe, word) ->
+            val right = draw.rightGuesses.getOrNull(i) == true
+            val who = if (byMe) "You" else draw.guessers.getOrNull(i) ?: "?"
+            Text(
+                if (right) "$who got it!" else "$who: $word",
+                color = if (right) p.onPrimary else p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(Shapes.Full).background(if (right) p.good else p.card).border(1.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** A finished turn's drawing playing back in about four seconds, with the word; Keep saves it. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ReplaySheet(last: com.pippop.data.DrawTurnResult, onKeep: () -> Unit, onDone: () -> Unit) {
+    val p = AppTheme.palette
+    var shown by remember(last) { mutableStateOf(0) }
+    var kept by remember(last) { mutableStateOf(false) }
+    LaunchedEffect(last) {
+        val step = (REPLAY_MS / last.strokes.size.coerceAtLeast(1)).coerceIn(8L, 200L)
+        while (shown < last.strokes.size) {
+            delay(step)
+            shown++
+        }
+        delay(1800)
+        if (!kept) onDone()
+    }
+    InfoSheet(last.word.uppercase(), onDismiss = onDone) {
+        Text(
+            when {
+                last.rights.isNotEmpty() -> last.rights.joinToString(", ") + " got it"
+                last.guessed -> "${last.guesserName ?: "Someone"} guessed it"
+                else -> "Nobody got it this time"
+            } + (last.drawerName?.let { " · drawn by ${if (last.drewIt) "you" else it}" } ?: ""),
+            color = p.muted, fontSize = TextSize.Body,
+        )
+        Box(Modifier.fillMaxWidth(0.8f).align(Alignment.CenterHorizontally)) { DrawingPad(last.strokes.take(shown), 0, 1, null) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            if (kept) Text("In the sketchbook", color = p.good, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(top = 14.dp))
+            else PrimaryButton("Keep", { kept = true; onKeep() }, Modifier.weight(1f))
+            SecondaryButton("Next", onDone, Modifier.weight(1f))
+        }
+    }
+}
+
+/** The replay's length, whatever the number of strokes. */
+private const val REPLAY_MS = 4000L
+
+/** The sketchbook: every drawing you kept, newest first, with its word, who drew it and when. */
+@Composable
+private fun SketchbookSheet(book: Sketchbook, last: com.pippop.data.DrawTurnResult?, onKeep: (com.pippop.data.DrawTurnResult) -> Unit, onDismiss: () -> Unit) {
+    val p = AppTheme.palette
+    val sketches by book.sketches.collectAsState()
+    InfoSheet("Sketchbook", onDismiss = onDismiss) {
+        // The turn just played, to keep if you like it.
+        if (last != null && sketches.none { it.word == last.word }) {
+            Text("LAST TURN: ${last.word.uppercase()}", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+            Box(Modifier.fillMaxWidth(0.6f)) { DrawingPad(last.strokes, 0, 1, null) }
+            PrimaryButton("Keep it", { onKeep(last) })
+        }
+        if (sketches.isEmpty()) Text("Nothing kept yet: tap Keep when a turn's drawing replays.", color = p.muted, fontSize = TextSize.Body)
+        sketches.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { sk ->
+                    Column(Modifier.weight(1f)) {
+                        DrawingPad(sk.strokes, 0, 1, null)
+                        Text(sk.word.uppercase(), color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+                        val d = java.time.Instant.ofEpochMilli(sk.at).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        Text("${sk.drawer} · ${d.dayOfMonth} ${d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())}", color = p.muted, fontSize = TextSize.Label)
+                    }
+                }
+                if (row.size == 1) Box(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** Draw & Guess: the team game or the guess race, picked by whoever opened the game. */
+@Composable
+fun DrawModeCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("Mode") {
+        if (room.setsOptions) {
+            OptionGroup(listOf(false to "Team", true to "Race for 4"), room.drawRace, enabled = !busy, onPick = onPick)
+        } else {
+            Text(if (room.drawRace) "Guess race, picked by whoever opened the game." else "Team game, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+        }
+        Text(
+            if (room.drawRace) "One draws, everyone else guesses at once: 80, 60, 40 for the first right guesses, and the drawer 20 for each."
+            else "Take turns drawing; every right guess adds the seconds left to your team score.",
+            color = p.muted, fontSize = TextSize.Label,
+        )
     }
 }
 

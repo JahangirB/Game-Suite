@@ -208,12 +208,20 @@ data class WordsView(
 /** Another player's Word Race round. */
 data class OtherWords(val guesses: List<WordGuess>, val done: Boolean)
 
-/** A Draw & Guess stroke: a polyline in 0-1 coordinates (x, y pairs), one of six colours, thin (1) or thick (2). */
-class DrawStroke(val points: FloatArray, val color: Int, val width: Int) {
+/**
+ * A Draw & Guess stroke: a polyline in 0-1 coordinates (x, y pairs), one of the pen colours (5 is
+ * the eraser), thin (1), thick (2) or huge (3). A [fill] pours its colour into the closed shape
+ * round its one point; [start] marks the first piece of a line (undo takes back a whole line).
+ */
+class DrawStroke(val points: FloatArray, val color: Int, val width: Int, val fill: Boolean = false, val start: Boolean = false) {
     fun toJson(): JSONObject = JSONObject()
         .put("points", JSONArray((0 until points.size / 2).map { JSONArray().put(points[it * 2].toDouble()).put(points[it * 2 + 1].toDouble()) }))
         .put("color", color)
         .put("width", width)
+        .apply {
+            if (fill) put("fill", true)
+            if (start) put("start", true)
+        }
 
     companion object {
         fun from(json: JSONObject): DrawStroke {
@@ -224,7 +232,7 @@ class DrawStroke(val points: FloatArray, val color: Int, val width: Int) {
                 flat[i * 2] = pt.optDouble(0).toFloat()
                 flat[i * 2 + 1] = pt.optDouble(1).toFloat()
             }
-            return DrawStroke(flat, json.optInt("color"), json.optInt("width", 1))
+            return DrawStroke(flat, json.optInt("color"), json.optInt("width", 1), json.optBoolean("fill"), json.optBoolean("start"))
         }
     }
 }
@@ -238,7 +246,14 @@ data class DrawTurnResult(
     val drawerName: String? = null,
     val guesserName: String? = null,
     val guessedIt: Boolean = false,
+    /** The turn's drawing, for its replay and the sketchbook. */
+    val strokes: List<DrawStroke> = emptyList(),
+    /** The race: everyone who got it, in order. */
+    val rights: List<String> = emptyList(),
 )
+
+/** A player's points in the guess race. */
+data class DrawScore(val name: String, val me: Boolean, val points: Int)
 
 /** A Draw & Guess match as one player sees it. */
 data class DrawView(
@@ -261,7 +276,17 @@ data class DrawView(
     val lastTurn: DrawTurnResult?,
     val drawerName: String? = null,
     val guessers: List<String?> = emptyList(),
-)
+    /** "team" (one shared score) or "race" (everyone else guesses at once, each their own score). */
+    val mode: String = "team",
+    /** The race: you got this turn's word (and now see it). */
+    val gotIt: Boolean = false,
+    /** The race: everyone's points. */
+    val scores: List<DrawScore> = emptyList(),
+    /** For each guess in [guesses]: a right one (its word hidden). */
+    val rightGuesses: List<Boolean> = emptyList(),
+) {
+    val race get() = mode == "race"
+}
 
 /** A player's latest reaction; [seq] goes up with every new one. */
 data class EmojiEvent(val reaction: Reaction, val seq: Int)
@@ -341,6 +366,8 @@ data class RoomState(
     val golfLevel: GolfLevel? = null,
     /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
     val memoryCards: Int = 16,
+    /** Draw & Guess: the guess race (everyone else guesses at once) instead of the team game. */
+    val drawRace: Boolean = false,
     /** Dots & Boxes: the board the opener picked ("4x4", "5x5", "6x6" or "heart"). */
     val dotsBoard: String = "4x4",
     /** Code Breaker: the settings the opener picked. */
@@ -403,6 +430,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    drawRace = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DRAW }?.optString("mode") == "race",
     dotsBoard = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DOTS }?.optString("board")?.takeIf { it.isNotEmpty() } ?: "4x4",
     codeRules = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.CODE }?.let { com.pippop.game.code.CodeRules.from(it) } ?: com.pippop.game.code.CodeRules(),
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
@@ -458,11 +486,19 @@ private fun parseDraw(json: JSONObject) = DrawView(
         DrawTurnResult(
             it.optString("word"), it.optBoolean("guessed"), it.optInt("points"), it.optBoolean("drewIt"),
             it.stringOrNull("drawerName"), it.stringOrNull("guesserName"), it.optBoolean("guessedIt"),
+            it.optJSONArray("strokes").objects().map(DrawStroke::from),
+            it.optJSONArray("rights")?.let { a -> (0 until a.length()).mapNotNull { k -> a.stringOrNullAt(k) } }.orEmpty(),
         )
     },
     drawerName = json.stringOrNull("drawerName"),
     guessers = json.optJSONArray("guesses").objects().map { it.stringOrNull("name") },
+    mode = json.stringOrNull("mode") ?: "team",
+    gotIt = json.optBoolean("gotIt"),
+    scores = json.optJSONArray("scores").objects().map { DrawScore(it.optString("name"), it.optBoolean("me"), it.optInt("points")) },
+    rightGuesses = json.optJSONArray("guesses").objects().map { it.optBoolean("right") },
 )
+
+private fun JSONArray.stringOrNullAt(i: Int) = if (isNull(i)) null else optString(i)
 
 private fun parseWords(json: JSONObject): WordsView {
     fun guesses(key: String) = json.optJSONArray(key).objects().map { WordGuess(it.stringOrNull("word"), it.optString("score")) }

@@ -389,6 +389,7 @@ export function setOptions(room, role, options) {
   else if (room.game === 'memory') room.options = memory.cleanOptions(options);
   else if (room.game === 'code') room.options = codeGame.cleanOptions(options);
   else if (room.game === 'dots') room.options = dots.cleanOptions(options);
+  else if (room.game === 'draw') room.options = draw.cleanOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -793,6 +794,7 @@ export function setDrawReady(room, role, ready, now, random = Math.random) {
     beginMatch(room, {
       startAt: now + COUNTDOWN_MS, drawTurn: 0, drawTurns: draw.turnsFor(roles.length),
       drawer: roles[Math.floor(random() * roles.length)], score: 0, usedWords: [], lastTurn: null,
+      drawMode: draw.cleanOptions(room.options).mode, drawScores: Object.fromEntries(roles.map((r) => [r, 0])), drawRight: [],
     });
     nextDrawTurn(room, room.startAt, random, true);
   }
@@ -802,8 +804,17 @@ export function setDrawReady(room, role, ready, now, random = Math.random) {
 /** Starts the next turn (the next player draws), or ends the match after the last one. */
 function nextDrawTurn(room, now, random = Math.random, first = false) {
   const roles = playing(room);
+  // The turn just played, kept for its replay (and the sketchbook).
+  if (room.lastTurn && !room.lastTurn.strokes) room.lastTurn.strokes = room.strokes || [];
   if (room.drawTurn >= (room.drawTurns || draw.TURNS) || roles.length < 2) {
-    endMatch(room, null, 'done');
+    if (room.drawMode === 'race') {
+      // The race: the most points wins; a tie for the most is a draw.
+      const ranked = roles.map((r) => [r, room.drawScores?.[r] || 0]).sort((a, b) => b[1] - a[1]);
+      const tie = ranked.length > 1 && ranked[0][1] === ranked[1][1];
+      endMatch(room, tie ? null : ranked[0][0], tie ? 'draw' : 'score');
+    } else {
+      endMatch(room, null, 'done');
+    }
     return;
   }
   room.drawTurn += 1;
@@ -816,7 +827,20 @@ function nextDrawTurn(room, now, random = Math.random, first = false) {
   }
   room.drawWord = draw.pickWord(room.usedWords, random);
   room.usedWords.push(room.drawWord);
-  Object.assign(room, { strokes: [], drawClears: 0, drawGuesses: [], turnEndsAt: now + draw.TURN_MS });
+  Object.assign(room, { strokes: [], drawClears: 0, drawGuesses: [], drawRight: [], turnEndsAt: now + draw.TURN_MS });
+}
+
+/** The drawer takes back the last line drawn (all its pieces). */
+export function undoStroke(room, role) {
+  if (room.game !== 'draw' || room.status !== 'started') throw new GameError('The game is not running.');
+  if (room.drawer !== role) throw new GameError("It's not your turn to draw.");
+  while (room.strokes.length) {
+    const s = room.strokes.pop();
+    if (s.start || s.fill) break;
+  }
+  // Counted like a clear, so every phone takes the drawing afresh.
+  room.drawClears = (room.drawClears || 0) + 1;
+  bump(room);
 }
 
 /** The drawer adds a stroke. Returns its index; it is sent to the guesser on its own, not as a new state. */
@@ -849,6 +873,26 @@ export function drawGuess(room, role, word, now, random = Math.random) {
   if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
   const text = String(word || '').trim().slice(0, 30);
   if (!text) throw new GameError('Type a guess.');
+  if (room.drawMode === 'race') {
+    // The race: everyone else guesses at once; right guesses score in order, the drawer for each.
+    if (room.drawRight.includes(role)) throw new GameError('You got it already: wait for the others.');
+    if (draw.isRight(text, room.drawWord)) {
+      const points = draw.RACE_POINTS[room.drawRight.length] ?? draw.DRAWER_POINTS;
+      room.drawRight.push(role);
+      room.drawScores[role] = (room.drawScores[role] || 0) + points;
+      room.drawScores[room.drawer] = (room.drawScores[room.drawer] || 0) + draw.DRAWER_POINTS;
+      room.drawGuesses.push({ by: role, word: null, right: true, points });
+      const guessers = playing(room).filter((r) => r !== room.drawer);
+      if (guessers.every((r) => room.drawRight.includes(r))) {
+        room.lastTurn = { word: room.drawWord, guessed: true, points, drawer: room.drawer, guesser: room.drawRight[0], rights: [...room.drawRight] };
+        nextDrawTurn(room, now, random);
+      }
+    } else {
+      room.drawGuesses.push({ by: role, word: text.toLowerCase() });
+    }
+    bump(room);
+    return;
+  }
   if (draw.isRight(text, room.drawWord)) {
     const points = Math.max(1, Math.ceil((room.turnEndsAt - now) / 1000));
     room.score += points;
@@ -870,16 +914,22 @@ function drawView(room, role, status) {
     turns: room.drawTurns || draw.TURNS,
     drawer: playing ? (mine ? 'me' : 'opponent') : null,
     drawerName: playing ? nameOf(room.drawer) : null,
-    word: playing && mine ? room.drawWord : null,
+    // The race: whoever got it sees the word too.
+    word: playing && (mine || (room.drawRight || []).includes(role)) ? room.drawWord : null,
+    mode: room.drawMode || 'team',
+    gotIt: (room.drawRight || []).includes(role),
+    scores: room.drawMode === 'race' ? seated(room).filter((r) => room.drawScores?.[r] != null).map((r) => ({ name: room.players[r].name, me: r === role, points: room.drawScores[r] })) : [],
     hint: playing && room.drawWord ? draw.hint(room.drawWord) : null,
     endsAt: playing ? room.turnEndsAt : null,
     strokes: playing ? room.strokes || [] : [],
     clears: room.drawClears || 0,
-    guesses: playing ? (room.drawGuesses || []).map((g) => ({ by: g.by === role ? 'me' : 'opponent', name: nameOf(g.by), word: g.word })) : [],
+    guesses: playing ? (room.drawGuesses || []).map((g) => ({ by: g.by === role ? 'me' : 'opponent', name: nameOf(g.by), word: g.word, ...(g.right ? { right: true } : {}) })) : [],
     score: room.score || 0,
     lastTurn: last ? {
       word: last.word, guessed: last.guessed, points: last.points, drewIt: last.drawer === role,
       drawerName: nameOf(last.drawer), guesserName: last.guesser ? nameOf(last.guesser) : null, guessedIt: last.guesser === role,
+      // The drawing, for its replay; and in the race, everyone who got it.
+      strokes: last.strokes || [], rights: (last.rights || []).map(nameOf),
     } : null,
   };
 }
@@ -1201,7 +1251,7 @@ function roomTimers(room, now) {
     return 'changed';
   }
   if (room.status === 'started' && room.game === 'draw' && now >= room.turnEndsAt) {
-    room.lastTurn = { word: room.drawWord, guessed: false, points: 0, drawer: room.drawer };
+    room.lastTurn = { word: room.drawWord, guessed: (room.drawRight || []).length > 0, points: 0, drawer: room.drawer, rights: [...(room.drawRight || [])] };
     nextDrawTurn(room, now);
     bump(room);
     return 'changed';
@@ -1327,7 +1377,7 @@ export function view(room, role, now) {
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

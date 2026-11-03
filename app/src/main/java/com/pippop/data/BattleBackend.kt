@@ -67,6 +67,9 @@ interface BattleBackend {
     /** Draw & Guess: wipe the drawing. */
     suspend fun clearDrawing(code: String, playerId: String): JSONObject
 
+    /** Draw & Guess: the drawer takes back the last line. */
+    suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
+
     /**
      * Opens [game] in the same room: the open game is joined, another one (between matches)
      * replaces it, with the others left where they are until they follow. Rooms that can't

@@ -137,6 +137,12 @@ class LocalRoom(
     private var drawClears = 0
     private var drawGuesses = mutableListOf<Pair<String, String>>()
     private var drawScore = 0
+    /** Draw & Guess: "team" (one score) or "race" (everyone else guesses at once, each their own score). */
+    var drawMode = "team"
+    private var drawRaceMode = "team"
+    private val drawScores = mutableMapOf<String, Int>()
+    /** The race: who got this turn's word, in order. */
+    private var drawRight = mutableListOf<String>()
     private var lastDrawTurn: JSONObject? = null
     private var turnEndsAt = 0L
     private var drawTurns = DRAW_TURNS
@@ -153,7 +159,7 @@ class LocalRoom(
     private fun inRoom() = seated().filter { !players.getValue(it)!!.left }
 
     /** Players in the room who are at the open game (not in the menu or elsewhere). */
-    private fun present() = inRoom().filter { player(it).at == game }
+    internal fun present() = inRoom().filter { player(it).at == game }
 
     /** Who sets the open game's options: whoever opened it (the host at first). */
     private var openedBy = HOST
@@ -168,7 +174,7 @@ class LocalRoom(
         return roles.drop(i + 1) + roles.take(maxOf(i, 0))
     }
 
-    private fun player(role: String) = players.getValue(role)!!
+    internal fun player(role: String) = players.getValue(role)!!
 
     /**
      * Joins as guest, or reconnects when [playerId] belongs to the room. Returns the role.
@@ -361,6 +367,7 @@ class LocalRoom(
             GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
+            GameKind.DRAW -> drawMode = if (options.optString("mode") == "race") "race" else "team"
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
             else -> throw ApiException("This game has no options.")
         }
@@ -779,6 +786,10 @@ class LocalRoom(
             drawTurns = turnsFor(roles.size)
             drawer = roles[random.nextInt(roles.size)]
             drawScore = 0
+            drawRaceMode = drawMode
+            drawScores.clear()
+            roles.forEach { drawScores[it] = 0 }
+            drawRight = mutableListOf()
             usedWords.clear()
             lastDrawTurn = null
             beginMatch(now + COUNTDOWN_MS)
@@ -790,7 +801,16 @@ class LocalRoom(
     /** The next turn: the next player round the table draws. Ends the match after the last one. */
     private fun nextDrawTurn(now: Long, random: Random, first: Boolean = false) {
         val roles = playing()
-        if (drawTurn >= drawTurns || roles.size < 2) return endMatch(null, "done")
+        // The turn just played, kept for its replay (and the sketchbook).
+        lastDrawTurn?.let { if (!it.has("strokes")) it.put("strokes", org.json.JSONArray(strokes)) }
+        if (drawTurn >= drawTurns || roles.size < 2) {
+            if (drawRaceMode == "race") {
+                val ranked = roles.map { it to (drawScores[it] ?: 0) }.sortedByDescending { it.second }
+                val tie = ranked.size > 1 && ranked[0].second == ranked[1].second
+                return endMatch(if (tie) null else ranked[0].first, if (tie) "draw" else "score")
+            }
+            return endMatch(null, "done")
+        }
         drawTurn++
         if (!first || drawer !in roles) {
             var i = inMatch.indexOf(drawer)
@@ -805,11 +825,13 @@ class LocalRoom(
         strokes = mutableListOf()
         drawClears = 0
         drawGuesses = mutableListOf()
+        drawRight = mutableListOf()
         turnEndsAt = now + DRAW_TURN_MS
     }
 
     private fun drawResult(guessed: Boolean, points: Int, guesser: String? = null) = JSONObject()
-        .put("word", drawWord).put("guessed", guessed).put("points", points).put("drawer", drawer).put("guesser", guesser ?: JSONObject.NULL)
+        .put("word", drawWord).put("guessed", guessed || drawRight.isNotEmpty()).put("points", points).put("drawer", drawer).put("guesser", guesser ?: JSONObject.NULL)
+        .put("rights", org.json.JSONArray(drawRight.toList()))
 
     private fun checkDrawing(role: String, now: Long) {
         val start = startAt
@@ -827,9 +849,24 @@ class LocalRoom(
             val pt = points.optJSONArray(i) ?: throw ApiException("Bad stroke.")
             if (pt.optDouble(0, -1.0) !in 0.0..1.0 || pt.optDouble(1, -1.0) !in 0.0..1.0) throw ApiException("Bad stroke.")
         }
-        val clean = JSONObject().put("points", points).put("color", stroke.optInt("color").coerceIn(0, 5)).put("width", if (stroke.optInt("width") == 2) 2 else 1)
+        if (stroke.optBoolean("fill") && points.length() != 1) throw ApiException("Bad stroke.")
+        val clean = JSONObject().put("points", points).put("color", stroke.optInt("color").takeIf { it in 0 until DRAW_COLORS } ?: 0)
+            .put("width", stroke.optInt("width").takeIf { it in 1..3 } ?: 1)
+        if (stroke.optBoolean("fill")) clean.put("fill", true)
+        if (stroke.optBoolean("start")) clean.put("start", true)
         strokes += clean
         return JSONObject().put("type", "stroke").put("turn", drawTurn).put("index", strokes.size - 1).put("stroke", clean)
+    }
+
+    /** The drawer takes back the last line drawn (all its pieces). As on the server (undoStroke). */
+    fun undoStroke(role: String, now: Long) {
+        checkDrawing(role, now)
+        while (strokes.isNotEmpty()) {
+            val s = strokes.removeAt(strokes.size - 1)
+            if (s.optBoolean("start") || s.optBoolean("fill")) break
+        }
+        drawClears++
+        version++
     }
 
     fun clearDrawing(role: String, now: Long) {
@@ -847,6 +884,24 @@ class LocalRoom(
         if (role !in playing()) throw ApiException("You are not in this round.")
         val text = guess.trim().take(30)
         if (text.isEmpty()) throw ApiException("Type a guess.")
+        if (drawRaceMode == "race") {
+            if (role in drawRight) throw ApiException("You got it already: wait for the others.")
+            if (text.lowercase().filter { it in 'a'..'z' } == drawWord) {
+                val points = RACE_POINTS.getOrElse(drawRight.size) { DRAWER_POINTS }
+                drawRight += role
+                drawScores[role] = (drawScores[role] ?: 0) + points
+                drawScores[drawer] = (drawScores[drawer] ?: 0) + DRAWER_POINTS
+                drawGuesses += role to RIGHT
+                if (playing().filter { it != drawer }.all { it in drawRight }) {
+                    lastDrawTurn = drawResult(guessed = true, points = points, guesser = drawRight.first())
+                    nextDrawTurn(now, random)
+                }
+            } else {
+                drawGuesses += role to text.lowercase()
+            }
+            version++
+            return
+        }
         if (text.lowercase().filter { it in 'a'..'z' } == drawWord) {
             val points = maxOf(1, ((turnEndsAt - now + 999) / 1000).toInt())
             drawScore += points
@@ -867,12 +922,15 @@ class LocalRoom(
             .put("turns", drawTurns)
             .put("drawer", if (playing) (if (mine) "me" else "opponent") else JSONObject.NULL)
             .put("drawerName", if (playing) nameOf(drawer) else JSONObject.NULL)
-            .put("word", if (playing && mine) drawWord else JSONObject.NULL)
+            .put("word", if (playing && (mine || role in drawRight)) drawWord else JSONObject.NULL)
+            .put("mode", drawRaceMode)
+            .put("gotIt", role in drawRight)
+            .put("scores", org.json.JSONArray(if (drawRaceMode != "race") emptyList() else seated().filter { drawScores[it] != null }.map { r -> JSONObject().put("name", player(r).name).put("me", r == role).put("points", drawScores[r]) }))
             .put("hint", if (playing && drawWord.isNotEmpty()) drawWord.map { if (it in 'a'..'z') '_' else it }.joinToString("") else JSONObject.NULL)
             .put("endsAt", if (playing) turnEndsAt else JSONObject.NULL)
             .put("strokes", org.json.JSONArray(if (playing) strokes else emptyList<JSONObject>()))
             .put("clears", drawClears)
-            .put("guesses", org.json.JSONArray(if (playing) drawGuesses.map { (by, w) -> JSONObject().put("by", if (by == role) "me" else "opponent").put("name", nameOf(by)).put("word", w) } else emptyList()))
+            .put("guesses", org.json.JSONArray(if (playing) drawGuesses.map { (by, w) -> JSONObject().put("by", if (by == role) "me" else "opponent").put("name", nameOf(by)).put("word", if (w == RIGHT) JSONObject.NULL else w).apply { if (w == RIGHT) put("right", true) } } else emptyList()))
             .put("score", drawScore)
             .put(
                 "lastTurn",
@@ -881,6 +939,8 @@ class LocalRoom(
                     JSONObject().put("word", it.getString("word")).put("guessed", it.getBoolean("guessed"))
                         .put("points", it.getInt("points")).put("drewIt", it.getString("drawer") == role)
                         .put("drawerName", nameOf(it.getString("drawer"))).put("guesserName", nameOf(guesser)).put("guessedIt", guesser == role)
+                        .put("strokes", it.optJSONArray("strokes") ?: org.json.JSONArray())
+                        .put("rights", org.json.JSONArray(it.optJSONArray("rights")?.let { a -> (0 until a.length()).map { k -> nameOf(a.optString(k)) } }.orEmpty()))
                 } ?: JSONObject.NULL,
             )
     }
@@ -1217,6 +1277,7 @@ class LocalRoom(
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards)
                     GameKind.CODE -> codeRules.toJson()
                     GameKind.DOTS -> JSONObject().put("board", dotsBoard)
+                    GameKind.DRAW -> JSONObject().put("mode", drawMode)
                     else -> JSONObject.NULL
                 },
             )
@@ -1311,6 +1372,11 @@ class LocalRoom(
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
+        /** Draw & Guess: pen colours (8 and the eraser), the race's points, and a right guess in the feed. */
+        const val DRAW_COLORS = 9
+        val RACE_POINTS = listOf(80, 60, 40)
+        const val DRAWER_POINTS = 20
+        private const val RIGHT = "\u0000right"
         /** How long a paused match waits for the player who paused it. */
         const val PAUSE_MS = 10 * 60_000L
         const val EMOJI_INTERVAL_MS = 1500L

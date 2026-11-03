@@ -20,7 +20,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -250,6 +250,9 @@ export class Room extends DurableObject {
           break;
         case 'clear':
           clearDrawing(this.room, role);
+          break;
+        case 'unstroke':
+          undoStroke(this.room, role);
           break;
         case 'fire':
           fire(this.room, role, msg.x, msg.y, now);

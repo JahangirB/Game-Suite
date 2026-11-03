@@ -1034,6 +1034,39 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Draw & Guess: take back your last line. It goes at once; the room's answer follows. */
+    fun undoDrawing() {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (room.draw?.drawing != true || _state.value.drawStrokes.isEmpty()) return
+        val strokes = _state.value.drawStrokes.toMutableList()
+        while (strokes.isNotEmpty()) {
+            val s = strokes.removeAt(strokes.size - 1)
+            if (s.start || s.fill) break
+        }
+        strokesClears = (room.draw?.clears ?: 0) + 1
+        _state.update { it.copy(drawStrokes = strokes) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.undoStroke(room.code, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                strokesClears = room.draw?.clears ?: 0
+                showMessage("Could not undo, try again.")
+            }
+        }
+    }
+
+    /** Draw & Guess: whoever opened the game picks the team game or the guess race; everyone gets ready again. */
+    fun setDrawRace(race: Boolean) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.drawRace == race) return
+        sendReady(room.copy(drawRace = race, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, JSONObject().put("mode", if (race) "race" else "team")) }
+    }
+
     /** Draw & Guess: guess what your partner is drawing. */
     fun guessDrawing(text: String) {
         val room = _state.value.room ?: return

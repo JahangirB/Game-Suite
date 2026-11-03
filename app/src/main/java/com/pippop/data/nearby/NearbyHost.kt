@@ -147,6 +147,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun clearDrawing(code: String, playerId: String) =
         local { clearDrawing(LocalRoom.HOST, now()) }
 
+    override suspend fun undoStroke(code: String, playerId: String) =
+        local { undoStroke(LocalRoom.HOST, now()) }
+
     override suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The game is over.", fatal = true)
         room = r.openGame(LocalRoom.HOST, game)
@@ -310,6 +313,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     return
                 }
                 "clear" -> r.clearDrawing(role!!, now)
+                "unstroke" -> r.undoStroke(role!!, now)
                 "board" -> if (r.game == GameKind.SLIDE) {
                     r.slideMoves(role!!, msg.optString("board"), now)
                 } else if (r.game == GameKind.NUMBERS) {

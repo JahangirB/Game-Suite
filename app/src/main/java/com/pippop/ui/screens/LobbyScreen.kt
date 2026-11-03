@@ -156,6 +156,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 if (room.game == GameKind.MEMORY) MemoryDeckCard(room, state.busy, vm::setMemoryCards)
                 if (room.game == GameKind.CODE) CodeRulesCard(room, state.busy, vm::setCodeRules)
                 if (room.game == GameKind.DOTS) DotsBoardCard(room, state.busy, vm::setDotsBoard)
+                if (room.game == GameKind.DRAW) DrawModeCard(room, state.busy, vm::setDrawRace)
                 if (room.game == GameKind.BLOCKS) AppCard("Help") { BlocksHintsSwitch() }
                 // Only servers that know the levels send one.
                 if (room.game == GameKind.GOLF && room.golfLevel != null) GolfLevelCard(room, state.busy, vm::setGolfLevel)
