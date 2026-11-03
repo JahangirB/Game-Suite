@@ -108,7 +108,8 @@ val GameKind.rules: String
             "out onto its start square and gives you another roll (but a third 6 in a row ends your turn). Move a token " +
             "the number rolled, clockwise round the board and up your coloured column to the centre. Land on someone " +
             "else's token to send it back to their corner, except on the start squares and stars, which are safe. You " +
-            "need the exact roll to get home. First with all four tokens home wins."
+            "need the exact roll to get home. First with all four tokens home wins. The die is fair: every roll is a secure " +
+            "random number that never looks at the board. Throw it with Roll or a swipe; Dice history in the dock counts every roll."
         GameKind.GRID -> "Sixteen letters, two minutes. Spell words by dragging through letters that touch, sideways or " +
             "corner to corner, each letter once per word, three letters or more. Words of 3-4 letters score 1, 5 letters 2, " +
             "6 letters 3, 7 letters 5 and 8 letters 11. When time is up, a word nobody else found scores double. In a " +

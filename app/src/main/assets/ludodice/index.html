@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  Ludo's dice strip, shown in a WebView by ui/screens/LudoDice.kt. A real 3D die rolls along the
+  strip and over the Roll button: left to right for your throws, right to left for everyone
+  else's. The number always comes from the game (a secure random roll, never from the board);
+  this page only works out a throw that lands on it.
+  three.min.js is three.js r128 (shared with golf3d) and cannon.min.js is cannon.js 0.6.2, both
+  under the MIT licence (see their headers).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: sans-serif; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* The strip: a felt tray the width of the screen. */
+  #strip { position: fixed; left: 4px; right: 4px; top: 4px; bottom: 4px; border-radius: 18px; border: 2.5px solid var(--ink, #2B2440); background: var(--felt, #7CB342); box-shadow: inset 0 3px 0 rgba(0,0,0,.12); touch-action: none; }
+  /* The Roll button, in the middle, under the die. */
+  #roll { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 96px; padding: 10px 18px; border-radius: 16px; border: 2.5px solid var(--ink, #2B2440); background: #FFFDF7; color: var(--ink, #2B2440); font: 900 18px sans-serif; text-align: center; box-shadow: 0 4px 0 var(--ink, #2B2440); pointer-events: none; transition: opacity .2s, transform .1s; }
+  #roll.off { opacity: .35; box-shadow: none; }
+  #roll.down { transform: translate(-50%, calc(-50% + 3px)); box-shadow: 0 1px 0 var(--ink, #2B2440); }
+  #roll small { display: block; font: 700 10px sans-serif; opacity: .7; letter-spacing: .04em; }
+  canvas { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="strip"></div>
+<div id="roll" class="off">Roll<small>OR SWIPE THE DIE</small></div>
+<canvas id="view"></canvas>
+<script>
+  window.addEventListener('error', function (e) {
+    try { window.Android.event('error ' + (e.message || 'unknown') + ' (' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || 0) + ')'); } catch (x) { /* not in the app */ }
+  });
+</script>
+<script src="../golf3d/three.min.js"></script>
+<script src="cannon.min.js"></script>
+<script src="dice.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import com.pippop.game.turns.TurnResult
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.random.Random
+import kotlin.random.asKotlinRandom
 
 /**
  * Ludo rules, matching the server (backend/cloudflare/src/ludo.js). A token's progress: -1 in
@@ -81,8 +82,12 @@ object Ludo {
     }
 }
 
-/** One Ludo game. Each result says whose turn is next. */
-class LudoMatch(val marks: List<Char>, private val random: Random = Random.Default) : TurnMatch {
+/**
+ * One Ludo game. Each result says whose turn is next. The die comes from the phone's secure
+ * random generator: it never looks at the board, and every face has the same chance every
+ * roll (tests pass their own [random]). Every roll goes in a log everyone can see.
+ */
+class LudoMatch(val marks: List<Char>, private val random: Random = fairDie) : TurnMatch {
     val colours: Map<Char, Int> = marks.zip(Ludo.coloursFor(marks.size)).toMap()
     val tokens: Map<Char, MutableList<Int>> = marks.associateWith { MutableList(4) { -1 } }
     var roll: Int? = null
@@ -90,6 +95,9 @@ class LudoMatch(val marks: List<Char>, private val random: Random = Random.Defau
     private var sixes = 0
     private var last: JSONObject? = null
     private var lastMover: Char? = null
+    /** Every roll this game, oldest first (the last [ROLL_LOG]), and how many there have been. */
+    private val rolls = ArrayDeque<Pair<Char, Int>>()
+    private var rollCount = 0
 
     private fun next(mark: Char) = marks[(marks.indexOf(mark) + 1) % marks.size]
 
@@ -97,6 +105,9 @@ class LudoMatch(val marks: List<Char>, private val random: Random = Random.Defau
         if (move.optBoolean("roll")) {
             require(roll == null) { "Move a token first." }
             val r = random.nextInt(1, 7)
+            rolls.addLast(mark to r)
+            if (rolls.size > ROLL_LOG) rolls.removeFirst()
+            rollCount++
             sixes = if (r == 6) sixes + 1 else 0
             lastMover = mark
             val l = JSONObject().put("mark", mark.toString()).put("roll", r)
@@ -150,6 +161,8 @@ class LudoMatch(val marks: List<Char>, private val random: Random = Random.Defau
             .put("colours", JSONObject().apply { for (m in marks) put(who(m).toString(), colours.getValue(m)) })
             .put("tokens", JSONObject().apply { for (m in marks) put(who(m).toString(), JSONArray(tokens.getValue(m))) })
             .put("roll", r ?: JSONObject.NULL)
+            .put("rolls", JSONArray(rolls.map { (m, n) -> "${who(m)}$n" }))
+            .put("rollCount", rollCount)
             .put("movable", JSONArray(if (r != null && lastMover == mark) Ludo.movable(tokens.getValue(mark), r) else emptyList()))
             .put(
                 "lastMove",
@@ -165,6 +178,14 @@ class LudoMatch(val marks: List<Char>, private val random: Random = Random.Defau
                         .put("stuck", it.optBoolean("stuck")).put("thirdSix", it.optBoolean("thirdSix"))
                 } ?: JSONObject.NULL,
             )
+    }
+
+    companion object {
+        /** As on the server (ludo.js ROLL_LOG). */
+        const val ROLL_LOG = 400
+
+        /** The secure generator every Ludo die uses. */
+        val fairDie: Random = java.security.SecureRandom().asKotlinRandom()
     }
 }
 
@@ -209,6 +230,10 @@ data class LudoView(
     val roll: Int?,
     val movable: List<Int>,
     val lastMove: LudoMove?,
+    /** Every roll this game, oldest first: who ('m' you) and the number. */
+    val rolls: List<Pair<Char, Int>> = emptyList(),
+    /** How many rolls there have been: going up means a new throw to show. */
+    val rollCount: Int = 0,
 ) {
     companion object {
         private fun ints(a: JSONArray?) = a?.let { (0 until it.length()).map { i -> it.optInt(i) } }.orEmpty()
@@ -222,6 +247,10 @@ data class LudoView(
                 tokens = t?.keys()?.asSequence()?.associate { it[0] to ints(t.optJSONArray(it)) }.orEmpty(),
                 roll = if (json.isNull("roll")) null else json.optInt("roll"),
                 movable = ints(json.optJSONArray("movable")),
+                rolls = json.optJSONArray("rolls")?.let { a ->
+                    (0 until a.length()).mapNotNull { k -> a.optString(k).takeIf { it.length == 2 }?.let { it[0] to it[1].digitToInt() } }
+                }.orEmpty(),
+                rollCount = json.optInt("rollCount"),
                 lastMove = last?.let {
                     LudoMove(
                         it.optString("who", "o").ifEmpty { "o" }[0], it.optInt("roll"),

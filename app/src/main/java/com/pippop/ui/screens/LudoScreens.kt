@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import androidx.compose.ui.text.font.FontWeight
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
@@ -290,10 +294,15 @@ private fun ColumnScope.LudoTable(
     onToken: (Int) -> Unit,
 ) {
     val p = AppTheme.palette
-    val canMove = myTurn && enabled
     val myColour = view.colours['m'] ?: 0
+    // The roll that's still tumbling in the strip isn't told (or played) until its die stops.
+    var landed by remember { mutableIntStateOf(view.rollCount) }
+    if (view.rollCount < landed) landed = view.rollCount
+    val rolling = view.rollCount > landed
+    val canMove = myTurn && enabled && !rolling
     TurnLine(
         when {
+            rolling -> "Rolling…"
             !myTurn -> waitingText
             view.roll == null -> "Your turn: roll the die"
             view.movable.size == 1 -> "You rolled ${view.roll}: tap your token"
@@ -302,12 +311,48 @@ private fun ColumnScope.LudoTable(
         myTurn,
         ludoColor(myColour),
     )
-    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    if (!rolling) ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
-        PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
+    LudoDiceStrip(
+        view, canRoll = canMove && view.roll == null, felt = ludoColor(myColour),
+        onRoll = onRoll, onLanded = { landed = maxOf(landed, it) },
+    )
+}
+
+/**
+ * Dice history: how often each number has come up this game, for everyone and for each player,
+ * and the last rolls in order. The die is a fair secure random number, so over a game each face
+ * comes up about a sixth of the time.
+ */
+@Composable
+fun DiceHistory(view: LudoView, name: (Char) -> String) {
+    val p = AppTheme.palette
+    val rolls = view.rolls
+    if (rolls.isEmpty()) {
+        Text("No rolls yet.", color = p.muted, fontSize = TextSize.Body)
+        return
     }
+    @Composable
+    fun counts(label: String, of: List<Int>) {
+        Text("$label · ${of.size} rolls", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            (1..6).forEach { n ->
+                val c = of.count { it == n }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    DieFace(n, Modifier.size(30.dp))
+                    Text("$c", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+                    Text(if (of.isEmpty()) "" else "${(100 * c + of.size / 2) / of.size}%", color = p.muted, fontSize = TextSize.Micro)
+                }
+            }
+        }
+    }
+    counts("Everyone", rolls.map { it.second })
+    rolls.map { it.first }.distinct().sortedBy { "mopq".indexOf(it) }.forEach { who ->
+        counts(name(who), rolls.filter { it.first == who }.map { it.second })
+    }
+    Text("A fair die: each number has the same chance on every roll, about 17%. Over a few rolls the counts wander; over a whole game they even out.", color = p.muted, fontSize = TextSize.Label)
+    Text("LAST ROLLS, NEWEST FIRST", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+    Text(rolls.takeLast(30).reversed().joinToString("  ") { (w, n) -> "${name(w).take(3)} $n" }, color = p.text, fontSize = TextSize.Body)
 }
 
 /** Tokens home out of four, for the chips. */
@@ -329,6 +374,8 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char) = if (mark == 'm') "You" else room.others.getOrNull("opq".indexOf(mark))?.name ?: "Someone"
     val turnName = turns.turnName ?: room.opponent?.name
+    var showDice by remember { mutableStateOf(false) }
+    if (showDice) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
 
     GameFrame(
         title = "Ludo",
@@ -341,6 +388,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         ),
         glow = GameKind.LUDO.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Dice history", GameIcons.History, badge = view.rollCount) { showDice = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -381,6 +429,8 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
     val view = state.view
     val result = state.result
     fun name(mark: Char) = if (mark == 'm') "You" else "Computer " + ("opq".indexOf(mark) + 1)
+    var showDice by remember { mutableStateOf(false) }
+    if (showDice && view != null) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
     GameFrame(
         title = "Ludo",
         subtitle = "Against the computer",
@@ -389,6 +439,7 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
         },
         glow = GameKind.LUDO.color,
         menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
+        tools = if (view == null) emptyList() else listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
         scrollable = view == null,
         popup = if (view == null || result == null) null else popupContent {
             SoloPopup(

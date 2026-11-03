@@ -50,4 +50,21 @@ class LudoTest {
             assertTrue(m.tokens.getValue(winner!!).all { it == Ludo.HOME })
         }
     }
+
+    @Test
+    fun theSecureDieIsFair() {
+        val counts = IntArray(6)
+        repeat(60_000) { counts[LudoMatch.fairDie.nextInt(1, 7) - 1]++ }
+        counts.forEach { assertTrue("face count $it", kotlin.math.abs(it - 10_000) < 500) }
+    }
+
+    @Test
+    fun everyRollIsLoggedForEveryoneToSee() {
+        val m = LudoMatch(listOf('h', 'g'), Random(3))
+        m.play('h', org.json.JSONObject().put("roll", true))
+        val view = LudoView.from(m.view('g', mapOf('h' to 'o')))
+        assertEquals(1, view.rollCount)
+        assertEquals('o', view.rolls.single().first)
+        assertTrue(view.rolls.single().second in 1..6)
+    }
 }

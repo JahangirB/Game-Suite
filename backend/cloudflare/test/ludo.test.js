@@ -70,3 +70,19 @@ test('a full game in a room ends with a winner', () => {
   assert.equal(room.status, 'finished');
   assert.equal(room.endReason, 'home');
 });
+
+test('the die is fair: each face about a sixth of 60,000 secure rolls', () => {
+  const counts = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < 60000; i++) counts[Math.floor(ludo.secureRandom() * 6)]++;
+  for (const c of counts) assert.ok(Math.abs(c - 10000) < 500, `face count ${c}`);
+});
+
+test('every roll goes in the dice log, which everyone sees', () => {
+  const s = ludo.start(Math.random, ['h', 'g']);
+  ludo.play(s, 'h', { roll: true }, () => 0.4);
+  ludo.play(s, 'g', { roll: true }, () => 0.99);
+  ludo.play(s, 'g', { token: 0 });
+  const v = ludo.view(s, 'g', { h: 'o' });
+  assert.deepEqual(v.rolls, ['o3', 'm6']);
+  assert.equal(v.rollCount, 2);
+});

@@ -53,7 +53,8 @@ interface TurnMatch {
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
-            GameKind.LUDO -> LudoMatch(marks, random)
+            // Ludo's die always comes from the secure generator, never the room's random.
+            GameKind.LUDO -> LudoMatch(marks)
             GameKind.BALLOON -> BalloonMatch(marks)
             GameKind.GOLF -> GolfMatch(marks, Courses.pick(golfLevel, random))
             GameKind.BLOCKS -> BlocksMatch(marks)

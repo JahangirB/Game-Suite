@@ -44,10 +44,26 @@ export function movable(state, mark, roll) {
 const next = (state, mark) => state.marks[(state.marks.indexOf(mark) + 1) % state.marks.length];
 const result = (turn) => ({ again: false, over: false, winner: null, reason: null, turn });
 
-export function play(state, mark, move, random = Math.random) {
+/**
+ * A fair number in [0, 1) from the platform's secure generator (Web Crypto, in Workers and
+ * Node). The die never looks at the board: every face has the same chance on every roll.
+ */
+export function secureRandom() {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return a[0] / 2 ** 32;
+}
+
+/** How many rolls the dice log keeps (the whole of a long game). */
+export const ROLL_LOG = 400;
+
+export function play(state, mark, move, random = secureRandom) {
   if (move?.roll) {
     if (state.roll != null) throw new Error('Move a token first.');
     const roll = 1 + Math.floor(random() * 6);
+    // Every roll goes in the dice log, so anyone can check the numbers (Menu → Dice history).
+    state.rolls = [...(state.rolls || []), [mark, roll]].slice(-ROLL_LOG);
+    state.rollCount = (state.rollCount || 0) + 1;
     state.sixes = roll === 6 ? state.sixes + 1 : 0;
     state.last = { mark, roll };
     if (state.sixes === 3) {
@@ -101,6 +117,9 @@ export function view(state, mark, seats = {}) {
     colours: Object.fromEntries(state.marks.map((m) => [who(m), state.colours[m]])),
     tokens: Object.fromEntries(state.marks.map((m) => [who(m), state.tokens[m]])),
     roll: state.roll,
+    // Every roll this game, oldest first, as who and number ('m6'), and how many so far.
+    rolls: (state.rolls || []).map(([m, r]) => who(m) + r),
+    rollCount: state.rollCount || 0,
     // The tokens you may move with the roll you just made.
     movable: state.roll != null && state.last?.mark === mark ? movable(state, mark, state.roll) : [],
     lastMove: last ? {
