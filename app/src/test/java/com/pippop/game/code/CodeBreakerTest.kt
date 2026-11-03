@@ -41,4 +41,16 @@ class CodeBreakerTest {
         assertEquals("opponent", end.winner)
         assertEquals("rrgg", end.codeGame!!.theirCode)
     }
+
+    @Test
+    fun harderCodesFiveColoursSevenNoRepeats() {
+        val hard = CodeRules(pegs = 5, colours = 7, repeats = false)
+        org.junit.Assert.assertNull(hard.problem("rygbc"))
+        org.junit.Assert.assertNotNull(hard.problem("rygb"))
+        org.junit.Assert.assertNotNull(hard.problem("rrgbc"))
+        org.junit.Assert.assertNotNull(CodeRules().problem("rygbc"))
+        org.junit.Assert.assertEquals(3 to 2, CodeBreaker.score("rygbc", "cygbr"))
+        repeat(50) { org.junit.Assert.assertTrue(hard.isCode(hard.random(kotlin.random.Random(it)))) }
+        org.junit.Assert.assertEquals(hard, CodeRules.from(hard.toJson()))
+    }
 }

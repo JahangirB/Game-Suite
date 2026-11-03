@@ -95,6 +95,8 @@ object Pieces {
     val Purple = Color(0xFF7B6CF0)
     val Orange = Color(0xFFFF8A3D)
     val Pink = Color(0xFFEC6FA9)
+    /** Code Breaker's seventh colour, in the harder setting. */
+    val Teal = Color(0xFF14B8A6)
     /** The gold card behind Memory's extra pictures in the big deck. */
     val Gold = Color(0xFFF5C451)
 }

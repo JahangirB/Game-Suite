@@ -396,7 +396,7 @@ fun Modifier.sheetBottom() = this.navigationBarsPadding()
 fun hasOptions(room: RoomState) = when (room.game) {
     GameKind.DOMINOES, GameKind.NUMBERS, GameKind.WORDS, GameKind.SLIDE, GameKind.TTT, GameKind.SUDOKU -> true
     GameKind.GOLF -> room.golfLevel != null
-    GameKind.BLOCKS, GameKind.MEMORY -> true
+    GameKind.BLOCKS, GameKind.MEMORY, GameKind.CODE -> true
     else -> false
 }
 
@@ -412,6 +412,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.GOLF -> if (room.golfLevel != null) GolfLevelCard(room, busy, vm::setGolfLevel)
         GameKind.BLOCKS -> AppCard("Help") { BlocksHintsSwitch() }
         GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards)
+        GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.SUDOKU -> AppCard("Level") {
             Text("Tap a level: the next round starts when you both pick the same one.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)
@@ -429,6 +430,7 @@ fun modeLabel(room: RoomState): String? = when (room.game) {
     GameKind.TTT -> if (room.tttClassic) "Classic 3 × 3" else "Ultimate"
     GameKind.GOLF -> room.golfLevel?.label
     GameKind.MEMORY -> "${room.memoryCards} cards"
+    GameKind.CODE -> room.codeRules.label
     GameKind.DOMINOES -> room.options?.let { (if (it.teams) "Teams" else "Each for their own") + " · " + (if (it.draw) "Draw" else "Block") + " · to ${it.target}" }
     else -> null
 }

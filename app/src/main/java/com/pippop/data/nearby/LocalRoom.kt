@@ -114,6 +114,8 @@ class LocalRoom(
         private set
     /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
     var tttClassic = false
+    /** Code Breaker's settings. */
+    var codeRules = com.pippop.game.code.CodeRules()
     /** Memory Pairs' deck size. */
     var memoryCards = com.pippop.game.memory.MemoryMatch.CARDS
         private set
@@ -355,6 +357,7 @@ class LocalRoom(
             GameKind.SLIDE -> slideLevel = SlideLevel.from(options.optString("level"))
             GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
             GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
+            GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
             else -> throw ApiException("This game has no options.")
         }
@@ -682,7 +685,7 @@ class LocalRoom(
         val me = player(role)
         if (role !in playing()) throw ApiException("You are not in this round.")
         val c = text.lowercase()
-        if (!CodeBreaker.isCode(c)) throw ApiException("A code is ${CodeBreaker.PEGS} pegs, each one of the six colours.")
+        codeRules.problem(c)?.let { throw ApiException(it) }
         if (codePhase == "set") {
             if (me.code != null) throw ApiException("Your code is set.")
             me.code = c
@@ -698,7 +701,7 @@ class LocalRoom(
         val target = others(role).firstOrNull { it in playing() }?.let { player(it).code } ?: throw ApiException("The game is not running.")
         val (black, white) = CodeBreaker.score(c, target)
         me.guesses = me.guesses + (c to "$black$white")
-        if (black == CodeBreaker.PEGS) {
+        if (black == codeRules.pegs) {
             me.solved = true
             me.finishedAt = now
         } else if (me.guesses.size >= CodeBreaker.TRIES) {
@@ -720,6 +723,7 @@ class LocalRoom(
         return JSONObject()
             .put("phase", codePhase)
             .put("tries", CodeBreaker.TRIES)
+            .put("pegs", codeRules.pegs).put("colours", codeRules.colours).put("repeats", codeRules.repeats)
             .put("myCode", me.code ?: JSONObject.NULL)
             .put("theySet", other?.code != null)
             .put("mine", rows(me, true))
@@ -1208,6 +1212,7 @@ class LocalRoom(
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards)
+                    GameKind.CODE -> codeRules.toJson()
                     else -> JSONObject.NULL
                 },
             )

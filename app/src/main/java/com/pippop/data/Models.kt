@@ -165,6 +165,8 @@ data class CodeView(
     val meDone: Boolean,
     val theyDone: Boolean,
     val theirCode: String?,
+    /** The match's settings (4 pegs, 6 colours, repeats allowed from servers that don't say). */
+    val rules: com.pippop.game.code.CodeRules = com.pippop.game.code.CodeRules(),
 )
 
 /** One word in a Letter Grid result: unique words (found by nobody else) score double. */
@@ -337,6 +339,8 @@ data class RoomState(
     val golfLevel: GolfLevel? = null,
     /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
     val memoryCards: Int = 16,
+    /** Code Breaker: the settings the opener picked. */
+    val codeRules: com.pippop.game.code.CodeRules = com.pippop.game.code.CodeRules(),
     /** Whether this player sets the open game's options: whoever opened it (the host at first). */
     val setsOptions: Boolean = role == "host",
     /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
@@ -395,6 +399,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    codeRules = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.CODE }?.let { com.pippop.game.code.CodeRules.from(it) } ?: com.pippop.game.code.CodeRules(),
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
     golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
@@ -483,6 +488,7 @@ private fun parseCode(json: JSONObject): CodeView {
         meDone = json.optBoolean("meDone"),
         theyDone = json.optBoolean("theyDone"),
         theirCode = json.stringOrNull("theirCode"),
+        rules = com.pippop.game.code.CodeRules.from(json),
     )
 }
 

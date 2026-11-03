@@ -39,3 +39,13 @@ test('both set a code, then race to crack the other one', () => {
   assert.equal(end.winner, 'opponent');
   assert.equal(end.codeGame.theirCode, 'rrgg');
 });
+
+test('harder codes: five pegs, a seventh colour, no repeats', () => {
+  const hard = { pegs: 5, colours: 7, repeats: false };
+  assert.equal(code.cleanCode('rygbc', hard), 'rygbc');
+  assert.throws(() => code.cleanCode('rygb', hard), /5 pegs/);
+  assert.throws(() => code.cleanCode('rrgbc', hard), /No repeats/);
+  assert.throws(() => code.cleanCode('rygbc'), /4 pegs/);
+  assert.deepEqual(code.score('rygbc', 'cygbr'), { black: 3, white: 2 });
+  assert.deepEqual(code.cleanOptions({ pegs: 9, colours: 3 }), { pegs: 4, colours: 6, repeats: true });
+});

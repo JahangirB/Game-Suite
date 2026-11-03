@@ -387,6 +387,7 @@ export function setOptions(room, role, options) {
   else if (room.game === 'ttt') room.options = ttt.cleanOptions(options);
   else if (room.game === 'golf') room.options = golf.cleanOptions(options);
   else if (room.game === 'memory') room.options = memory.cleanOptions(options);
+  else if (room.game === 'code') room.options = codeGame.cleanOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -610,7 +611,7 @@ export function codeMove(room, role, text, now) {
   if (!playing(room).includes(role)) throw new GameError('You are not in this round.');
   let c;
   try {
-    c = codeGame.cleanCode(text);
+    c = codeGame.cleanCode(text, room.options || {});
   } catch (e) {
     throw new GameError(e.message);
   }
@@ -630,7 +631,7 @@ export function codeMove(room, role, text, now) {
   if (!target) throw new GameError('The game is not running.');
   const pegs = codeGame.score(c, target);
   me.guesses.push({ word: c, ...pegs });
-  if (pegs.black === codeGame.PEGS) {
+  if (pegs.black === codeGame.cleanOptions(room.options).pegs) {
     me.solved = true;
     me.finishedAt = now;
   } else if (me.guesses.length >= codeGame.TRIES) {
@@ -648,6 +649,7 @@ function codeView(room, role, status) {
   return {
     phase: room.codePhase || 'set',
     tries: codeGame.TRIES,
+    ...codeGame.cleanOptions(room.options),
     myCode: me.code || null,
     theySet: !!other?.code,
     mine: rows(me, true),
@@ -1324,7 +1326,7 @@ export function view(room, role, now) {
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

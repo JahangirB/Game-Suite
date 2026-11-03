@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.ui.draw.alpha
+import com.pippop.game.code.CodeRules
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +69,7 @@ fun pegColor(c: Char): Color = when (c) {
     'b' -> Pieces.Blue
     'p' -> Pieces.Purple
     'o' -> Pieces.Orange
+    'c' -> Pieces.Teal
     else -> Color.LightGray
 }
 
@@ -111,7 +114,7 @@ private fun ScorePegs(black: Int, white: Int) {
 
 /** Guesses so far, newest at the bottom; [hidden] shows only the score pegs (the other player's guesses). */
 @Composable
-internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) {
+internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier, pegs: Int = CodeBreaker.PEGS) {
     // A scored guess: a click for each red pin, then each white one, and a lock springing open when cracked.
     SoundOnChange(guesses.size.takeIf { it > 0 }) {
         val g = guesses.last()
@@ -123,13 +126,13 @@ internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier) 
             play(Sound.CODE_PIN_WHITE)
             delay(120)
         }
-        if (g.black == CodeBreaker.PEGS) play(Sound.CODE_CRACKED)
+        if (g.black == pegs) play(Sound.CODE_CRACKED)
     }
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         guesses.forEachIndexed { i, g ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${i + 1}", color = AppTheme.palette.muted, fontSize = TextSize.Label, modifier = Modifier.width(18.dp))
-                for (k in 0 until CodeBreaker.PEGS) Peg(g.code?.getOrNull(k), 26.dp)
+                for (k in 0 until pegs) Peg(g.code?.getOrNull(k), 26.dp)
                 ScorePegs(g.black, g.white)
             }
         }
@@ -174,19 +177,22 @@ private fun pinsMeaning(red: Int, white: Int): String {
 
 /** Four holes to fill from the colour buttons, with Clear and the send button. */
 @Composable
-private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit, clearKey: Int = 0, clearButton: Boolean = true) {
+private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit, clearKey: Int = 0, clearButton: Boolean = true, rules: CodeRules = CodeRules()) {
     var code by remember { mutableStateOf("") }
     // The dock's Clear row empties it from outside.
     LaunchedEffect(clearKey) { if (clearKey > 0) code = "" }
     val sfx = rememberSfx()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        // 48 dp pegs: big enough to hit with a thumb.
+        // 48 dp pegs: big enough to hit with a thumb (42 with seven colours, so they fit across).
+        val pegSize = if (rules.colours > 6) 42.dp else 48.dp
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (k in 0 until CodeBreaker.PEGS) Peg(code.getOrNull(k), 48.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
+            for (k in 0 until rules.pegs) Peg(code.getOrNull(k), 48.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CodeBreaker.COLOURS.forEach { c ->
-                Peg(c, 48.dp, Modifier.clickable(enabled = enabled && code.length < CodeBreaker.PEGS) {
+            rules.palette.forEach { c ->
+                // No repeats: a colour already in the code can't be used again.
+                val free = rules.repeats || c !in code
+                Peg(c, pegSize, Modifier.alpha(if (free) 1f else 0.3f).clickable(enabled = enabled && free && code.length < rules.pegs) {
                     sfx.play(Sound.CODE_PEG)
                     code += c
                 })
@@ -194,7 +200,7 @@ private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> U
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (clearButton) SecondaryButton("Clear", { code = "" }, Modifier.weight(1f), enabled = enabled && code.isNotEmpty())
-            PrimaryButton(sendLabel, { onSend(code); code = "" }, Modifier.weight(1f), enabled = enabled && code.length == CodeBreaker.PEGS)
+            PrimaryButton(sendLabel, { onSend(code); code = "" }, Modifier.weight(1f), enabled = enabled && code.length == rules.pegs)
         }
     }
 }
@@ -217,7 +223,8 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var clearKey by remember { mutableIntStateOf(0) }
     GameFrame(
         title = "Code Breaker",
-        subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
+        // Harder settings show as a badge for both players.
+        subtitle = "Game ${room.round}" + (if (code.rules.harder) " · ${code.rules.label}" else "") + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, now, p.primary, detail = { _, isMe ->
             val n = if (isMe) code.mine.size else code.theirs.size
             if (code.phase == "set") (if (isMe) (if (code.myCode != null) "Code set" else "Setting…") else if (code.theySet) "Code set" else "Setting…")
@@ -254,7 +261,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             code.phase == "set" && code.myCode == null -> {
                 TurnLine("Set a secret code for $name to crack", true, GameKind.CODE.color)
                 Box(Modifier.weight(1f))
-                CodeEntry(!state.firing, "Set my code", vm::sendCode, clearKey = clearKey, clearButton = false)
+                CodeEntry(!state.firing, "Set my code", vm::sendCode, clearKey = clearKey, clearButton = false, rules = code.rules)
             }
             code.phase == "set" -> {
                 TurnLine("Waiting for $name to set their code…", false)
@@ -274,14 +281,14 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     !countdown && !code.meDone, GameKind.CODE.color,
                 )
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    GuessRows(code.mine, Modifier.weight(1f))
+                    GuessRows(code.mine, Modifier.weight(1f), pegs = code.rules.pegs)
                     // Their progress: only the scores, never their guesses.
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(name, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                         code.theirs.forEach { ScorePegs(it.black, it.white) }
                     }
                 }
-                CodeEntry(!countdown && !code.meDone && !state.firing && !finished, "Guess", vm::sendCode, clearKey = clearKey, clearButton = false)
+                CodeEntry(!countdown && !code.meDone && !state.firing && !finished, "Guess", vm::sendCode, clearKey = clearKey, clearButton = false, rules = code.rules)
             }
         }
     }
@@ -306,7 +313,7 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
                 game = GameKind.CODE,
                 outcome = if (state.solved) Outcome.WIN else Outcome.LOSE,
                 title = if (state.solved) "Cracked in ${state.guesses.size}!" else "Out of guesses",
-                detail = "The code was " + state.secret.map { mapOf('r' to "red", 'y' to "yellow", 'g' to "green", 'b' to "blue", 'p' to "purple", 'o' to "orange")[it] }.joinToString(", ") + ".",
+                detail = "The code was " + state.secret.map { mapOf('r' to "red", 'y' to "yellow", 'g' to "green", 'b' to "blue", 'p' to "purple", 'o' to "orange", 'c' to "teal")[it] }.joinToString(", ") + ".",
                 finish = PopupAction("Home", onHome),
                 again = PopupAction("New code", vm::start),
             )
@@ -319,12 +326,37 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
                     color = p.muted, fontSize = TextSize.Body,
                 )
                 CodeExamples()
+                CodeRulesPicker(state.rules, enabled = true, onChange = vm::setRules)
                 PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
             }
         } else {
-            TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}", !state.done, GameKind.CODE.color)
-            GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth())
-            CodeEntry(!state.done, "Guess", vm::guess)
+            TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
+            GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth(), pegs = state.rules.pegs)
+            CodeEntry(!state.done, "Guess", vm::guess, rules = state.rules)
         }
+    }
+}
+
+/** Code Breaker's settings: code length, colours, and whether colours can repeat. */
+@Composable
+fun CodeRulesPicker(rules: CodeRules, enabled: Boolean, onChange: (CodeRules) -> Unit) {
+    val p = AppTheme.palette
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Pegs", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+        OptionGroup(listOf(4 to "4 pegs", 5 to "5 pegs"), rules.pegs, enabled = enabled) { onChange(rules.copy(pegs = it)) }
+        Text("Colours", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+        OptionGroup(listOf(6 to "6 colours", 7 to "7 colours"), rules.colours, enabled = enabled) { onChange(rules.copy(colours = it)) }
+        Text("Repeats", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+        OptionGroup(listOf(true to "Allowed", false to "None"), rules.repeats, enabled = enabled) { onChange(rules.copy(repeats = it)) }
+    }
+}
+
+/** The settings card in the lobby and the Change sheet: picked by whoever opened the game. */
+@Composable
+fun CodeRulesCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (CodeRules) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("Code") {
+        if (room.setsOptions) CodeRulesPicker(room.codeRules, enabled = !busy, onChange = onPick)
+        else Text("${room.codeRules.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
     }
 }

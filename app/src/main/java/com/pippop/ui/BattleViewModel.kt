@@ -843,6 +843,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Code Breaker: whoever opened the game picks the settings (pegs, colours, repeats); everyone gets ready again. */
+    fun setCodeRules(rules: com.pippop.game.code.CodeRules) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.codeRules == rules) return
+        sendReady(room.copy(codeRules = rules, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, rules.toJson()) }
+    }
+
     /** Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. */
     fun setMemoryCards(cards: Int) {
         val room = _state.value.room ?: return
@@ -1281,7 +1288,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         val id = playerId ?: return
         val b = backend ?: return
-        if (_state.value.firing || (room.game == GameKind.CODE && !CodeBreaker.isCode(code))) return
+        if (_state.value.firing || (room.game == GameKind.CODE && !(room.codeGame?.rules ?: room.codeRules).isCode(code))) return
         _state.update { it.copy(firing = true) }
         viewModelScope.launch {
             try {
