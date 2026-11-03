@@ -68,4 +68,18 @@ class BoardStateTest {
         val clash = board.place(1, 5) // same row as the given 5
         assertEquals(setOf(0, 1), clash.conflicts())
     }
+
+    @Test
+    fun pencilHelperFillsWhatEachSquareCouldStillBe() {
+        // The given 5 sits at 0; square 1 shares its row, square 80 shares nothing.
+        val one = board.fillNotes(1)
+        assertEquals(listOf(1, 2, 3, 4, 6, 7, 8, 9), one.noteDigits(1))
+        val all = board.fillAllNotes()
+        assertEquals((1..9).toList(), all.noteDigits(80))
+        assertEquals(emptyList<Int>(), all.noteDigits(0))
+        // Placing a digit rubs it out of its peers' marks; undo brings the marks back.
+        val placed = all.place(80, 7)
+        assertEquals(listOf(1, 2, 3, 4, 5, 6, 8, 9), placed.noteDigits(79))
+        assertEquals((1..9).toList(), placed.undo().noteDigits(79))
+    }
 }

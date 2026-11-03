@@ -64,6 +64,7 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
     fun enter(digit: Int) = update { it.enter(digit) }
     fun erase() = update { it.enter(0) }
     fun undo() = update { it.undo() }
+    fun fillNotes(index: Int?) = update { it.fillNotes(index) }
     fun hint() = update { it.hint() }
 
     fun pause() = update { it.pause() }

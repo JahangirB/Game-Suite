@@ -1065,6 +1065,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun erase() = enterDigit(0)
 
+    /** The pencil-mark helper: pencils in what square [index] could be (a long press), or every empty square (null). */
+    fun fillNotes(index: Int?) {
+        val s = _state.value
+        val board = s.board ?: return
+        if (!s.canEdit()) return
+        val updated = if (index == null) board.fillAllNotes() else board.fillNotes(index)
+        if (updated === board) return
+        _state.update { it.copy(board = updated, selected = index ?: it.selected) }
+        syncNow.trySend(Unit)
+    }
+
     // ---- Air Hockey: real time ----------------------------------------------------------------
     //
     // The host's phone runs the table (it is the bottom player) and sends where everything is

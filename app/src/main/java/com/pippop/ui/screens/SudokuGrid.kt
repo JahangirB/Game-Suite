@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import androidx.compose.animation.core.Animatable
@@ -43,6 +45,7 @@ import kotlin.math.abs
  * The 9x9 board. [hidden] blanks it (countdown or pause) so nobody gets a head start.
  * [errors] are drawn in red; [solution], when given, is shown for cells that were not solved.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SudokuGrid(
     board: BoardState,
@@ -52,6 +55,8 @@ fun SudokuGrid(
     solution: List<Int>?,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** A long press on a square: the pencil-mark helper fills in what it could be. */
+    onLongPress: ((Int) -> Unit)? = null,
 ) {
     val p = AppTheme.palette
     // A pencil tap for each digit placed, and the gentle bonk when one clashes.
@@ -120,10 +125,11 @@ fun SudokuGrid(
                                 .background(background)
                                 // The selected square also gets a coral ring, so it never hangs on its fill alone.
                                 .then(if (!hidden && index == selected) Modifier.border(2.dp, p.primary) else Modifier)
-                                .clickable(
+                                .combinedClickable(
                                     enabled = !hidden,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
+                                    onLongClick = onLongPress?.let { { it(index) } },
                                 ) { onSelect(index) },
                         ) {
                             when {

@@ -69,4 +69,23 @@ class BlocksTest {
         assertEquals('o', bob.blocks!!.at(4, 4))
         assertEquals(20, bob.blocks!!.left['o']!!.size)
     }
+
+    @Test
+    fun whereCanIGoLightsTheStartThenTheCorners() {
+        val m = BlocksMatch(listOf('h', 'g'))
+        val first = BlocksView.from(m.view('h', mapOf('g' to 'o')))
+        assertEquals(listOfNotNull(first.starts['m']), first.targets())
+        assertTrue(first.fitsAt(0).isNotEmpty())
+        m.play('h', move(7, 0, 3, 3))
+        m.play('g', move(7, 0, 9, 9))
+        val v = BlocksView.from(m.view('h', mapOf('g' to 'o')))
+        // Every lit corner touches one of yours at a corner and none along a side.
+        assertTrue(v.targets().isNotEmpty())
+        for ((x, y) in v.targets()) {
+            assertEquals('.', v.at(x, y))
+            assertFalse(listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).any { (dx, dy) -> v.at(x + dx, y + dy) == 'm' })
+        }
+        // The single square fits at every lit corner.
+        assertEquals(v.targets().toSet(), v.fitsAt(0))
+    }
 }

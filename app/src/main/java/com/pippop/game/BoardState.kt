@@ -38,6 +38,32 @@ data class BoardState(
         return copy(notes = newNotes, history = pushed())
     }
 
+    /** The digits [index] could still be: none of its row, column or box has them. */
+    fun candidates(index: Int): Int {
+        if (cells[index] != 0) return 0
+        var mask = (1 shl 9) - 1
+        for (peer in 0 until Sudoku.CELLS) {
+            val d = cells[peer]
+            if (d != 0 && peer != index && Sudoku.arePeers(index, peer)) mask = mask and (1 shl (d - 1)).inv()
+        }
+        return mask
+    }
+
+    /** Pencils in every digit [index] could still be (the pencil-mark helper's long press). */
+    fun fillNotes(index: Int): BoardState {
+        if (givens[index] || cells[index] != 0) return this
+        val mask = candidates(index)
+        if (notes[index] == mask) return this
+        return copy(notes = notes.toMutableList().also { it[index] = mask }, history = pushed())
+    }
+
+    /** Pencils in the possible digits of every empty square at once ("Fill all"). */
+    fun fillAllNotes(): BoardState {
+        val filled = cells.indices.map { if (cells[it] == 0) candidates(it) else 0 }
+        if (filled == notes) return this
+        return copy(notes = filled, history = pushed())
+    }
+
     fun undo(): BoardState {
         val last = history.lastOrNull() ?: return this
         return copy(cells = last.cells, notes = last.notes, history = history.dropLast(1))

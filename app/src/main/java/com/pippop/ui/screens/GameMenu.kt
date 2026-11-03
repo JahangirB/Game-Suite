@@ -396,6 +396,7 @@ fun Modifier.sheetBottom() = this.navigationBarsPadding()
 fun hasOptions(room: RoomState) = when (room.game) {
     GameKind.DOMINOES, GameKind.NUMBERS, GameKind.WORDS, GameKind.SLIDE, GameKind.TTT, GameKind.SUDOKU -> true
     GameKind.GOLF -> room.golfLevel != null
+    GameKind.BLOCKS -> true
     else -> false
 }
 
@@ -409,6 +410,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.SLIDE -> SlideLevelCard(room, busy, vm::setSlideLevel)
         GameKind.TTT -> TttModeCard(room, busy, vm::setTttClassic)
         GameKind.GOLF -> if (room.golfLevel != null) GolfLevelCard(room, busy, vm::setGolfLevel)
+        GameKind.BLOCKS -> AppCard("Help") { BlocksHintsSwitch() }
         GameKind.SUDOKU -> AppCard("Level") {
             Text("Tap a level: the next round starts when you both pick the same one.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)

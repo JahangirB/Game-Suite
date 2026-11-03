@@ -110,6 +110,7 @@ fun SoloScreen(
             DockTool(if (paused) "Resume" else "Pause", if (paused) Icons.Filled.PlayArrow else GameIcons.Pause, enabled = game.isActive) {
                 if (paused) vm.resume() else vm.pause()
             },
+            DockTool("Fill all", GameIcons.FillAll, enabled = game.isActive && !paused) { vm.fillNotes(null) },
         ),
         trailing = {
             Text(style = Digits, text = formatDuration(game.elapsedMs), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -146,6 +147,7 @@ fun SoloScreen(
                 hidden = paused,
                 solution = null,
                 onSelect = vm::select,
+                onLongPress = vm::fillNotes,
             )
             if (paused) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {

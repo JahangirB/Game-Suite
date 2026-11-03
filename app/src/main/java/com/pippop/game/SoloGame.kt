@@ -46,6 +46,10 @@ data class SoloGame(
 
     fun undo() = if (status == SoloStatus.PLAYING) copy(board = board.undo()) else this
 
+    /** The pencil-mark helper: every digit square [index] could be (a long press), or every empty square's. */
+    fun fillNotes(index: Int?) = if (status != SoloStatus.PLAYING) this
+    else copy(board = if (index == null) board.fillAllNotes() else board.fillNotes(index), selected = index ?: selected)
+
     /** Reveals the right digit in the selected cell, or in the first empty or wrong cell. */
     fun hint(): SoloGame {
         if (status != SoloStatus.PLAYING || hintsLeft == 0) return this

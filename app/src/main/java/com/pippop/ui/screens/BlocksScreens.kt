@@ -1,5 +1,16 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.Column
+
+import com.pippop.ui.theme.loopingFloat
+
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.ui.draw.alpha
+import com.pippop.data.ProfileStore
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
@@ -56,8 +67,17 @@ import com.pippop.ui.theme.AppTheme
 
 /** The board: everyone's squares, empty start squares ringed, the last piece outlined and [preview]. */
 @Composable
-internal fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previewOk: Boolean, onTap: ((Int, Int) -> Unit)?, modifier: Modifier = Modifier) {
+internal fun BlocksBoard(
+    view: BlocksView,
+    preview: List<Pair<Int, Int>>?,
+    previewOk: Boolean,
+    onTap: ((Int, Int) -> Unit)?,
+    modifier: Modifier = Modifier,
+    /** "Where can I go?": the corners a piece of yours can build from, each with a pulsing dot. */
+    spots: Set<Pair<Int, Int>> = emptySet(),
+) {
     val p = AppTheme.palette
+    val pulse by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), still = 0.8f, label = "spots")
     // The piece just placed drops onto the board from above and settles; earlier ones stay put.
     val land = remember { Animatable(1f) }
     val sfx = rememberSfx()
@@ -116,6 +136,9 @@ internal fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previ
         view.starts.forEach { (m, s) ->
             if (view.at(s.first, s.second) == '.') drawCircle(markColor(m), c * 0.3f, Offset((s.first + 0.5f) * c, (s.second + 0.5f) * c), style = Stroke(c * 0.12f))
         }
+        spots.forEach { (x, y) ->
+            drawCircle(markColor('m').copy(alpha = 0.35f + 0.5f * pulse), c * (0.16f + 0.06f * pulse), Offset((x + 0.5f) * c, (y + 0.5f) * c))
+        }
         if (!landing) view.lastCells.forEach { (x, y) ->
             drawRoundRect(p.ink, Offset(x * c + c * 0.06f, y * c + c * 0.06f), Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f), style = Stroke(c * 0.1f))
         }
@@ -132,22 +155,24 @@ internal fun BlocksBoard(view: BlocksView, preview: List<Pair<Int, Int>>?, previ
 
 /** A piece drawn small, for the tray. */
 @Composable
-private fun PieceIcon(piece: Int, orient: Int, color: Color, selected: Boolean, onClick: () -> Unit) {
+private fun PieceIcon(piece: Int, orient: Int, color: Color, selected: Boolean, noRoom: Boolean = false, onClick: () -> Unit) {
     val p = AppTheme.palette
     val cells = Blocks.shape(piece, orient)
     Surface(
         color = if (selected) p.accent else p.card,
         shape = Shapes.S,
         border = BorderStroke(if (selected) 3.dp else 2.dp, if (selected) p.primary else p.ink),
-        modifier = Modifier.size(52.dp).clickable(onClick = onClick),
+        modifier = Modifier.size(52.dp).alpha(if (noRoom) 0.4f else 1f).clickable(onClick = onClick),
     ) {
+        // A piece that fits nowhere is grey, with a small "no room" under it.
+        if (noRoom) Text("no room", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 36.dp))
         Canvas(Modifier.padding(6.dp)) {
             val c = size.width / 5
             val w = cells.maxOf { it.first } + 1
             val h = cells.maxOf { it.second } + 1
             val ox = (5 - w) * c / 2
             val oy = (5 - h) * c / 2
-            for ((x, y) in cells) drawRoundRect(color, Offset(ox + x * c + 1, oy + y * c + 1), Size(c - 2, c - 2), CornerRadius(c * 0.2f))
+            for ((x, y) in cells) drawRoundRect(if (noRoom) p.hairline else color, Offset(ox + x * c + 1, oy + y * c + 1), Size(c - 2, c - 2), CornerRadius(c * 0.2f))
         }
     }
 }
@@ -190,10 +215,20 @@ fun ColumnScope.BlocksPlay(
     }
     val cells = placement?.let { pl -> shape!!.map { (x, y) -> (pl.x + x) to (pl.y + y) } }
     val ok = placement != null && view.allows(placement)
-    BoardArea(1f) { size -> BlocksBoard(view, cells, ok, if (canPlay && chosen != null) { x, y -> target = x to y } else null, size) }
+    // "Where can I go?" (on unless switched off): the corners to build from, only those the
+    // chosen piece fits once one is picked, and pieces that fit nowhere greyed.
+    val hintsOn = ProfileStore.get(LocalContext.current).profile.collectAsState().value.blocksHints && canPlay
+    val targets = remember(view.board, view.left, hintsOn) { if (hintsOn) view.targets() else emptyList() }
+    val fits = remember(view.board, view.left, hintsOn) { if (hintsOn) mine.associateWith { view.fitsAt(it, targets) } else emptyMap() }
+    val spots = when {
+        !hintsOn -> emptySet()
+        chosen != null -> fits[chosen].orEmpty()
+        else -> fits.values.flatten().toSet()
+    }
+    BoardArea(1f) { size -> BlocksBoard(view, cells, ok, if (canPlay && chosen != null) { x, y -> target = x to y } else null, size, spots = if (cells == null) spots else emptySet()) }
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         mine.sortedByDescending { Blocks.PIECES[it].size }.forEach { i ->
-            PieceIcon(i, if (i == chosen) orient else 0, markColor('m'), i == chosen) {
+            PieceIcon(i, if (i == chosen) orient else 0, markColor('m'), i == chosen, noRoom = hintsOn && fits[i].isNullOrEmpty()) {
                 if (piece != i) orient = 0
                 piece = i
             }
@@ -314,6 +349,7 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
         if (view == null) {
             AppCard("Corner Blocks") {
                 Text("Lay your 21 pieces. Your first covers your start square; after that each piece must touch yours only corner to corner. Most squares placed wins.", color = p.muted, fontSize = TextSize.Body)
+                BlocksHintsSwitch()
                 Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (n in 1..3) {
@@ -343,5 +379,20 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
             Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
             BlocksPlay(view, myTurn, vm::place)
         }
+    }
+}
+
+/** "Where can I go?" on or off, on this phone (for players who want it hard). */
+@Composable
+fun BlocksHintsSwitch() {
+    val p = AppTheme.palette
+    val store = ProfileStore.get(LocalContext.current)
+    val on = store.profile.collectAsState().value.blocksHints
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            Text("Where can I go?", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+            Text("Light the corners your pieces can build from; grey the pieces that fit nowhere.", color = p.muted, fontSize = TextSize.Label)
+        }
+        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setBlocksHints)
     }
 }

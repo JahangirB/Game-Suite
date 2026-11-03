@@ -66,6 +66,8 @@ data class Profile(
     val vibration: Boolean = true,
     /** Sound effects, on or off in the app only (the phone's silent mode doesn't change them). */
     val sound: Boolean = true,
+    /** Corner Blocks: show where your pieces can go ("Where can I go?"). */
+    val blocksHints: Boolean = true,
     /**
      * The notification question: due once an invitation has been sent or received, and
      * answered (allowed or "Not now") for good, so it is never asked again on every launch.
@@ -153,6 +155,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val seen = _profile.value.tutorialsSeen + kind
         prefs.edit { putString(KEY_TUTORIALS, seen.joinToString(",") { it.key }) }
         _profile.update { it.copy(tutorialsSeen = seen) }
+    }
+
+    fun setBlocksHints(on: Boolean) {
+        prefs.edit { putBoolean(KEY_BLOCKS_HINTS, on) }
+        _profile.update { it.copy(blocksHints = on) }
     }
 
     fun setSound(on: Boolean) {
@@ -243,6 +250,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
             sound = prefs.getBoolean(KEY_SOUND, true),
+            blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
@@ -277,6 +285,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
         private const val KEY_SOUND = "sound"
+        private const val KEY_BLOCKS_HINTS = "blocks_hints"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"

@@ -205,6 +205,28 @@ data class BlocksView(
         return if (mine.size == Blocks.PIECES.size) starts['m'] in cells else corner
     }
 
+    /**
+     * Where a new piece of yours could touch ("Where can I go?"): your start square before your
+     * first piece, then every empty square touching yours at a corner but not along a side.
+     */
+    fun targets(): List<Pair<Int, Int>> {
+        val mine = left['m'] ?: return emptyList()
+        if (mine.size == Blocks.PIECES.size) return listOfNotNull(starts['m'])
+        val out = mutableListOf<Pair<Int, Int>>()
+        for (y in 0 until size) for (x in 0 until size) {
+            if (at(x, y) != '.') continue
+            val corner = listOf(1 to 1, -1 to 1, 1 to -1, -1 to -1).any { (dx, dy) -> at(x + dx, y + dy) == 'm' }
+            val side = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).any { (dx, dy) -> at(x + dx, y + dy) == 'm' }
+            if (corner && !side) out += x to y
+        }
+        return out
+    }
+
+    /** The [targets] where [piece] fits in some way (turned or flipped). */
+    fun fitsAt(piece: Int, targets: List<Pair<Int, Int>> = targets()): Set<Pair<Int, Int>> = targets.filterTo(HashSet()) { (tx, ty) ->
+        Blocks.ORIENTS[piece].any { (orient, cells) -> cells.any { (cx, cy) -> allows(Placement(piece, orient, tx - cx, ty - cy)) } }
+    }
+
     companion object {
         fun from(turns: JSONObject): BlocksView {
             val b = turns.getJSONObject("blocks")

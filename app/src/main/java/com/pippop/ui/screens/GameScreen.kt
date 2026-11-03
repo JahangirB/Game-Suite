@@ -92,6 +92,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             DockTool(if (state.notesMode) "Notes: on" else "Notes", GameIcons.Pencil, enabled = playing, onClick = vm::toggleNotes),
             DockTool("Undo", GameIcons.Undo, enabled = playing && board.canUndo, onClick = vm::undo),
             DockTool("Erase", GameIcons.Eraser, enabled = playing, onClick = vm::erase),
+            DockTool("Fill all", GameIcons.FillAll, enabled = playing) { vm.fillNotes(null) },
         ),
         trailing = {
             Text(style = Digits, text = formatDuration(elapsedMs(room, phase, now, startAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -112,6 +113,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                     hidden = phase == RoomStatus.COUNTDOWN,
                     solution = if (showSolution) room.solution?.let(Sudoku::parse) else null,
                     onSelect = vm::select,
+                    onLongPress = vm::fillNotes,
                 )
                 if (phase == RoomStatus.COUNTDOWN) {
                     val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
