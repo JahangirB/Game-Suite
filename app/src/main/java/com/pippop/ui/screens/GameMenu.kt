@@ -368,7 +368,7 @@ private fun ReadyFaces(room: RoomState) {
                 PlayerAvatar(if (mine) "You" else player.name, if (mine) AppTheme.palette.primary else AppTheme.palette.accent, size = 26, avatar = player.avatar)
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(top = 18.dp, start = 18.dp).size(10.dp).clip(CircleShape)
-                        .background(if (player.ready) AppTheme.palette.good else Color(0xFFBDB6D2)).border(1.5.dp, AppTheme.palette.ink, CircleShape),
+                        .background(if (player.ready) AppTheme.palette.good else AppTheme.palette.hairline).border(1.5.dp, AppTheme.palette.ink, CircleShape),
                 )
             }
         }
