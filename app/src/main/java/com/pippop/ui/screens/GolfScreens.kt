@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -270,6 +271,12 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val turnName = turns.turnName ?: room.opponent?.name
     val current = if (myTurn) 'm' else room.others.indexOfFirst { it.name == turnName }.takeIf { it >= 0 }?.let(::letterOf)
     val names = listOf('m' to "You") + room.others.mapIndexed { i, o -> letterOf(i) to o.name }
+    // The dock's Map: the hole from above, with every ball on it.
+    var showMap by remember { mutableStateOf(false) }
+    if (showMap) InfoSheet("Hole ${view.hole + 1} from above", onDismiss = { showMap = false }) {
+        val hole = view.holeAt(view.hole.coerceIn(0, view.holes - 1))
+        GolfMap(hole, view.balls.filterKeys { view.done[it] != true }, Modifier.fillMaxWidth().aspectRatio(1f))
+    }
 
     GameFrame(
         title = "Mini Golf",
@@ -284,7 +291,9 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.GOLF.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Map", GameIcons.Map) { showMap = true }),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -347,7 +356,7 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
         subtitle = if (state.computers == 0) "On your own" + (state.best?.let { " · best $it" } ?: "") else "Against ${state.computers} computer${if (state.computers > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.GOLF.color,
-        dock = soloDock(onHome, { showRules = true }, if (view != null) vm::start else null),
+        menu = soloMenu(GameKind.GOLF, onHome, { showRules = true }, if (view != null) vm::start else null),
         scrollable = view == null,
         popup = if (view == null || state.result == null) null else popupContent {
             SoloPopup(

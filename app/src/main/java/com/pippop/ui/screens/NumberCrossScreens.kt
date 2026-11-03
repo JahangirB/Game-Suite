@@ -300,7 +300,9 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
             if (isMe) "$mine% right" else "${player.progress ?: 0}% right"
         }),
         glow = GameKind.NUMBERS.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = vm::undoNumber)),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -352,7 +354,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
         subtitle = if (puzzle == null) "On your own" else "On your own · ${state.level.label}",
         players = emptyList(),
         glow = GameKind.NUMBERS.color,
-        dock = soloDock(onHome, { showRules = true }, if (puzzle != null) vm::again else null),
+        menu = soloMenu(GameKind.NUMBERS, onHome, { showRules = true }, if (puzzle != null) vm::again else null),
         trailing = {
             if (puzzle != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },

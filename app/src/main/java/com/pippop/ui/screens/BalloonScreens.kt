@@ -273,6 +273,13 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
+    var showUsed by remember { mutableStateOf(false) }
+    if (showUsed) InfoSheet("Used letters", onDismiss = { showUsed = false }) {
+        val inWord = view.guessed.filter { it in view.pattern }.sorted()
+        LetterTiles("IN THE WORD", inWord, GameKind.BALLOON.color)
+        LetterTiles("NOT IN IT (A BALLOON EACH)", view.guessed.filter { it !in view.pattern }.sorted(), AppTheme.palette.hairline)
+        Text("${view.balloons - view.misses} of ${view.balloons} balloons left.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
+    }
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char?) = when (mark) {
         null -> "Nobody"
@@ -294,7 +301,9 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.BALLOON.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Used letters", GameIcons.Sort, badge = view.guessed.size) { showUsed = true }),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -348,7 +357,7 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
         subtitle = "On your own" + if (state.streak > 0) " · streak ${state.streak}" else "",
         players = emptyList(),
         glow = GameKind.BALLOON.color,
-        dock = soloDock(onHome, { showRules = true }, if (state.started) vm::setup else null),
+        menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) vm::setup else null),
         scrollable = !state.started,
         popup = if (result == null) null else popupContent {
             val won = (result == "found") == state.youGuess

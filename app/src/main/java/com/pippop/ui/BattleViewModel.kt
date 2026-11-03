@@ -141,6 +141,8 @@ data class BattleUiState(
     val drawStrokes: List<DrawStroke> = emptyList(),
     /** Number Cross: your entries (one per blank), the blank picked to fill next, and the round they belong to. */
     val numberEntries: List<String>? = null,
+    /** Number Cross: the entries before each placement this round, for Undo (latest last). */
+    val numberHistory: List<List<String>> = emptyList(),
     val numberSelected: Int? = null,
     val numbersRound: Int = -1,
     /** Slide Race: your slides so far this round, and the round they belong to. */
@@ -458,7 +460,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (newBackend.pushes != null) startListening(newBackend) else startPolling()
         val id = playerId
         val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
-        if (room.inSession && id != null && !(inMatch && room.atGame)) {
+        // A match you paused stays paused: going to the menu now would give it up.
+        if (room.inSession && id != null && !(inMatch && (room.atGame || room.pausedByMe))) {
             val sent = System.currentTimeMillis()
             applyResponse(if (then != null) newBackend.openGame(room.code, id, then) else newBackend.toMenu(room.code, id), sent, record = false)
         }
@@ -490,6 +493,79 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val sentAt = System.currentTimeMillis()
                 applyResponse(b.toMenu(room.code, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                if (e.fatal) endSession(e.message) else showMessage(e.message)
+            } catch (e: IOException) {
+                showMessage("Network problem: ${e.message ?: "no connection"}")
+            }
+        }
+    }
+
+    /**
+     * Pause the match being played: the menu shows, the match waits up to ten minutes for you
+     * and your partner sees you're away. [resume] (or opening the game again) comes back.
+     */
+    fun pause() {
+        val room = _state.value.room ?: return
+        if (!room.inSession) return
+        _state.update { it.copy(room = room.copy(me = room.me.copy(at = null, pausedMs = PAUSE_MS))) }
+        send { b, id -> b.pause(room.code, id, true) }
+    }
+
+    /** Back to the match you paused. */
+    fun resume() {
+        val room = _state.value.room ?: return
+        _state.update { it.copy(room = room.copy(me = room.me.copy(at = room.game, pausedMs = null))) }
+        send { b, id -> b.pause(room.code, id, false) }
+    }
+
+    /** Ask your partner to start this match again ([want]), or take the ask back. */
+    fun wantRestart(want: Boolean = true) {
+        val room = _state.value.room ?: return
+        _state.update { it.copy(room = room.copy(me = room.me.copy(wantsRestart = want))) }
+        send { b, id -> b.restart(room.code, id, want) }
+    }
+
+    /** Ready for another round of whatever game is open (the same as its Rematch), or not ready any more. */
+    fun rematch() {
+        val room = _state.value.room ?: return
+        when (room.game) {
+            GameKind.SHIPS -> readyShips()
+            GameKind.NUMBERS -> readyNumbers()
+            GameKind.GRID -> readyGrid()
+            GameKind.SLIDE -> readySlide()
+            GameKind.SUDOKU -> chooseLevel(room.me.difficulty ?: room.difficulty ?: Difficulty.MEDIUM)
+            else -> readyTurns()
+        }
+    }
+
+    /**
+     * Opens [game] for everyone in the room to follow: your partner gets the invite. A match
+     * being played is given up first (the caller asks).
+     */
+    fun switchGame(game: GameKind) = runBusy {
+        val room = _state.value.room ?: return@runBusy
+        val id = playerId ?: return@runBusy
+        val b = requireBackend()
+        if (room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING) {
+            val sent = System.currentTimeMillis()
+            applyResponse(b.toMenu(room.code, id), sent)
+        }
+        _state.update { it.copy(hostGame = game) }
+        val sentAt = System.currentTimeMillis()
+        applyResponse(b.openGame(room.code, id, game), sentAt)
+    }
+
+    /** Sends [call] to the room and applies its answer; failures show as a message. */
+    private fun send(call: suspend (BattleBackend, String) -> org.json.JSONObject) {
+        val id = playerId ?: return
+        val b = backend ?: return
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(call(b, id), sentAt)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
@@ -1279,9 +1355,20 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val k = s.numberSelected ?: return
         val entries = s.numberEntries ?: return
         if (s.phase(s.serverNow()) != RoomStatus.PLAYING || k !in entries.indices) return
+        if (entries[k] == value) return
         val updated = entries.toMutableList().also { it[k] = value }
         val next = if (value == "") k else (1..updated.size).map { (k + it) % updated.size }.firstOrNull { updated[it] == "" }
-        _state.update { it.copy(numberEntries = updated, numberSelected = next) }
+        _state.update { it.copy(numberEntries = updated, numberSelected = next, numberHistory = (it.numberHistory + listOf(entries)).takeLast(50)) }
+        syncNow.trySend(Unit)
+    }
+
+    /** Number Cross: takes back the last number placed (or cleared). */
+    fun undoNumber() {
+        val s = _state.value
+        val before = s.numberHistory.lastOrNull() ?: return
+        if (s.phase(s.serverNow()) != RoomStatus.PLAYING) return
+        val changed = s.numberEntries?.indices?.firstOrNull { s.numberEntries[it] != before.getOrNull(it) }
+        _state.update { it.copy(numberEntries = before, numberHistory = it.numberHistory.dropLast(1), numberSelected = changed ?: it.numberSelected) }
         syncNow.trySend(Unit)
     }
 
@@ -1484,6 +1571,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     lastSentBoard = null
                     next = next.copy(
                         numberEntries = room.numbers?.entries?.takeIf { it.size == board.blanks.size } ?: List(board.blanks.size) { "" },
+                        numberHistory = emptyList(),
                         numberSelected = null,
                         numbersRound = room.round,
                     )
@@ -1605,6 +1693,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
+        // How long a paused match waits (the room says exactly; this shows until it answers).
+        const val PAUSE_MS = 10 * 60_000L
         const val MOVE_BATCH_MS = 700L
         // Bingo: a claim goes as a "guess" with this word; the server only checks the card.
         const val BINGO_CLAIM = "bingo"

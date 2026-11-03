@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import androidx.compose.ui.draw.alpha
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.Digits
@@ -148,6 +151,14 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
+    // The dock's Peek shows the finished board for a moment.
+    var peeking by remember { mutableStateOf(false) }
+    LaunchedEffect(peeking) {
+        if (peeking) {
+            delay(1600)
+            peeking = false
+        }
+    }
     val start = slide.start
     val tiles = start?.let { Slide.replay(it, slide.size, state.slideMoves) }
     val mine = tiles?.let { Slide.progress(it, slide.size) } ?: 0
@@ -164,7 +175,9 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             if (isMe) "$mine% in place" else "${player.progress ?: 0}% in place"
         }),
         glow = GameKind.SLIDE.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Peek", GameIcons.Eye, enabled = tiles != null && !finished) { peeking = true }),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -195,7 +208,10 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             val playing = phase == RoomStatus.PLAYING
             Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(playing, vm::swipeSlide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
-                BoardArea(1f) { size -> SlideBoard(tiles, slide.size, playing, vm::tapSlideTile, size) }
+                BoardArea(1f) { size ->
+                    if (peeking) SlideBoard(Slide.solved(slide.size), slide.size, false, {}, size.alpha(0.85f))
+                    else SlideBoard(tiles, slide.size, playing, vm::tapSlideTile, size)
+                }
             }
         }
     }
@@ -216,7 +232,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
         subtitle = level?.let { "On your own · ${it.label}" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.SLIDE.color,
-        dock = soloDock(onHome, { showRules = true }, if (level != null) vm::again else null),
+        menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, if (level != null) vm::again else null),
         trailing = { if (level != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         scrollable = level == null,
         popup = if (level == null || done == null) null else popupContent {

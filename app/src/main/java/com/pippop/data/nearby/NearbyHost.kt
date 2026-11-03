@@ -157,6 +157,12 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun toMenu(code: String, playerId: String) =
         local { toMenu(LocalRoom.HOST, now()) }
 
+    override suspend fun pause(code: String, playerId: String, on: Boolean) =
+        local { setPaused(LocalRoom.HOST, on, now()) }
+
+    override suspend fun restart(code: String, playerId: String, want: Boolean) =
+        local { wantRestart(LocalRoom.HOST, want) }
+
     override suspend fun leave(code: String, playerId: String) {
         withContext(Dispatchers.Main.immediate) {
             room?.leave(LocalRoom.HOST)
@@ -326,6 +332,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                     return
                 }
                 "menu" -> r.toMenu(role!!, now)
+                "pause" -> r.setPaused(role!!, msg.optBoolean("on", true), now)
+                "restart" -> r.wantRestart(role!!, msg.optBoolean("want", true))
                 "sync" -> Unit
                 "leave" -> {
                     r.leave(role!!)

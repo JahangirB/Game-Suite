@@ -79,6 +79,14 @@ interface BattleBackend {
         throw ApiException("This connection plays one game. Connect again to play another.")
     suspend fun leave(code: String, playerId: String)
 
+    /** Pause the match being played and go to the menu without giving it up ([on]), or come back. */
+    suspend fun pause(code: String, playerId: String, on: Boolean): JSONObject =
+        throw ApiException("This connection plays one game.")
+
+    /** Ask to start the match again ([want]), or take it back. */
+    suspend fun restart(code: String, playerId: String, want: Boolean): JSONObject =
+        throw ApiException("This connection plays one game.")
+
     /** Drops any live connection. */
     fun close() {}
 

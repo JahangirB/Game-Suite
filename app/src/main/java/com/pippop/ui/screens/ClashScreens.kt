@@ -217,6 +217,10 @@ private fun ColumnScope.ClashTable(
     onPlay: (Int, Char?) -> Unit,
     onDraw: () -> Unit,
     onPass: () -> Unit,
+    /** Draw and Keep as buttons under the hand; against your partners they're in the dock. */
+    buttons: Boolean = true,
+    /** Your hand in order of colour and number (the dock's Sort), not as dealt. */
+    sorted: Boolean = false,
 ) {
     val p = AppTheme.palette
     var wildAt by remember { mutableStateOf<Int?>(null) }
@@ -286,7 +290,9 @@ private fun ColumnScope.ClashTable(
                     delay(Motion.STAGGER_MS.toLong())
                 }
             }
-            view.hand.forEachIndexed { i, card ->
+            val order = if (sorted) view.hand.indices.sortedBy { view.hand[it] } else view.hand.indices.toList()
+            order.forEach { i ->
+                val card = view.hand[i]
                 val copy = seen.getOrDefault(card, 0).also { seen[card] = it + 1 }
                 key(card, copy) {
                     val ok = canMove && view.canPlay(i)
@@ -306,7 +312,7 @@ private fun ColumnScope.ClashTable(
             }
         }
     }
-    if (canMove) {
+    if (buttons && canMove) {
         when {
             view.drawn -> SecondaryButton("Keep it and pass", onPass, Modifier.fillMaxWidth())
             view.hand.indices.none { view.canPlay(it) } -> PrimaryButton("Draw a card", onDraw, Modifier.fillMaxWidth())
@@ -326,6 +332,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val finished = room.status == RoomStatus.FINISHED
     val now = rememberTicker()
     val myTurn = turns.turn == "me" && !finished
+    var sortHand by remember { mutableStateOf(false) }
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CLASH) { showRules = false }
@@ -343,7 +350,15 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.CLASH.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        myTurn = myTurn,
+        tools = listOf(
+            // Draw a card, or once you've drawn one that fits, keep it and pass.
+            if (view.drawn) DockTool("Keep it", GameIcons.Cards, anytime = false, enabled = myTurn && !state.firing, onClick = vm::passCard)
+            else DockTool("Draw", GameIcons.Cards, anytime = false, enabled = myTurn && !state.firing, onClick = vm::drawCard),
+            DockTool(if (sortHand) "As dealt" else "Sort", GameIcons.Sort) { sortHand = !sortHand },
+        ),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -369,6 +384,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "The other player"} is thinking…",
             name = ::name,
             onPlay = vm::playCard, onDraw = vm::drawCard, onPass = vm::passCard,
+            buttons = false, sorted = sortHand,
         )
     }
 }
@@ -391,7 +407,7 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
             ChipPlayer(name(mark), null, markColor(mark), "${view.counts[mark] ?: 0} cards", active = result == null && state.turn == mark)
         },
         glow = GameKind.CLASH.color,
-        dock = soloDock(onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
+        menu = soloMenu(GameKind.CLASH, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
         scrollable = view == null,
         popup = if (view == null || result == null) null else popupContent {
             SoloPopup(

@@ -83,20 +83,33 @@ fun SoloScreen(
 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
+    var menuPaused by remember { mutableStateOf(false) }
     GameFrame(
         title = "Sudoku",
         subtitle = "${game.difficulty.label} · Mistakes ${game.mistakes}/${SoloGame.MAX_MISTAKES}",
         players = emptyList(),
         glow = GameKind.SUDOKU.color,
-        dock = listOf(
-            DockAction("Home", Icons.Filled.Home) {
+        // Solo Sudoku pauses while the menu is open.
+        menu = GameMenu(
+            GameKind.SUDOKU, onRules = { showRules = true }, leaveLabel = "Home",
+            onLeave = {
                 vm.pause()
                 onHome()
             },
-            DockAction(if (paused) "Resume" else "Pause", if (paused) Icons.Filled.PlayArrow else GameIcons.Pause, enabled = game.isActive) {
+            onOpen = { open ->
+                if (open && !paused && game.isActive) {
+                    vm.pause()
+                    menuPaused = true
+                } else if (!open && menuPaused) {
+                    vm.resume()
+                    menuPaused = false
+                }
+            },
+        ),
+        tools = listOf(
+            DockTool(if (paused) "Resume" else "Pause", if (paused) Icons.Filled.PlayArrow else GameIcons.Pause, enabled = game.isActive) {
                 if (paused) vm.resume() else vm.pause()
             },
-            DockAction("Rules", Icons.Filled.Info) { showRules = true },
         ),
         trailing = {
             Text(style = Digits, text = formatDuration(game.elapsedMs), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)

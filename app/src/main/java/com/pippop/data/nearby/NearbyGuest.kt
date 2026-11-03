@@ -191,6 +191,12 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun toMenu(code: String, playerId: String) =
         request(JSONObject().put("type", "menu"))
 
+    override suspend fun pause(code: String, playerId: String, on: Boolean) =
+        request(JSONObject().put("type", "pause").put("on", on))
+
+    override suspend fun restart(code: String, playerId: String, want: Boolean) =
+        request(JSONObject().put("type", "restart").put("want", want))
+
     override suspend fun leave(code: String, playerId: String) {
         try {
             withTimeoutOrNull(LEAVE_TIMEOUT_MS) { request(JSONObject().put("type", "leave")) }

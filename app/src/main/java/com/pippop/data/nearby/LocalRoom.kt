@@ -78,6 +78,10 @@ class LocalRoom(
         var out = false
         /** The game this player's screen is on, or null in the menu. */
         var at: GameKind? = null
+        /** Paused mid-match: the match waits for them until then. */
+        var pausedUntil: Long? = null
+        /** Asked to start this match again. */
+        var restart = false
     }
 
     var status = "waiting"
@@ -1006,6 +1010,7 @@ class LocalRoom(
             // Back to the match this player is in, from the menu.
             if (next == game && role in playing()) {
                 me.at = next
+                me.pausedUntil = null
                 version++
                 return this
             }
@@ -1053,6 +1058,35 @@ class LocalRoom(
         version++
     }
 
+    /**
+     * [role] pauses the match ([on]) and goes to the menu without giving it up, or comes back.
+     * The match waits up to [PAUSE_MS] for them. Outside a match, pausing is just the menu.
+     * As on the server (room.js setPaused).
+     */
+    fun setPaused(role: String, on: Boolean, now: Long) {
+        val me = player(role)
+        if (status != "started" || role !in playing()) {
+            if (on) toMenu(role, now)
+            return
+        }
+        if (on) {
+            me.at = null
+            me.pausedUntil = now + PAUSE_MS
+        } else {
+            me.at = game
+            me.pausedUntil = null
+        }
+        version++
+    }
+
+    /** [role] asks to start the match again, or takes it back; once everyone playing asks, it ends with no winner. */
+    fun wantRestart(role: String, want: Boolean) {
+        if (status != "started" || role !in playing()) throw ApiException("There is no game to start again.")
+        player(role).restart = want
+        if (playing().all { player(it).restart }) endMatch(null, "restart")
+        version++
+    }
+
     fun setConnected(role: String, connected: Boolean, now: Long) {
         val player = players[role] ?: return
         player.connected = connected
@@ -1083,7 +1117,15 @@ class LocalRoom(
 
     private fun roomTimers(now: Long): Boolean {
         val start = startAt ?: return false
-        if (status != "started" || now < start) return false
+        if (status != "started") return false
+        val expired = playing().firstOrNull { r -> player(r).pausedUntil?.let { now >= it } == true }
+        if (expired != null) {
+            player(expired).pausedUntil = null
+            dropOut(expired, "timeout", now)
+            version++
+            return true
+        }
+        if (now < start) return false
         if (game == GameKind.BINGO && now >= start + Bingo.ROUND_MS) {
             endMatch(null, "draw")
             version++
@@ -1101,7 +1143,7 @@ class LocalRoom(
             return true
         }
         val gone = playing()
-            .filter { r -> player(r).let { !it.connected && now - maxOf(it.awaySince ?: now, start) >= FORFEIT_MS } }
+            .filter { r -> player(r).let { !it.connected && it.pausedUntil == null && now - maxOf(it.awaySince ?: now, start) >= FORFEIT_MS } }
             .minByOrNull { player(it).awaySince ?: now }
             ?: return false
         dropOut(gone, "timeout", now)
@@ -1113,9 +1155,14 @@ class LocalRoom(
         winner = winnerRole
         endReason = reason
         status = "finished"
-        for (p in players.values.filterNotNull()) {
+        for ((r, p) in players) {
+            if (p == null) continue
             p.ready = false
             p.difficulty = null
+            p.restart = false
+            p.pausedUntil = null
+            // A player who paused the match comes back to its result.
+            if (p.at == null && r in playing()) p.at = game
         }
     }
 
@@ -1222,6 +1269,8 @@ class LocalRoom(
         .put("online", p.connected)
         // The game this player's screen is on, or null in the menu.
         .put("at", p.at?.key ?: JSONObject.NULL)
+        .put("pausedMs", p.pausedUntil?.let { maxOf(0, it - now) } ?: JSONObject.NULL)
+        .put("restart", p.restart)
 
     private val host get() = players.getValue(HOST)!!
 
@@ -1242,6 +1291,8 @@ class LocalRoom(
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
+        /** How long a paused match waits for the player who paused it. */
+        const val PAUSE_MS = 10 * 60_000L
         const val EMOJI_INTERVAL_MS = 1500L
         const val DRAW_TURNS = 4
         const val DRAW_TURN_MS = 80_000L

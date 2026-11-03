@@ -232,6 +232,8 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    var showLetters by remember { mutableStateOf(false) }
+    if (showLetters) InfoSheet("Your letters", onDismiss = { showLetters = false }) { WordLetters(words.mine) }
 
     fun status(guesses: List<WordGuess>, done: Boolean) = when {
         guesses.lastOrNull()?.score == "ggggg" -> "Solved in ${guesses.size}"
@@ -252,7 +254,9 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.WORDS.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        tools = listOf(DockTool("Letters", GameIcons.Sort) { showLetters = true }),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -345,10 +349,9 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
         },
         players = emptyList(),
         glow = GameKind.WORDS.color,
-        dock = listOfNotNull(
-            DockAction("Home", Icons.Filled.Home, onClick = onHome),
-            DockAction("Rules", Icons.Filled.Info) { showRules = true },
-            if (daily != null) DockAction("Modes", Icons.Filled.Refresh, onClick = vm::chooseMode) else null,
+        menu = GameMenu(
+            GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home",
+            mode = daily?.let { "Daily or practice" }, onChangeMode = if (daily != null) vm::chooseMode else null,
         ),
         scrollable = daily == null,
         popup = if (daily == null || !state.done) null else popupContent {
@@ -396,4 +399,21 @@ fun WordLevelCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (WordL
             Text("${level.label}: the length of the word, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
     }
+}
+
+/** What your guesses so far say about each letter: in place, in the word, or not in it. */
+@Composable
+private fun WordLetters(guesses: List<WordGuess>) {
+    val best = sortedMapOf<Char, Char>()
+    for (g in guesses) {
+        val word = g.word ?: continue
+        word.forEachIndexed { i, c ->
+            val s = g.score.getOrElse(i) { '.' }
+            val now = best[c]
+            if (now == null || s == 'g' || (s == 'y' && now == '.')) best[c] = s
+        }
+    }
+    LetterTiles("IN THE RIGHT PLACE", best.filterValues { it == 'g' }.keys.toList(), tileColor('g'))
+    LetterTiles("IN THE WORD, ELSEWHERE", best.filterValues { it == 'y' }.keys.toList(), tileColor('y'))
+    LetterTiles("NOT IN THE WORD", best.filterValues { it == '.' }.keys.toList(), tileColor('.'))
 }

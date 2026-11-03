@@ -176,7 +176,8 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.DRAW.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         trailing = {
             if (playing && secondsLeft != null) {
                 Text(style = Digits, text = "${secondsLeft}s", color = if (secondsLeft <= 10) p.bad else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)

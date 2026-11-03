@@ -37,7 +37,7 @@ import com.pippop.ui.theme.TextSize
  * give them up; a turn game waits for them. [onBack] goes back to the games.
  */
 @Composable
-fun ConnectionBanners(state: BattleUiState, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ConnectionBanners(state: BattleUiState, onBack: () -> Unit, modifier: Modifier = Modifier, onRestart: (Boolean) -> Unit = {}) {
     val room = state.room ?: return
     val now = rememberTicker()
     if (state.reconnecting) {
@@ -54,8 +54,43 @@ fun ConnectionBanners(state: BattleUiState, onBack: () -> Unit, modifier: Modifi
         return
     }
     val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
-    val quiet = room.othersAtGame.firstOrNull { it.online == false && !it.out } ?: return
     if (!inMatch) return
+    // Someone asked to start the match again: everyone still playing has to agree.
+    val asking = room.present.filter { it.wantsRestart && !it.out }
+    var notNow by remember(room.round) { mutableStateOf(false) }
+    if (asking.isNotEmpty() && !room.me.wantsRestart && !notNow) {
+        Banner(modifier) {
+            BannerTitle(asking.joinToString(" and ") { it.name } + (if (asking.size == 1) " wants" else " want") + " a new game")
+            BannerLine("This game ends with no winner and a new one starts.")
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+                TextButton(onClick = { onRestart(true) }) { Text("Start over", color = AppTheme.palette.primaryText, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { notNow = true }) { Text("Not now", color = AppTheme.palette.primaryText, fontWeight = FontWeight.Bold) }
+            }
+        }
+        return
+    }
+    if (room.me.wantsRestart) {
+        val waiting = room.present.filter { !it.wantsRestart && !it.out }
+        if (waiting.isNotEmpty()) {
+            Banner(modifier) {
+                BannerTitle("New game asked")
+                BannerLine("Waiting for " + waiting.joinToString(" and ") { it.name } + " to agree.")
+                TextButton(onClick = { onRestart(false) }) { Text("Take it back", color = AppTheme.palette.primaryText, fontWeight = FontWeight.Bold) }
+            }
+            return
+        }
+    }
+    // Someone paused: the match waits for them a while.
+    room.present.firstOrNull { it.pausedMs != null && !it.out }?.let { paused ->
+        val left = (((paused.pausedMs ?: 0) - (now + state.clockOffsetMs - room.serverTime)) / 1000).coerceAtLeast(0)
+        Banner(modifier) {
+            BannerTitle("${paused.name} paused the game")
+            BannerLine("Waiting for ${paused.name} to come back… ${left / 60}:${"%02d".format(left % 60)}", digits = true)
+            BannerLine("If they're not back in time, they lose this game.")
+        }
+        return
+    }
+    val quiet = room.othersAtGame.firstOrNull { it.online == false && !it.out } ?: return
     // "Keep waiting" hides it until they're back; if their phone goes quiet again, it shows again.
     var dismissed by remember { mutableStateOf(false) }
     if (dismissed) return

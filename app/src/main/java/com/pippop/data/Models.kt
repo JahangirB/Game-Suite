@@ -285,6 +285,10 @@ data class PlayerInfo(
      * room don't say; everyone there is at the room's game.
      */
     val at: GameKind? = null,
+    /** Paused mid-match: how long the match still waits for them, else null. */
+    val pausedMs: Long? = null,
+    /** Asked to start this match again. */
+    val wantsRestart: Boolean = false,
 )
 
 data class RoomState(
@@ -338,6 +342,9 @@ data class RoomState(
 
     /** Whether your screen is on the open game (its lobby, match or result), not the menu. */
     val atGame get() = me.at == game
+
+    /** You paused the match being played and are in the menu meanwhile. */
+    val pausedByMe get() = me.pausedMs != null
 
     /** Others in the room at the open game. */
     val othersAtGame get() = present.filter { it.at == game }
@@ -406,6 +413,8 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     online = if (json.has("online")) json.optBoolean("online") else null,
     out = json.optBoolean("out"),
     at = if (!json.has("at")) game else json.stringOrNull("at")?.let { key -> GameKind.entries.firstOrNull { it.key == key } },
+    pausedMs = if (json.isNull("pausedMs")) null else json.optLong("pausedMs"),
+    wantsRestart = json.optBoolean("restart"),
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(

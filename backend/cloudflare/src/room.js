@@ -34,6 +34,8 @@ export const EMOJI_INTERVAL_MS = 1500;
 export const TAKEOVER_MS = { kylian: 11000 };
 // A player disconnected this long during a match loses it.
 export const INACTIVE_FORFEIT_MS = 45_000;
+// A paused player's match waits this long for them; then they lose it.
+export const PAUSE_MS = 10 * 60_000;
 // A player disconnected this long outside a match is removed (a host closes the room).
 export const LOBBY_ABANDON_MS = 5 * 60_000;
 // A room with nobody connected is deleted after this long (1 minute once closed).
@@ -995,8 +997,9 @@ function endMatch(room, winnerRole, reason) {
   room.endReason = reason;
   room.status = 'finished';
   for (const role of seated(room)) {
-    room.players[role].ready = false;
-    room.players[role].difficulty = null;
+    Object.assign(room.players[role], { ready: false, difficulty: null, restart: false, pausedUntil: null });
+    // A player who paused the match comes back to its result.
+    if (room.players[role].at === null && room.inMatch?.includes(role)) room.players[role].at = room.game;
   }
 }
 
@@ -1032,7 +1035,7 @@ export function openGame(room, role, game, now) {
   if (room.status === 'started') {
     // Back to the match this player is in, from the menu.
     if (game === room.game && playing(room).includes(role)) {
-      me.at = game;
+      Object.assign(me, { at: game, pausedUntil: null });
       bump(room);
       return;
     }
@@ -1077,6 +1080,34 @@ export function openGame(room, role, game, now) {
 export function toMenu(room, role, now) {
   dropOut(room, role, 'forfeit', now);
   Object.assign(room.players[role], { at: null, ready: false, difficulty: null });
+  bump(room);
+}
+
+/**
+ * [role] pauses the match (on) and goes to the menu without giving it up, or comes back (off).
+ * The match waits up to PAUSE_MS for them, even if their app closes; everyone else sees it.
+ * Outside a match there is nothing to keep: pausing is just going to the menu.
+ */
+export function setPaused(room, role, on, now) {
+  const me = room.players[role];
+  if (room.status !== 'started' || !playing(room).includes(role)) {
+    if (on) toMenu(room, role, now);
+    return;
+  }
+  if (on) Object.assign(me, { at: null, pausedUntil: now + PAUSE_MS });
+  else Object.assign(me, { at: room.game, pausedUntil: null });
+  bump(room);
+}
+
+/**
+ * [role] asks to start the match again (want), or takes it back. Once everyone still playing
+ * wants it, the match ends with no winner ('restart') and the phones get ready again by themselves.
+ */
+export function wantRestart(room, role, want, now) {
+  if (room.status !== 'started' || !playing(room).includes(role)) throw new GameError('There is no game to start again.');
+  room.players[role].restart = want !== false;
+  const roles = playing(room);
+  if (roles.every((r) => room.players[r].restart)) endMatch(room, null, 'restart');
   bump(room);
 }
 
@@ -1140,6 +1171,15 @@ function roomTimers(room, now) {
     const awayFor = Math.min(...roles.map(away));
     if (awayFor >= idleLimit(room)) return 'expired';
   }
+  if (room.status === 'started') {
+    const expired = playing(room).find((r) => room.players[r].pausedUntil && now >= room.players[r].pausedUntil);
+    if (expired) {
+      room.players[expired].pausedUntil = null;
+      dropOut(room, expired, 'timeout', now);
+      bump(room);
+      return 'changed';
+    }
+  }
   if (room.status === 'closed' || TURN_GAMES.includes(room.game)) return null;
 
   if (room.status === 'started' && room.game === 'grid' && now >= room.gridEndsAt) {
@@ -1161,7 +1201,7 @@ function roomTimers(room, now) {
   if (room.status === 'started' && now >= room.startAt) {
     // The player away the longest loses; time before the start does not count.
     const gone = playing(room)
-      .filter((r) => !room.players[r].connected && now - Math.max(room.players[r].awaySince, room.startAt) >= INACTIVE_FORFEIT_MS)
+      .filter((r) => !room.players[r].connected && !room.players[r].pausedUntil && now - Math.max(room.players[r].awaySince, room.startAt) >= INACTIVE_FORFEIT_MS)
       .sort((a, b) => room.players[a].awaySince - room.players[b].awaySince);
     if (gone.length) {
       dropOut(room, gone[0], 'timeout', now);
@@ -1205,6 +1245,9 @@ export function nextDeadline(room) {
     deadlines.push(lastAway + idleLimit(room));
   }
   if (needsStartPush(room)) deadlines.push(room.startAt);
+  if (room.status === 'started') {
+    for (const r of playing(room)) if (room.players[r].pausedUntil) deadlines.push(room.players[r].pausedUntil);
+  }
   if (room.status === 'started' && room.game === 'draw') deadlines.push(room.turnEndsAt);
   if (room.status === 'started' && room.game === 'grid') deadlines.push(room.gridEndsAt);
   if (room.status === 'started' && room.game === 'bingo') deadlines.push(room.bingoEndsAt);
@@ -1213,7 +1256,7 @@ export function nextDeadline(room) {
       const player = room.players[role];
       if (player.connected || player.left) continue;
       if (room.status === 'started') {
-        if (!playing(room).includes(role)) continue;
+        if (!playing(room).includes(role) || player.pausedUntil) continue;
         deadlines.push(Math.max(player.awaySince, room.startAt) + INACTIVE_FORFEIT_MS);
       } else {
         deadlines.push(player.awaySince + LOBBY_ABANDON_MS);
@@ -1314,5 +1357,9 @@ function playerView(player, room, includeProgress, now) {
     online: !!player.connected,
     // The game this player's screen is on, or null in the menu.
     at: player.at === undefined ? room.game : player.at,
+    // Paused mid-match: how long the match still waits for them (ms), else null.
+    pausedMs: player.pausedUntil ? Math.max(0, player.pausedUntil - now) : null,
+    // Asked to start this match again.
+    restart: !!player.restart,
   };
 }

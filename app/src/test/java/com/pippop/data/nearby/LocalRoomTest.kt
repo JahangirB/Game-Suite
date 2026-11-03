@@ -89,6 +89,50 @@ class LocalRoomTest {
     }
 
     @Test
+    fun aPauseKeepsTheMatchUntilItRunsOut() {
+        val room = started()
+        val start = room.startAt!!
+        room.setPaused(LocalRoom.GUEST, true, start + 1000)
+        // Away (app closed) while paused: not forfeited after the usual 45 s.
+        room.setConnected(LocalRoom.GUEST, false, start + 2000)
+        assertFalse(room.checkTimers(start + 2000 + LocalRoom.FORFEIT_MS + 1))
+        val host = parseRoom(room.view(LocalRoom.HOST, start + 61_000))
+        assertEquals(LocalRoom.PAUSE_MS - 60_000, host.opponent!!.pausedMs)
+        assertTrue(parseRoom(room.view(LocalRoom.GUEST, start + 61_000)).pausedByMe)
+        assertTrue(room.checkTimers(start + 1000 + LocalRoom.PAUSE_MS))
+        val after = parseRoom(room.view(LocalRoom.HOST, start + LocalRoom.PAUSE_MS + 2000))
+        assertEquals("me", after.winner)
+        assertEquals("timeout", after.endReason)
+    }
+
+    @Test
+    fun comingBackFromAPauseClearsIt() {
+        val room = started()
+        val start = room.startAt!!
+        room.setPaused(LocalRoom.GUEST, true, start + 1000)
+        room.openGame(LocalRoom.GUEST, room.game)
+        val guest = parseRoom(room.view(LocalRoom.GUEST, start + 2000))
+        assertFalse(guest.pausedByMe)
+        assertTrue(guest.atGame)
+        assertEquals(RoomStatus.PLAYING, guest.status)
+    }
+
+    @Test
+    fun aNewGameEndsTheMatchOnceEveryoneAsks() {
+        val room = started()
+        val start = room.startAt!!
+        room.wantRestart(LocalRoom.HOST, true)
+        assertTrue(parseRoom(room.view(LocalRoom.GUEST, start + 1)).opponent!!.wantsRestart)
+        room.wantRestart(LocalRoom.GUEST, true)
+        val host = parseRoom(room.view(LocalRoom.HOST, start + 2))
+        assertEquals(RoomStatus.FINISHED, host.status)
+        assertNull(host.winner)
+        assertEquals("restart", host.endReason)
+        assertFalse(host.opponent!!.wantsRestart)
+        assertThrows(ApiException::class.java) { room.wantRestart(LocalRoom.HOST, true) }
+    }
+
+    @Test
     fun reactionsAndReconnect() {
         val room = lobby()
         val guestId = room.playerId(LocalRoom.GUEST)

@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.rememberSfx
@@ -170,8 +174,10 @@ private fun pinsMeaning(red: Int, white: Int): String {
 
 /** Four holes to fill from the colour buttons, with Clear and the send button. */
 @Composable
-private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit) {
+private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit, clearKey: Int = 0, clearButton: Boolean = true) {
     var code by remember { mutableStateOf("") }
+    // The dock's Clear row empties it from outside.
+    LaunchedEffect(clearKey) { if (clearKey > 0) code = "" }
     val sfx = rememberSfx()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         // 48 dp pegs: big enough to hit with a thumb.
@@ -187,7 +193,7 @@ private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> U
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SecondaryButton("Clear", { code = "" }, Modifier.weight(1f), enabled = enabled && code.isNotEmpty())
+            if (clearButton) SecondaryButton("Clear", { code = "" }, Modifier.weight(1f), enabled = enabled && code.isNotEmpty())
             PrimaryButton(sendLabel, { onSend(code); code = "" }, Modifier.weight(1f), enabled = enabled && code.length == CodeBreaker.PEGS)
         }
     }
@@ -208,6 +214,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     val name = opponent?.name ?: "The other player"
+    var clearKey by remember { mutableIntStateOf(0) }
     GameFrame(
         title = "Code Breaker",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
@@ -217,7 +224,9 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             else "$n of ${code.tries} guesses"
         }),
         glow = GameKind.CODE.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        tools = listOf(DockTool("Clear row", Icons.Filled.Clear, enabled = !finished) { clearKey++ }),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -245,7 +254,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             code.phase == "set" && code.myCode == null -> {
                 TurnLine("Set a secret code for $name to crack", true, GameKind.CODE.color)
                 Box(Modifier.weight(1f))
-                CodeEntry(!state.firing, "Set my code", vm::sendCode)
+                CodeEntry(!state.firing, "Set my code", vm::sendCode, clearKey = clearKey, clearButton = false)
             }
             code.phase == "set" -> {
                 TurnLine("Waiting for $name to set their code…", false)
@@ -272,7 +281,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                         code.theirs.forEach { ScorePegs(it.black, it.white) }
                     }
                 }
-                CodeEntry(!countdown && !code.meDone && !state.firing && !finished, "Guess", vm::sendCode)
+                CodeEntry(!countdown && !code.meDone && !state.firing && !finished, "Guess", vm::sendCode, clearKey = clearKey, clearButton = false)
             }
         }
     }
@@ -290,7 +299,7 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.CODE.color,
-        dock = soloDock(onHome, { showRules = true }, if (state.started) vm::start else null),
+        menu = soloMenu(GameKind.CODE, onHome, { showRules = true }, if (state.started) vm::start else null),
         scrollable = !state.started,
         popup = if (!state.started || !state.done) null else popupContent {
             ResultPopup(

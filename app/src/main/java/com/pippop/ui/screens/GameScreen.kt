@@ -85,7 +85,14 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         subtitle = "Game ${room.round} · ${room.difficulty?.label.orEmpty()}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.SUDOKU.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        // A race: the tools work all the time.
+        tools = listOf(
+            DockTool(if (state.notesMode) "Notes: on" else "Notes", GameIcons.Pencil, enabled = playing, onClick = vm::toggleNotes),
+            DockTool("Undo", GameIcons.Undo, enabled = playing && board.canUndo, onClick = vm::undo),
+            DockTool("Erase", GameIcons.Eraser, enabled = playing, onClick = vm::erase),
+        ),
         trailing = {
             Text(style = Digits, text = formatDuration(elapsedMs(room, phase, now, startAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
@@ -117,16 +124,6 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             }
         }
 
-        ToolRow(
-            notesMode = state.notesMode,
-            canUndo = board.canUndo,
-            enabled = playing,
-            hintsLeft = null,
-            onUndo = vm::undo,
-            onErase = vm::erase,
-            onNotes = vm::toggleNotes,
-            onHint = {},
-        )
         NumberPad(
             remaining = remainingDigits(board, conflicts),
             enabled = playing && state.selected != null,
@@ -177,9 +174,10 @@ private fun BoxScope.SudokuPopup(
                 Text(if (showSolution) "Hide solution" else "Show solution on the board", color = p.primaryText)
             }
         }
-        if (opponent != null && !opponent.left) {
-            Text("Rematch: both choose the same level", color = p.muted, fontSize = TextSize.Body)
-            LevelPicker(room, busy, onPick = vm::chooseLevel)
+        // Partner picked another level: theirs is one tap away (Change has them all).
+        val theirs = opponent?.takeIf { it.ready && !it.left }?.difficulty
+        if (theirs != null && theirs != room.difficulty && !room.me.ready) {
+            TextButton(onClick = { vm.chooseLevel(theirs) }) { Text("$opponentName wants ${theirs.label}: play that", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
     }
 }

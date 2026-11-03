@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
 import com.pippop.ui.Sfx
@@ -209,6 +211,8 @@ private fun ColumnScope.DominoTable(
     onPlay: (Int, String) -> Unit,
     onDraw: () -> Unit,
     onPass: () -> Unit,
+    /** Draw and Pass as buttons under the hand; against your partner they're in the dock. */
+    buttons: Boolean = true,
 ) {
     val p = AppTheme.palette
     var selected by remember(view.hand, view.line) { mutableStateOf<Int?>(null) }
@@ -242,7 +246,7 @@ private fun ColumnScope.DominoTable(
         val same = view.line.isNotEmpty() && view.line.first().a == view.line.last().b
         if (ends.size == 1 || same) onPlay(i, ends.last()) else selected = if (selected == i) null else i
     }
-    if (canMove && !view.canPlay) {
+    if (buttons && canMove && !view.canPlay) {
         if (view.draw && view.boneyard > 0) {
             PrimaryButton("Draw a tile (${view.boneyard} left)", onDraw, Modifier.fillMaxWidth())
         } else {
@@ -289,7 +293,18 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.DOMINOES.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        myTurn = myTurn,
+        tools = run {
+            // Only when nothing fits: Draw while the boneyard lasts (in the draw game), else Pass.
+            val stuck = myTurn && !state.firing && !view.canPlay
+            val canDraw = view.draw && view.boneyard > 0
+            listOf(
+                DockTool(if (view.draw) "Draw (${view.boneyard})" else "Draw", GameIcons.Cards, anytime = false, enabled = stuck && canDraw, onClick = vm::drawTile),
+                DockTool("Pass", Icons.AutoMirrored.Filled.ArrowForward, anytime = false, enabled = stuck && !canDraw, onClick = vm::passTurn),
+            )
+        },
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -315,6 +330,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
             waitingText = if (waitingOn?.online == false) "${turnName} is away. They'll get a notification." else "${turnName ?: "The other player"} is thinking…",
             name = ::name,
             onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
+            buttons = false,
         )
     }
 }
@@ -379,7 +395,7 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
             ChipPlayer(name(mark), null, markColor(mark), dominoDetail(view, mark), active = result == null && state.turn == mark)
         },
         glow = GameKind.DOMINOES.color,
-        dock = soloDock(onHome, { showRules = true }, if (view != null) vm::changeRules else null),
+        menu = soloMenu(GameKind.DOMINOES, onHome, { showRules = true }, if (view != null) vm::changeRules else null),
         scrollable = view == null,
         popup = if (view == null || result == null) null else popupContent {
             SoloPopup(

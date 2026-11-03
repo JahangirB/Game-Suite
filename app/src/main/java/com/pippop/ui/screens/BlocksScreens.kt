@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.TextSize
@@ -156,10 +157,28 @@ private fun PieceIcon(piece: Int, orient: Int, color: Color, selected: Boolean, 
  * it there (green fits, red doesn't), and Place.
  */
 @Composable
-fun ColumnScope.BlocksPlay(view: BlocksView, canPlay: Boolean, onPlace: (Placement) -> Unit) {
+fun ColumnScope.BlocksPlay(
+    view: BlocksView,
+    canPlay: Boolean,
+    onPlace: (Placement) -> Unit,
+    /** Each step up turns (or flips) the chosen piece: the dock's Turn and Flip. Zero keeps the buttons here. */
+    turns: Int = 0,
+    flips: Int = 0,
+    inlineTools: Boolean = true,
+) {
     val mine = view.left['m'].orEmpty()
     var piece by remember { mutableStateOf<Int?>(null) }
     var orient by remember { mutableStateOf(0) }
+    var turnsSeen by remember { mutableIntStateOf(turns) }
+    var flipsSeen by remember { mutableIntStateOf(flips) }
+    if (turns != turnsSeen) {
+        repeat((turns - turnsSeen).coerceAtLeast(0)) { orient = (orient / 4) * 4 + (orient + 1) % 4 }
+        turnsSeen = turns
+    }
+    if (flips != flipsSeen) {
+        if ((flips - flipsSeen) % 2 != 0) orient = (orient + 4) % 8
+        flipsSeen = flips
+    }
     var target by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val chosen = piece?.takeIf { it in mine }
     val shape = chosen?.let { Blocks.shape(it, orient) }
@@ -181,8 +200,10 @@ fun ColumnScope.BlocksPlay(view: BlocksView, canPlay: Boolean, onPlace: (Placeme
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SecondaryButton("Turn", { orient = (orient / 4) * 4 + (orient + 1) % 4 }, Modifier.weight(1f), enabled = chosen != null)
-        SecondaryButton("Flip", { orient = (orient + 4) % 8 }, Modifier.weight(1f), enabled = chosen != null)
+        if (inlineTools) {
+            SecondaryButton("Turn", { orient = (orient / 4) * 4 + (orient + 1) % 4 }, Modifier.weight(1f), enabled = chosen != null)
+            SecondaryButton("Flip", { orient = (orient + 4) % 8 }, Modifier.weight(1f), enabled = chosen != null)
+        }
         PrimaryButton(
             "Place",
             {
@@ -209,6 +230,8 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
     val finished = room.status == RoomStatus.FINISHED
     val now = rememberTicker()
     val myTurn = turns.turn == "me" && !finished
+    var turnTaps by remember { mutableIntStateOf(0) }
+    var flipTaps by remember { mutableIntStateOf(0) }
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
@@ -228,7 +251,13 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.BLOCKS.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        myTurn = myTurn,
+        tools = listOf(
+            DockTool("Turn", GameIcons.Rotate, anytime = false) { turnTaps++ },
+            DockTool("Flip", GameIcons.Flip, anytime = false) { flipTaps++ },
+        ),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -255,7 +284,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             },
             myTurn, GameKind.BLOCKS.color,
         )
-        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock)
+        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock, turns = turnTaps, flips = flipTaps, inlineTools = false)
     }
 }
 
@@ -273,7 +302,7 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
         subtitle = "Against ${state.opponents} computer${if (state.opponents > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.BLOCKS.color,
-        dock = soloDock(onHome, { showRules = true }, if (view != null) vm::start else null),
+        menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, if (view != null) vm::start else null),
         scrollable = view == null,
         popup = if (view == null || state.result == null) null else popupContent {
             SoloPopup(

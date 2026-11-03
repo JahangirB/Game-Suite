@@ -52,6 +52,7 @@ import com.pippop.data.GameKind
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Size
@@ -96,8 +97,9 @@ class BuiltInShips(val style: ShipStyle, val pick: (ShipStyle) -> Unit)
 val LocalBuiltInShips = staticCompositionLocalOf { BuiltInShips(ShipStyle.TOY) {} }
 
 /** The Skins button for Ship Battle's dock, with a count of skins you haven't looked at. */
+/** The Skins button as one of the dock's own tools. */
 @Composable
-private fun skinsAction(onClick: () -> Unit) = DockAction("Skins", GameIcons.Palette, badge = newSkinCount(), onClick = onClick)
+private fun skinsTool(onClick: () -> Unit) = DockTool("Skins", GameIcons.Palette, badge = newSkinCount(), onClick = onClick)
 
 /** The skins window, while [open]. */
 @Composable
@@ -122,6 +124,8 @@ fun ShipsSea(
     onTap: ((Int, Int) -> Unit)? = null,
     /** A shot on its way: marked with a target until the server says hit or miss. */
     pending: Pair<Int, Int>? = null,
+    /** Going up plays [lastShot]'s blast again: the dock's "Last shot". */
+    replay: Int = 0,
 ) {
     val p = AppTheme.palette
     val style = LocalShipLook.current
@@ -131,7 +135,7 @@ fun ShipsSea(
     // screen opened stay still.
     val blast = remember { Animatable(1f) }
     var seen by remember { mutableStateOf(false) }
-    LaunchedEffect(lastShot) {
+    LaunchedEffect(lastShot, replay) {
         if (!seen) {
             seen = true
             return@LaunchedEffect
@@ -307,7 +311,8 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
-    val skins = skinsAction { showSkins = true }
+    val skins = skinsTool { showSkins = true }
+    var replay by remember { mutableIntStateOf(0) }
     val players = listOfNotNull(
         ChipPlayer("You", room.me.avatar, p.primary, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
         opponent?.let {
@@ -325,7 +330,9 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         focusWhen = myTurn && !finished,
         players = players,
         glow = GameKind.SHIPS.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true }.let { it.take(it.size - 1) + skins + it.last() },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        tools = listOf(skins, DockTool("Last shot", GameIcons.Eye, enabled = ships.lastShotByMe != null) { replay++ }),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -360,6 +367,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                     onTap = if (myTurn && !finished && !state.firing) vm::fire else null,
                     pending = state.pendingShot,
                     modifier = it,
+                    replay = if (ships.lastShotByMe == true) replay else 0,
                 )
             },
             mine = {
@@ -369,6 +377,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                     sunk = ships.myFleet.filter { s -> Fleet.isSunk(s, ships.theirShots) },
                     lastShot = ships.theirShots.lastOrNull()?.takeIf { ships.lastShotByMe == false },
                     modifier = it,
+                    replay = if (ships.lastShotByMe == false) replay else 0,
                 )
             },
         )
@@ -418,7 +427,6 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
     if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
-    val skins = skinsAction { showSkins = true }
     GameFrame(
         title = "Ship Battle",
         subtitle = "Against the computer",
@@ -429,12 +437,8 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
             ChipPlayer("Computer", null, OpponentColor, "${game.theirProgress}% of fleet hit", active = !game.myTurn && game.winner == null),
         ),
         glow = GameKind.SHIPS.color,
-        dock = listOf(
-            DockAction("Home", Icons.Filled.Home, onClick = onHome),
-            skins,
-            DockAction("Rules", Icons.Filled.Info) { showRules = true },
-            DockAction("New game", Icons.Filled.Refresh, enabled = game != null, onClick = vm::newBattle),
-        ),
+        menu = soloMenu(GameKind.SHIPS, onHome, { showRules = true }, if (game != null) vm::newBattle else null),
+        tools = listOf(skinsTool { showSkins = true }),
         scrollable = game == null,
         popup = game?.winner?.let { winner -> popupContent {
             ResultPopup(

@@ -1,5 +1,10 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.theme.Space
 import androidx.compose.foundation.layout.width
@@ -68,11 +73,12 @@ import com.pippop.ui.theme.DisplayFont
 class PopupAction(val label: String, val onClick: () -> Unit, val enabled: Boolean = true)
 
 /**
- * The end of a match, over the game (see GameFrame's popup): [game]'s own animation for
- * [outcome], [title], [detail], optional [scores], a [status] line (your partner's rematch
- * wish, in green when [statusGood]) and the buttons. [extra] goes above the buttons (the
- * Sudoku levels, the next Ship Battle fleet). "See the board" folds it away to look at the
- * final position, leaving a button to bring it back.
+ * The end of a match, as a sheet over the lower part of the game so the board stays in view:
+ * [game]'s own animation for [outcome] above it, then [title], [tonight]'s score, [detail],
+ * optional [scores], a [status] line (in green when [statusGood]), what the [next] round will be,
+ * [extra], and the buttons: [rematch] (or [again]), [onChange] and [finish]. [games] are others
+ * to play next, one tap each. Dragging the handle down (or "See the board") folds it away,
+ * leaving a tab that brings it back.
  */
 @Composable
 fun BoxScope.ResultPopup(
@@ -85,6 +91,12 @@ fun BoxScope.ResultPopup(
     scores: List<String> = emptyList(),
     status: String? = null,
     statusGood: Boolean = false,
+    tonight: String? = null,
+    next: String? = null,
+    rematch: (@Composable () -> Unit)? = null,
+    onChange: (() -> Unit)? = null,
+    games: List<GameKind> = emptyList(),
+    onOpenGame: (GameKind) -> Unit = {},
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     val p = AppTheme.palette
@@ -99,13 +111,13 @@ fun BoxScope.ResultPopup(
         Surface(
             onClick = { folded = false },
             color = p.primary,
-            shape = Shapes.Full,
+            shape = Shapes.Top,
             border = BorderStroke(2.dp, p.ink),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).pressedEdge(p.ink, 24.dp),
+            modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Text(
-                "Show result", color = p.onPrimary, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
+                "⌃  $title · show result", color = p.onPrimary, fontWeight = FontWeight.Bold, fontSize = TextSize.Body,
+                modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
             )
         }
         return
@@ -115,59 +127,82 @@ fun BoxScope.ResultPopup(
     LaunchedEffect(Unit) { if (reduce) enter.snapTo(1f) else enter.animateTo(1f, tween(320)) }
     // The dim layer also swallows taps, so the game underneath can't be played by accident.
     Box(
-        Modifier.matchParentSize().background(p.scrim.copy(alpha = 0.55f * enter.value))
+        Modifier.matchParentSize().background(p.scrim.copy(alpha = 0.35f * enter.value))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     )
-    Surface(
-        color = p.card,
-        shape = Shapes.L,
-        border = BorderStroke(3.dp, p.ink),
-        modifier = Modifier
-            .align(Alignment.Center)
-            .padding(horizontal = 18.dp, vertical = 12.dp)
-            .widthIn(max = 440.dp)
-            .graphicsLayer {
-                alpha = enter.value
-                translationY = (1 - enter.value) * 60f
-                scaleX = 0.92f + 0.08f * enter.value
-                scaleY = scaleX
-            }
-            .pressedEdge(p.ink, Radius.L, 5.dp),
-    ) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    BoxWithConstraints(Modifier.matchParentSize()) {
+        val room = maxHeight
+        // The game's own little scene, over the board above the sheet.
+        ResultAnimation(
+            game, outcome,
+            Modifier.align(Alignment.TopCenter).padding(top = 12.dp).widthIn(max = 220.dp).fillMaxWidth(0.55f)
+                .graphicsLayer { alpha = enter.value },
+        )
+        Surface(
+            color = p.card,
+            shape = Shapes.Top,
+            border = BorderStroke(3.dp, p.ink),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .heightIn(max = room * 0.78f)
+                .graphicsLayer { translationY = (1 - enter.value) * 300f },
         ) {
-            Text(
-                game.label, color = readableOn(textFill(game.color)), fontWeight = FontWeight.Bold, fontSize = TextSize.Body,
-                modifier = Modifier.clip(Shapes.Full).background(textFill(game.color)).padding(horizontal = 14.dp, vertical = 4.dp),
-            )
-            Text(title, color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayL, textAlign = TextAlign.Center)
-            ResultAnimation(game, outcome)
-            if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            if (scores.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    scores.forEach {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // The handle: drag it down to look at the board.
+                var pulled by remember { mutableStateOf(0f) }
+                Box(
+                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(onDragStart = { pulled = 0f }, onDragEnd = { if (pulled > 60.dp.toPx()) folded = true }) { _, dy -> pulled += dy }
+                        }
+                        .clickable { folded = true },
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(width = 44.dp, height = 5.dp).clip(Shapes.Full).background(p.hairline)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM, modifier = Modifier.weight(1f))
+                    if (tonight != null) {
                         Text(
-                            it, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body,
-                            modifier = Modifier.clip(Shapes.Full).background(p.background).padding(horizontal = 12.dp, vertical = 6.dp),
+                            tonight, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
+                            modifier = Modifier.clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
                         )
                     }
                 }
-            }
-            if (status != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (statusGood) Box(Modifier.size(10.dp).clip(CircleShape).background(p.good))
-                    Text(status, color = if (statusGood) p.good else p.muted, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, textAlign = TextAlign.Center)
+                if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+                if (scores.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        scores.forEach {
+                            Text(
+                                it, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
+                                modifier = Modifier.clip(Shapes.Full).background(p.background).padding(horizontal = 10.dp, vertical = 5.dp),
+                            )
+                        }
+                    }
+                }
+                if (status != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (statusGood) Box(Modifier.size(10.dp).clip(CircleShape).background(p.good))
+                        Text(status, color = if (statusGood) p.good else p.muted, fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
+                    }
+                }
+                if (next != null) Text("NEXT ROUND: " + next.uppercase(), color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+                extra()
+                when {
+                    rematch != null -> rematch()
+                    again != null -> PrimaryButton(again.label, again.onClick, enabled = again.enabled)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    if (onChange != null) SecondaryButton("Change", onChange, Modifier.weight(1f))
+                    SecondaryButton(finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
+                }
+                if (games.isNotEmpty()) {
+                    Text("OR PLAY", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+                    GameShelf(games.take(4), onPick = onOpenGame)
                 }
             }
-            extra()
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                SecondaryButton(finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
-                if (again != null) PrimaryButton(again.label, again.onClick, Modifier.weight(1.4f), enabled = again.enabled)
-            }
-            TextButton(onClick = { folded = true }) { Text("See the board", color = p.muted, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -211,8 +246,9 @@ fun resultTitle(winner: String?, opponentName: String) = when (winner) {
 }
 
 /**
- * The result popup of a match against your partner (or partners): Rematch marks you ready
- * (or takes it back), Finish leaves, and the status line says who wants another round.
+ * The result of a match against your partner (or partners): Rematch with everyone's ready
+ * light (and a countdown once they're all ready), Change for the next round's options,
+ * back to the games, and other games to play together next.
  */
 @Composable
 fun BoxScope.MatchPopup(
@@ -226,61 +262,32 @@ fun BoxScope.MatchPopup(
     scores: List<String> = emptyList(),
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
-    // Everyone else still in the room, and who of them wants another round.
     val present = room.present
     val gone = present.isEmpty()
-    val keen = present.filter { it.ready }
-    val (status, good) = when {
-        gone -> (if (room.others.size == 1) "${room.others[0].name} has left the game." else "Everyone else has left.") to false
-        room.me.ready && keen.size == present.size -> "Starting…" to true
-        keen.isNotEmpty() && !room.me.ready -> (keen.joinToString(" and ") { it.name } + if (keen.size == 1) " wants a rematch" else " want a rematch") to true
-        else -> null to false
+    val status = when {
+        gone -> if (room.others.size == 1) "${room.others[0].name} has left the game." else "Everyone else has left."
+        room.endReason == "restart" -> "You both asked for a new game."
+        else -> null
     }
     val session = LocalMatchSession.current.takeIf { room.inSession }
-    // Once you've asked for a rematch the button says who you're waiting for, and tapping it takes it back.
-    val waitingFor = present.filter { !it.ready }.let { if (it.size == 1) it[0].name else "${it.size} more" }
+    val controls = LocalRoomControls.current
+    if (controls != null && controls.setupOpen.value && !gone) SetupSheet(game, controls) { controls.setupOpen.value = false }
+    val rematch = onRematch ?: controls?.rematch
     ResultPopup(
         game = game,
-        outcome = outcome,
-        title = title,
-        detail = detail,
-        finish = PopupAction(if (room.inSession) "Back to games" else "Done", onFinish),
-        again = onRematch?.let { PopupAction(if (room.me.ready) "Waiting for $waitingFor… · Cancel" else "Rematch", it, enabled = !gone) },
-        scores = listOfNotNull(session?.let { tonightLine(it.tally, present.map { o -> o.name }) }) + scores,
+        outcome = if (room.endReason == "restart") Outcome.TIE else outcome,
+        title = if (room.endReason == "restart") "New game" else title,
+        detail = if (room.endReason == "restart") "" else detail,
+        finish = PopupAction(if (room.inSession) "Games" else "Done", onFinish),
+        again = null,
+        scores = scores,
         status = status,
-        statusGood = good,
-        extra = {
-            extra()
-            if (session != null && !gone) PlaySomethingElse(session, busyGame = game)
-        },
+        tonight = session?.let { tonightLine(it.tally, present.map { o -> o.name }) }?.removePrefix("Tonight: ")?.let { "Tonight $it" },
+        next = controls?.mode,
+        rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
+        onChange = if (controls?.setup == null || gone) null else ({ controls.setupOpen.value = true }),
+        games = if (session == null || gone) emptyList() else session.nextGames.filter { it != game },
+        onOpenGame = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) },
+        extra = extra,
     )
-}
-
-/** Under a result: a couple of other games to play together next, one tap to open. */
-@Composable
-private fun PlaySomethingElse(session: MatchSession, busyGame: GameKind) {
-    val p = AppTheme.palette
-    val games = session.nextGames.filter { it != busyGame }.take(2)
-    if (games.isEmpty()) return
-    Text("OR PLAY SOMETHING ELSE TOGETHER", color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
-    Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
-        games.forEach { g ->
-            Surface(
-                onClick = { session.onOpenGame(g) },
-                color = p.card,
-                shape = Shapes.M,
-                border = BorderStroke(2.dp, p.ink),
-                modifier = Modifier.weight(1f),
-            ) {
-                Row(Modifier.padding(Space.S), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(30.dp).clip(Shapes.S).background(g.color).border(2.dp, p.ink, Shapes.S),
-                    ) { GameIcon(g, Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(Space.S))
-                    Text(g.label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
 }

@@ -167,6 +167,13 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
+    var showWords by remember { mutableStateOf(false) }
+    if (showWords) InfoSheet("Your words: ${grid.mine.size}", onDismiss = { showWords = false }) {
+        Text(
+            grid.mine.sortedWith(compareBy({ -it.length }, { it })).joinToString("  ·  ") { it.uppercase() }.ifEmpty { "None yet." },
+            color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold,
+        )
+    }
     val letters = grid.letters
     val endsAt = grid.endsAt ?: 0L
     val playing = phase == RoomStatus.PLAYING && now < endsAt
@@ -178,7 +185,9 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             if (isMe) "${grid.mine.size} words" else "${grid.counts.getOrNull(room.others.indexOf(player)) ?: 0} words"
         }),
         glow = GameKind.GRID.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
+        tools = listOf(DockTool("My words", GameIcons.Book, badge = grid.mine.size) { showWords = true }),
         trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -227,7 +236,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.GRID.color,
-        dock = soloDock(onHome, { showRules = true }, if (letters != null) vm::start else null),
+        menu = soloMenu(GameKind.GRID, onHome, { showRules = true }, if (letters != null) vm::start else null),
         trailing = {
             if (letters != null && !state.over && state.timed) Text(timeLeft(state.endsAt, now), style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },

@@ -340,7 +340,8 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             otherColor = { i -> ludoColor(view.colours[letterOf(i)] ?: 1) },
         ),
         glow = GameKind.LUDO.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -387,7 +388,7 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
             ChipPlayer(name(mark), null, ludoColor(view.colours[mark] ?: 0), "${homeCount(view, mark)}/4 home", active = result == null && state.turn == mark)
         },
         glow = GameKind.LUDO.color,
-        dock = soloDock(onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
+        menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
         scrollable = view == null,
         popup = if (view == null || result == null) null else popupContent {
             SoloPopup(

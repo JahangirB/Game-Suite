@@ -102,7 +102,16 @@ fun GameFrame(
     subtitle: String?,
     players: List<ChipPlayer>,
     glow: Color,
-    dock: List<DockAction>,
+    dock: List<DockAction> = emptyList(),
+    /**
+     * The game's menu. With one, the dock is Menu, the game's own [tools] and React (when
+     * [onReact] is given): the same all game, with [tools] that work only on your turn greyed
+     * while it isn't ([myTurn]).
+     */
+    menu: GameMenu? = null,
+    tools: List<DockTool> = emptyList(),
+    myTurn: Boolean = true,
+    onReact: (() -> Unit)? = null,
     trailing: @Composable () -> Unit = {},
     trayVisible: Boolean = false,
     tray: @Composable () -> Unit = {},
@@ -118,6 +127,8 @@ fun GameFrame(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
+    var menuOpen by remember { mutableStateOf(false) }
+    if (menuOpen && menu != null) GameMenuSheet(menu) { menuOpen = false }
     var focused by remember { mutableStateOf(false) }
     LaunchedEffect(focusWhen) { if (focusWhen && swipeToFocus) focused = true }
     val swipe = if (!swipeToFocus) Modifier else Modifier.pointerInput(Unit) {
@@ -169,7 +180,7 @@ fun GameFrame(
                 Box(Modifier.fillMaxWidth().padding(12.dp)) { tray() }
             }
         }
-        GameDock(dock)
+        GameDock(if (menu != null) menuDock({ menuOpen = true }, tools, myTurn, onReact) else dock)
     }
 }
 
@@ -267,6 +278,7 @@ fun battleChips(
     // Presence shows in the chip's detail line, not glued onto the name where it truncates.
     val presence = when {
         other.left -> "Left"
+        other.pausedMs != null -> "Paused"
         other.online == false -> "Away"
         else -> null
     }
@@ -316,13 +328,6 @@ private fun GameDock(actions: List<DockAction>) {
         }
     }
 }
-
-/** The dock for a game against your partner: back to the games, send a reaction, read the rules. */
-fun battleDock(finished: Boolean, onLeave: () -> Unit, onReact: (() -> Unit)?, onRules: () -> Unit) = listOfNotNull(
-    DockAction("Games", Icons.AutoMirrored.Filled.ArrowBack, onClick = onLeave),
-    onReact?.let { DockAction("React", Icons.Filled.Face, onClick = it) },
-    DockAction("Rules", Icons.Filled.Info, onClick = onRules),
-)
 
 /** How to play [kind], from the dock's Rules button. */
 @Composable

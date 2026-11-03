@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.width
+
 import com.pippop.ui.BingoPace
 import com.pippop.ui.theme.Space
 import com.pippop.ui.Sound
@@ -170,13 +172,32 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         else -> Bingo.calledCount(state.serverNow() - startAt)
     }
     val dabs = if (state.bingoRound == room.round) state.bingoDabs else emptySet()
+    var showCalls by remember { mutableStateOf(false) }
+    if (showCalls) InfoSheet("Called so far: $called", onDismiss = { showCalls = false }) {
+        val list = calls?.take(called).orEmpty()
+        if (list.isEmpty()) Text("No numbers yet.", color = p.muted, fontSize = TextSize.Body)
+        // Newest first, in rows of eight; the numbers on your card in bold colour.
+        list.reversed().chunked(8).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { n ->
+                    val mine = card?.contains(n) == true
+                    Text(
+                        "$n", color = if (mine) GameKind.BINGO.color else p.text, fontWeight = if (mine) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = TextSize.BodyL, modifier = Modifier.width(34.dp),
+                    )
+                }
+            }
+        }
+    }
     val canClaim = card != null && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null
     GameFrame(
         title = "Bingo",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, now, p.primary, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
         glow = GameKind.BINGO.color,
-        dock = battleDock(finished, onLeave, if (room.opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Calls", GameIcons.History, badge = called) { showCalls = true }),
+        onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -230,7 +251,7 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
         subtitle = if (playing) "Against ${state.computers} computer card${if (state.computers > 1) "s" else ""} · ${state.wins} won" else "On your own",
         players = emptyList(),
         glow = GameKind.BINGO.color,
-        dock = soloDock(onHome, { showRules = true }, if (playing) vm::again else null),
+        menu = soloMenu(GameKind.BINGO, onHome, { showRules = true }, if (playing) vm::again else null),
         scrollable = !playing,
         popup = if (!playing || state.winner == null) null else popupContent {
             SoloPopup(

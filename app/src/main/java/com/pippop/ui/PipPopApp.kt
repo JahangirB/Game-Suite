@@ -27,6 +27,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
 import com.pippop.ui.screens.LocalTutorialHost
+import com.pippop.ui.screens.LeaveSheet
+import com.pippop.ui.screens.LocalRoomControls
+import com.pippop.ui.screens.RoomControls
+import com.pippop.ui.screens.RoomOptions
+import com.pippop.ui.screens.hasOptions
+import com.pippop.ui.screens.inMatch
+import com.pippop.ui.screens.modeLabel
 import com.pippop.ui.screens.TutorialHost
 import com.pippop.ui.screens.TutorialLayer
 import com.pippop.ui.screens.ArrangeGamesScreen
@@ -186,6 +193,15 @@ fun PipPopApp(
         }
     }
     BackHandler(enabled = inRoomGame, onBack = requestLeave)
+    // The Change sheet of the result, held here so a "Change mode" restart can open it.
+    val setupOpen = remember { mutableStateOf(false) }
+    // A new game everyone asked for: each phone gets ready again by itself (unless you're
+    // changing the options first, in the Change sheet).
+    LaunchedEffect(room?.round, room?.status, room?.endReason) {
+        val r = room ?: return@LaunchedEffect
+        if (r.status == RoomStatus.FINISHED && r.endReason == "restart" && !r.me.ready && !setupOpen.value && r.present.isNotEmpty()) battle.rematch()
+    }
+    LaunchedEffect(room?.status) { if (room?.inMatch == true) setupOpen.value = false }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { battle.setForeground(true) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { battle.setForeground(false) }
     BackHandler(enabled = !inRoomGame && dest != Dest.HOME) {
@@ -214,7 +230,25 @@ fun PipPopApp(
                 val skinId by SkinStore.selected.collectAsStateWithLifecycle()
                 val skins by SkinStore.installed.collectAsStateWithLifecycle()
                 val look = skins.firstOrNull { it.id == skinId }?.let { ShipLook.Downloaded(it) } ?: ShipLook.BuiltIn(profile.shipStyle)
-                CompositionLocalProvider(LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle), LocalMatchSession provides session) {
+                // What every game against your partner shares: its mode and options, rematch,
+                // asking for a new game and switching to another one.
+                val controls = room?.let { r ->
+                    RoomControls(
+                        room = r,
+                        mode = modeLabel(r),
+                        setup = if (hasOptions(r)) ({ RoomOptions(r, battleState.busy, battle) }) else null,
+                        rematch = battle::rematch,
+                        newGame = { battle.wantRestart(true) },
+                        switchTo = battle::switchGame,
+                        games = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                        setupOpen = setupOpen,
+                        busy = battleState.busy,
+                    )
+                }
+                CompositionLocalProvider(
+                    LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle),
+                    LocalMatchSession provides session, LocalRoomControls provides controls,
+                ) {
                     when {
                         !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
                         inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
@@ -322,7 +356,7 @@ fun PipPopApp(
                 // Kylian's card in Colour Clash takes over every phone, in a battle or solo.
                 val takeover by Takeover.shown.collectAsStateWithLifecycle()
                 takeover?.let { StickerBurst(it) }
-                if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter))
+                if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter), onRestart = battle::wantRestart)
                 // A game's tutorial, over everything, in the same safe area as every screen.
                 TutorialLayer(tutorials)
             }
@@ -386,46 +420,18 @@ fun PipPopApp(
         )
     }
 
-    if (confirmLeave && room != null && room.inSession) {
-        // Back to the games during a match: you stay connected but the match is lost.
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            containerColor = p.card,
-            title = { Text("Give up this game?", color = p.text) },
-            text = { Text("It counts as a loss. You stay connected and go back to the games.", color = p.muted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmLeave = false
-                    battle.backToGames()
-                }) { Text("Give up", color = p.bad) }
+    if (confirmLeave && room != null) {
+        LeaveSheet(
+            room = room,
+            onStay = { confirmLeave = false },
+            onPause = {
+                confirmLeave = false
+                battle.pause()
             },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Keep playing", color = p.primary) } },
-        )
-    }
-
-    if (confirmLeave && room != null && !room.inSession) {
-        val inMatch = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            containerColor = p.card,
-            title = { Text("Leave the game?", color = p.text) },
-            text = {
-                Text(
-                    when {
-                        inMatch -> "Leaving now counts as a loss."
-                        room.isHost -> "Everyone else is disconnected."
-                        else -> "You can join again with the same code."
-                    },
-                    color = p.muted,
-                )
+            onLeave = {
+                confirmLeave = false
+                if (room.inSession) battle.backToGames() else battle.leave()
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmLeave = false
-                    battle.leave()
-                }) { Text("Leave", color = p.bad) }
-            },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay", color = p.primary) } },
         )
     }
 }

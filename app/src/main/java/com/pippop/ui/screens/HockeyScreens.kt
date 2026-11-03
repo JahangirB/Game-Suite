@@ -1,5 +1,10 @@
 package com.pippop.ui.screens
 
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.aspectRatio
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
 import androidx.compose.runtime.SideEffect
@@ -134,13 +139,42 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
     // While playing, the live table has the latest score; at the end, the server's.
     val mine = if (finished) room.hockey?.mine ?: shown.bottomScore else shown.bottomScore
     val theirs = if (finished) room.hockey?.theirs ?: shown.topScore else shown.topScore
+    // The last few seconds of play, kept so the dock's Replay can show the last goal again.
+    val recent = remember { ArrayDeque<HockeyFrame>() }
+    var lastGoal by remember { mutableStateOf<List<HockeyFrame>>(emptyList()) }
+    var goalsSeen by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(shown) {
+        recent.addLast(shown)
+        while (recent.size > REPLAY_FRAMES) recent.removeFirst()
+        val goals = shown.bottomScore + shown.topScore
+        if (goalsSeen in 0 until goals) lastGoal = recent.toList()
+        goalsSeen = goals
+    }
+    var replaying by remember { mutableStateOf(false) }
+    if (replaying && lastGoal.isNotEmpty()) InfoSheet("The last goal", onDismiss = { replaying = false }) {
+        // Plays the frames back at their pace, then holds the last one.
+        var run by remember { mutableIntStateOf(0) }
+        var i by remember(run) { mutableIntStateOf(0) }
+        LaunchedEffect(run) {
+            while (i < lastGoal.lastIndex) {
+                delay(REPLAY_STEP_MS)
+                i++
+            }
+        }
+        Box(Modifier.fillMaxWidth().aspectRatio(Hockey.W / Hockey.H)) {
+            HockeyRink(lastGoal[i], MyDisc, TheirDisc, onMove = null, modifier = Modifier.fillMaxSize())
+        }
+        TextButton(onClick = { run++ }) { Text("Watch it again", color = p.primaryText, fontWeight = FontWeight.Bold) }
+    }
 
     GameFrame(
         title = "Air Hockey",
         subtitle = "First to ${Hockey.GOALS}" + if (state.reconnecting) " · reconnecting…" else "",
         players = battleChips(room, state, now, MyDisc, detail = { _, isMe -> if (isMe) "$mine goals" else "$theirs goals" }),
         glow = GameKind.HOCKEY.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        tools = listOf(DockTool("Replay", GameIcons.History, enabled = lastGoal.isNotEmpty()) { replaying = true }),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -192,7 +226,7 @@ fun SoloHockeyScreen(state: SoloHockeyUiState, vm: SoloHockeyViewModel, onHome: 
             ChipPlayer("Computer", null, TheirDisc, "${f.topScore} goals"),
         ),
         glow = GameKind.HOCKEY.color,
-        dock = soloDock(onHome, { showRules = true }, if (level != null) vm::changeLevel else null),
+        menu = soloMenu(GameKind.HOCKEY, onHome, { showRules = true }, if (level != null) vm::changeLevel else null),
         scrollable = level == null,
         popup = if (level == null || result == null) null else popupContent {
             SoloPopup(
@@ -213,3 +247,7 @@ fun SoloHockeyScreen(state: SoloHockeyUiState, vm: SoloHockeyViewModel, onHome: 
         }
     }
 }
+
+/** Frames kept for the goal replay (about three seconds), and the replay's pace. */
+private const val REPLAY_FRAMES = 180
+private const val REPLAY_STEP_MS = 16L

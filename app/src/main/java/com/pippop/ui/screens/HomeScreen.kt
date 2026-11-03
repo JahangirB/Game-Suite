@@ -342,6 +342,12 @@ private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, share
                 })
             }
             others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join with this code.", color = p.muted, fontSize = TextSize.Body)
+            // You paused a match: it waits for you a while.
+            room.pausedByMe && playing -> {
+                val left = ((room.me.pausedMs ?: 0) / 60_000).coerceAtLeast(0) + 1
+                StatusLine("Your ${room.game.label} game is paused. It waits about $left more min.", Tone.Good)
+                PrimaryButton("Resume ${room.game.label}", { onOpenGame(room.game) }, loading = busy)
+            }
             here.isNotEmpty() && playing -> {
                 StatusLine("${here.joinToString(" & ") { it.name }} ${if (here.size == 1) "is" else "are"} playing ${room.game.label}.", Tone.Neutral)
             }

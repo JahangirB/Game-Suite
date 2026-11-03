@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -118,11 +119,12 @@ private val TheirLine = GameColors.TheirLine
  * follows your finger along the top and drops into that column when you let go.
  */
 @Composable
-fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: ((Int) -> Unit)?, modifier: Modifier = Modifier) {
+fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: ((Int) -> Unit)?, modifier: Modifier = Modifier, replay: Int = 0) {
     val p = AppTheme.palette
-    val fall = remember(lastCell, board) { Animatable(if (lastCell == null) 1f else 0f) }
+    // [replay] going up drops the last disc again: the dock's "Last move".
+    val fall = remember(lastCell, board, replay) { Animatable(if (lastCell == null) 1f else 0f) }
     // It speeds up as it falls, then bounces once in its hole.
-    LaunchedEffect(lastCell, board) {
+    LaunchedEffect(lastCell, board, replay) {
         fall.animateTo(1f, keyframes {
             durationMillis = 470
             1f at 320 using FastOutLinearInEasing
@@ -205,11 +207,12 @@ fun TttBoard(
     playing: Boolean,
     onMark: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
+    replay: Int = 0,
 ) {
-    if (board.length == 9) return ClassicTttBoard(board, winLine, lastCell, onMark, modifier)
+    if (board.length == 9) return ClassicTttBoard(board, winLine, lastCell, onMark, modifier, replay)
     val p = AppTheme.palette
-    val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
-    LaunchedEffect(lastCell) { pop.animateTo(1f, tween(260)) }
+    val pop = remember(lastCell, replay) { Animatable(if (lastCell == null) 1f else 0f) }
+    LaunchedEffect(lastCell, replay) { pop.animateTo(1f, tween(if (replay > 0) 520 else 260)) }
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
@@ -284,10 +287,10 @@ fun TttBoard(
 
 /** Normal Tic-Tac-Toe: one 3 × 3 board; [board] holds 9 cells ('m' your X, 'o' their O). */
 @Composable
-private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, onMark: ((Int) -> Unit)?, modifier: Modifier) {
+private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, onMark: ((Int) -> Unit)?, modifier: Modifier, replay: Int = 0) {
     val p = AppTheme.palette
-    val pop = remember(lastCell) { Animatable(if (lastCell == null) 1f else 0f) }
-    LaunchedEffect(lastCell) { pop.animateTo(1f, tween(320)) }
+    val pop = remember(lastCell, replay) { Animatable(if (lastCell == null) 1f else 0f) }
+    LaunchedEffect(lastCell, replay) { pop.animateTo(1f, tween(if (replay > 0) 520 else 320)) }
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
@@ -357,8 +360,12 @@ fun DotsBoard(
     avatars: Map<Char, Avatar?>,
     onLine: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
+    replay: Int = 0,
 ) {
     val p = AppTheme.palette
+    // [replay] going up makes the last line swell and settle again: the dock's "Last line".
+    val swell = remember(replay) { Animatable(if (replay > 0) 0f else 1f) }
+    LaunchedEffect(replay) { swell.animateTo(1f, tween(900)) }
     SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
     // A box closed: a stamp and a chime, and the same player goes again.
     SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
@@ -434,7 +441,7 @@ fun DotsBoard(
                 '.' -> drawLine(p.lineThin, a, b, step * 0.035f, cap = StrokeCap.Round)
                 else -> drawLine(
                     if (lines[line] == 'o') TheirLine else markColor(lines[line]), a, b,
-                    step * if (line == lastLine) 0.12f else 0.08f,
+                    step * if (line == lastLine) 0.12f + 0.16f * (1 - swell.value) else 0.08f,
                     cap = StrokeCap.Round,
                 )
             }
@@ -607,12 +614,9 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
     }
 }
 
-/** The dock for a game on your own: back home, the rules, and a fresh game. */
-internal fun soloDock(onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) = listOfNotNull(
-    DockAction("Home", Icons.Filled.Home, onClick = onHome),
-    DockAction("Rules", Icons.Filled.Info, onClick = onRules),
-    onNew?.let { DockAction("New game", Icons.Filled.Refresh, onClick = it) },
-)
+/** The menu of a game on your own: a fresh game, the rules, sound, and back home. */
+internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) =
+    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, leaveLabel = "Home")
 
 // ---- Against your partner -----------------------------------------------------------------
 
@@ -631,6 +635,12 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(game) { showRules = false }
+    // The dock's Last move / Last line plays the last move again; Pairs lists who found what.
+    var replay by remember { mutableIntStateOf(0) }
+    var showPairs by remember { mutableStateOf(false) }
+    if (showPairs) InfoSheet("Pairs found", onDismiss = { showPairs = false }) {
+        FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
+    }
 
     // Boxes or pairs each player has, for the games that keep score.
     val owned = turns.boxes ?: turns.owners
@@ -653,7 +663,16 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = game.color,
-        dock = battleDock(finished, onLeave, if (opponent != null) ({ reacting = !reacting }) else null) { showRules = true },
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        onReact = if (opponent != null) ({ reacting = !reacting }) else null,
+        myTurn = myTurn,
+        tools = listOf(
+            when (game) {
+                GameKind.MEMORY -> DockTool("Pairs", GameIcons.Cards) { showPairs = true }
+                GameKind.DOTS -> DockTool("Last line", GameIcons.Eye, enabled = turns.lastLine != null) { replay++ }
+                else -> DockTool("Last move", GameIcons.Eye, enabled = turns.lastCell != null) { replay++ }
+            },
+        ),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -666,7 +685,6 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             )
         },
     ) {
-        if (game == GameKind.MEMORY) FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
         if (!finished) {
             val name = turnName ?: "The other player"
             val waitingOn = room.others.firstOrNull { it.name == turnName } ?: opponent
@@ -696,6 +714,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     mapOf('m' to room.me.avatar) + room.others.mapIndexed { i, o -> "opq"[i] to o.avatar },
                     onLine = if (canMove) vm::drawLine else null,
                     modifier = size,
+                    replay = replay,
                 )
                 GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(16), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
                 GameKind.TTT -> TttBoard(
@@ -707,6 +726,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     playing = !finished,
                     onMark = if (canMove) vm::markCell else null,
                     modifier = size,
+                    replay = replay,
                 )
                 else -> ConnectFourBoard(
                     board = turns.board ?: ConnectFour.EMPTY,
@@ -714,6 +734,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     lastCell = turns.lastCell,
                     onDrop = if (canMove) vm::dropDisc else null,
                     modifier = size,
+                    replay = replay,
                 )
             }
         }
@@ -780,7 +801,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
             ChipPlayer("Computer", null, TheirDisc, level.label, active = !state.myTurn && result == null),
         ),
         glow = GameKind.CONNECT4.color,
-        dock = soloDock(onHome, { showRules = true }, if (level != null) ({ vm.changeLevel() }) else null),
+        menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, if (level != null) ({ vm.changeLevel() }) else null),
         scrollable = level == null,
         popup = if (level == null || result == null) null else popupContent {
             SoloPopup(
@@ -833,7 +854,7 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             ChipPlayer("Computer", null, TheirDisc, "$theirs boxes", active = !state.myTurn && playing),
         ),
         glow = GameKind.DOTS.color,
-        dock = soloDock(onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, vm::newGame),
         popup = if (result == null) null else popupContent {
             SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = vm::newGame, onHome = onHome)
         },
@@ -871,7 +892,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             ChipPlayer("Computer", null, TheirDisc, if (pos.classic) "O" else "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
         ),
         glow = GameKind.TTT.color,
-        dock = soloDock(onHome, { showRules = true }, { vm.newGame() }),
+        menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }),
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.TTT, result,
@@ -929,7 +950,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
         subtitle = "On your own",
         players = emptyList(),
         glow = GameKind.MEMORY.color,
-        dock = soloDock(onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.MEMORY, onHome, { showRules = true }, vm::newGame),
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text("${state.flips} flips", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
