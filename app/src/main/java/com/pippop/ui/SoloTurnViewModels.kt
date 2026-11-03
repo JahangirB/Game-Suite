@@ -34,6 +34,8 @@ import org.json.JSONObject
 data class SoloDotsUiState(
     val lines: String = ".".repeat(Dots.LINES),
     val boxes: String = ".".repeat(Dots.BOXES * Dots.BOXES),
+    /** The board: "4x4", "5x5", "6x6" or "heart". */
+    val board: String = "4x4",
     val lastLine: Int? = null,
     val myTurn: Boolean = true,
     /** "me", "computer", "draw" or null while playing. */
@@ -42,14 +44,16 @@ data class SoloDotsUiState(
 
 class SoloDotsViewModel : ViewModel() {
     private var match = DotsMatch()
-    private val computer = DotsComputer()
+    private var computer = DotsComputer()
     private var playerStarts = true
     private val _state = MutableStateFlow(SoloDotsUiState())
     val state: StateFlow<SoloDotsUiState> = _state.asStateFlow()
 
-    fun newGame() {
-        match = DotsMatch()
-        _state.value = SoloDotsUiState(myTurn = playerStarts)
+    fun newGame(board: String = _state.value.board) {
+        val shape = com.pippop.game.dots.DotsShape.from(board)
+        match = DotsMatch(shape)
+        computer = DotsComputer(shape = shape)
+        _state.value = SoloDotsUiState(lines = match.lines, boxes = match.boxes, board = shape.key, myTurn = playerStarts)
         if (!playerStarts) computerMoves()
         playerStarts = !playerStarts
     }
@@ -67,6 +71,7 @@ class SoloDotsViewModel : ViewModel() {
         _state.value = SoloDotsUiState(
             lines = match.lines,
             boxes = match.boxes,
+            board = match.shape.key,
             lastLine = line,
             myTurn = if (result.again) mark == 'm' else mark != 'm',
             result = if (!result.over) null else when (result.winner) {

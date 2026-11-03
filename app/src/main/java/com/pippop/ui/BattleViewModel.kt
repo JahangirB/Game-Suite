@@ -843,6 +843,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Dots & Boxes: whoever opened the game picks the board; everyone gets ready again. */
+    fun setDotsBoard(board: String) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.dotsBoard == board) return
+        sendReady(room.copy(dotsBoard = board, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, JSONObject().put("board", board)) }
+    }
+
     /** Code Breaker: whoever opened the game picks the settings (pegs, colours, repeats); everyone gets ready again. */
     fun setCodeRules(rules: com.pippop.game.code.CodeRules) {
         val room = _state.value.room ?: return

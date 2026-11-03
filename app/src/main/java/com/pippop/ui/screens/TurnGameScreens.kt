@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.game.dots.DotsShape
 import androidx.compose.material3.FilterChip
 
 import com.pippop.game.memory.MemoryMatch
@@ -365,6 +366,8 @@ fun DotsBoard(
     onLine: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
     replay: Int = 0,
+    /** The board: 4 × 4, 5 × 5, 6 × 6 or the heart. */
+    shape: DotsShape = DotsShape.from("4x4"),
 ) {
     val p = AppTheme.palette
     // [replay] going up makes the last line swell and settle again: the dock's "Last line".
@@ -378,18 +381,19 @@ fun DotsBoard(
     var preview by remember { mutableStateOf<Int?>(null) }
     var chosen by remember(lines) { mutableStateOf<Int?>(null) }
     val free by rememberUpdatedState(lines)
-    val pick = if (onLine == null) Modifier else Modifier.pointerInput(onLine) {
+    val g = shape
+    val pick = if (onLine == null) Modifier else Modifier.pointerInput(onLine, g) {
         /** The free line whose middle is nearest [at], within most of a box. */
         fun lineAt(at: Offset): Int? {
             val margin = size.width * 0.08f
-            val step = (size.width - 2 * margin) / Dots.BOXES
-            fun middle(line: Int) = if (line < 20) {
-                Offset(margin + (line % 4 + 0.5f) * step, margin + (line / 4) * step)
+            val step = (size.width - 2 * margin) / g.w
+            fun middle(line: Int) = if (line < g.horizontal) {
+                Offset(margin + (line % g.w + 0.5f) * step, margin + (line / g.w) * step)
             } else {
-                val l = line - 20
-                Offset(margin + (l % 5) * step, margin + (l / 5 + 0.5f) * step)
+                val l = line - g.horizontal
+                Offset(margin + (l % (g.w + 1)) * step, margin + (l / (g.w + 1) + 0.5f) * step)
             }
-            return (0 until Dots.LINES).filter { free.getOrNull(it) == '.' }
+            return (0 until g.lines).filter { free.getOrNull(it) == '.' }
                 .minByOrNull { (middle(it) - at).getDistance() }
                 ?.takeIf { (middle(it) - at).getDistance() < step * 0.75f }
         }
@@ -412,20 +416,20 @@ fun DotsBoard(
             }
         }
     }
-    Canvas(modifier.fillMaxWidth().aspectRatio(1f).then(pick)) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(dotsAspect(g)).then(pick)) {
         val margin = size.width * 0.08f
-        val step = (size.width - 2 * margin) / Dots.BOXES
+        val step = (size.width - 2 * margin) / g.w
         fun dot(r: Int, c: Int) = Offset(margin + c * step, margin + r * step)
-        fun ends(line: Int) = if (line < 20) {
-            dot(line / 4, line % 4) to dot(line / 4, line % 4 + 1)
+        fun ends(line: Int) = if (line < g.horizontal) {
+            dot(line / g.w, line % g.w) to dot(line / g.w, line % g.w + 1)
         } else {
-            val l = line - 20
-            dot(l / 5, l % 5) to dot(l / 5 + 1, l % 5)
+            val l = line - g.horizontal
+            dot(l / (g.w + 1), l % (g.w + 1)) to dot(l / (g.w + 1) + 1, l % (g.w + 1))
         }
-        for (box in 0 until Dots.BOXES * Dots.BOXES) {
-            val owner = boxes[box]
-            if (owner == '.') continue
-            val corner = dot(box / Dots.BOXES, box % Dots.BOXES)
+        for (box in 0 until g.boxes) {
+            val owner = boxes.getOrNull(box) ?: continue
+            if (owner == '.' || owner == ' ') continue
+            val corner = dot(box / g.w, box % g.w)
             drawRoundRect(
                 markColor(owner).copy(alpha = 0.35f),
                 corner + Offset(step * 0.08f, step * 0.08f), Size(step * 0.84f, step * 0.84f), CornerRadius(step * 0.14f),
@@ -439,9 +443,10 @@ fun DotsBoard(
                 inset(left, top, size.width - left - pic, size.height - top - pic) { drawAvatar(avatar) }
             }
         }
-        for (line in 0 until Dots.LINES) {
+        for (line in 0 until g.lines) {
             val (a, b) = ends(line)
-            when (lines[line]) {
+            when (lines.getOrNull(line) ?: ' ') {
+                ' ' -> Unit
                 '.' -> drawLine(p.lineThin, a, b, step * 0.035f, cap = StrokeCap.Round)
                 else -> drawLine(
                     if (lines[line] == 'o') TheirLine else markColor(lines[line]), a, b,
@@ -459,12 +464,17 @@ fun DotsBoard(
             val (a, b) = ends(line)
             drawLine(MyDisc.copy(alpha = 0.45f), a, b, step * 0.08f, cap = StrokeCap.Round)
         }
-        for (r in 0..Dots.BOXES) for (c in 0..Dots.BOXES) {
+        for (r in 0..g.h) for (c in 0..g.w) {
+            // A dot only where a box of the board meets it.
+            if (listOf(r - 1 to c - 1, r - 1 to c, r to c - 1, r to c).none { (br, bc) -> br in 0 until g.h && bc in 0 until g.w && g.exists(br * g.w + bc) }) continue
             drawCircle(p.ink, step * 0.085f, dot(r, c))
             drawCircle(p.card, step * 0.035f, dot(r, c))
         }
     }
 }
+
+/** A Dots board's width per unit of height. */
+internal fun dotsAspect(g: DotsShape) = (g.w * 0.84f + 0.16f * g.w) / (g.h * 0.84f + 0.16f * g.w)
 
 // ---- Memory Pairs -------------------------------------------------------------------------
 
@@ -714,14 +724,15 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             )
         }
 
-        BoardArea(if (game == GameKind.MEMORY) memoryAspect(turns.faces.size.takeIf { it > 0 } ?: 16) else 1f) { size ->
+        BoardArea(when (game) { GameKind.MEMORY -> memoryAspect(turns.faces.size.takeIf { it > 0 } ?: 16); GameKind.DOTS -> dotsAspect(DotsShape.from(turns.dotsBoard)); else -> 1f }) { size ->
             when (game) {
                 GameKind.DOTS -> DotsBoard(
-                    turns.lines ?: ".".repeat(Dots.LINES), turns.boxes ?: ".".repeat(16), turns.lastLine,
+                    turns.lines ?: DotsShape.from(turns.dotsBoard).emptyLines(), turns.boxes ?: DotsShape.from(turns.dotsBoard).emptyBoxes(), turns.lastLine,
                     mapOf('m' to room.me.avatar) + room.others.mapIndexed { i, o -> "opq"[i] to o.avatar },
                     onLine = if (canMove) vm::drawLine else null,
                     modifier = size,
                     replay = replay,
+                    shape = DotsShape.from(turns.dotsBoard),
                 )
                 GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
                 GameKind.TTT -> TttBoard(
@@ -890,8 +901,16 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             state.myTurn && playing,
             if (again && playing) p.good else GameKind.DOTS.color,
         )
-        BoardArea(1f) { size ->
-            DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size)
+        // Before the first line: the board to play on.
+        if (state.lines.none { it != '.' && it != ' ' }) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                DotsShape.ALL.forEach { b ->
+                    FilterChip(selected = state.board == b.key, onClick = { vm.newGame(b.key) }, label = { Text(DotsShape.label(b.key)) })
+                }
+            }
+        }
+        BoardArea(dotsAspect(DotsShape.from(state.board))) { size ->
+            DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size, shape = DotsShape.from(state.board))
         }
     }
 }
@@ -1023,6 +1042,20 @@ fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit) {
             Text("Bigger decks bring in more pictures and a longer game.", color = p.muted, fontSize = TextSize.Label)
         } else {
             Text("${room.memoryCards} cards, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+        }
+    }
+}
+
+/** Dots & Boxes' board, picked by whoever opened the game. */
+@Composable
+fun DotsBoardCard(room: RoomState, busy: Boolean, onPick: (String) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("Board") {
+        if (room.setsOptions) {
+            OptionGroup(DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, room.dotsBoard, enabled = !busy, onPick = onPick)
+            Text("Bigger boards make longer chains. The heart has gaps where there are no dots.", color = p.muted, fontSize = TextSize.Label)
+        } else {
+            Text("${DotsShape.label(room.dotsBoard)}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

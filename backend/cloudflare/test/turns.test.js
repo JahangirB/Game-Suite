@@ -177,3 +177,26 @@ test('memory decks of 24 and 36 cards: more pictures, gold ones once the animals
   assert.throws(() => memory.play(s, 'h', { card: 36 }));
   memory.play(s, 'h', { card: 35 });
 });
+
+test('dots on bigger boards and the heart: gaps have no lines, and the board fills', () => {
+  for (const board of ['5x5', '6x6', 'heart']) {
+    const g = dots.geometry(board);
+    const s = dots.start(Math.random, ['h', 'g'], { board });
+    assert.equal(s.lines.length, g.lines);
+    for (let l = 0; l < g.lines; l++) for (const b of dots.lineBoxes(l, g)) assert.ok(dots.boxLines(b, g).includes(l));
+    // Play every drawable line in turn: the game ends with every box claimed.
+    let mark = 'h';
+    let r;
+    for (let l = 0; l < g.lines; l++) {
+      if (s.lines[l] !== '.') continue;
+      r = dots.play(s, mark, { line: l });
+      if (!r.again) mark = mark === 'h' ? 'g' : 'h';
+    }
+    assert.ok(r.over);
+    assert.ok(!s.boxes.includes('.'));
+  }
+  const heart = dots.start(Math.random, ['h', 'g'], { board: 'heart' });
+  assert.equal(heart.boxes[0], ' ');
+  assert.throws(() => dots.play(heart, 'h', { line: 0 }), /Pick a line/);
+  assert.deepEqual(dots.cleanOptions({ board: 'star' }), { board: '4x4' });
+});

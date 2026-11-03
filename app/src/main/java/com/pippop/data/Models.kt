@@ -104,9 +104,11 @@ data class TurnsView(
     val lastMoveByMe: Boolean?,
     /** Connect Four and Ultimate Tic-Tac-Toe: the cell of the last move. */
     val lastCell: Int?,
-    /** Dots & Boxes: who drew each of the 40 lines, and who owns each of the 16 boxes. */
+    /** Dots & Boxes: who drew each line, and who owns each box (' ' where the board has none). */
     val lines: String? = null,
     val boxes: String? = null,
+    /** Dots & Boxes: the board being played. */
+    val dotsBoard: String = "4x4",
     val lastLine: Int? = null,
     /** Memory Pairs: each card's picture when face up or matched, and who found it. */
     val faces: List<com.pippop.game.memory.CardFace?> = emptyList(),
@@ -339,6 +341,8 @@ data class RoomState(
     val golfLevel: GolfLevel? = null,
     /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
     val memoryCards: Int = 16,
+    /** Dots & Boxes: the board the opener picked ("4x4", "5x5", "6x6" or "heart"). */
+    val dotsBoard: String = "4x4",
     /** Code Breaker: the settings the opener picked. */
     val codeRules: com.pippop.game.code.CodeRules = com.pippop.game.code.CodeRules(),
     /** Whether this player sets the open game's options: whoever opened it (the host at first). */
@@ -399,6 +403,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     maxPlayers = json.optInt("maxPlayers", 2),
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
+    dotsBoard = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DOTS }?.optString("board")?.takeIf { it.isNotEmpty() } ?: "4x4",
     codeRules = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.CODE }?.let { com.pippop.game.code.CodeRules.from(it) } ?: com.pippop.game.code.CodeRules(),
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
     golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
@@ -532,6 +537,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         lastCell = last?.takeIf { it.has("cell") }?.optInt("cell"),
         lines = json.stringOrNull("lines"),
         boxes = json.stringOrNull("boxes"),
+        dotsBoard = json.stringOrNull("dotsBoard") ?: "4x4",
         lastLine = last?.takeIf { it.has("line") }?.optInt("line"),
         faces = json.optJSONArray("faces")?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else com.pippop.game.memory.CardFace.from(a.optString(it)) } }.orEmpty(),
         owners = json.stringOrNull("owners"),

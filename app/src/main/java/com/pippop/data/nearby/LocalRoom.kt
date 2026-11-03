@@ -114,6 +114,8 @@ class LocalRoom(
         private set
     /** Tic-Tac-Toe: the host chose normal 3 × 3 instead of Ultimate. */
     var tttClassic = false
+    /** Dots & Boxes' board. */
+    var dotsBoard = "4x4"
     /** Code Breaker's settings. */
     var codeRules = com.pippop.game.code.CodeRules()
     /** Memory Pairs' deck size. */
@@ -309,7 +311,7 @@ class LocalRoom(
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards)
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard)
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
@@ -358,6 +360,7 @@ class LocalRoom(
             GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
             GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
+            GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
             else -> throw ApiException("This game has no options.")
         }
@@ -1213,6 +1216,7 @@ class LocalRoom(
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards)
                     GameKind.CODE -> codeRules.toJson()
+                    GameKind.DOTS -> JSONObject().put("board", dotsBoard)
                     else -> JSONObject.NULL
                 },
             )

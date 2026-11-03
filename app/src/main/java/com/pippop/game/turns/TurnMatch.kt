@@ -52,6 +52,8 @@ interface TurnMatch {
             golfLevel: GolfLevel = GolfLevel.EASY,
             /** Memory Pairs: the deck size (16, 24 or 36). */
             memoryCards: Int = MemoryMatch.CARDS,
+            /** Dots & Boxes: the board ("4x4", "5x5", "6x6" or "heart"). */
+            dotsBoard: String = "4x4",
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -60,7 +62,7 @@ interface TurnMatch {
             GameKind.BALLOON -> BalloonMatch(marks)
             GameKind.GOLF -> GolfMatch(marks, Courses.pick(golfLevel, random))
             GameKind.BLOCKS -> BlocksMatch(marks)
-            GameKind.DOTS -> DotsMatch()
+            GameKind.DOTS -> DotsMatch(com.pippop.game.dots.DotsShape.from(dotsBoard))
             GameKind.MEMORY -> MemoryMatch(random, memoryCards)
             GameKind.TTT -> TttMatch(tttClassic)
             else -> C4Match()
@@ -68,14 +70,14 @@ interface TurnMatch {
 
         /** [owners] seen from [mark]: 'm' theirs, others as [seats] says ('o' without one). */
         fun side(owners: String, mark: Char, seats: Map<Char, Char> = emptyMap()) =
-            owners.map { if (it == '.') '.' else if (it == mark) 'm' else seats[it] ?: 'o' }.joinToString("")
+            owners.map { if (it == '.' || it == ' ') it else if (it == mark) 'm' else seats[it] ?: 'o' }.joinToString("")
 
         fun lastMove(by: Char, mark: Char, key: String, value: Int): JSONObject =
             JSONObject().put("by", if (by == mark) "me" else "opponent").put(key, value)
 
         /** Whoever owns the most cells in [owners], or null when two or more tie for the most. */
         fun winnerOf(owners: String): Char? {
-            val ranked = owners.filter { it != '.' }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            val ranked = owners.filter { it != '.' && it != ' ' }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
             if (ranked.isEmpty() || (ranked.size > 1 && ranked[1].value == ranked[0].value)) return null
             return ranked[0].key
         }
