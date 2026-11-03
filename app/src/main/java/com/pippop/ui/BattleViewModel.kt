@@ -1120,14 +1120,47 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun select(index: Int) = _state.update { it.copy(selected = if (it.selected == index) null else index) }
+    fun select(index: Int) {
+        _state.update { it.copy(selected = if (it.selected == index) null else index) }
+        val s = _state.value
+        val room = s.room ?: return
+        // Sudoku together: the others see which square you're on.
+        if (room.together && s.canEdit()) send { b, id -> b.coopCursor(room.code, id, s.selected ?: -1) }
+    }
+
     fun toggleNotes() = _state.update { it.copy(notesMode = !it.notesMode) }
+
+    /** Sudoku: whoever opened the game picks a race or one grid together; everyone gets ready again. */
+    fun setSudokuTogether(together: Boolean) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.sudokuTogether == together) return
+        sendReady(room.copy(sudokuTogether = together, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("mode", if (together) "together" else "race"))
+        }
+    }
 
     fun enterDigit(digit: Int) {
         val s = _state.value
         val index = s.selected ?: return
         val board = s.board ?: return
         if (!s.canEdit() || board.givens[index]) return
+        val room = s.room
+        if (room != null && room.together) {
+            // One grid for everyone: notes stay on this phone, digits go to the room, which keeps
+            // the right ones and takes a life for a wrong one. Placed digits can't be erased.
+            val local = when {
+                digit == 0 -> if (board.cells[index] == 0) board.place(index, 0) else board
+                s.notesMode -> board.toggleNote(index, digit)
+                else -> null
+            }
+            if (local != null) {
+                if (local !== board) _state.update { it.copy(board = local) }
+                return
+            }
+            if (board.cells[index] != 0) return
+            send { b, id -> b.coopPlace(room.code, id, index, digit) }
+            return
+        }
         val updated = if (s.notesMode && digit != 0) board.toggleNote(index, digit) else board.place(index, digit)
         if (updated === board) return
         _state.update { it.copy(board = updated) }
@@ -1488,7 +1521,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     fun undo() {
         val s = _state.value
         val board = s.board ?: return
-        if (!s.canEdit() || !board.canUndo) return
+        if (!s.canEdit() || !board.canUndo || s.room?.together == true) return
         _state.update { it.copy(board = board.undo()) }
         syncNow.trySend(Unit)
     }
@@ -1584,7 +1617,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 s.slideMoves.takeIf { it.isNotEmpty() && s.phase(s.serverNow()) == RoomStatus.PLAYING && s.slideRound == room.round }?.joinToString(",")
             room.game == GameKind.NUMBERS ->
                 s.numberEntries?.takeIf { s.phase(s.serverNow()) == RoomStatus.PLAYING && s.numbersRound == room.round }?.joinToString(",")
-            s.canEdit() -> Sudoku.encode(s.board!!.cells)
+            s.canEdit() && !room.together -> Sudoku.encode(s.board!!.cells)
             else -> null
         }?.takeIf { it != lastSentBoard }
         // A live server pushes news by itself, so there is only something to do with a new board.
@@ -1696,6 +1729,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 lastSentBoard = null
                 next = next.copy(board = BoardState.fromPuzzle(puzzle), selected = null, notesMode = false)
             }
+            // Sudoku together: everyone's digits, as the room has them.
+            room.coop?.let { c -> next.board?.let { b -> next = next.copy(board = b.shared(c.board)) } }
             next
         }
         rememberPartner(room)
@@ -1714,7 +1749,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             scoredRound = room.round
             val winner = when (room.winner) {
                 "me" -> MatchRecord.ME
-                "opponent" -> room.winnerName ?: room.opponent?.name
+                // Together, a loss is everyone's: nobody beat you.
+                "opponent" -> if (room.together) null else room.winnerName ?: room.opponent?.name
                 else -> null
             }
             ScoreStore.get(getApplication()).add(MatchRecord(System.currentTimeMillis(), room.game, room.others.map { it.name }, winner))

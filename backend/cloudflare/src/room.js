@@ -233,7 +233,95 @@ function startRound(room, now, generate) {
   // Everyone chose the same level; the host's choice stands for all.
   const difficulty = room.players.host.difficulty;
   const { puzzle, solution } = generate(DIFFICULTY_HOLES[difficulty]);
-  beginMatch(room, { difficulty, puzzle, solution, startAt: now + COUNTDOWN_MS }, { board: puzzle, progress: 0 });
+  const coop = cleanSudokuOptions(room.options).mode === 'together'
+    ? { board: puzzle, by: '.'.repeat(81), lives: COOP_LIVES, miss: null, missSeq: 0, cursors: {}, result: null }
+    : null;
+  beginMatch(room, { difficulty, puzzle, solution, startAt: now + COUNTDOWN_MS, coop }, { board: puzzle, progress: 0, placed: 0 });
+}
+
+// ---------------------------------------------------------------------------------------
+// Sudoku together: one grid for everyone. A right digit stays, in the colour of whoever put it
+// there; a wrong one costs one of the three lives everyone shares. Fill the grid and you all
+// win; lose the last life and you all lose.
+
+export const COOP_LIVES = 3;
+const cleanSudokuOptions = (o) => ({ mode: o?.mode === 'together' ? 'together' : 'race' });
+
+/** Whether a Sudoku together match is being played. */
+function coopRunning(room, now) {
+  return room.game === 'sudoku' && !!room.coop && room.status === 'started' && now >= room.startAt;
+}
+
+/** Puts [digit] in [cell] of the shared grid. Returns false when someone filled it first. */
+export function coopPlace(room, role, cell, digit, now) {
+  if (!coopRunning(room, now)) throw new GameError('The game is not running.');
+  if (!playing(room).includes(role)) throw new GameError("You're not in this game.");
+  cell = Number(cell);
+  digit = Number(digit);
+  if (!Number.isInteger(cell) || cell < 0 || cell > 80 || !Number.isInteger(digit) || digit < 1 || digit > 9) {
+    throw new GameError('Invalid move.');
+  }
+  const c = room.coop;
+  if (c.board[cell] !== '0') return false;
+  const at = (str, ch) => str.slice(0, cell) + ch + str.slice(cell + 1);
+  if (String(digit) === room.solution[cell]) {
+    c.board = at(c.board, String(digit));
+    c.by = at(c.by, MARKS[role]);
+    room.players[role].placed = (room.players[role].placed || 0) + 1;
+    const progress = progressOf(c.board, room.puzzle, room.solution);
+    for (const r of room.inMatch || []) if (room.players[r]) room.players[r].progress = progress;
+    if (c.board === room.solution) {
+      c.result = 'won';
+      for (const r of playing(room)) room.players[r].finishedAt = now;
+      endMatch(room, null, 'solvedTogether');
+    }
+  } else {
+    c.lives = Math.max(0, c.lives - 1);
+    c.missSeq += 1;
+    c.miss = { cell, digit, by: role, seq: c.missSeq };
+    if (c.lives === 0) {
+      c.result = 'lost';
+      for (const r of playing(room)) room.players[r].finishedAt = now;
+      endMatch(room, null, 'outOfLives');
+    }
+  }
+  bump(room);
+  return true;
+}
+
+/** Shows everyone which square [role] is on (-1: none). */
+export function coopCursor(room, role, cell, now) {
+  if (!coopRunning(room, now) || !playing(room).includes(role)) return false;
+  cell = Number(cell);
+  if (!Number.isInteger(cell) || cell < -1 || cell > 80) throw new GameError('Invalid square.');
+  if (room.coop.cursors[role] === cell) return false;
+  room.coop.cursors[role] = cell;
+  bump(room);
+  return true;
+}
+
+/**
+ * The shared grid as [role] sees it. `by` marks who put each digit there: 'm' for you, '1' to
+ * '3' for `others` in their order, '.' for the givens and the gaps; `cursors` follows `others`.
+ */
+function coopView(room, role, status) {
+  const c = room.coop;
+  if (room.game !== 'sudoku' || !c || status === 'countdown') return null;
+  const order = others(room, role);
+  const who = (mark) => {
+    if (mark === '.') return '.';
+    const r = roleOfMark(mark);
+    return r === role ? 'm' : String(order.indexOf(r) + 1 || 1);
+  };
+  return {
+    board: c.board,
+    by: [...c.by].map(who).join(''),
+    lives: c.lives,
+    maxLives: COOP_LIVES,
+    miss: c.miss ? { cell: c.miss.cell, digit: c.miss.digit, mine: c.miss.by === role, seq: c.miss.seq } : null,
+    cursors: order.map((r) => (Number.isInteger(c.cursors[r]) ? c.cursors[r] : -1)),
+    result: c.result,
+  };
 }
 
 
@@ -390,6 +478,7 @@ export function setOptions(room, role, options) {
   else if (room.game === 'code') room.options = codeGame.cleanOptions(options);
   else if (room.game === 'dots') room.options = dots.cleanOptions(options);
   else if (room.game === 'draw') room.options = draw.cleanOptions(options);
+  else if (room.game === 'sudoku') room.options = cleanSudokuOptions(options);
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -1047,6 +1136,8 @@ function numbersView(room, role, status) {
 export function submitBoard(room, role, board, now) {
   const player = room.players[role];
   if (room.status !== 'started' || now < room.startAt || player.finishedAt) return false;
+  // Sudoku together has one grid, changed a digit at a time.
+  if (room.game === 'sudoku' && room.coop) return false;
   board = String(board || '');
   if (board === player.board) return false;
   if (!/^[0-9]{81}$/.test(board)) throw new GameError('Invalid board.');
@@ -1398,13 +1489,13 @@ export function view(room, role, now) {
     startAt: room.startAt,
     puzzle: showPuzzle ? room.puzzle : null,
     solution: status === 'finished' ? room.solution : null,
-    winner: room.winner ? (wonWith(room, role) ? 'me' : 'opponent') : null,
-    winnerName: room.winner ? winnerNames(room) : null,
+    winner: coopResult(room) ? (coopResult(room) === 'won' && room.inMatch?.includes(role) ? 'me' : 'opponent') : room.winner ? (wonWith(room, role) ? 'me' : 'opponent') : null,
+    winnerName: coopResult(room) === 'won' ? (room.inMatch || []).filter((r) => room.players[r]).map((r) => room.players[r].name).join(' & ') : room.winner ? winnerNames(room) : null,
     endReason: room.endReason,
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? cleanSudokuOptions(room.options) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,
@@ -1420,7 +1511,13 @@ export function view(room, role, now) {
     codeGame: room.game === 'code' ? codeView(room, role, status) : null,
     slide: room.game === 'slide' ? slideView(room, role, status) : null,
     bingo: room.game === 'bingo' ? bingoView(room, role, status) : null,
+    coop: coopView(room, role, status),
   };
+}
+
+/** How a finished Sudoku together match went ('won' or 'lost'), else null. */
+function coopResult(room) {
+  return room.game === 'sudoku' && room.status === 'finished' ? room.coop?.result || null : null;
 }
 
 function playerView(player, room, includeProgress, now) {
@@ -1448,5 +1545,7 @@ function playerView(player, room, includeProgress, now) {
     restart: !!player.restart,
     // Word Race: playing in hard mode.
     hard: !!player.hard,
+    // Sudoku together: the digits this player put in.
+    placed: player.placed || 0,
   };
 }

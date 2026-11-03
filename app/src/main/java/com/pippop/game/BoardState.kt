@@ -64,6 +64,24 @@ data class BoardState(
         return copy(notes = filled, history = pushed())
     }
 
+    /**
+     * Sudoku together: the shared grid's digits ([board], 81 characters) in place of this
+     * board's, keeping your own notes where the squares are still empty. Not undoable.
+     */
+    fun shared(board: String): BoardState {
+        val digits = Sudoku.parse(board)
+        if (digits == cells) return this
+        val newNotes = notes.toMutableList()
+        for (i in cells.indices) {
+            val d = digits[i]
+            if (d == 0 || d == cells[i]) continue
+            newNotes[i] = 0
+            val bit = 1 shl (d - 1)
+            for (peer in cells.indices) if (Sudoku.arePeers(i, peer)) newNotes[peer] = newNotes[peer] and bit.inv()
+        }
+        return copy(cells = digits, notes = newNotes, history = emptyList())
+    }
+
     fun undo(): BoardState {
         val last = history.lastOrNull() ?: return this
         return copy(cells = last.cells, notes = last.notes, history = history.dropLast(1))

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +59,12 @@ fun SudokuGrid(
     modifier: Modifier = Modifier,
     /** A long press on a square: the pencil-mark helper fills in what it could be. */
     onLongPress: ((Int) -> Unit)? = null,
+    /** Sudoku together: the colour of whoever put each placed digit there (null: the usual ink). */
+    inkOf: ((Int) -> Color?)? = null,
+    /** Sudoku together: the squares the others are on, each ringed in their colour. */
+    rings: Map<Int, Color> = emptyMap(),
+    /** Sudoku together: a wrong digit (square to digit) that just cost a life, shown for a moment. */
+    flash: Pair<Int, Int>? = null,
 ) {
     val p = AppTheme.palette
     // A pencil tap for each digit placed, and the gentle bonk when one clashes.
@@ -95,8 +103,11 @@ fun SudokuGrid(
                         val given = board.givens[index]
                         val entered = board.cells[index]
                         val revealed = solution != null && !given && entered != solution[index]
-                        val digit = if (revealed) solution!![index] else entered
-                        val isError = !hidden && !given && index in errors
+                        val flashed = !hidden && flash?.first == index && entered == 0
+                        val digit = if (revealed) solution!![index] else if (flashed) flash!!.second else entered
+                        val isError = !hidden && !given && (index in errors || flashed)
+                        val ink = if (given || revealed || hidden) null else inkOf?.invoke(index)
+                        val ring = rings[index]?.takeIf { !hidden }
 
                         val lit = when {
                             hidden || selected == null || index == selected || isError -> null
@@ -125,6 +136,8 @@ fun SudokuGrid(
                                 .background(background)
                                 // The selected square also gets a coral ring, so it never hangs on its fill alone.
                                 .then(if (!hidden && index == selected) Modifier.border(2.dp, p.primary) else Modifier)
+                                // Where a partner is: a ring in their colour, inside your own.
+                                .then(if (ring != null) Modifier.padding(if (index == selected) 2.dp else 0.dp).border(2.5.dp, ring, Shapes.S) else Modifier)
                                 .combinedClickable(
                                     enabled = !hidden,
                                     interactionSource = remember { MutableInteractionSource() },
@@ -144,6 +157,7 @@ fun SudokuGrid(
                                         revealed -> p.good
                                         isError -> p.wrong
                                         given -> p.given
+                                        ink != null -> ink
                                         else -> p.entry
                                     },
                                 )

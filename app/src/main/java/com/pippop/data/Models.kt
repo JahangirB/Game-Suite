@@ -320,7 +320,26 @@ data class PlayerInfo(
     val wantsRestart: Boolean = false,
     /** Word Race: playing in hard mode. */
     val hard: Boolean = false,
+    /** Sudoku together: the digits this player put in. */
+    val placed: Int = 0,
 )
+
+/**
+ * Sudoku together: the one grid everyone fills. [by] marks who put each digit there: 'm' for
+ * you, '1' to '3' for the room's others in order, '.' for givens and gaps; [cursors] follows
+ * the others too (-1: none). [miss] is the last wrong digit, which cost a life.
+ */
+data class CoopView(
+    val board: String,
+    val by: String,
+    val lives: Int,
+    val maxLives: Int,
+    val miss: CoopMiss?,
+    val cursors: List<Int>,
+    val result: String?,
+)
+
+data class CoopMiss(val cell: Int, val digit: Int, val mine: Boolean, val seq: Int)
 
 data class RoomState(
     val code: String,
@@ -352,6 +371,8 @@ data class RoomState(
     val codeGame: CodeView? = null,
     val slide: SlideView? = null,
     val bingo: BingoView? = null,
+    /** Sudoku together's shared grid; null in a race. */
+    val coop: CoopView? = null,
     val serverTime: Long,
     /** Everyone else in the room, in seat order (up to three). */
     val others: List<PlayerInfo> = listOfNotNull(opponent),
@@ -368,6 +389,10 @@ data class RoomState(
     val memoryCards: Int = 16,
     /** Draw & Guess: the guess race (everyone else guesses at once) instead of the team game. */
     val drawRace: Boolean = false,
+    /** Sudoku: everyone fills one grid instead of racing. */
+    val sudokuTogether: Boolean = false,
+    /** Sudoku: the server offers Race or Together (older ones only race). */
+    val sudokuModes: Boolean = false,
     /** Dots & Boxes: the board the opener picked ("4x4", "5x5", "6x6" or "heart"). */
     val dotsBoard: String = "4x4",
     /** Code Breaker: the settings the opener picked. */
@@ -378,6 +403,9 @@ data class RoomState(
     val inSession: Boolean = false,
 ) {
     val isHost get() = role == "host"
+
+    /** Sudoku together: one grid for everyone. */
+    val together get() = game == GameKind.SUDOKU && sudokuTogether
 
     /** Whether your screen is on the open game (its lobby, match or result), not the menu. */
     val atGame get() = me.at == game
@@ -421,6 +449,17 @@ fun parseRoom(json: JSONObject) = RoomState(
         fun ints(k: String) = b.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optInt(it) } }
         BingoView(ints("card"), ints("calls"), b.optLong("callMs", 3500), b.longOrNull("endsAt"), ints("winCard"), ints("line"))
     },
+    coop = json.optJSONObject("coop")?.let { c ->
+        CoopView(
+            board = c.optString("board"),
+            by = c.optString("by"),
+            lives = c.optInt("lives"),
+            maxLives = c.optInt("maxLives", 3),
+            miss = c.optJSONObject("miss")?.let { m -> CoopMiss(m.optInt("cell"), m.optInt("digit"), m.optBoolean("mine"), m.optInt("seq")) },
+            cursors = c.optJSONArray("cursors")?.let { a -> (0 until a.length()).map { a.optInt(it, -1) } }.orEmpty(),
+            result = c.stringOrNull("result"),
+        )
+    }?.takeIf { it.board.length == 81 && it.by.length == 81 },
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
@@ -431,6 +470,8 @@ fun parseRoom(json: JSONObject) = RoomState(
     options = json.optJSONObject("options")?.let { DominoOptions.from(it) },
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
     drawRace = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DRAW }?.optString("mode") == "race",
+    sudokuModes = GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU && json.optJSONObject("options")?.has("mode") == true,
+    sudokuTogether = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU }?.optString("mode") == "together",
     dotsBoard = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DOTS }?.optString("board")?.takeIf { it.isNotEmpty() } ?: "4x4",
     codeRules = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.CODE }?.let { com.pippop.game.code.CodeRules.from(it) } ?: com.pippop.game.code.CodeRules(),
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
@@ -459,6 +500,7 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     pausedMs = if (json.isNull("pausedMs")) null else json.optLong("pausedMs"),
     wantsRestart = json.optBoolean("restart"),
     hard = json.optBoolean("hard"),
+    placed = json.optInt("placed"),
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(

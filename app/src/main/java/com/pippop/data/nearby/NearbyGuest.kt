@@ -188,6 +188,12 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun undoStroke(code: String, playerId: String) =
         request(JSONObject().put("type", "unstroke"))
 
+    override suspend fun coopPlace(code: String, playerId: String, cell: Int, digit: Int) =
+        request(JSONObject().put("type", "coop").put("cell", cell).put("digit", digit))
+
+    override suspend fun coopCursor(code: String, playerId: String, cell: Int) =
+        request(JSONObject().put("type", "cursor").put("cell", cell))
+
     override suspend fun setSlidePhoto(code: String, playerId: String, photo: String?) =
         request(JSONObject().put("type", "photo").put("photo", photo ?: JSONObject.NULL))
 

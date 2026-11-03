@@ -170,6 +170,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                     },
                 )
             } else {
+                if (room.game == GameKind.SUDOKU && room.sudokuModes) SudokuModeCard(room, state.busy, vm::setSudokuTogether)
                 AppCard("Choose the level") {
                     LevelPicker(room, state.busy, onPick = vm::chooseLevel)
                 }

@@ -415,6 +415,10 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)
+        GameKind.SUDOKU -> if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether)
+        else -> Unit
+    }
+    when (room.game) {
         GameKind.SUDOKU -> AppCard("Level") {
             Text("Tap a level: the next round starts when you both pick the same one.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)
@@ -425,7 +429,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
 
 /** What [room] is playing, in a few words ("Hard", "Teams · to 100"), or null. */
 fun modeLabel(room: RoomState): String? = when (room.game) {
-    GameKind.SUDOKU -> room.difficulty?.label
+    GameKind.SUDOKU -> listOfNotNull(room.difficulty?.label, "Together".takeIf { room.sudokuTogether }).joinToString(" · ").ifEmpty { null }
     GameKind.WORDS -> room.words?.level?.label
     GameKind.NUMBERS -> room.numbers?.level?.label
     GameKind.SLIDE -> room.slide?.level?.label

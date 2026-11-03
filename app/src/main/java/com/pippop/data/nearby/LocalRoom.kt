@@ -84,6 +84,8 @@ class LocalRoom(
         var restart = false
         /** Word Race: playing in hard mode. */
         var hard = false
+        /** Sudoku together: the digits this player put in. */
+        var placed = 0
     }
 
     var status = "waiting"
@@ -146,6 +148,21 @@ class LocalRoom(
     private var lastDrawTurn: JSONObject? = null
     private var turnEndsAt = 0L
     private var drawTurns = DRAW_TURNS
+    /** Sudoku: everyone fills one grid ("together") instead of racing on their own. */
+    var sudokuTogether = false
+        private set
+    private var coop: Coop? = null
+
+    /** Sudoku together's shared grid: digits, who put each one ('.' for none), lives, last miss, cursors. */
+    private class Coop(var board: String, var by: String) {
+        var lives = COOP_LIVES
+        var miss: JSONObject? = null
+        var missBy: String? = null
+        var missSeq = 0
+        val cursors = mutableMapOf<String, Int>()
+        var result: String? = null
+    }
+
     /** The players a match started with, in seat order. */
     private var inMatch: List<String> = listOf(HOST, GUEST)
     val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar), GUEST to null, P3 to null, P4 to null)
@@ -252,10 +269,81 @@ class LocalRoom(
         difficulty = level
         puzzle = generated.puzzle
         solution = generated.solution
+        coop = if (sudokuTogether) Coop(generated.puzzle, ".".repeat(81)) else null
         beginMatch(now + COUNTDOWN_MS) {
             it.board = generated.puzzle
             it.progress = 0
+            it.placed = 0
         }
+    }
+
+    private fun coopRunning(now: Long) = game == GameKind.SUDOKU && coop != null && status == "started" && now >= (startAt ?: Long.MAX_VALUE)
+
+    /** Sudoku together: puts [digit] in [cell] of the shared grid. False when someone filled it first. */
+    fun coopPlace(role: String, cell: Int, digit: Int, now: Long): Boolean {
+        val c = coop
+        if (c == null || !coopRunning(now)) throw ApiException("The game is not running.")
+        if (role !in playing()) throw ApiException("You're not in this game.")
+        if (cell !in 0..80 || digit !in 1..9) throw ApiException("Invalid move.")
+        if (c.board[cell] != '0') return false
+        val answer = solution!!
+        if (answer[cell] == '0' + digit) {
+            c.board = c.board.replaceRange(cell, cell + 1, digit.toString())
+            c.by = c.by.replaceRange(cell, cell + 1, MARKS.getValue(role).toString())
+            player(role).placed++
+            val progress = progressOf(c.board, puzzle!!, answer)
+            for (r in inMatch) players[r]?.progress = progress
+            if (c.board == answer) {
+                c.result = "won"
+                for (r in playing()) player(r).finishedAt = now
+                endMatch(null, "solvedTogether")
+            }
+        } else {
+            c.lives = maxOf(0, c.lives - 1)
+            c.missSeq++
+            c.missBy = role
+            c.miss = JSONObject().put("cell", cell).put("digit", digit).put("seq", c.missSeq)
+            if (c.lives == 0) {
+                c.result = "lost"
+                for (r in playing()) player(r).finishedAt = now
+                endMatch(null, "outOfLives")
+            }
+        }
+        version++
+        return true
+    }
+
+    /** Sudoku together: shows everyone which square [role] is on (-1: none). */
+    fun coopCursor(role: String, cell: Int, now: Long): Boolean {
+        val c = coop
+        if (c == null || !coopRunning(now) || role !in playing()) return false
+        if (cell !in -1..80) throw ApiException("Invalid square.")
+        if (c.cursors[role] == cell) return false
+        c.cursors[role] = cell
+        version++
+        return true
+    }
+
+    private fun coopResult() = if (game == GameKind.SUDOKU && status == "finished") coop?.result else null
+
+    private fun coopView(role: String, shown: String): Any {
+        val c = coop
+        if (game != GameKind.SUDOKU || c == null || shown == "countdown") return JSONObject.NULL
+        val order = others(role)
+        val by = c.by.map { mark ->
+            if (mark == '.') '.' else {
+                val r = MARKS.entries.first { it.value == mark }.key
+                if (r == role) 'm' else ('1' + maxOf(order.indexOf(r), 0))
+            }
+        }.joinToString("")
+        return JSONObject()
+            .put("board", c.board)
+            .put("by", by)
+            .put("lives", c.lives)
+            .put("maxLives", COOP_LIVES)
+            .put("miss", c.miss?.let { JSONObject(it.toString()).put("mine", c.missBy == role) } ?: JSONObject.NULL)
+            .put("cursors", org.json.JSONArray(order.map { c.cursors[it] ?: -1 }))
+            .put("result", c.result ?: JSONObject.NULL)
     }
 
     /** Ship Battle: ready with a fleet. The battle starts when both fleets are in. */
@@ -368,6 +456,7 @@ class LocalRoom(
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
             GameKind.DRAW -> drawMode = if (options.optString("mode") == "race") "race" else "team"
+            GameKind.SUDOKU -> sudokuTogether = options.optString("mode") == "together"
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
             else -> throw ApiException("This game has no options.")
         }
@@ -1028,6 +1117,8 @@ class LocalRoom(
         val player = players.getValue(role)!!
         val start = startAt
         if (status != "started" || start == null || now < start || player.finishedAt != null) return false
+        // Sudoku together has one grid, changed a digit at a time.
+        if (game == GameKind.SUDOKU && coop != null) return false
         if (board == player.board) return false
         val given = puzzle!!
         if (!Regex("[0-9]{81}").matches(board)) throw ApiException("Invalid board.")
@@ -1281,8 +1372,16 @@ class LocalRoom(
             .put("startAt", start ?: JSONObject.NULL)
             .put("puzzle", if (showPuzzle) puzzle else JSONObject.NULL)
             .put("solution", if (shown == "finished") solution else JSONObject.NULL)
-            .put("winner", winner?.let { if (wonWith(role)) "me" else "opponent" } ?: JSONObject.NULL)
-            .put("winnerName", winner?.let { winnerNames() } ?: JSONObject.NULL)
+            .put(
+                "winner",
+                coopResult()?.let { if (it == "won" && role in inMatch) "me" else "opponent" }
+                    ?: winner?.let { if (wonWith(role)) "me" else "opponent" } ?: JSONObject.NULL,
+            )
+            .put(
+                "winnerName",
+                if (coopResult() == "won") inMatch.mapNotNull { players[it]?.name }.joinToString(" & ")
+                else winner?.let { winnerNames() } ?: JSONObject.NULL,
+            )
             .put(
                 "options",
                 when (game) {
@@ -1296,6 +1395,7 @@ class LocalRoom(
                     GameKind.CODE -> codeRules.toJson()
                     GameKind.DOTS -> JSONObject().put("board", dotsBoard)
                     GameKind.DRAW -> JSONObject().put("mode", drawMode)
+                    GameKind.SUDOKU -> JSONObject().put("mode", if (sudokuTogether) "together" else "race")
                     else -> JSONObject.NULL
                 },
             )
@@ -1317,6 +1417,7 @@ class LocalRoom(
             .put("codeGame", if (game == GameKind.CODE) codeView(role, shown) else JSONObject.NULL)
             .put("slide", if (game == GameKind.SLIDE) slideView(role, shown) else JSONObject.NULL)
             .put("bingo", if (game == GameKind.BINGO) bingoView(role, shown) else JSONObject.NULL)
+            .put("coop", coopView(role, shown))
             .put(
                 "hockey",
                 if (game != GameKind.HOCKEY) JSONObject.NULL else {
@@ -1370,6 +1471,7 @@ class LocalRoom(
         .put("pausedMs", p.pausedUntil?.let { maxOf(0, it - now) } ?: JSONObject.NULL)
         .put("restart", p.restart)
         .put("hard", p.hard)
+        .put("placed", p.placed)
 
     private val host get() = players.getValue(HOST)!!
 
@@ -1387,6 +1489,8 @@ class LocalRoom(
         /** Seats in a room, in order. Two-player games use the first two. */
         val ROLES = listOf(HOST, GUEST, P3, P4)
         /** Each seat's one-letter mark on a turn game's board (as on the server). */
+        /** Sudoku together: the lives everyone shares. */
+        const val COOP_LIVES = 3
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L

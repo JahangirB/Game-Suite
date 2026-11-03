@@ -20,7 +20,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, setSlidePhoto, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, setSlidePhoto, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart, coopPlace, coopCursor,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -259,6 +259,12 @@ export class Room extends DurableObject {
           return;
         case 'unstroke':
           undoStroke(this.room, role);
+          break;
+        case 'coop':
+          coopPlace(this.room, role, msg.cell, msg.digit, now);
+          break;
+        case 'cursor':
+          coopCursor(this.room, role, msg.cell, now);
           break;
         case 'fire':
           fire(this.room, role, msg.x, msg.y, now);

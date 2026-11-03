@@ -150,6 +150,12 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun undoStroke(code: String, playerId: String) =
         local { undoStroke(LocalRoom.HOST, now()) }
 
+    override suspend fun coopPlace(code: String, playerId: String, cell: Int, digit: Int) =
+        local { coopPlace(LocalRoom.HOST, cell, digit, now()) }
+
+    override suspend fun coopCursor(code: String, playerId: String, cell: Int) =
+        local { coopCursor(LocalRoom.HOST, cell, now()) }
+
     override suspend fun setSlidePhoto(code: String, playerId: String, photo: String?) =
         local { setSlidePhoto(LocalRoom.HOST, photo) }
 
@@ -319,6 +325,8 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 }
                 "clear" -> r.clearDrawing(role!!, now)
                 "unstroke" -> r.undoStroke(role!!, now)
+                "coop" -> r.coopPlace(role!!, msg.optInt("cell", -1), msg.optInt("digit"), now)
+                "cursor" -> r.coopCursor(role!!, msg.optInt("cell", -1), now)
                 "board" -> if (r.game == GameKind.SLIDE) {
                     r.slideMoves(role!!, msg.optString("board"), now)
                 } else if (r.game == GameKind.NUMBERS) {
