@@ -3,7 +3,6 @@ package com.pippop.ui.screens
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.runtime.mutableIntStateOf
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
@@ -295,14 +294,9 @@ private fun ColumnScope.LudoTable(
 ) {
     val p = AppTheme.palette
     val myColour = view.colours['m'] ?: 0
-    // The roll that's still tumbling in the strip isn't told (or played) until its die stops.
-    var landed by remember { mutableIntStateOf(view.rollCount) }
-    if (view.rollCount < landed) landed = view.rollCount
-    val rolling = view.rollCount > landed
-    val canMove = myTurn && enabled && !rolling
+    val canMove = myTurn && enabled
     TurnLine(
         when {
-            rolling -> "Rolling…"
             !myTurn -> waitingText
             view.roll == null -> "Your turn: roll the die"
             view.movable.size == 1 -> "You rolled ${view.roll}: tap your token"
@@ -311,12 +305,13 @@ private fun ColumnScope.LudoTable(
         myTurn,
         ludoColor(myColour),
     )
-    if (!rolling) ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
-    LudoDiceStrip(
-        view, canRoll = canMove && view.roll == null, felt = ludoColor(myColour),
-        onRoll = onRoll, onLanded = { landed = maxOf(landed, it) },
-    )
+    // The die and the Roll button: the roll shows at once, nothing to wait for.
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
+        PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
+    }
 }
 
 /**
