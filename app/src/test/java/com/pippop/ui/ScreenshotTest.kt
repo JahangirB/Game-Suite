@@ -68,7 +68,7 @@ class ScreenshotTest {
         solo = SoloUiState(),
         profile = Profile(name = "Sam"),
         onContinue = {},
-        onNewGame = {},
+        onNewGame = { _, _ -> },
         onProfile = {},
         onSolo = {},
         onArrange = {},
