@@ -5,19 +5,13 @@ import android.graphics.Typeface
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -26,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -41,7 +34,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pippop.game.BoardState
 import com.pippop.ui.Sound
@@ -49,14 +41,12 @@ import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.Pieces
 import com.pippop.ui.theme.Shapes
-import com.pippop.ui.theme.TextSize
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /**
  * A Sudoku board of joined grids ([BoardState.shape]): the whole board fits the square at first;
  * pinch to zoom, drag to move round, double-tap to zoom to the grid under your finger (and again
- * for the whole board). Shared boxes are tinted gold. Tap picks a square, a long press fills its
+ * to see the whole board). Shared boxes are tinted gold. Tap picks a square, a long press fills its
  * notes. The rest as [SudokuGrid]: [errors], [solution] shown over wrong squares, and for playing
  * together [inkOf] (whose colour a digit is), [rings] (where the others are) and [flash].
  */
@@ -245,17 +235,6 @@ fun BigSudokuGrid(
                 drawRect(color, o + Offset(thick / 2, thick / 2), Size(c - thick, c - thick), style = Stroke(maxOf(2.dp.toPx(), c * 0.1f)))
             }
             selected?.let { i -> drawRect(p.primary, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
-        }
-        // Zoomed in: one tap back to the whole board.
-        if (scale > 1.05f && abs(scale - 1f) > 0.01f) {
-            Text(
-                "Whole board",
-                color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
-                    .clip(Shapes.S).background(p.card).border(1.5.dp, p.ink, Shapes.S)
-                    .clickable(onClickLabel = "Show the whole board") { zoomTo(1f, Offset.Zero) }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
         }
     }
 }
