@@ -22,9 +22,9 @@ const wrong = (room, cell) => (Number(room.solution[cell]) % 9) + 1;
 
 test('Together is a Sudoku option; race stays the default', () => {
   const room = createRoom('ABC123', 'Alice', T0, uuid);
-  assert.deepEqual(view(room, 'host', T0).options, { mode: 'race' });
+  assert.deepEqual(view(room, 'host', T0).options, { mode: 'race', shape: 'classic' });
   setOptions(room, 'host', { mode: 'together' });
-  assert.deepEqual(view(room, 'host', T0).options, { mode: 'together' });
+  assert.deepEqual(view(room, 'host', T0).options, { mode: 'together', shape: 'classic' });
   setOptions(room, 'host', { mode: 'nonsense' });
   assert.equal(view(room, 'host', T0).options.mode, 'race');
 });

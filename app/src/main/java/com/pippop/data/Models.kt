@@ -393,6 +393,12 @@ data class RoomState(
     val sudokuTogether: Boolean = false,
     /** Sudoku: the server offers Race or Together (older ones only race). */
     val sudokuModes: Boolean = false,
+    /** Sudoku: the board the opener picked for the next round. */
+    val sudokuShape: com.pippop.game.SudokuShape = com.pippop.game.SudokuShape.CLASSIC,
+    /** Sudoku: the server offers boards of joined grids. */
+    val sudokuShapes: Boolean = false,
+    /** Sudoku: how this round's grids are joined ([puzzle] is that shape's size squared). */
+    val shape: com.pippop.game.SudokuShape = com.pippop.game.SudokuShape.CLASSIC,
     /** Dots & Boxes: the board the opener picked ("4x4", "5x5", "6x6" or "heart"). */
     val dotsBoard: String = "4x4",
     /** Code Breaker: the settings the opener picked. */
@@ -459,7 +465,7 @@ fun parseRoom(json: JSONObject) = RoomState(
             cursors = c.optJSONArray("cursors")?.let { a -> (0 until a.length()).map { a.optInt(it, -1) } }.orEmpty(),
             result = c.stringOrNull("result"),
         )
-    }?.takeIf { it.board.length == 81 && it.by.length == 81 },
+    }?.takeIf { it.board.isNotEmpty() && it.board.length == it.by.length },
     hockey = json.optJSONObject("hockey")?.let { HockeyScore(it.optInt("mine"), it.optInt("theirs"), it.optInt("target", 7)) },
     serverTime = json.getLong("serverTime"),
     // Servers from before rooms of four send only "opponent".
@@ -471,6 +477,9 @@ fun parseRoom(json: JSONObject) = RoomState(
     tttClassic = json.optJSONObject("options")?.optString("mode") == "classic",
     drawRace = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DRAW }?.optString("mode") == "race",
     sudokuModes = GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU && json.optJSONObject("options")?.has("mode") == true,
+    sudokuShapes = GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU && json.optJSONObject("options")?.has("shape") == true,
+    sudokuShape = com.pippop.game.SudokuShape.from(json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU }?.optString("shape")),
+    shape = com.pippop.game.SudokuShape.from(json.stringOrNull("shape")),
     sudokuTogether = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU }?.optString("mode") == "together",
     dotsBoard = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.DOTS }?.optString("board")?.takeIf { it.isNotEmpty() } ?: "4x4",
     codeRules = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.CODE }?.let { com.pippop.game.code.CodeRules.from(it) } ?: com.pippop.game.code.CodeRules(),

@@ -86,6 +86,8 @@ class LocalRoom(
         var hard = false
         /** Sudoku together: the digits this player put in. */
         var placed = 0
+        /** Their app plays Sudoku boards of joined grids. */
+        var bigSudoku = false
     }
 
     var status = "waiting"
@@ -151,11 +153,18 @@ class LocalRoom(
     /** Sudoku: everyone fills one grid ("together") instead of racing on their own. */
     var sudokuTogether = false
         private set
+    /** Sudoku: how the next round's grids are joined, and how this round's are. */
+    var sudokuShape = com.pippop.game.SudokuShape.CLASSIC
+        private set
+    private var roundShape = com.pippop.game.SudokuShape.CLASSIC
+    /** A big board's puzzle from the opener's phone: shape, level, puzzle, solution. */
+    private var nextBig: NextBig? = null
+    private class NextBig(val shape: com.pippop.game.SudokuShape, val level: Difficulty, val puzzle: String, val solution: String)
     private var coop: Coop? = null
 
     /** Sudoku together's shared grid: digits, who put each one ('.' for none), lives, last miss, cursors. */
-    private class Coop(var board: String, var by: String) {
-        var lives = COOP_LIVES
+    private class Coop(var board: String, var by: String, val maxLives: Int) {
+        var lives = maxLives
         var miss: JSONObject? = null
         var missBy: String? = null
         var missSeq = 0
@@ -165,7 +174,7 @@ class LocalRoom(
 
     /** The players a match started with, in seat order. */
     private var inMatch: List<String> = listOf(HOST, GUEST)
-    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar), GUEST to null, P3 to null, P4 to null)
+    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar).also { it.bigSudoku = true }, GUEST to null, P3 to null, P4 to null)
 
     fun playerId(role: String) = players.getValue(role)!!.id
 
@@ -202,15 +211,16 @@ class LocalRoom(
         if (game.key !in (games ?: OLD_APP_GAMES)) {
             throw ApiException("This game needs the latest Pip & Pop. Update the app to join.", fatal = true, reason = "update_needed")
         }
-        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { return it.key }
+        val big = games?.contains(BIG_SUDOKU) == true
+        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { it.value?.bigSudoku = big; return it.key }
         // The same phone coming back without its player id gets its own seat back, not a second one beside it.
-        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { return it.key }
+        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { it.value?.bigSudoku = big; return it.key }
         if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")
         val max = game.maxPlayers
         val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
             ?: throw ApiException(if (max == 2) "This game already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
         if (status == "started") throw ApiException("A game is being played. Join when it ends.", fatal = true, reason = "busy")
-        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId }
+        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId; it.bigSudoku = big }
         // Everyone gets ready again, so the newcomer is part of the next round.
         for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
         if (status == "waiting") status = "lobby"
@@ -249,27 +259,45 @@ class LocalRoom(
         }
     }
 
-    fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long) {
+    /**
+     * Ready for a level (or not). On a board of joined grids the opener's Ready carries [big]
+     * (puzzle to solution) for their level, made on their phone, and the round waits for it.
+     */
+    fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long, big: Pair<String, String>? = null) {
         checkCanReady()
         val me = player(role)
         if (!ready) {
             me.ready = false
             me.difficulty = null
         } else {
+            val chosen = level ?: throw ApiException("Choose a difficulty level.")
+            if (sudokuShape.big) {
+                present().firstOrNull { !player(it).bigSudoku }?.let { throw ApiException("${player(it).name} needs the latest Pip & Pop for big boards.") }
+                if (role == openedBy) {
+                    val (p, s) = big ?: throw ApiException("Update Pip & Pop to play big boards.")
+                    sudokuShape.check(p, s)?.let { throw ApiException(it) }
+                    nextBig = NextBig(sudokuShape, chosen, p, s)
+                }
+            }
             me.ready = true
-            me.difficulty = level ?: throw ApiException("Choose a difficulty level.")
+            me.difficulty = chosen
         }
-        if (allReady() && present().map { player(it).difficulty }.toSet().size == 1) startRound(now)
+        val levels = present().map { player(it).difficulty }.toSet()
+        val puzzleIn = !sudokuShape.big || nextBig?.let { it.shape == sudokuShape && it.level == levels.firstOrNull() } == true
+        if (allReady() && levels.size == 1 && puzzleIn) startRound(now)
         version++
     }
 
     private fun startRound(now: Long) {
         val level = host.difficulty!!
-        val generated = generate(level.holes)
+        val made = nextBig
+        val generated = if (sudokuShape.big && made != null) Generator.Result(made.puzzle, made.solution) else generate(level.holes)
+        roundShape = if (made != null && sudokuShape.big) made.shape else com.pippop.game.SudokuShape.CLASSIC
+        nextBig = null
         difficulty = level
         puzzle = generated.puzzle
         solution = generated.solution
-        coop = if (sudokuTogether) Coop(generated.puzzle, ".".repeat(81)) else null
+        coop = if (sudokuTogether) Coop(generated.puzzle, ".".repeat(generated.puzzle.length), if (roundShape.big) COOP_LIVES_BIG else COOP_LIVES) else null
         beginMatch(now + COUNTDOWN_MS) {
             it.board = generated.puzzle
             it.progress = 0
@@ -284,7 +312,7 @@ class LocalRoom(
         val c = coop
         if (c == null || !coopRunning(now)) throw ApiException("The game is not running.")
         if (role !in playing()) throw ApiException("You're not in this game.")
-        if (cell !in 0..80 || digit !in 1..9) throw ApiException("Invalid move.")
+        if (cell !in c.board.indices || digit !in 1..9) throw ApiException("Invalid move.")
         if (c.board[cell] != '0') return false
         val answer = solution!!
         if (answer[cell] == '0' + digit) {
@@ -317,7 +345,7 @@ class LocalRoom(
     fun coopCursor(role: String, cell: Int, now: Long): Boolean {
         val c = coop
         if (c == null || !coopRunning(now) || role !in playing()) return false
-        if (cell !in -1..80) throw ApiException("Invalid square.")
+        if (cell < -1 || cell >= c.board.length) throw ApiException("Invalid square.")
         if (c.cursors[role] == cell) return false
         c.cursors[role] = cell
         version++
@@ -340,7 +368,7 @@ class LocalRoom(
             .put("board", c.board)
             .put("by", by)
             .put("lives", c.lives)
-            .put("maxLives", COOP_LIVES)
+            .put("maxLives", c.maxLives)
             .put("miss", c.miss?.let { JSONObject(it.toString()).put("mine", c.missBy == role) } ?: JSONObject.NULL)
             .put("cursors", org.json.JSONArray(order.map { c.cursors[it] ?: -1 }))
             .put("result", c.result ?: JSONObject.NULL)
@@ -456,7 +484,11 @@ class LocalRoom(
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
             GameKind.DRAW -> drawMode = if (options.optString("mode") == "race") "race" else "team"
-            GameKind.SUDOKU -> sudokuTogether = options.optString("mode") == "together"
+            GameKind.SUDOKU -> {
+                sudokuTogether = options.optString("mode") == "together"
+                sudokuShape = com.pippop.game.SudokuShape.from(options.optString("shape"))
+                nextBig = null
+            }
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
             else -> throw ApiException("This game has no options.")
         }
@@ -1121,8 +1153,8 @@ class LocalRoom(
         if (game == GameKind.SUDOKU && coop != null) return false
         if (board == player.board) return false
         val given = puzzle!!
-        if (!Regex("[0-9]{81}").matches(board)) throw ApiException("Invalid board.")
-        for (i in 0 until 81) {
+        if (if (roundShape.big) !roundShape.fits(board) else !Regex("[0-9]{81}").matches(board)) throw ApiException("Invalid board.")
+        for (i in given.indices) {
             if (given[i] != '0' && board[i] != given[i]) throw ApiException("Invalid board: a given number was changed.")
         }
         player.board = board
@@ -1368,6 +1400,8 @@ class LocalRoom(
             .put("game", game.key)
             .put("status", shown)
             .put("difficulty", difficulty?.key ?: JSONObject.NULL)
+            // Sudoku: how the round's grids are joined (its puzzle is size x size).
+            .put("shape", if (game == GameKind.SUDOKU) roundShape.key else JSONObject.NULL)
             .put("round", round)
             .put("startAt", start ?: JSONObject.NULL)
             .put("puzzle", if (showPuzzle) puzzle else JSONObject.NULL)
@@ -1395,7 +1429,7 @@ class LocalRoom(
                     GameKind.CODE -> codeRules.toJson()
                     GameKind.DOTS -> JSONObject().put("board", dotsBoard)
                     GameKind.DRAW -> JSONObject().put("mode", drawMode)
-                    GameKind.SUDOKU -> JSONObject().put("mode", if (sudokuTogether) "together" else "race")
+                    GameKind.SUDOKU -> JSONObject().put("mode", if (sudokuTogether) "together" else "race").put("shape", sudokuShape.key)
                     else -> JSONObject.NULL
                 },
             )
@@ -1491,6 +1525,10 @@ class LocalRoom(
         /** Each seat's one-letter mark on a turn game's board (as on the server). */
         /** Sudoku together: the lives everyone shares. */
         const val COOP_LIVES = 3
+        /** Sudoku together on a board of joined grids. */
+        const val COOP_LIVES_BIG = 5
+        /** What an app that plays big Sudoku boards adds to the games it says it knows. */
+        const val BIG_SUDOKU = "sudoku-big"
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
@@ -1521,7 +1559,7 @@ class LocalRoom(
         fun progressOf(board: String, puzzle: String, solution: String): Int {
             var empty = 0
             var correct = 0
-            for (i in 0 until 81) {
+            for (i in puzzle.indices) {
                 if (puzzle[i] != '0') continue
                 empty++
                 if (board[i] == solution[i]) correct++

@@ -41,12 +41,14 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
 
     private var ticker: Job? = null
 
-    fun startNew(difficulty: Difficulty) {
+    fun startNew(difficulty: Difficulty, shape: com.pippop.game.SudokuShape = com.pippop.game.SudokuShape.CLASSIC) {
         if (_state.value.generating) return
         viewModelScope.launch {
             _state.update { it.copy(generating = true) }
-            val generated = withContext(Dispatchers.Default) { Generator.generate(difficulty.holes) }
-            val game = SoloGame.new(difficulty, generated)
+            val game = withContext(Dispatchers.Default) {
+                if (shape.big) SoloGame.new(difficulty, com.pippop.game.BigGenerator.generate(shape, difficulty.holes))
+                else SoloGame.new(difficulty, Generator.generate(difficulty.holes))
+            }
             _state.update { it.copy(game = game, generating = false) }
             save(game)
             startTicker()
@@ -79,7 +81,8 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
         val next = change(current)
         if (next === current) return
         _state.update { it.copy(game = next) }
-        if (current.status == SoloStatus.PLAYING && next.status == SoloStatus.WON) {
+        // Best times are for one grid; a big board is a different race.
+        if (current.status == SoloStatus.PLAYING && next.status == SoloStatus.WON && !next.shape.big) {
             store.recordSoloWin(next.difficulty, next.elapsedMs)
         }
         save(next)

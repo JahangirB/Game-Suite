@@ -63,8 +63,10 @@ val GameKind.tagline: String
 val GameKind.rules: String
     get() = when (this) {
         GameKind.SUDOKU -> "Fill every row, column and 3 × 3 box with the digits 1 to 9, each exactly once. " +
-            "Against each other you get the same puzzle at the same moment; the first to solve it wins. " +
-            "Three mistakes end a solo game."
+            "Race: everyone gets the same puzzle at the same moment; the first to solve it wins. " +
+            "Together: one board for the team, anyone fills any square; a wrong digit costs a shared life. " +
+            "Big boards join two to five grids: the gold boxes are shared, so a digit there counts in every grid " +
+            "covering it. Pinch or double-tap to zoom. Three mistakes end a solo game (five on a big board)."
         GameKind.SHIPS -> "Each player hides five ships (5, 4, 3, 3 and 2 squares) on a 10 × 10 sea. Take turns " +
             "firing at the other sea. A hit lets you fire again. Sink the whole enemy fleet to win."
         GameKind.CONNECT4 -> "Take turns dropping a disc into one of seven columns; it falls to the lowest free space. " +

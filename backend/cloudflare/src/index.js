@@ -109,7 +109,7 @@ export class Room extends DurableObject {
         }
         this.room = createRoom(
           code, params.get('name'), now, () => crypto.randomUUID(),
-          params.get('avatar'), params.get('deviceId'), params.get('game'),
+          params.get('avatar'), params.get('deviceId'), params.get('game'), params.get('games')?.split(',') ?? null,
         );
         role = 'host';
       } else {
@@ -212,7 +212,7 @@ export class Room extends DurableObject {
           else if (this.room.game === 'grid') setGridReady(this.room, role, msg.ready !== false, msg.letters, now);
           else if (this.room.game === 'hockey') setHockeyReady(this.room, role, msg.ready !== false, now);
           else if (this.room.game === 'numbers') setNumbersReady(this.room, role, msg.ready !== false, msg.puzzle, now);
-          else setReady(this.room, role, msg.ready !== false, msg.difficulty, now);
+          else setReady(this.room, role, msg.ready !== false, msg.difficulty, now, undefined, msg.big && typeof msg.big === 'object' ? msg.big : null);
           break;
         case 'move':
           makeMove(this.room, role, msg.move, now);

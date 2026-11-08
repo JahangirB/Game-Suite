@@ -4,6 +4,7 @@
 // missing polls.
 
 import { generatePuzzle } from './sudoku.js';
+import { SHAPES, checkPuzzle, fits as shapeFits } from './shapes.js';
 import * as connect4 from './connect4.js';
 import * as dots from './dots.js';
 import * as memory from './memory.js';
@@ -97,14 +98,19 @@ function newPlayer(name, avatar, now, uuid, deviceId = null, at = null) {
   };
 }
 
-export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = null, game = 'sudoku') {
+export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = null, game = 'sudoku', games = null) {
   const open = GAMES.includes(game) ? game : 'sudoku';
+  const host = newPlayer(hostName, avatar, now, uuid, deviceId, open);
+  host.bigSudoku = knowsBigSudoku(games);
   return {
     code, game: open, createdAt: now, version: 0, emojiSeq: 0, difficulty: null, status: 'waiting', round: 0,
     puzzle: null, solution: null, startAt: null, winner: null, endReason: null,
-    players: { host: newPlayer(hostName, avatar, now, uuid, deviceId, open), guest: null },
+    players: { host, guest: null },
   };
 }
+
+/** Whether an app that sent [games] (what it knows) can play Sudoku boards of joined grids. */
+const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku-big');
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -165,12 +171,17 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   if (known) {
     const id = cleanDeviceId(deviceId);
     if (id) room.players[known].deviceId = id;
+    // The same player on an updated app.
+    room.players[known].bigSudoku = knowsBigSudoku(games);
     return known;
   }
   // The same phone coming back without its player id (a join retried after its answer was
   // lost, or the app forgot the room) gets its own seat back, not a second one beside it.
   const mine = findDevice(room, deviceId);
-  if (mine) return mine;
+  if (mine) {
+    room.players[mine].bigSudoku = knowsBigSudoku(games);
+    return mine;
+  }
   if (playerId) throw new GameError("You're not in this game.", true, 'not_member');
   const max = maxPlayers(room.game);
   const seat = ROLES.slice(1, max).find((r) => !room.players[r] || room.players[r].left);
@@ -179,6 +190,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   }
   if (room.status === 'started') throw new GameError('A game is being played. Join when it ends.', true, 'busy');
   room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId, room.game);
+  room.players[seat].bigSudoku = knowsBigSudoku(games);
   // Everyone gets ready again, so the newcomer is part of the next round.
   for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   if (room.status === 'waiting') room.status = 'lobby';
@@ -211,32 +223,52 @@ function beginMatch(room, fields, reset = {}) {
   for (const r of roles) Object.assign(room.players[r], { ready: false, difficulty: null, finishedAt: null, out: false }, structuredClone(reset));
 }
 
-/** Ready for a level (or not ready). The round starts when both pick the same level. */
-export function setReady(room, role, ready, difficulty, now, generate = generatePuzzle) {
+/**
+ * Ready for a level (or not ready). The round starts when everyone picks the same level. On a
+ * board of joined grids the puzzle comes from the phone of whoever opened the game: their Ready
+ * carries [big] ({ puzzle, solution }) for their level, and the round waits for it.
+ */
+export function setReady(room, role, ready, difficulty, now, generate = generatePuzzle, big = null) {
   checkCanReady(room);
   const me = room.players[role];
+  const { shape } = cleanSudokuOptions(room.options);
   if (ready === false) {
     me.ready = false;
     me.difficulty = null;
   } else {
     const level = String(difficulty || '').toLowerCase();
     if (!DIFFICULTY_HOLES[level]) throw new GameError('Choose a difficulty level.');
+    if (shape !== 'classic') {
+      const behind = present(room).find((r) => !room.players[r].bigSudoku);
+      if (behind) throw new GameError(`${room.players[behind].name} needs the latest Pip & Pop for big boards.`);
+      if (role === (room.openedBy || 'host')) {
+        if (!big) throw new GameError('Update Pip & Pop to play big boards.');
+        const why = checkPuzzle(shape, big.puzzle, big.solution);
+        if (why) throw new GameError(why);
+        room.nextBig = { shape, level, puzzle: big.puzzle, solution: big.solution };
+      }
+    }
     me.ready = true;
     me.difficulty = level;
   }
   const levels = new Set(present(room).map((r) => room.players[r].difficulty));
-  if (allReady(room) && levels.size === 1) startRound(room, now, generate);
+  const level = [...levels][0];
+  const puzzleIn = shape === 'classic' || (room.nextBig?.shape === shape && room.nextBig?.level === level);
+  if (allReady(room) && levels.size === 1 && puzzleIn) startRound(room, now, generate);
   bump(room);
 }
 
 function startRound(room, now, generate) {
   // Everyone chose the same level; the host's choice stands for all.
   const difficulty = room.players.host.difficulty;
-  const { puzzle, solution } = generate(DIFFICULTY_HOLES[difficulty]);
-  const coop = cleanSudokuOptions(room.options).mode === 'together'
-    ? { board: puzzle, by: '.'.repeat(81), lives: COOP_LIVES, miss: null, missSeq: 0, cursors: {}, result: null }
+  const { shape, mode } = cleanSudokuOptions(room.options);
+  const { puzzle, solution } = shape === 'classic' ? generate(DIFFICULTY_HOLES[difficulty]) : room.nextBig;
+  room.nextBig = null;
+  const lives = shape === 'classic' ? COOP_LIVES : COOP_LIVES_BIG;
+  const coop = mode === 'together'
+    ? { board: puzzle, by: '.'.repeat(puzzle.length), lives, maxLives: lives, miss: null, missSeq: 0, cursors: {}, result: null }
     : null;
-  beginMatch(room, { difficulty, puzzle, solution, startAt: now + COUNTDOWN_MS, coop }, { board: puzzle, progress: 0, placed: 0 });
+  beginMatch(room, { difficulty, puzzle, solution, shape, startAt: now + COUNTDOWN_MS, coop }, { board: puzzle, progress: 0, placed: 0 });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -245,7 +277,9 @@ function startRound(room, now, generate) {
 // win; lose the last life and you all lose.
 
 export const COOP_LIVES = 3;
-const cleanSudokuOptions = (o) => ({ mode: o?.mode === 'together' ? 'together' : 'race' });
+const cleanSudokuOptions = (o) => ({ mode: o?.mode === 'together' ? 'together' : 'race', shape: SHAPES[o?.shape] ? o.shape : 'classic' });
+/** Lives a team shares in Sudoku together: more on a board of joined grids. */
+export const COOP_LIVES_BIG = 5;
 
 /** Whether a Sudoku together match is being played. */
 function coopRunning(room, now) {
@@ -258,7 +292,7 @@ export function coopPlace(room, role, cell, digit, now) {
   if (!playing(room).includes(role)) throw new GameError("You're not in this game.");
   cell = Number(cell);
   digit = Number(digit);
-  if (!Number.isInteger(cell) || cell < 0 || cell > 80 || !Number.isInteger(digit) || digit < 1 || digit > 9) {
+  if (!Number.isInteger(cell) || cell < 0 || cell >= room.puzzle.length || !Number.isInteger(digit) || digit < 1 || digit > 9) {
     throw new GameError('Invalid move.');
   }
   const c = room.coop;
@@ -293,7 +327,7 @@ export function coopPlace(room, role, cell, digit, now) {
 export function coopCursor(room, role, cell, now) {
   if (!coopRunning(room, now) || !playing(room).includes(role)) return false;
   cell = Number(cell);
-  if (!Number.isInteger(cell) || cell < -1 || cell > 80) throw new GameError('Invalid square.');
+  if (!Number.isInteger(cell) || cell < -1 || cell >= room.puzzle.length) throw new GameError('Invalid square.');
   if (room.coop.cursors[role] === cell) return false;
   room.coop.cursors[role] = cell;
   bump(room);
@@ -317,7 +351,7 @@ function coopView(room, role, status) {
     board: c.board,
     by: [...c.by].map(who).join(''),
     lives: c.lives,
-    maxLives: COOP_LIVES,
+    maxLives: c.maxLives || COOP_LIVES,
     miss: c.miss ? { cell: c.miss.cell, digit: c.miss.digit, mine: c.miss.by === role, seq: c.miss.seq } : null,
     cursors: order.map((r) => (Number.isInteger(c.cursors[r]) ? c.cursors[r] : -1)),
     result: c.result,
@@ -478,7 +512,10 @@ export function setOptions(room, role, options) {
   else if (room.game === 'code') room.options = codeGame.cleanOptions(options);
   else if (room.game === 'dots') room.options = dots.cleanOptions(options);
   else if (room.game === 'draw') room.options = draw.cleanOptions(options);
-  else if (room.game === 'sudoku') room.options = cleanSudokuOptions(options);
+  else if (room.game === 'sudoku') {
+    room.options = cleanSudokuOptions(options);
+    room.nextBig = null;
+  }
   else throw new GameError('This game has no options.');
   for (const r of seated(room)) room.players[r].ready = false;
   bump(room);
@@ -1140,8 +1177,9 @@ export function submitBoard(room, role, board, now) {
   if (room.game === 'sudoku' && room.coop) return false;
   board = String(board || '');
   if (board === player.board) return false;
-  if (!/^[0-9]{81}$/.test(board)) throw new GameError('Invalid board.');
-  for (let i = 0; i < 81; i++) {
+  const shape = room.shape || 'classic';
+  if (shape === 'classic' ? !/^[0-9]{81}$/.test(board) : !shapeFits(shape, board)) throw new GameError('Invalid board.');
+  for (let i = 0; i < room.puzzle.length; i++) {
     if (room.puzzle[i] !== '0' && board[i] !== room.puzzle[i]) {
       throw new GameError('Invalid board: a given number was changed.');
     }
@@ -1160,7 +1198,7 @@ export function submitBoard(room, role, board, now) {
 export function progressOf(board, puzzle, solution) {
   let empty = 0;
   let correct = 0;
-  for (let i = 0; i < 81; i++) {
+  for (let i = 0; i < puzzle.length; i++) {
     if (puzzle[i] !== '0') continue;
     empty++;
     if (board[i] === solution[i]) correct++;
@@ -1485,6 +1523,8 @@ export function view(room, role, now) {
     role,
     status,
     difficulty: room.difficulty,
+    // Sudoku: how the round's grids are joined (its puzzle is size x size).
+    shape: room.game === 'sudoku' ? room.shape || 'classic' : null,
     round: room.round,
     startAt: room.startAt,
     puzzle: showPuzzle ? room.puzzle : null,

@@ -7,8 +7,10 @@ package com.pippop.game
 data class BoardState(
     val cells: List<Int>,
     val givens: List<Boolean>,
-    val notes: List<Int> = List(Sudoku.CELLS) { 0 },
+    val notes: List<Int> = List(cells.size) { 0 },
     private val history: List<Snapshot> = emptyList(),
+    /** How the board's grids are joined; off-board cells count as givens holding 0. */
+    val shape: SudokuShape = SudokuShape.CLASSIC,
 ) {
     data class Snapshot(val cells: List<Int>, val notes: List<Int>)
 
@@ -24,9 +26,7 @@ data class BoardState(
         val newNotes = notes.toMutableList().also { it[index] = 0 }
         if (digit != 0) {
             val bit = 1 shl (digit - 1)
-            for (peer in 0 until Sudoku.CELLS) {
-                if (Sudoku.arePeers(index, peer)) newNotes[peer] = newNotes[peer] and bit.inv()
-            }
+            for (peer in shape.peers[index]) newNotes[peer] = newNotes[peer] and bit.inv()
         }
         return copy(cells = newCells, notes = newNotes, history = pushed())
     }
@@ -41,10 +41,11 @@ data class BoardState(
     /** The digits [index] could still be: none of its row, column or box has them. */
     fun candidates(index: Int): Int {
         if (cells[index] != 0) return 0
+        if (givens[index]) return 0
         var mask = (1 shl 9) - 1
-        for (peer in 0 until Sudoku.CELLS) {
+        for (peer in shape.peers[index]) {
             val d = cells[peer]
-            if (d != 0 && peer != index && Sudoku.arePeers(index, peer)) mask = mask and (1 shl (d - 1)).inv()
+            if (d != 0) mask = mask and (1 shl (d - 1)).inv()
         }
         return mask
     }
@@ -69,7 +70,7 @@ data class BoardState(
      * board's, keeping your own notes where the squares are still empty. Not undoable.
      */
     fun shared(board: String): BoardState {
-        val digits = Sudoku.parse(board)
+        val digits = shape.parse(board)
         if (digits == cells) return this
         val newNotes = notes.toMutableList()
         for (i in cells.indices) {
@@ -77,7 +78,7 @@ data class BoardState(
             if (d == 0 || d == cells[i]) continue
             newNotes[i] = 0
             val bit = 1 shl (d - 1)
-            for (peer in cells.indices) if (Sudoku.arePeers(i, peer)) newNotes[peer] = newNotes[peer] and bit.inv()
+            for (peer in shape.peers[i]) newNotes[peer] = newNotes[peer] and bit.inv()
         }
         return copy(cells = digits, notes = newNotes, history = emptyList())
     }
@@ -88,16 +89,16 @@ data class BoardState(
     }
 
     /** Filled cells that repeat a digit within their row, column or box. */
-    fun conflicts(): Set<Int> = Sudoku.conflicts(cells)
+    fun conflicts(): Set<Int> = if (shape.big) shape.conflicts(cells) else Sudoku.conflicts(cells)
 
     private fun pushed() = (history + Snapshot(cells, notes)).takeLast(MAX_HISTORY)
 
     companion object {
         private const val MAX_HISTORY = 200
 
-        fun fromPuzzle(puzzle: String): BoardState {
-            val cells = Sudoku.parse(puzzle)
-            return BoardState(cells, cells.map { it != 0 })
+        fun fromPuzzle(puzzle: String, shape: SudokuShape = SudokuShape.CLASSIC): BoardState {
+            val cells = shape.parse(puzzle)
+            return BoardState(cells, cells.mapIndexed { i, d -> d != 0 || !shape.onBoard(i) }, shape = shape)
         }
     }
 }

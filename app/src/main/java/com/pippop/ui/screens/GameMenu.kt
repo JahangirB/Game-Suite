@@ -415,7 +415,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)
-        GameKind.SUDOKU -> if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether)
+        GameKind.SUDOKU -> if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
         else -> Unit
     }
     when (room.game) {
@@ -429,7 +429,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
 
 /** What [room] is playing, in a few words ("Hard", "Teams · to 100"), or null. */
 fun modeLabel(room: RoomState): String? = when (room.game) {
-    GameKind.SUDOKU -> listOfNotNull(room.difficulty?.label, "Together".takeIf { room.sudokuTogether }).joinToString(" · ").ifEmpty { null }
+    GameKind.SUDOKU -> listOfNotNull(room.difficulty?.label, room.sudokuShape.label.takeIf { room.sudokuShape.big }, "Together".takeIf { room.sudokuTogether }).joinToString(" · ").ifEmpty { null }
     GameKind.WORDS -> room.words?.level?.label
     GameKind.NUMBERS -> room.numbers?.level?.label
     GameKind.SLIDE -> room.slide?.level?.label

@@ -609,6 +609,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         val cancel = room.me.ready && room.me.difficulty == level
         val me = if (cancel) room.me.copy(ready = false) else room.me.copy(ready = true, difficulty = level)
+        val shape = room.sudokuShape
+        if (!cancel && room.game == GameKind.SUDOKU && shape.big && room.setsOptions) {
+            // A board of joined grids: this phone makes the puzzle (in a moment) and sends it with Ready.
+            sendReady(room.copy(me = me)) { b, id ->
+                val made = withContext(Dispatchers.Default) { com.pippop.game.BigGenerator.generate(shape, level.holes) }
+                b.readyBig(room.code, id, true, level, made.puzzle to made.solution)
+            }
+            return
+        }
         sendReady(room.copy(me = me)) { b, id -> b.ready(room.code, id, !cancel, level) }
     }
 
@@ -1135,7 +1144,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.sudokuTogether == together) return
         sendReady(room.copy(sudokuTogether = together, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("mode", if (together) "together" else "race"))
+            b.setOptions(room.code, id, JSONObject().put("mode", if (together) "together" else "race").put("shape", room.sudokuShape.key))
+        }
+    }
+
+    /** Sudoku: whoever opened the game picks the board, one grid or several joined; everyone gets ready again. */
+    fun setSudokuShape(shape: com.pippop.game.SudokuShape) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.sudokuShape == shape) return
+        sendReady(room.copy(sudokuShape = shape, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("mode", if (room.sudokuTogether) "together" else "race").put("shape", shape.key))
         }
     }
 
@@ -1617,7 +1635,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 s.slideMoves.takeIf { it.isNotEmpty() && s.phase(s.serverNow()) == RoomStatus.PLAYING && s.slideRound == room.round }?.joinToString(",")
             room.game == GameKind.NUMBERS ->
                 s.numberEntries?.takeIf { s.phase(s.serverNow()) == RoomStatus.PLAYING && s.numbersRound == room.round }?.joinToString(",")
-            s.canEdit() && !room.together -> Sudoku.encode(s.board!!.cells)
+            s.canEdit() && !room.together -> s.board!!.shape.encode(s.board.cells)
             else -> null
         }?.takeIf { it != lastSentBoard }
         // A live server pushes news by itself, so there is only something to do with a new board.
@@ -1727,7 +1745,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             if (puzzle != null && room.round != loadedRound) {
                 loadedRound = room.round
                 lastSentBoard = null
-                next = next.copy(board = BoardState.fromPuzzle(puzzle), selected = null, notesMode = false)
+                next = next.copy(board = BoardState.fromPuzzle(puzzle, room.shape), selected = null, notesMode = false)
             }
             // Sudoku together: everyone's digits, as the room has them.
             room.coop?.let { c -> next.board?.let { b -> next = next.copy(board = b.shared(c.board)) } }

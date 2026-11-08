@@ -42,6 +42,16 @@ import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.OpponentColor
 import kotlinx.coroutines.delay
+import com.pippop.game.SudokuShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import com.pippop.ui.theme.Shapes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
@@ -110,7 +120,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
 
     GameFrame(
         title = "Sudoku",
-        subtitle = "Game ${room.round} · ${room.difficulty?.label.orEmpty()}" + (if (together) " · Together" else "") + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round} · ${room.difficulty?.label.orEmpty()}" + (if (board.shape.big) " · ${board.shape.label}" else "") + (if (together) " · Together" else "") + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.SUDOKU.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
@@ -126,7 +136,8 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text(style = Digits, text = formatDuration(elapsedMs(room, phase, now, startAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                if (together) Lives(coop?.lives ?: LocalRoom.COOP_LIVES, coop?.maxLives ?: LocalRoom.COOP_LIVES, flash != null)
+                val fullLives = if (board.shape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES
+                if (together) Lives(coop?.lives ?: fullLives, coop?.maxLives ?: fullLives, flash != null)
             }
         },
         trayVisible = reacting,
@@ -138,20 +149,31 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
 
         BoardArea(1f) { size ->
             Box(size, contentAlignment = Alignment.Center) {
-                SudokuGrid(
-                    board = board,
-                    errors = conflicts,
-                    selected = state.selected,
-                    hidden = phase == RoomStatus.COUNTDOWN,
-                    solution = if (showSolution) room.solution?.let(Sudoku::parse) else null,
-                    onSelect = vm::select,
-                    onLongPress = vm::fillNotes,
-                    inkOf = coop?.let { c -> { i: Int -> coopInk(c.by[i]) } },
-                    rings = coop?.cursors.orEmpty().withIndex()
-                        .filter { (i, cell) -> cell in 0..80 && room.others.getOrNull(i)?.let { !it.left && !it.out } == true }
-                        .associate { (i, cell) -> cell to CoopInk[(i + 1).coerceAtMost(CoopInk.lastIndex)] },
-                    flash = flash,
-                )
+                val inkOf = coop?.takeIf { it.by.length == board.cells.size }?.let { c -> { i: Int -> coopInk(c.by[i]) } }
+                val rings = coop?.cursors.orEmpty().withIndex()
+                    .filter { (i, cell) -> cell in board.cells.indices && room.others.getOrNull(i)?.let { !it.left && !it.out } == true }
+                    .associate { (i, cell) -> cell to CoopInk[(i + 1).coerceAtMost(CoopInk.lastIndex)] }
+                val shown = if (showSolution) room.solution?.let(board.shape::parse) else null
+                if (board.shape.big) {
+                    // Joined grids: the whole board, to pinch or double-tap into.
+                    BigSudokuGrid(
+                        board = board, errors = conflicts, selected = state.selected, hidden = phase == RoomStatus.COUNTDOWN,
+                        solution = shown, onSelect = vm::select, onLongPress = vm::fillNotes, inkOf = inkOf, rings = rings, flash = flash,
+                    )
+                } else {
+                    SudokuGrid(
+                        board = board,
+                        errors = conflicts,
+                        selected = state.selected,
+                        hidden = phase == RoomStatus.COUNTDOWN,
+                        solution = shown,
+                        onSelect = vm::select,
+                        onLongPress = vm::fillNotes,
+                        inkOf = inkOf,
+                        rings = rings,
+                        flash = flash,
+                    )
+                }
                 if (phase == RoomStatus.COUNTDOWN) {
                     val seconds = ((startAt - now + 999) / 1000).coerceAtLeast(1)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -206,10 +228,42 @@ private fun Lives(lives: Int, max: Int, losing: Boolean) {
     }
 }
 
+/** The boards to pick from, as small pictures: one grid, or several joined. */
+@Composable
+fun ShapePicker(selected: SudokuShape, enabled: Boolean, onPick: (SudokuShape) -> Unit) {
+    val p = AppTheme.palette
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (shape in SudokuShape.offered) {
+            val on = shape == selected
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(76.dp).clip(Shapes.M)
+                    .border(if (on) 2.5.dp else 1.5.dp, if (on) p.primary else p.hairline, Shapes.M)
+                    .background(if (on) p.cellSameDigit else p.card)
+                    .selectable(selected = on, enabled = enabled, role = Role.RadioButton) { onPick(shape) }
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                ShapePreview(shape, Modifier.size(48.dp))
+                Text(shape.label, color = p.text, fontSize = TextSize.Label, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
 /** Sudoku: a race, or one grid for everyone. Whoever opened the game picks. */
 @Composable
-fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
+fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit, onShape: (SudokuShape) -> Unit = {}) {
     val p = AppTheme.palette
+    if (room.sudokuShapes) AppCard("Board") {
+        if (room.setsOptions) ShapePicker(room.sudokuShape, enabled = !busy, onPick = onShape)
+        else Text("${room.sudokuShape.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+        Text(
+            if (room.sudokuShape.big) "${room.sudokuShape.grids.size} grids joined: the gold boxes are shared, so a digit there counts in each grid. Pinch or double-tap to zoom."
+            else "One 9 × 9 grid.",
+            color = p.muted, fontSize = TextSize.Label,
+        )
+    }
     AppCard("Mode") {
         if (room.setsOptions) {
             OptionGroup(listOf(false to "Race", true to "Together"), room.sudokuTogether, enabled = !busy, onPick = onPick)
@@ -217,7 +271,7 @@ fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
             Text(if (room.sudokuTogether) "Together, picked by whoever opened the game." else "Race, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
         }
         Text(
-            if (room.sudokuTogether) "One grid on every phone. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of three shared lives: fill the grid and you all win."
+            if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
             else "The same puzzle on every phone: the first to solve it wins.",
             color = p.muted, fontSize = TextSize.Label,
         )
@@ -226,7 +280,7 @@ fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
 
 /** How many of each digit are still missing, ignoring cells that are currently wrong. */
 fun remainingDigits(board: BoardState, errors: Set<Int>): (Int) -> Int = { digit ->
-    9 - board.cells.indices.count { board.cells[it] == digit && it !in errors }
+    board.shape.perDigit - board.cells.indices.count { board.cells[it] == digit && it !in errors }
 }
 
 private fun elapsedMs(room: RoomState, phase: RoomStatus?, now: Long, startAt: Long): Long = when (phase) {

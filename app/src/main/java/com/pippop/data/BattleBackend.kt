@@ -76,6 +76,10 @@ interface BattleBackend {
     /** Draw & Guess: the drawer takes back the last line. */
     suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
 
+    /** Sudoku on joined grids: ready for [difficulty]; the opener sends the puzzle ([big]: puzzle to solution). */
+    suspend fun readyBig(code: String, playerId: String, ready: Boolean, difficulty: Difficulty?, big: Pair<String, String>?): JSONObject =
+        if (big == null) ready(code, playerId, ready, difficulty) else throw ApiException("Big boards need the latest Pip & Pop.")
+
     /** Sudoku together: puts [digit] in [cell] of the shared grid. */
     suspend fun coopPlace(code: String, playerId: String, cell: Int, digit: Int): JSONObject = throw ApiException("Playing together needs the latest Pip & Pop.")
 
@@ -112,7 +116,8 @@ interface BattleBackend {
 
     companion object {
         /** The games this app can play, sent when joining so a server can ask older apps to update. */
-        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key }
+        /** The games this app knows, and "sudoku-big": it plays Sudoku boards of joined grids. */
+        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU
 
         /** Apps Script links poll; anything else is a Cloudflare server with a live connection. */
         fun forUrl(url: String, password: String): BattleBackend =

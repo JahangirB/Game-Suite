@@ -307,8 +307,8 @@ fun PipPopApp(
                                 solo.resume()
                                 dest = Dest.SOLO
                             },
-                            onNewGame = {
-                                solo.startNew(it)
+                            onNewGame = { level, shape ->
+                                solo.startNew(level, shape)
                                 dest = Dest.SOLO
                             },
                             onProfile = { dest = Dest.PROFILE },

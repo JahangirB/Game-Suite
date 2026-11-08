@@ -150,6 +150,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun undoStroke(code: String, playerId: String) =
         local { undoStroke(LocalRoom.HOST, now()) }
 
+    override suspend fun readyBig(code: String, playerId: String, ready: Boolean, difficulty: Difficulty?, big: Pair<String, String>?) =
+        local { setReady(LocalRoom.HOST, ready, difficulty, now(), big) }
+
     override suspend fun coopPlace(code: String, playerId: String, cell: Int, digit: Int) =
         local { coopPlace(LocalRoom.HOST, cell, digit, now()) }
 
@@ -293,7 +296,10 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 } else if (r.game == GameKind.NUMBERS) {
                     r.setNumbersReady(role!!, msg.optBoolean("ready", true), NumberPuzzle.from(msg.optJSONObject("puzzle")), now)
                 } else {
-                    r.setReady(role!!, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now)
+                    r.setReady(
+                        role!!, msg.optBoolean("ready", true), Difficulty.from(msg.optString("difficulty")), now,
+                        msg.optJSONObject("big")?.let { it.optString("puzzle") to it.optString("solution") },
+                    )
                 }
                 "live" -> {
                     // Real-time play: straight to this phone's game, no reply, no new room state.

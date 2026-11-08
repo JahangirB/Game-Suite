@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -100,7 +101,7 @@ fun HomeScreen(
     solo: SoloUiState,
     profile: Profile,
     onContinue: () -> Unit,
-    onNewGame: (Difficulty) -> Unit,
+    onNewGame: (Difficulty, com.pippop.game.SudokuShape) -> Unit,
     onProfile: () -> Unit,
     /** Against the computer or alone, for every game but Sudoku. */
     onSolo: (GameKind) -> Unit,
@@ -225,9 +226,9 @@ fun HomeScreen(
         LevelDialog(
             title = "New game",
             onDismiss = { pickingLevel = false },
-            onPick = {
+            onPick = { level, shape ->
                 pickingLevel = false
-                onNewGame(it)
+                onNewGame(level, shape)
             },
         )
     }
@@ -461,21 +462,25 @@ private fun GameSheet(
 }
 
 @Composable
-private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficulty) -> Unit) {
+private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficulty, com.pippop.game.SudokuShape) -> Unit) {
     val p = AppTheme.palette
+    // One grid, or several joined into one long puzzle.
+    var shape by remember { mutableStateOf(com.pippop.game.SudokuShape.CLASSIC) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.card,
         title = { Text(title, color = p.text, fontWeight = FontWeight.Bold) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                ShapePicker(shape, enabled = true) { shape = it }
+                if (shape.big) Text("${shape.grids.size} grids joined: saves as you go, ${com.pippop.game.SoloGame.BIG_MISTAKES} mistakes allowed.", color = p.muted, fontSize = TextSize.Label, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
                 Difficulty.entries.forEach { level ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(Shapes.M)
-                            .clickable { onPick(level) }
+                            .clickable { onPick(level, shape) }
                             .padding(horizontal = 8.dp, vertical = 10.dp),
                     ) {
                         Column(Modifier.weight(1f)) {

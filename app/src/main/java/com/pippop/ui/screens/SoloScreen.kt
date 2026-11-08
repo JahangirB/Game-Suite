@@ -86,7 +86,7 @@ fun SoloScreen(
     var menuPaused by remember { mutableStateOf(false) }
     GameFrame(
         title = "Sudoku",
-        subtitle = "${game.difficulty.label} · Mistakes ${game.mistakes}/${SoloGame.MAX_MISTAKES}",
+        subtitle = (if (game.shape.big) "${game.shape.label} · " else "") + "${game.difficulty.label} · Mistakes ${game.mistakes}/${game.maxMistakes}",
         players = emptyList(),
         glow = GameKind.SUDOKU.color,
         // Solo Sudoku pauses while the menu is open.
@@ -123,7 +123,7 @@ fun SoloScreen(
                     title = "Well done!",
                     detail = "Solved in ${formatDuration(game.elapsedMs)} with ${game.mistakes} mistake" + if (game.mistakes == 1) "." else "s.",
                     finish = PopupAction("Home", onHome),
-                    again = PopupAction("New puzzle", { vm.startNew(game.difficulty) }),
+                    again = PopupAction("New puzzle", { vm.startNew(game.difficulty, game.shape) }),
                 )
             }
             SoloStatus.LOST -> popupContent {
@@ -131,8 +131,8 @@ fun SoloScreen(
                     game = GameKind.SUDOKU,
                     outcome = Outcome.LOSE,
                     title = "Game over",
-                    detail = "Three mistakes. Try the same puzzle again or start a fresh one.",
-                    finish = PopupAction("New puzzle", { vm.startNew(game.difficulty) }),
+                    detail = "${game.maxMistakes} mistakes. Try the same puzzle again or start a fresh one.",
+                    finish = PopupAction("New puzzle", { vm.startNew(game.difficulty, game.shape) }),
                     again = PopupAction("Try again", vm::restart),
                 )
             }
@@ -140,15 +140,19 @@ fun SoloScreen(
         },
     ) {
         BoardArea(1f) { size -> Box(size, contentAlignment = Alignment.Center) {
-            SudokuGrid(
-                board = game.board,
-                errors = errors,
-                selected = game.selected,
-                hidden = paused,
-                solution = null,
-                onSelect = vm::select,
-                onLongPress = vm::fillNotes,
-            )
+            if (game.shape.big) {
+                BigSudokuGrid(board = game.board, errors = errors, selected = game.selected, hidden = paused, solution = null, onSelect = vm::select, onLongPress = vm::fillNotes)
+            } else {
+                SudokuGrid(
+                    board = game.board,
+                    errors = errors,
+                    selected = game.selected,
+                    hidden = paused,
+                    solution = null,
+                    onSelect = vm::select,
+                    onLongPress = vm::fillNotes,
+                )
+            }
             if (paused) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Paused", color = p.text, fontSize = TextSize.DisplayM, fontWeight = FontWeight.Bold)

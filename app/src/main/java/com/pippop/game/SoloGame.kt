@@ -16,7 +16,11 @@ data class SoloGame(
     val hintsLeft: Int = MAX_HINTS,
     val elapsedMs: Long = 0,
     val status: SoloStatus = SoloStatus.PLAYING,
+    /** One grid, or several joined: a big board allows more mistakes and hints. */
+    val shape: SudokuShape = SudokuShape.CLASSIC,
 ) {
+    val maxMistakes get() = if (shape.big) BIG_MISTAKES else MAX_MISTAKES
+
     /** Filled cells whose digit differs from the solution. */
     val wrongCells: Set<Int>
         get() = board.cells.indices.filterTo(HashSet()) {
@@ -67,19 +71,24 @@ data class SoloGame(
 
     /** The same puzzle from scratch. */
     fun restart() = copy(
-        board = BoardState.fromPuzzle(puzzle), selected = null, notesMode = false,
-        mistakes = 0, hintsLeft = MAX_HINTS, elapsedMs = 0, status = SoloStatus.PLAYING,
+        board = BoardState.fromPuzzle(puzzle, shape), selected = null, notesMode = false,
+        mistakes = 0, hintsLeft = hintsFor(shape), elapsedMs = 0, status = SoloStatus.PLAYING,
     )
 
     private fun finish(game: SoloGame) = when {
         game.isSolved -> game.copy(status = SoloStatus.WON)
-        game.mistakes >= MAX_MISTAKES -> game.copy(status = SoloStatus.LOST)
+        game.mistakes >= game.maxMistakes -> game.copy(status = SoloStatus.LOST)
         else -> game
     }
 
     companion object {
         const val MAX_MISTAKES = 3
         const val MAX_HINTS = 3
+        /** A board of joined grids is a long puzzle: five mistakes and five hints. */
+        const val BIG_MISTAKES = 5
+        const val BIG_HINTS = 5
+
+        fun hintsFor(shape: SudokuShape) = if (shape.big) BIG_HINTS else MAX_HINTS
 
         fun new(difficulty: Difficulty, generated: Generator.Result) = SoloGame(
             difficulty = difficulty,
@@ -87,42 +96,57 @@ data class SoloGame(
             solution = Sudoku.parse(generated.solution),
             board = BoardState.fromPuzzle(generated.puzzle),
         )
+
+        fun new(difficulty: Difficulty, generated: BigGenerator.Result) = SoloGame(
+            difficulty = difficulty,
+            puzzle = generated.puzzle,
+            solution = generated.shape.parse(generated.solution),
+            board = BoardState.fromPuzzle(generated.puzzle, generated.shape),
+            hintsLeft = hintsFor(generated.shape),
+            shape = generated.shape,
+        )
     }
 }
 
-/** Text form of an unfinished game, so it can be continued after the app is closed. */
+/**
+ * Text form of an unfinished game, so it can be continued after the app is closed. Version 2
+ * adds the board's shape at the end; version 1 saves (one grid) still read.
+ */
 object SoloSave {
-    private const val VERSION = "v1"
+    private const val VERSION = "v2"
 
     fun encode(game: SoloGame): String = listOf(
         VERSION,
         game.difficulty.key,
         game.puzzle,
-        Sudoku.encode(game.solution),
-        Sudoku.encode(game.board.cells),
+        game.shape.encode(game.solution),
+        game.shape.encode(game.board.cells),
         game.board.notes.joinToString(","),
         game.elapsedMs,
         game.mistakes,
         game.hintsLeft,
+        game.shape.key,
     ).joinToString("|")
 
     fun decode(text: String?): SoloGame? = runCatching {
         val parts = text!!.split("|")
-        require(parts.size == 9 && parts[0] == VERSION)
+        require((parts.size == 9 && parts[0] == "v1") || (parts.size == 10 && parts[0] == VERSION))
+        val shape = if (parts.size == 10) SudokuShape.from(parts[9]) else SudokuShape.CLASSIC
         val puzzle = parts[2]
-        val cells = Sudoku.parse(parts[4])
+        val cells = shape.parse(parts[4])
         val notes = parts[5].split(",").map { it.toInt() }
-        require(notes.size == Sudoku.CELLS)
-        val givens = Sudoku.parse(puzzle).map { it != 0 }
+        require(notes.size == shape.cells)
+        val start = BoardState.fromPuzzle(puzzle, shape)
         SoloGame(
             difficulty = Difficulty.entries.first { it.key == parts[1] },
             puzzle = puzzle,
-            solution = Sudoku.parse(parts[3]),
-            board = BoardState(cells, givens, notes),
+            solution = shape.parse(parts[3]),
+            board = BoardState(cells, start.givens, notes, shape = shape),
             mistakes = parts[7].toInt(),
             hintsLeft = parts[8].toInt(),
             elapsedMs = parts[6].toLong(),
             status = SoloStatus.PAUSED,
+            shape = shape,
         )
     }.getOrNull()
 }

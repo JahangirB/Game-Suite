@@ -160,6 +160,12 @@ class CloudflareBattle(serverUrl: String, private val password: String) : Battle
     override suspend fun undoStroke(code: String, playerId: String) =
         request(JSONObject().put("type", "unstroke"))
 
+    override suspend fun readyBig(code: String, playerId: String, ready: Boolean, difficulty: Difficulty?, big: Pair<String, String>?) =
+        request(
+            JSONObject().put("type", "ready").put("ready", ready).put("difficulty", difficulty?.key)
+                .put("big", big?.let { JSONObject().put("puzzle", it.first).put("solution", it.second) } ?: JSONObject.NULL),
+        )
+
     override suspend fun coopPlace(code: String, playerId: String, cell: Int, digit: Int) =
         request(JSONObject().put("type", "coop").put("cell", cell).put("digit", digit))
 
