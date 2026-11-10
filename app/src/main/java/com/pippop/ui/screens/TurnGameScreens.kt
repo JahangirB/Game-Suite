@@ -78,6 +78,13 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.inset
@@ -623,7 +630,7 @@ fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (col in 0 until cols) {
                     val i = row * cols + col
-                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending)
+                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending, wobble = missed?.takeIf { i in it })
                 }
             }
         }
@@ -633,8 +640,14 @@ fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?
 /** How long a missed pair stays face up for everyone to see. */
 private const val MISSED_LOOK_MS = 1400L
 
+/**
+ * One Memory card. Face down it shows a striped back with a star and a soft shadow, and lifts
+ * a little while it turns. A pair that was just matched gets a burst in its finder's colour,
+ * then shrinks and flies up and away (leaving a faded, edged place); a pair that was already
+ * matched when the board appeared is simply in its place. [wobble] non-null shakes a missed card.
+ */
 @Composable
-private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false) {
+private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false, wobble: Any? = null) {
     val p = AppTheme.palette
     // Remember the last picture so the card still shows it while turning back.
     var shown by remember { mutableStateOf(face) }
@@ -643,33 +656,105 @@ private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modi
     val turn by animateFloatAsState(if (face != null) 180f else if (turning) 70f else 0f, tween(320), label = "flip")
     val density = LocalDensity.current.density
     val edge = if (owner == '.') p.ink else markColor(owner)
+    // Matched: 0 the card is in place, 1 it has flown off. Burst: 0 just matched, 1 gone.
+    val matched = owner != '.'
+    val flown = remember { Animatable(if (matched) 1f else 0f) }
+    val pop = remember { Animatable(1f) }
+    var first by remember { mutableStateOf(true) }
+    val reduce = LocalReduceMotion.current
+    LaunchedEffect(matched) {
+        val appeared = first
+        first = false
+        if (!matched) {
+            flown.snapTo(0f)
+            pop.snapTo(1f)
+        } else if (!appeared) {
+            // Let the second card finish turning, show the match, then send the pair off.
+            delay(Motion.FLIP_MS.toLong())
+            if (!reduce) launch { pop.snapTo(0f); pop.animateTo(1f, tween(450)) }
+            delay(MATCH_LOOK_MS)
+            if (reduce) flown.snapTo(1f) else flown.animateTo(1f, tween(MATCH_FLY_MS, easing = FastOutLinearInEasing))
+        }
+    }
+    @Composable
+    fun face(m: Modifier, fade: Float = 1f) = Box(
+        contentAlignment = Alignment.Center,
+        modifier = m.border(if (owner == '.') 2.dp else 4.dp, edge, Shapes.M),
+    ) {
+        // Only the picture and its card fade, never the edge that says whose pair it is.
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = fade }.background(if (shown?.gold == true) Pieces.Gold else p.card), contentAlignment = Alignment.Center) {
+            shown?.let { AvatarImage(it.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) }
+        }
+    }
     Box(
         modifier
             .aspectRatio(0.78f)
-            .graphicsLayer { rotationY = turn; cameraDistance = 14 * density }
-            .clip(Shapes.M)
-            .clickable(enabled = onFlip != null && face == null) { onFlip?.invoke() },
+            .shake(wobble, delayMs = Motion.FLIP_MS)
+            .drawWithContent { drawContent(); burst(center, pop.value, edge, size.width * 0.75f) },
     ) {
-        if (turn < 90f) {
-            // The back: the app's grid pattern on Memory amber.
-            Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
-                val s = size.width / 4
-                for (r in 0 until 6) for (c in 0 until 4) {
-                    if ((r + c) % 2 == 0) drawRoundRect(Color.White.copy(alpha = 0.22f), Offset(c * s + s * 0.2f, r * s + s * 0.2f), Size(s * 0.6f, s * 0.6f), CornerRadius(s * 0.15f))
+        // The taken place: a faded picture inside the finder's edge, once the pair has flown.
+        if (matched) Box(Modifier.fillMaxSize().clip(Shapes.M)) { face(Modifier.fillMaxSize(), fade = 0.3f * flown.value) }
+        val lift = sin(Math.toRadians(turn.toDouble())).toFloat()
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = -flown.value * size.height * 1.1f
+                    scaleX = 1f - 0.5f * flown.value
+                    scaleY = scaleX
+                    alpha = 1f - flown.value
+                }
+                .drawBehind {
+                    // Narrow with the turn, so no bare slab shows when the card is edge on.
+                    val across = size.width * abs(cos(Math.toRadians(turn.toDouble()))).toFloat()
+                    boxShadow(Offset((size.width - across) / 2, 0f), Size(across, size.height), size.width * 0.14f, drop = size.width * (0.04f + 0.06f * lift), strength = 0.2f + 0.08f * lift)
+                },
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { rotationY = turn; cameraDistance = 14 * density; translationY = -lift * size.height * 0.04f }
+                    .clip(Shapes.M),
+            ) {
+                if (turn < 90f) {
+                    // The back: stripes, a frame and a star on Memory amber.
+                    Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
+                        val w = size.width
+                        val h = size.height
+                        val step = w * 0.22f
+                        var x = -h
+                        while (x < w) {
+                            drawLine(Color.White.copy(alpha = 0.18f), Offset(x, h), Offset(x + h, 0f), step * 0.45f)
+                            x += step
+                        }
+                        val m = w * 0.1f
+                        drawRoundRect(Color.White.copy(alpha = 0.6f), Offset(m, m), Size(w - 2 * m, h - 2 * m), CornerRadius(w * 0.1f), style = Stroke(w * 0.025f))
+                        val c = Offset(w / 2, h / 2)
+                        drawCircle(GameKind.MEMORY.color.darker(0.18f), w * 0.27f, c)
+                        val star = Path()
+                        for (k in 0 until 10) {
+                            val r = if (k % 2 == 0) w * 0.2f else w * 0.09f
+                            val a = (-PI / 2 + k * PI / 5).toFloat()
+                            val pt = Offset(c.x + r * cos(a), c.y + r * sin(a))
+                            if (k == 0) star.moveTo(pt.x, pt.y) else star.lineTo(pt.x, pt.y)
+                        }
+                        star.close()
+                        drawPath(star, Color.White)
+                    }
+                } else {
+                    face(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f })
                 }
             }
-        } else {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { rotationY = 180f }
-                    .background(if (shown?.gold == true) Pieces.Gold else p.card)
-                    .border(if (owner == '.') 2.dp else 4.dp, edge, Shapes.M),
-            ) { shown?.let { AvatarImage(it.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) } }
         }
+        // Taps are taken here, on the card's own place, so a pair that has flown away blocks nothing.
+        Box(Modifier.fillMaxSize().clip(Shapes.M).clickable(enabled = onFlip != null && face == null) { onFlip?.invoke() })
     }
 }
+
+/** How long a matched pair stays in place, to be seen, before it flies off. */
+private const val MATCH_LOOK_MS = 500L
+/** How long a matched pair takes to fly up and fade. */
+private const val MATCH_FLY_MS = 400
 
 /** The pairs each player has found, as small pictures under the chips. */
 @Composable
