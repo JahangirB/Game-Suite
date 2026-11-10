@@ -22,6 +22,7 @@ import com.pippop.data.Profile
 import com.pippop.game.ludo.LudoView
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.KeyArt
+import com.pippop.ui.screens.ConnectFourBoard
 import com.pippop.ui.screens.DieFace
 import com.pippop.ui.screens.HomeScreen
 import com.pippop.ui.screens.LudoBoard
@@ -103,6 +104,19 @@ class ScreenshotTest {
     @Test fun ludoLight() = shot("ludo", dark = false) { ludoTable() }
 
     @Test fun ludoDark() = shot("ludo", dark = true) { ludoTable() }
+
+    // Connect Four: a game in play above, and four in a row (the line drawn through) below.
+    @Composable
+    private fun connectFour() = Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        val rows = listOf(".......", ".......", "...o...", "..mo...", ".mooo..", "mmomo.o")
+        ConnectFourBoard(rows.joinToString(""), winLine = emptyList(), lastCell = null, onDrop = null, modifier = Modifier.size(300.dp, 348.dp))
+        val won = listOf(".......", ".......", "...o...", "..mo...", ".moom..", "mmoooo.")
+        ConnectFourBoard(won.joinToString(""), winLine = listOf(37, 38, 39, 40), lastCell = null, onDrop = null, modifier = Modifier.size(300.dp, 348.dp))
+    }
+
+    @Test fun connectFourLight() = shot("connect-four", dark = false) { connectFour() }
+
+    @Test fun connectFourDark() = shot("connect-four", dark = true) { connectFour() }
 
     @Composable
     private fun result() = Box(Modifier.fillMaxSize()) {

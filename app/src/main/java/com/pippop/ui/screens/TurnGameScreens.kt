@@ -22,6 +22,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.Brush
+import com.pippop.ui.theme.LocalReduceMotion
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -145,6 +147,21 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
         play(Sound.C4_LAND, v)
     }
     val glow by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), still = 1f, label = "winGlow")
+    // Four in a row: once the last disc has landed, a line is drawn through the four (0 to 1)
+    // and a burst plays at its end (0 to 1).
+    val still = LocalReduceMotion.current
+    val line = remember(winLine) { Animatable(0f) }
+    val sparks = remember(winLine) { Animatable(0f) }
+    LaunchedEffect(winLine) {
+        if (winLine.size < 2) return@LaunchedEffect
+        if (still) {
+            line.snapTo(1f)
+            return@LaunchedEffect
+        }
+        delay(470)
+        line.animateTo(1f, tween(380))
+        sparks.animateTo(1f, tween(520))
+    }
     var hover by remember { mutableStateOf<Int?>(null) }
     val pick = if (onDrop == null) Modifier else Modifier.pointerInput(onDrop) {
         val colAt = { x: Float -> (x / (size.width / ConnectFour.COLS.toFloat())).toInt().coerceIn(0, ConnectFour.COLS - 1) }
@@ -159,35 +176,58 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
             hover = null
         }
     }
-    Canvas(modifier.fillMaxWidth().aspectRatio(ConnectFour.COLS / (ConnectFour.ROWS + 1f)).then(pick)) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(ConnectFour.COLS / (ConnectFour.ROWS + 1.12f)).then(pick)) {
         val cell = size.width / ConnectFour.COLS
         val top = cell
         val radius = cell * 0.38f
-        hover?.let { drawCircle(MyDisc.copy(alpha = 0.6f), radius, Offset((it + 0.5f) * cell, top * 0.5f)) }
+        val won = winLine.isNotEmpty() && fall.value >= 1f
+        fun centre(i: Int) = Offset((i % ConnectFour.COLS + 0.5f) * cell, top + (i / ConnectFour.COLS + 0.5f) * cell)
+        // A disc: glossy, with the pressed ring of a real one.
+        fun disc(color: Color, at: Offset, r: Float = radius, alpha: Float = 1f) {
+            glossyDisc(color, r, at, alpha)
+            drawCircle(p.ink.copy(alpha = alpha), r, at, style = Stroke(2.5f))
+            drawCircle(Color.Black.copy(alpha = 0.13f * alpha), r * 0.62f, at, style = Stroke(r * 0.09f))
+        }
+        hover?.let { disc(MyDisc, Offset((it + 0.5f) * cell, top * 0.5f), alpha = 0.6f) }
+        // The frame: blue plastic, lighter at the top, standing on two feet with a shadow under it.
         val boardSize = Size(size.width - 4f, cell * ConnectFour.ROWS)
-        drawRoundRect(p.ink, Offset(2f, top + 6f), boardSize, CornerRadius(cell * 0.28f))
-        drawRoundRect(BoardBlue, Offset(2f, top), boardSize, CornerRadius(cell * 0.28f))
-        drawRoundRect(p.ink, Offset(2f, top), boardSize, CornerRadius(cell * 0.28f), style = Stroke(4f))
+        val corner = cell * 0.28f
+        val foot = Size(cell * 0.42f, cell * 0.16f)
+        for (x in listOf(cell * 0.3f, size.width - cell * 0.3f - foot.width)) {
+            drawRoundRect(BoardBlue.darker(0.35f), Offset(x, top + boardSize.height - 2f), foot, CornerRadius(cell * 0.06f))
+            drawRoundRect(p.ink, Offset(x, top + boardSize.height - 2f), foot, CornerRadius(cell * 0.06f), style = Stroke(3f))
+        }
+        boxShadow(Offset(2f, top), boardSize, corner, drop = cell * 0.12f, strength = 0.28f)
+        drawRoundRect(
+            Brush.verticalGradient(listOf(BoardBlue.lighter(0.2f), BoardBlue.darker(0.16f)), startY = top, endY = top + boardSize.height),
+            Offset(2f, top), boardSize, CornerRadius(corner),
+        )
+        drawRoundRect(p.ink, Offset(2f, top), boardSize, CornerRadius(corner), style = Stroke(4f))
         for (i in board.indices) {
-            val center = Offset((i % ConnectFour.COLS + 0.5f) * cell, top + (i / ConnectFour.COLS + 0.5f) * cell)
+            val center = centre(i)
+            // A hole: the far wall of the frame shows as a darker rim at its top.
+            drawCircle(BoardBlue.darker(0.42f), radius * 1.06f, center + Offset(0f, radius * 0.07f))
             drawCircle(p.background, radius, center)
             drawCircle(p.ink.copy(alpha = 0.5f), radius, center, style = Stroke(2.5f))
-            val disc = when (board[i]) {
+            val color = when (board[i]) {
                 'm' -> MyDisc
                 'o' -> TheirDisc
                 else -> continue
             }
             // The newest disc falls from above the board into its hole.
             val at = if (i == lastCell) Offset(center.x, -radius + (center.y + radius) * fall.value) else center
-            drawCircle(disc, radius, at)
-            drawCircle(p.ink, radius, at, style = Stroke(2.5f))
-            drawCircle(Color.White.copy(alpha = 0.35f), radius * 0.3f, at + Offset(-radius * 0.3f, -radius * 0.3f))
+            // Once someone has four, those four beat and the rest step back.
+            val inLine = won && i in winLine
+            disc(color, at, if (inLine) radius * (1f + (glow - 0.35f) * 0.09f) else radius, if (won && !inLine) 0.4f else 1f)
         }
-        if (fall.value >= 1f) {
-            for (i in winLine) {
-                val center = Offset((i % ConnectFour.COLS + 0.5f) * cell, top + (i / ConnectFour.COLS + 0.5f) * cell)
-                drawCircle(Color.White.copy(alpha = glow), radius * 1.02f, center, style = Stroke(cell * 0.1f))
-            }
+        if (won && winLine.size >= 2) {
+            // A line drawn through the four, from the first to the last, then a burst at its end.
+            val from = centre(winLine.first())
+            val to = centre(winLine.last())
+            val end = from + (to - from) * line.value
+            drawLine(p.ink, from, end, cell * 0.2f, StrokeCap.Round)
+            drawLine(Color.White, from, end, cell * 0.13f, StrokeCap.Round)
+            burst(end, sparks.value, Pieces.Yellow, reach = cell * 0.75f)
         }
     }
 }
