@@ -141,7 +141,7 @@ fun SoloScreen(
     ) {
         BoardArea(1f) { size -> Box(size, contentAlignment = Alignment.Center) {
             if (game.shape.big) {
-                BigSudokuGrid(board = game.board, errors = errors, selected = game.selected, hidden = paused, solution = null, onSelect = vm::select, onLongPress = vm::fillNotes)
+                BigSudokuGrid(board = game.board, errors = errors, selected = game.selected, hidden = paused, solution = null, onSelect = vm::select, onLongPress = vm::fillNotes, celebrate = true)
             } else {
                 SudokuGrid(
                     board = game.board,
@@ -151,6 +151,7 @@ fun SoloScreen(
                     solution = null,
                     onSelect = vm::select,
                     onLongPress = vm::fillNotes,
+                    celebrate = true,
                 )
             }
             if (paused) {

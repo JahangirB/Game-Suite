@@ -2,6 +2,7 @@ package com.pippop.ui.screens
 
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,12 +27,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.LineHeight
 import com.pippop.ui.theme.Radius
 
 /** Undo, Erase, Notes and (when [hintsLeft] is given) Hint, like the tool row of popular Sudoku apps. */
@@ -94,38 +100,62 @@ private fun Tool(
 }
 
 /**
- * The digits 1-9 under the board. A digit disappears once all nine are placed correctly:
- * [remaining] gives how many of each digit are still missing.
+ * The digits 1-9 under the board, each with what's left: [remaining] gives how many of each digit
+ * are still missing, shown as dots (or the number, past nine). A digit that's all placed turns
+ * pale green with a tick and can't be pressed.
  */
 @Composable
 fun NumberPad(remaining: (Int) -> Int, enabled: Boolean, onDigit: (Int) -> Unit) {
     val p = AppTheme.palette
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (digit in 1..9) {
-            val done = remaining(digit) <= 0
-            // A key on its pressed edge, like the app's buttons; a digit that's all placed leaves a gap.
+            val left = remaining(digit)
+            val done = left <= 0
             Box(Modifier.weight(1f).height(60.dp).padding(bottom = 3.dp)) {
-                if (!done) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pressedEdge(p.ink, Radius.S)
-                            .clip(Shapes.S)
-                            .background(p.card)
-                            .border(2.dp, p.ink, Shapes.S)
-                            .clickable(
-                                enabled = enabled,
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onDigit(digit) },
-                    ) {
-                        Text(
-                            digit.toString(),
-                            fontSize = TextSize.DisplayM,
-                            fontWeight = FontWeight.Bold,
-                            color = if (enabled) p.text else p.text.copy(alpha = 0.4f),
-                        )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // A key on its pressed edge, like the app's buttons; a finished one sits
+                        // flat on the table, pressed down for good.
+                        .then(if (done) Modifier.offset(y = 3.dp) else Modifier.pressedEdge(p.ink, Radius.S))
+                        .clip(Shapes.S)
+                        .background(if (done) lerp(p.card, p.good, 0.18f) else p.card)
+                        .border(2.dp, if (done) p.good.copy(alpha = 0.5f) else p.ink, Shapes.S)
+                        .semantics { contentDescription = if (done) "$digit, all placed" else "$digit, $left left" }
+                        .clickable(
+                            enabled = enabled && !done,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onDigit(digit) },
+                ) {
+                    val ink = when {
+                        done -> p.muted.copy(alpha = 0.6f)
+                        enabled -> p.text
+                        else -> p.text.copy(alpha = 0.4f)
+                    }
+                    Text(
+                        digit.toString(),
+                        fontSize = TextSize.DisplayM,
+                        fontWeight = FontWeight.Bold,
+                        color = ink,
+                        modifier = Modifier.offset(y = (-4).dp),
+                    )
+                    val count = if (enabled) p.entry else p.entry.copy(alpha = 0.4f)
+                    val under = Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp)
+                    when {
+                        done -> Canvas(Modifier.align(Alignment.TopEnd).padding(3.dp).size(12.dp)) {
+                            doneTick(center, size.minDimension / 2, p.good, 1f)
+                        }
+                        // Past nine (the big boards) dots would not fit: the number instead.
+                        left > 9 -> Text(left.toString(), color = count, fontSize = TextSize.Micro, lineHeight = LineHeight.Micro, fontWeight = FontWeight.Bold, modifier = under)
+                        else -> Canvas(under.fillMaxWidth().height(4.dp)) {
+                            // One dot per copy left, centred in a row that fits nine across the key.
+                            val step = minOf(6.dp.toPx(), (size.width - 4.dp.toPx()) / 9)
+                            val radius = minOf(1.6.dp.toPx(), step * 0.36f)
+                            val start = center.x - step * (left - 1) / 2
+                            for (k in 0 until left) drawCircle(count, radius, Offset(start + k * step, center.y))
+                        }
                     }
                 }
             }

@@ -48,7 +48,8 @@ import kotlinx.coroutines.launch
  * pinch to zoom, drag to move round, double-tap to zoom to the grid under your finger (and again
  * to see the whole board). Shared boxes are tinted gold. Tap picks a square, a long press fills its
  * notes. The rest as [SudokuGrid]: [errors], [solution] shown over wrong squares, and for playing
- * together [inkOf] (whose colour a digit is), [rings] (where the others are) and [flash].
+ * together [inkOf] (whose colour a digit is), [rings] (where the others are) and [flash]. With
+ * [celebrate], a row, column or box of any grid filled with no error sweeps gold.
  */
 @Composable
 fun BigSudokuGrid(
@@ -63,6 +64,7 @@ fun BigSudokuGrid(
     inkOf: ((Int) -> Color?)? = null,
     rings: Map<Int, Color> = emptyMap(),
     flash: Pair<Int, Int>? = null,
+    celebrate: Boolean = false,
 ) {
     val p = AppTheme.palette
     val shape = board.shape
@@ -80,6 +82,7 @@ fun BigSudokuGrid(
     val shared = lerp(p.boardBackground, Pieces.Yellow, 0.22f)
     val digitPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER } }
     val empty = board.cells.indices.count { shape.onBoard(it) && board.cells[it] == 0 }
+    val sweeps = rememberUnitSweeps(board, errors, celebrate)
 
     BoxWithConstraints(
         modifier.fillMaxWidth().aspectRatio(1f)
@@ -187,7 +190,8 @@ fun BigSudokuGrid(
                     shape.shared(i) -> shared
                     else -> p.boardBackground
                 }
-                drawRect(bg, at(r, col), Size(c, c))
+                val glow = sweeps.glowAt(i)
+                drawRect(if (glow > 0f) lerp(bg, Pieces.Yellow, glow * 0.6f) else bg, at(r, col), Size(c, c))
                 drawRect(p.lineThin, at(r, col), Size(c, c), style = Stroke(thin))
             }
             // Box edges: every 3 x 3 box on the board, in ink.
@@ -235,6 +239,11 @@ fun BigSudokuGrid(
                 drawRect(color, o + Offset(thick / 2, thick / 2), Size(c - thick, c - thick), style = Stroke(maxOf(2.dp.toPx(), c * 0.1f)))
             }
             selected?.let { i -> drawRect(p.primary, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
+            // A finished unit's tick, in the corner of its last square.
+            for (sweep in sweeps) {
+                val last = sweep.unit.last()
+                doneTick(at(last / n, last % n) + Offset(c * 0.78f, c * 0.22f), c * 0.17f, p.good, sweep.tick)
+            }
         }
     }
 }

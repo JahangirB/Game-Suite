@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.pippop.data.GameKind
 import com.pippop.data.Profile
+import com.pippop.game.BoardState
 import com.pippop.game.ludo.LudoView
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.KeyArt
@@ -26,8 +27,10 @@ import com.pippop.ui.screens.ConnectFourBoard
 import com.pippop.ui.screens.DieFace
 import com.pippop.ui.screens.HomeScreen
 import com.pippop.ui.screens.LudoBoard
+import com.pippop.ui.screens.NumberPad
 import com.pippop.ui.screens.PopupAction
 import com.pippop.ui.screens.ResultPopup
+import com.pippop.ui.screens.SudokuGrid
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.PipPopTheme
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -117,6 +120,25 @@ class ScreenshotTest {
     @Test fun connectFourLight() = shot("connect-four", dark = false) { connectFour() }
 
     @Test fun connectFourDark() = shot("connect-four", dark = true) { connectFour() }
+
+    // Sudoku mid-game: givens, your digits, the 6 you picked, a clashing 9 in the third row; the
+    // pad below with 2 finished, and a big board's pad (more than nine left) under it.
+    private val sudokuBoard = BoardState.fromPuzzle("530070000600195000098000060800060003400803001700020006060000280000419005000080079")
+        .place(2, 4).place(3, 6).place(5, 8).place(6, 9).place(10, 7).place(11, 2).place(21, 9)
+        .place(30, 7).place(32, 1).place(57, 5).place(58, 3)
+
+    @Composable
+    private fun sudoku() = Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SudokuGrid(board = sudokuBoard, errors = sudokuBoard.conflicts(), selected = 3, hidden = false, solution = null, onSelect = {})
+        val left = listOf(3, 0, 5, 1, 9, 2, 4, 7, 6)
+        NumberPad(remaining = { left[it - 1] }, enabled = true, onDigit = {})
+        val bigLeft = listOf(17, 0, 41, 9, 23, 12, 30, 5, 1)
+        NumberPad(remaining = { bigLeft[it - 1] }, enabled = true, onDigit = {})
+    }
+
+    @Test fun sudokuLight() = shot("sudoku", dark = false) { sudoku() }
+
+    @Test fun sudokuDark() = shot("sudoku", dark = true) { sudoku() }
 
     @Composable
     private fun result() = Box(Modifier.fillMaxSize()) {

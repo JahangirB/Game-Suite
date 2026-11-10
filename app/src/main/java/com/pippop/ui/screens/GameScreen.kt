@@ -159,6 +159,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                     BigSudokuGrid(
                         board = board, errors = conflicts, selected = state.selected, hidden = phase == RoomStatus.COUNTDOWN,
                         solution = shown, onSelect = vm::select, onLongPress = vm::fillNotes, inkOf = inkOf, rings = rings, flash = flash,
+                        celebrate = together,
                     )
                 } else {
                     SudokuGrid(
@@ -172,6 +173,8 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                         inkOf = inkOf,
                         rings = rings,
                         flash = flash,
+                        // Together only keeps right digits, so a full unit is right; in a race it may not be.
+                        celebrate = together,
                     )
                 }
                 if (phase == RoomStatus.COUNTDOWN) {
