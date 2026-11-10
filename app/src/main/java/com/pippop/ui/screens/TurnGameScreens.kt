@@ -1,6 +1,17 @@
 package com.pippop.ui.screens
 
 import com.pippop.game.dots.DotsShape
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.material3.FilterChip
 
 import com.pippop.game.memory.MemoryMatch
@@ -393,8 +404,10 @@ fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
 
 /**
  * A Dots & Boxes board: 5 × 5 dots. [lines] and [boxes] hold 'm' (yours), 'o' (the
- * opponent's) or '.'. A claimed box shows its owner's picture. With [onLine] set, the line
- * under your finger shows faintly and is drawn when you let go.
+ * opponent's), 'p', 'q' (the others) or '.'; every line keeps its owner's colour. A new line is
+ * inked from one dot to the next, and a claimed box pops in as a tile with its owner's picture
+ * and a floating "+1". Lines and boxes already there when the board appears just show. With
+ * [onLine] set, the line under your finger shows faintly and is drawn when you let go.
  */
 @Composable
 fun DotsBoard(
@@ -410,9 +423,39 @@ fun DotsBoard(
     shape: DotsShape = DotsShape.from("4x4"),
 ) {
     val p = AppTheme.palette
-    // [replay] going up makes the last line swell and settle again: the dock's "Last line".
-    val swell = remember(replay) { Animatable(if (replay > 0) 0f else 1f) }
-    LaunchedEffect(replay) { swell.animateTo(1f, tween(900)) }
+    val still = LocalReduceMotion.current
+    // The newest line is inked from one dot to the next (0 to 1); [replay] going up inks it
+    // again: the dock's "Last line". A line already there when the board appeared is whole.
+    val opening = remember { object { var line: Int? = lastLine } }
+    val ink = remember(lastLine, replay) { Animatable(if (still || lastLine == null || (replay == 0 && lastLine == opening.line)) 1f else 0f) }
+    LaunchedEffect(lastLine, replay) { ink.animateTo(1f, tween(DOT_INK_MS, easing = LinearEasing)) }
+    SideEffect { if (lastLine != opening.line) opening.line = null }
+    // Boxes popping in: how far each one's pop (0 to 1) and its floating label (0 to 1) have got,
+    // and which number its label reads. A box with no entry yet is not shown; ones owned when
+    // the board appeared start finished.
+    fun owned(box: Int) = boxes.getOrNull(box).let { it != null && it != '.' && it != ' ' }
+    val pop = remember { mutableStateMapOf<Int, Float>().apply { for (b in 0 until shape.boxes) if (owned(b)) put(b, 1f) } }
+    val rise = remember { mutableStateMapOf<Int, Float>() }
+    val tally = remember { mutableStateMapOf<Int, Int>() }
+    val popScope = rememberCoroutineScope()
+    // The running pop of each box, so a box cleared by a new game stops animating at once.
+    val popJobs = remember { mutableMapOf<Int, Job>() }
+    LaunchedEffect(boxes) {
+        for (b in pop.keys.toList()) if (!owned(b)) { popJobs.remove(b)?.cancel(); pop.remove(b); rise.remove(b); tally.remove(b) }
+        val fresh = (0 until shape.boxes).filter { owned(it) && it !in pop }
+        for ((k, box) in fresh.withIndex()) {
+            tally[box] = k + 1
+            if (still) { pop[box] = 1f; continue }
+            // Hidden until its turn; the line lands first, then the boxes pop one after another.
+            pop[box] = 0f
+            popJobs[box] = popScope.launch {
+                delay(DOT_LINE_MS + k * DOT_POP_GAP_MS)
+                launch { animate(0f, 1f, animationSpec = tween(DOT_FLOAT_MS, easing = LinearEasing)) { v, _ -> rise[box] = v } }
+                animate(0f, 1f, animationSpec = tween(DOT_POP_MS, easing = LinearEasing)) { v, _ -> pop[box] = v }
+            }
+        }
+    }
+    val labels = rememberTextMeasurer()
     SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
     // A box closed: a stamp and a chime, and the same player goes again.
     SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
@@ -469,30 +512,44 @@ fun DotsBoard(
         for (box in 0 until g.boxes) {
             val owner = boxes.getOrNull(box) ?: continue
             if (owner == '.' || owner == ' ') continue
+            val popped = pop[box] ?: continue
             val corner = dot(box / g.w, box % g.w)
-            drawRoundRect(
-                markColor(owner).copy(alpha = 0.35f),
-                corner + Offset(step * 0.08f, step * 0.08f), Size(step * 0.84f, step * 0.84f), CornerRadius(step * 0.14f),
-            )
-            val avatar = avatars[owner]
-            if (avatar != null) {
-                // The owner's picture in the middle of the box.
-                val pic = step * 0.56f
-                val left = corner.x + (step - pic) / 2
-                val top = corner.y + (step - pic) / 2
-                inset(left, top, size.width - left - pic, size.height - top - pic) { drawAvatar(avatar) }
+            val middle = corner + Offset(step / 2, step / 2)
+            // The tile lands with a small overshoot: it swells past full size, then settles.
+            val grow = popped - 1f
+            val land = 1f + 2.70158f * grow * grow * grow + 1.70158f * grow * grow
+            scale(land, land, pivot = middle) {
+                raisedTile(
+                    markColor(owner),
+                    corner + Offset(step * 0.08f, step * 0.08f), Size(step * 0.84f, step * 0.84f), step * 0.14f, lift = step * 0.05f,
+                )
+                val avatar = avatars[owner]
+                if (avatar != null) {
+                    // The owner's picture in the middle of the box.
+                    val pic = step * 0.56f
+                    val left = corner.x + (step - pic) / 2
+                    val top = corner.y + (step - pic) / 2 - step * 0.02f
+                    inset(left, top, size.width - left - pic, size.height - top - pic) { drawAvatar(avatar) }
+                }
             }
+            burst(middle, popped, markColor(owner), reach = step * 0.7f)
         }
         for (line in 0 until g.lines) {
             val (a, b) = ends(line)
             when (lines.getOrNull(line) ?: ' ') {
                 ' ' -> Unit
                 '.' -> drawLine(p.lineThin, a, b, step * 0.035f, cap = StrokeCap.Round)
-                else -> drawLine(
-                    if (lines[line] == 'o') TheirLine else markColor(lines[line]), a, b,
-                    step * if (line == lastLine) 0.12f + 0.16f * (1 - swell.value) else 0.08f,
-                    cap = StrokeCap.Round,
-                )
+                else -> {
+                    // Every line keeps its owner's colour (the opponent's a deeper amber, so it
+                    // reads on the board); the newest is inked from dot a towards dot b.
+                    val inking = line == lastLine && ink.value < 1f
+                    if (inking) drawLine(p.lineThin, a, b, step * 0.035f, cap = StrokeCap.Round)
+                    drawLine(
+                        if (lines[line] == 'o') TheirLine else markColor(lines[line]), a, if (inking) a + (b - a) * ink.value else b,
+                        // The newest line stays a little thicker, so the last move shows at a glance.
+                        step * if (line == lastLine) 0.12f else 0.08f, cap = StrokeCap.Round,
+                    )
+                }
             }
         }
         // The chosen line glows, ready for the second tap; one under the finger shows faintly.
@@ -507,11 +564,32 @@ fun DotsBoard(
         for (r in 0..g.h) for (c in 0..g.w) {
             // A dot only where a box of the board meets it.
             if (listOf(r - 1 to c - 1, r - 1 to c, r to c - 1, r to c).none { (br, bc) -> br in 0 until g.h && bc in 0 until g.w && g.exists(br * g.w + bc) }) continue
-            drawCircle(p.ink, step * 0.085f, dot(r, c))
-            drawCircle(p.card, step * 0.035f, dot(r, c))
+            // A small glossy peg standing on the board.
+            roundShadow(dot(r, c), step * 0.085f, strength = 0.28f)
+            glossyDisc(p.ink, step * 0.085f, dot(r, c))
+        }
+        // "+1", "+2"... float up from the boxes just taken and fade.
+        for ((box, rising) in rise) {
+            if (rising <= 0f || rising >= 1f) continue
+            if (!owned(box)) continue
+            val owner = boxes[box]
+            val text = labels.measure("+${tally[box] ?: 1}", TextStyle(color = (if (owner == 'o') TheirLine else markColor(owner)).copy(alpha = 1f - rising * rising), fontSize = (step * 0.3f).toSp(), fontWeight = FontWeight.Bold))
+            val middle = dot(box / g.w, box % g.w) + Offset(step / 2, step / 2)
+            drawText(text, topLeft = middle - Offset(text.size.width / 2f, text.size.height / 2f + step * 0.6f * rising))
         }
     }
 }
+
+/** How long a new line takes to ink from one dot to the next. */
+private const val DOT_INK_MS = 200
+/** How long after a move the first captured box starts to pop (the line has mostly landed). */
+private const val DOT_LINE_MS = 180L
+/** The gap between boxes popping one after another in the same move. */
+private const val DOT_POP_GAP_MS = 90L
+/** How long one box takes to scale in. */
+private const val DOT_POP_MS = 380
+/** How long a "+n" label takes to float up and fade. */
+private const val DOT_FLOAT_MS = 750
 
 /** A Dots board's width per unit of height. */
 internal fun dotsAspect(g: DotsShape) = (g.w * 0.84f + 0.16f * g.w) / (g.h * 0.84f + 0.16f * g.w)

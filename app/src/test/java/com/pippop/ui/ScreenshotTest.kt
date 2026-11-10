@@ -23,7 +23,10 @@ import com.pippop.game.BoardState
 import com.pippop.game.ludo.LudoView
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.KeyArt
+import com.pippop.data.Avatar
+import com.pippop.game.dots.DotsShape
 import com.pippop.ui.screens.ConnectFourBoard
+import com.pippop.ui.screens.DotsBoard
 import com.pippop.ui.screens.DieFace
 import com.pippop.ui.screens.HomeScreen
 import com.pippop.ui.screens.LudoBoard
@@ -120,6 +123,32 @@ class ScreenshotTest {
     @Test fun connectFourLight() = shot("connect-four", dark = false) { connectFour() }
 
     @Test fun connectFourDark() = shot("connect-four", dark = true) { connectFour() }
+
+    // Dots & Boxes mid-game on 4 x 4: lines by both players in their own colours, three boxes
+    // taken (two yours, one theirs). Lines and boxes present at the start show whole, no animation.
+    @Composable
+    private fun dots() = Column(Modifier.padding(16.dp)) {
+        val shape = DotsShape.from("4x4")
+        val lines = CharArray(shape.lines) { '.' }
+        // Box 0 (top left) yours, box 1 theirs, box 4 yours; plus a few loose lines.
+        for (box in listOf(0 to 'm', 1 to 'o', 4 to 'm')) for (l in shape.boxLines(box.first)) lines[l] = box.second
+        lines[3] = 'o'
+        lines[9] = 'm'
+        lines[shape.horizontal + 12] = 'm'
+        val boxes = CharArray(shape.boxes) { '.' }
+        boxes[0] = 'm'
+        boxes[1] = 'o'
+        boxes[4] = 'm'
+        DotsBoard(
+            String(lines), String(boxes), lastLine = null,
+            avatars = mapOf('m' to Avatar.FOX, 'o' to Avatar.CAT),
+            onLine = null, modifier = Modifier.size(320.dp), shape = shape,
+        )
+    }
+
+    @Test fun dotsLight() = shot("dots", dark = false) { dots() }
+
+    @Test fun dotsDark() = shot("dots", dark = true) { dots() }
 
     // Sudoku mid-game: givens, your digits, the 6 you picked, a clashing 9 in the third row; the
     // pad below with 2 finished, and a big board's pad (more than nine left) under it.
