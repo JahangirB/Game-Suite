@@ -7,6 +7,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.runtime.State
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -254,11 +256,53 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
 
 private val TttBlue = Board.TttBlue
 private val Target = Board.Glow
+private const val MARK_INK_MS = 200
+
+/**
+ * How far the newest mark has been drawn by hand (0 to 1). [replay] going up draws it again: the
+ * dock's "Last move", at twice the time so it is easy to see. A mark already there when the board
+ * appeared (or with reduce motion on) is whole.
+ */
+@Composable
+private fun rememberMarkInk(lastCell: Int?, replay: Int): State<Float> {
+    val still = LocalReduceMotion.current
+    val opening = remember { object { var cell: Int? = lastCell } }
+    val ink = remember(lastCell, replay) { Animatable(if (still || lastCell == null || (replay == 0 && lastCell == opening.cell)) 1f else 0f) }
+    LaunchedEffect(lastCell, replay) { ink.animateTo(1f, tween(if (replay > 0) MARK_INK_MS * 2 else MARK_INK_MS, easing = LinearEasing)) }
+    SideEffect { if (lastCell != opening.cell) opening.cell = null }
+    return ink.asState()
+}
+
+/**
+ * One X ('m') or O ('o') with an outline in [outlineColor] (the palette's ink), drawn as if with a marker: [ink] (0 to 1) is how
+ * much is down. An X is two quick strokes one after the other, an O one loop from the top going
+ * round. Ends are round.
+ */
+private fun DrawScope.drawMark(kind: Char, center: Offset, k: Float, width: Float, outline: Float, ink: Float, outlineColor: Color) {
+    when (kind) {
+        'm' -> for (color in listOf(outlineColor, MyDisc)) {
+            val w = if (color == MyDisc) width else width + outline
+            val a = center + Offset(-k, -k)
+            val b = center + Offset(k, k)
+            val c = center + Offset(k, -k)
+            val d = center + Offset(-k, k)
+            drawLine(color, a, a + (b - a) * (ink * 2f).coerceIn(0f, 1f), w, StrokeCap.Round)
+            if (ink > 0.5f) drawLine(color, c, c + (d - c) * ((ink - 0.5f) * 2f).coerceIn(0f, 1f), w, StrokeCap.Round)
+        }
+        'o' -> for (color in listOf(outlineColor, TheirDisc)) {
+            val w = if (color == TheirDisc) width else width + outline
+            if (ink >= 1f) drawCircle(color, k, center, style = Stroke(w))
+            else drawArc(color, -90f, 360f * ink, false, center - Offset(k, k), Size(2 * k, 2 * k), style = Stroke(w, cap = StrokeCap.Round))
+        }
+    }
+}
 
 /**
  * An Ultimate Tic-Tac-Toe board: [board] holds 81 cells ('m' your X, 'o' their O, '.'), small
  * board by small board; [boards] each small board's winner ('d' drawn). While [playing], the
- * board(s) the next move must go in glow. With [onMark] set, tapping a square marks it.
+ * board(s) the next move must go in glow, and when [next] names one board the other open boards
+ * are dimmed. The newest mark is drawn by hand, as if with a marker. With [onMark] set, tapping
+ * a square marks it.
  */
 @Composable
 fun TttBoard(
@@ -274,8 +318,7 @@ fun TttBoard(
 ) {
     if (board.length == 9) return ClassicTttBoard(board, winLine, lastCell, onMark, modifier, replay)
     val p = AppTheme.palette
-    val pop = remember(lastCell, replay) { Animatable(if (lastCell == null) 1f else 0f) }
-    LaunchedEffect(lastCell, replay) { pop.animateTo(1f, tween(if (replay > 0) 520 else 260)) }
+    val ink = rememberMarkInk(lastCell, replay)
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
@@ -299,20 +342,7 @@ fun TttBoard(
         drawRoundRect(TttBlue, Offset.Zero, Size(size.width, size.height - 6f), corner)
         drawRoundRect(p.ink, Offset.Zero, Size(size.width, size.height - 6f), corner, style = Stroke(4f))
         fun origin(b: Int) = Offset((b % 3) * big + gap, (b / 3) * big + gap)
-        fun mark(kind: Char, center: Offset, r: Float, width: Float, scale: Float = 1f) {
-            val k = r * scale
-            when (kind) {
-                'm' -> for (color in listOf(p.ink, MyDisc)) {
-                    val w = if (color == MyDisc) width else width + 5f
-                    drawLine(color, center + Offset(-k, -k), center + Offset(k, k), w, StrokeCap.Round)
-                    drawLine(color, center + Offset(k, -k), center + Offset(-k, k), w, StrokeCap.Round)
-                }
-                'o' -> {
-                    drawCircle(p.ink, k, center, style = Stroke(width + 5f))
-                    drawCircle(TheirDisc, k, center, style = Stroke(width))
-                }
-            }
-        }
+        fun mark(kind: Char, center: Offset, r: Float, width: Float, inked: Float = 1f) = drawMark(kind, center, r, width, 5f, inked, p.ink)
         // Lines between the small boards.
         for (i in 1..2) {
             drawLine(Color.White.copy(alpha = 0.85f), Offset(i * big, gap * 0.6f), Offset(i * big, size.height - 6f - gap * 0.6f), 5f, StrokeCap.Round)
@@ -321,6 +351,8 @@ fun TttBoard(
         for (b in 0 until 9) {
             val o = origin(b)
             val target = playing && boards[b] == '.' && (next == null || next == b)
+            // With one board to play in, the other open boards step back (the newest mark stays bright).
+            val dim = playing && next != null && next != b && boards[b] == '.'
             if (target) {
                 drawRoundRect(Target.copy(alpha = 0.3f * pulse), o - Offset(gap * 0.4f, gap * 0.4f), Size(3 * small + gap * 0.8f, 3 * small + gap * 0.8f), CornerRadius(gap))
                 drawRoundRect(Target.copy(alpha = pulse), o - Offset(gap * 0.4f, gap * 0.4f), Size(3 * small + gap * 0.8f, 3 * small + gap * 0.8f), CornerRadius(gap), style = Stroke(4f))
@@ -329,11 +361,15 @@ fun TttBoard(
                 drawLine(Color.White.copy(alpha = 0.45f), o + Offset(i * small, 0f), o + Offset(i * small, 3 * small), 2.5f, StrokeCap.Round)
                 drawLine(Color.White.copy(alpha = 0.45f), o + Offset(0f, i * small), o + Offset(3 * small, i * small), 2.5f, StrokeCap.Round)
             }
-            for (c in 0 until 9) {
-                val cell = b * 9 + c
+            fun cell(c: Int) {
                 val center = o + Offset((c % 3 + 0.5f) * small, (c / 3 + 0.5f) * small)
-                if (cell == lastCell) drawCircle(Color.White.copy(alpha = 0.22f), small * 0.46f, center)
-                mark(board.getOrElse(cell) { '.' }, center, small * 0.26f, small * 0.11f, if (cell == lastCell) pop.value else 1f)
+                if (b * 9 + c == lastCell) drawCircle(Color.White.copy(alpha = 0.22f), small * 0.46f, center)
+                mark(board.getOrElse(b * 9 + c) { '.' }, center, small * 0.26f, small * 0.11f, if (b * 9 + c == lastCell) ink.value else 1f)
+            }
+            for (c in 0 until 9) if (!(dim && b * 9 + c == lastCell)) cell(c)
+            if (dim) {
+                drawRoundRect(TttBlue.copy(alpha = 0.35f), o - Offset(gap * 0.3f, gap * 0.3f), Size(3 * small + gap * 0.6f, 3 * small + gap * 0.6f), CornerRadius(gap))
+                if (lastCell != null && lastCell / 9 == b) cell(lastCell % 9)
             }
             // A decided small board: dimmed, with its winner's big mark on top.
             if (boards[b] != '.') {
@@ -352,8 +388,7 @@ fun TttBoard(
 @Composable
 private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, onMark: ((Int) -> Unit)?, modifier: Modifier, replay: Int = 0) {
     val p = AppTheme.palette
-    val pop = remember(lastCell, replay) { Animatable(if (lastCell == null) 1f else 0f) }
-    LaunchedEffect(lastCell, replay) { pop.animateTo(1f, tween(if (replay > 0) 520 else 320)) }
+    val ink = rememberMarkInk(lastCell, replay)
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
@@ -373,18 +408,7 @@ private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, o
         }
         for (c in 0 until 9) {
             val center = Offset((c % 3 + 0.5f) * step, (c / 3 + 0.5f) * step)
-            val k = step * 0.28f * (if (c == lastCell) pop.value else 1f)
-            when (board[c]) {
-                'm' -> for (color in listOf(p.ink, MyDisc)) {
-                    val w = if (color == MyDisc) step * 0.09f else step * 0.09f + 6f
-                    drawLine(color, center + Offset(-k, -k), center + Offset(k, k), w, StrokeCap.Round)
-                    drawLine(color, center + Offset(k, -k), center + Offset(-k, k), w, StrokeCap.Round)
-                }
-                'o' -> {
-                    drawCircle(p.ink, k, center, style = Stroke(step * 0.09f + 6f))
-                    drawCircle(TheirDisc, k, center, style = Stroke(step * 0.09f))
-                }
-            }
+            drawMark(board[c], center, step * 0.28f, step * 0.09f, 6f, if (c == lastCell) ink.value else 1f, p.ink)
         }
         if (winLine.size == 3) {
             val center = { c: Int -> Offset((c % 3 + 0.5f) * step, (c / 3 + 0.5f) * step) }
