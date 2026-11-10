@@ -24,12 +24,17 @@ import com.pippop.game.ludo.LudoView
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.KeyArt
 import com.pippop.data.Avatar
+import com.pippop.game.dominoes.DominoView
 import com.pippop.game.dots.DotsShape
+import com.pippop.game.dominoes.Tile
+import com.pippop.game.memory.CardFace
 import com.pippop.ui.screens.ConnectFourBoard
+import com.pippop.ui.screens.DominoTable
 import com.pippop.ui.screens.DotsBoard
 import com.pippop.ui.screens.DieFace
 import com.pippop.ui.screens.HomeScreen
 import com.pippop.ui.screens.LudoBoard
+import com.pippop.ui.screens.MemoryBoard
 import com.pippop.ui.screens.NumberPad
 import com.pippop.ui.screens.PopupAction
 import com.pippop.ui.screens.ResultPopup
@@ -156,6 +161,25 @@ class ScreenshotTest {
         .place(2, 4).place(3, 6).place(5, 8).place(6, 9).place(10, 7).place(11, 2).place(21, 9)
         .place(30, 7).place(32, 1).place(57, 5).place(58, 3)
 
+    // Memory Pairs: mostly face down, one card turned up, a pair taken by you and one by the other player.
+    @Composable
+    private fun memory() = Column(Modifier.padding(16.dp)) {
+        val animals = listOf(Avatar.FOX, Avatar.CAT)
+        val faces = List(16) { i ->
+            when (i) {
+                0, 9 -> CardFace(animals[0])
+                5, 14 -> CardFace(animals[1])
+                3 -> CardFace(Avatar.entries[2])
+                else -> null
+            }
+        }
+        MemoryBoard(faces, "m....o...m....o.", onFlip = null, modifier = Modifier.size(300.dp, 400.dp))
+    }
+
+    @Test fun memoryLight() = shot("memory", dark = false) { memory() }
+
+    @Test fun memoryDark() = shot("memory", dark = true) { memory() }
+
     @Composable
     private fun sudoku() = Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SudokuGrid(board = sudokuBoard, errors = sudokuBoard.conflicts(), selected = 3, hidden = false, solution = null, onSelect = {})
@@ -168,6 +192,32 @@ class ScreenshotTest {
     @Test fun sudokuLight() = shot("sudoku", dark = false) { sudoku() }
 
     @Test fun sudokuDark() = shot("sudoku", dark = true) { sudoku() }
+
+    // Dominoes mid-game on your turn: the line with a ringed number at each open end, and a hand
+    // where three tiles fit (they stand up with a gold edge) and three fade back.
+    @Composable
+    private fun dominoes() = Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val view = DominoView(
+            line = listOf(Tile(3, 4), Tile(4, 4), Tile(4, 1), Tile(1, 5)),
+            start = 1,
+            hand = listOf(Tile(3, 6), Tile(5, 5), Tile(2, 2), Tile(0, 5), Tile(1, 6), Tile(2, 4)),
+            counts = mapOf('m' to 6, 'o' to 5),
+            scores = mapOf('m' to 0, 'o' to 0),
+            partners = emptyList(),
+            boneyard = 8,
+            teams = false,
+            draw = true,
+            target = 100,
+            roundNo = 1,
+            lastMove = null,
+            lastRound = null,
+        )
+        DominoTable(view, myTurn = true, enabled = true, waitingText = "", name = { "You" }, onPlay = { _, _ -> }, onDraw = {}, onPass = {})
+    }
+
+    @Test fun dominoesLight() = shot("dominoes", dark = false) { dominoes() }
+
+    @Test fun dominoesDark() = shot("dominoes", dark = true) { dominoes() }
 
     @Composable
     private fun result() = Box(Modifier.fillMaxSize()) {

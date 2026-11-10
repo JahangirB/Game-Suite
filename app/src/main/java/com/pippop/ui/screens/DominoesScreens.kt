@@ -8,11 +8,13 @@ import com.pippop.ui.Sfx
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.Board
+import com.pippop.ui.theme.loopingFloat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -39,13 +41,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
 import com.pippop.data.RoomStatus
@@ -66,32 +74,60 @@ private val Felt = Board.Felt
 private val Bone = Board.Bone
 private val Ink = Board.Ink
 private val Glow = Board.Glow
+private val Brass = Board.Brass
+private val Wood = Board.Wood
 
 /** The line board's width per unit of height. */
 private const val LINE_ASPECT = 1.25f
 
 // ---- Drawing -------------------------------------------------------------------------------
 
-/** One tile in [topLeft]/[size]: [a] on the left (or top, when upright) and [b] on the other half. */
-private fun DrawScope.drawDomino(topLeft: Offset, size: Size, a: Int, b: Int, highlight: Boolean = false) {
+/**
+ * One ivory tile in [topLeft]/[size]: [a] on the left (or top, when upright) and [b] on the
+ * other half. It shades softly from top to bottom, casts a shadow, and has a groove with a
+ * brass pin between the halves.
+ */
+private fun DrawScope.drawDomino(topLeft: Offset, size: Size, a: Int, b: Int, highlight: Boolean = false, soft: Boolean = false) {
     val r = minOf(size.width, size.height) * 0.18f
-    drawRoundRect(Bone, topLeft, size, CornerRadius(r))
+    boxShadow(topLeft, size, r, drop = 1.5.dp.toPx(), strength = 0.3f)
+    drawRoundRect(
+        Brush.verticalGradient(listOf(Bone, Bone.darker(0.1f)), startY = topLeft.y, endY = topLeft.y + size.height),
+        topLeft, size, CornerRadius(r),
+    )
     drawRoundRect(if (highlight) Glow else Ink, topLeft, size, CornerRadius(r), style = Stroke(if (highlight) 3.dp.toPx() else 1.5.dp.toPx()))
+    // A tile that can be played also has a thin soft gold edge just inside its outline.
+    if (soft && !highlight) {
+        val inset = 1.5.dp.toPx() + 1.dp.toPx()
+        drawRoundRect(Board.GlowSoft, topLeft + Offset(inset, inset), Size(size.width - 2 * inset, size.height - 2 * inset), CornerRadius((r - inset).coerceAtLeast(0f)), style = Stroke(2.dp.toPx()))
+    }
     val across = size.width > size.height
     val half = if (across) size.width / 2 else size.height / 2
     val inset = minOf(size.width, size.height) * 0.2f
+    val mid = Offset(topLeft.x + size.width / 2, topLeft.y + size.height / 2)
+    val rim = 1.dp.toPx()
+    // The groove: a dark line with a light edge below it, as if cut into the ivory.
     if (across) {
-        drawLine(Ink, Offset(topLeft.x + half, topLeft.y + inset), Offset(topLeft.x + half, topLeft.y + size.height - inset), 1.2.dp.toPx())
+        val from = Offset(topLeft.x + half, topLeft.y + inset)
+        val to = Offset(topLeft.x + half, topLeft.y + size.height - inset)
+        drawLine(Color.White.copy(alpha = 0.8f), from + Offset(rim, 0f), to + Offset(rim, 0f), 1.2.dp.toPx())
+        drawLine(Ink, from, to, 1.2.dp.toPx())
         pips(Offset(topLeft.x + half / 2, topLeft.y + size.height / 2), size.height, a)
         pips(Offset(topLeft.x + half * 1.5f, topLeft.y + size.height / 2), size.height, b)
     } else {
-        drawLine(Ink, Offset(topLeft.x + inset, topLeft.y + half), Offset(topLeft.x + size.width - inset, topLeft.y + half), 1.2.dp.toPx())
+        val from = Offset(topLeft.x + inset, topLeft.y + half)
+        val to = Offset(topLeft.x + size.width - inset, topLeft.y + half)
+        drawLine(Color.White.copy(alpha = 0.8f), from + Offset(0f, rim), to + Offset(0f, rim), 1.2.dp.toPx())
+        drawLine(Ink, from, to, 1.2.dp.toPx())
         pips(Offset(topLeft.x + size.width / 2, topLeft.y + half / 2), size.width, a)
         pips(Offset(topLeft.x + size.width / 2, topLeft.y + half * 1.5f), size.width, b)
     }
+    // The brass pin, with a bright dot on its top left.
+    val pin = minOf(size.width, size.height) * 0.07f
+    drawCircle(Brass, pin, mid)
+    drawCircle(Brass.lighter(0.6f), pin * 0.4f, mid + Offset(-pin * 0.3f, -pin * 0.3f))
 }
 
-/** [n] pips on a square half [side] wide, centred on [c]. */
+/** [n] drilled pips on a square half [side] wide, centred on [c]. */
 private fun DrawScope.pips(c: Offset, side: Float, n: Int) {
     val d = side * 0.26f
     val spots = when (n) {
@@ -103,18 +139,26 @@ private fun DrawScope.pips(c: Offset, side: Float, n: Int) {
         5 -> listOf(-1f to -1f, 1f to -1f, 0f to 0f, -1f to 1f, 1f to 1f)
         else -> listOf(-1f to -1f, 1f to -1f, -1f to 0f, 1f to 0f, -1f to 1f, 1f to 1f)
     }
-    spots.forEach { (x, y) -> drawCircle(Ink, side * 0.085f, Offset(c.x + x * d, c.y + y * d)) }
+    // Each pip looks drilled: dark, with a faint light rim just below it.
+    spots.forEach { (x, y) ->
+        val at = Offset(c.x + x * d, c.y + y * d)
+        drawCircle(Color.White.copy(alpha = 0.85f), side * 0.085f, at + Offset(0f, side * 0.03f))
+        drawCircle(Ink, side * 0.085f, at)
+    }
 }
 
 /**
  * The line of play on the table, laid out like a real one: the round's first tile ([start]
  * in the line) in the middle, doubles across, turning near the edges, all scaled to fit. The
  * tile at [highlight] (the last one played) has a gold edge and slides in when [incoming]
- * changes: up from your hand ([fromBelow]) or down from the other side of the table.
+ * changes: up from your hand ([fromBelow]) or down from the other side of the table. Each open
+ * end has a gold ring with the number that fits there, pulsing gently on [myTurn].
  */
 @Composable
-fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true) {
+fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true, myTurn: Boolean = false) {
     val shape = Shapes.L
+    val beat by loopingFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), still = 1f, label = "ends")
+    val digits = rememberTextMeasurer()
     val slide = remember { Animatable(1f) }
     val sfx = rememberSfx()
     var seen by remember { mutableStateOf(false) }
@@ -130,7 +174,9 @@ fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier
         sfx.play(Sound.PIECE_PLACE, if (fromBelow) 1f else Sfx.OTHERS)
     }
     val placed = remember(line, start) { DominoLayout.layout(line, start) }
-    Canvas(modifier.clip(shape).background(Felt).border(2.dp, AppTheme.palette.ink, shape)) {
+    Canvas(modifier.clip(shape).border(6.dp, Brush.verticalGradient(listOf(Wood.lighter(0.2f), Wood.darker(0.2f))), shape)) {
+        // Green felt, darker towards the edge.
+        drawRect(Brush.radialGradient(0f to Felt, 0.55f to Felt, 1f to Felt.darker(0.4f), center = center, radius = maxOf(size.width, size.height) * 0.75f))
         if (placed.isEmpty()) return@Canvas
         val pad = 12.dp.toPx()
         val minX = placed.minOf { it.x }
@@ -150,10 +196,39 @@ fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier
             }
             drawDomino(offset + Offset(1f, 1f), Size(t.w * unit - 2f, t.h * unit - 2f), t.first, t.second, highlight = i == highlight)
         }
+        // A ring just beyond each open end of the line, showing the number that fits there.
+        val ringR = maxOf(unit * 0.6f, 11.dp.toPx())
+        val grow = if (myTurn) 1f + 0.1f * beat else 1f
+        val glow = if (myTurn) 0.6f + 0.4f * beat else 1f
+        fun ring(i: Int, neighbour: Int?, outward: Float, number: Int) {
+            val t = placed[i]
+            val c = Offset(left + (t.x + t.w / 2) * unit, top + (t.y + t.h / 2) * unit)
+            val dir = if (neighbour == null) Offset(outward, 0f) else {
+                val n = placed[neighbour]
+                val dx = c.x - (left + (n.x + n.w / 2) * unit)
+                val dy = c.y - (top + (n.y + n.h / 2) * unit)
+                if (abs(dx) >= abs(dy)) Offset(if (dx < 0) -1f else 1f, 0f) else Offset(0f, if (dy < 0) -1f else 1f)
+            }
+            val along = (if (dir.x != 0f) t.w else t.h) * unit
+            val edge = 8.dp.toPx()
+            val ideal = c + dir * (along / 2 + ringR + 2.dp.toPx())
+            // The full ring only where it fits on the felt, clear of the wooden rim and the tile;
+            // otherwise a small badge on the tile's outer half.
+            val most = ringR * 1.1f + 1.25.dp.toPx()
+            val fits = ideal.x in (most + edge)..(size.width - most - edge) && ideal.y in (most + edge)..(size.height - most - edge)
+            val at = if (fits) ideal else c + dir * (along / 4)
+            val r = (if (fits) ringR else unit * 0.45f) * grow
+            drawCircle(Felt.darker(0.45f).copy(alpha = 0.7f), r, at)
+            drawCircle(Glow.copy(alpha = glow), r, at, style = Stroke(2.5.dp.toPx()))
+            val text = digits.measure("$number", TextStyle(fontSize = TextSize.Label, fontWeight = FontWeight.Bold))
+            drawText(text, Color.White, at - Offset(text.size.width / 2f, text.size.height / 2f))
+        }
+        ring(0, if (placed.size > 1) 1 else null, -1f, line.first().a)
+        ring(placed.lastIndex, if (placed.size > 1) placed.lastIndex - 1 else null, 1f, line.last().b)
     }
 }
 
-/** Your hand as upright tiles. Tiles that fit are bright (when [enabled]); [selected] rises. */
+/** Your hand as upright tiles. Tiles that fit stand up with a soft gold edge (when [enabled]), the rest fade; [selected] rises higher with the full gold edge. */
 @Composable
 private fun DominoHand(hand: List<Tile>, line: List<Tile>, enabled: Boolean, selected: Int?, onTap: (Int) -> Unit) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -167,10 +242,10 @@ private fun DominoHand(hand: List<Tile>, line: List<Tile>, enabled: Boolean, sel
                             .enterFrom(Unit, dy = (-120).dp, scaleFrom = 0.6f, delayMs = if (line.isEmpty()) i * Motion.STAGGER_MS else 0, onAppear = true)
                             .graphicsLayer {
                                 alpha = if (!enabled || fits) 1f else 0.4f
-                                translationY = if (i == selected) -8.dp.toPx() else 0f
+                                translationY = if (i == selected) -8.dp.toPx() else if (fits) -5.dp.toPx() else 0f
                             }
                             .clickable(enabled = fits) { onTap(i) },
-                    ) { drawDomino(Offset.Zero, size, t.a, t.b, highlight = i == selected) }
+                    ) { drawDomino(Offset.Zero, size, t.a, t.b, highlight = i == selected, soft = fits) }
                 }
             }
         }
@@ -202,7 +277,7 @@ private fun dominoNews(view: DominoView, name: (Char) -> String): String? {
  * that fits both ends asks which. With nothing to play: Draw (the draw game) or Pass.
  */
 @Composable
-private fun ColumnScope.DominoTable(
+internal fun ColumnScope.DominoTable(
     view: DominoView,
     myTurn: Boolean,
     enabled: Boolean,
@@ -220,7 +295,10 @@ private fun ColumnScope.DominoTable(
     TurnLine(
         when {
             !myTurn -> waitingText
-            view.canPlay -> "Your turn: tap a tile to play it"
+            view.canPlay -> {
+                val n = view.hand.count { Dominoes.fits(view.line, it).isNotEmpty() }
+                if (n == 1) "Your turn: 1 tile fits, tap it" else "Your turn: $n tiles fit, tap one"
+            }
             view.draw && view.boneyard > 0 -> "Nothing fits: draw a tile"
             else -> "Nothing fits: pass"
         },
@@ -231,7 +309,7 @@ private fun ColumnScope.DominoTable(
 
     val move = view.lastMove
     val lastIndex = move?.tile?.let { if (move.end == "left") 0 else view.line.lastIndex }
-    BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm') }
+    BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm', myTurn = canMove) }
 
     val chosen = selected
     if (canMove && chosen != null && view.line.isNotEmpty()) {
