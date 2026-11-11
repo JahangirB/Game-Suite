@@ -218,3 +218,22 @@ object GameColors {
     val BalloonSkyNightBottom = Color(0xFF2C3A6B)
     val BalloonCloudNight = Color(0xFF5A6BA3)
 }
+
+/**
+ * The backdrop behind a game. Light: a paler wash of the game's colour than the page, with
+ * white marks, so text only gets more contrast. Dark: a deeper tint of the game's colour with
+ * faint marks in the game colour. Kept this low so text and boards read as before.
+ */
+object Backdrop {
+    private const val TintDark = 0.14f
+    private const val MarkDark = 0.10f
+
+    /** The page colour with [game]'s colour mixed in. */
+    fun tint(background: Color, game: Color, dark: Boolean): Color =
+        if (dark) lerp(background, lerp(game, Color.Black, 0.4f), TintDark)
+        else lerp(background, lerp(game, Color.White, 0.9f), 0.5f)
+
+    /** The colour of the faint pattern marks. */
+    fun mark(game: Color, dark: Boolean): Color =
+        if (dark) game.copy(alpha = MarkDark) else Color.White.copy(alpha = 0.6f)
+}

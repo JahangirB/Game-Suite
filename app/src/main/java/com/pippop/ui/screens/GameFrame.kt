@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +102,7 @@ fun GameFrame(
     title: String,
     subtitle: String?,
     players: List<ChipPlayer>,
+    /** The game's colour; it must be a GameKind colour for the backdrop to show. */
     glow: Color,
     dock: List<DockAction> = emptyList(),
     /**
@@ -141,9 +143,9 @@ fun GameFrame(
         ) { _, dy -> pulled += dy }
     }
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth().gameBackdrop(glow)) {
             Column(
-                Modifier.fillMaxSize().then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                Modifier.fillMaxSize().graphicsLayer().then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                     .then(swipe)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
