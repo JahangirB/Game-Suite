@@ -211,4 +211,10 @@ object GameColors {
     val Stone = Color(0xFF9C98A8)
     val StoneLight = Color(0xFFB9B5C4)
     val StoneDark = Color(0xFF6F6B7D)
+    // Balloon Words' sky and clouds: pale day, and a deeper evening for dark mode.
+    val BalloonSkyTop = Color(0xFFBFE3F8)
+    val BalloonSkyBottom = Color(0xFFE6F5FD)
+    val BalloonSkyNightTop = Color(0xFF1B2447)
+    val BalloonSkyNightBottom = Color(0xFF2C3A6B)
+    val BalloonCloudNight = Color(0xFF5A6BA3)
 }
