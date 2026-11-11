@@ -94,6 +94,21 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import com.pippop.ui.SoloUiState
 import com.pippop.ui.theme.AppTheme
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import com.pippop.game.Sudoku
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,6 +182,8 @@ fun HomeScreen(
                 profile.partner?.let { PartnerCard(it) }
             }
 
+            solo.game?.takeIf { solo.canContinue }?.let { ContinueCard(it, onContinue) }
+
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
                     Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -176,9 +193,9 @@ fun HomeScreen(
                 TextButton(onClick = onArrange) { Text("Arrange", color = p.primaryText, fontWeight = FontWeight.Bold) }
             }
 
-            // Two tiles per row, in your order.
+            // Two tiles per row, in your order; each row stands on a thin shelf.
             profile.gameOrder.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                ShelfRow {
                     pair.forEach { kind ->
                         GameTile(
                             kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
@@ -234,23 +251,47 @@ fun HomeScreen(
     }
 }
 
-/** A game on the shelf: its coloured icon, name and one line about it. */
+/** One row of tiles standing on a thin shelf. */
+@Composable
+internal fun ShelfRow(content: @Composable RowScope.() -> Unit) {
+    val p = AppTheme.palette
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth(), content = content)
+        Box(Modifier.fillMaxWidth().height(6.dp).clip(Shapes.Full).background(p.ink.copy(alpha = 0.18f)))
+    }
+}
+
+/**
+ * A game on the shelf: its coloured icon (shaded top to bottom, with a darker edge under it),
+ * name and one line about it. The tile dips a little while pressed.
+ */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onLongClick: () -> Unit, onClick: () -> Unit) {
+internal fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onLongClick: () -> Unit, onClick: () -> Unit) {
     val p = AppTheme.palette
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
     Surface(
         color = p.card,
         shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, Radius.L).clip(Shapes.L)
-            .combinedClickable(onClickLabel = "Open", onLongClickLabel = "Arrange games", onLongClick = onLongClick, onClick = onClick),
+        modifier = modifier.pressedEdge(p.ink, Radius.L)
+            // The dip is drawn only: the tile's place in the layout never moves.
+            .graphicsLayer { translationY = if (pressed) 2.dp.toPx() else 0f }
+            .clip(Shapes.L)
+            .combinedClickable(interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open", onLongClickLabel = "Arrange games", onLongClick = onLongClick, onClick = onClick),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(46.dp).clip(Shapes.M).background(kind.color).border(2.dp, p.ink, Shapes.M),
+                    modifier = Modifier.size(46.dp)
+                        .drawBehind {
+                            drawRoundRect(kind.color.darker(0.3f), topLeft = Offset(0f, 3.dp.toPx()), size = size, cornerRadius = CornerRadius(Radius.M.toPx()))
+                        }
+                        .clip(Shapes.M)
+                        .background(Brush.verticalGradient(listOf(kind.color.lighter(0.18f), kind.color.darker(0.12f))))
+                        .border(2.dp, p.ink, Shapes.M),
                 ) { GameIcon(kind, Modifier.size(28.dp)) }
                 Spacer(Modifier.weight(1f))
                 if (badge != null) {
@@ -262,6 +303,78 @@ private fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onLongC
             }
             Text(kind.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.Body)
             Text(kind.tagline, color = p.muted, fontSize = TextSize.Body, lineHeight = LineHeight.Label, minLines = 2)
+        }
+    }
+}
+
+/**
+ * The saved Sudoku at the top of the shelf, one compact strip: a small picture of the real
+ * position, the title, "Medium · 38:12 · 27% done" with a progress bar, and Play to carry on.
+ */
+@Composable
+internal fun ContinueCard(game: com.pippop.game.SoloGame, onPlay: () -> Unit) {
+    val p = AppTheme.palette
+    val percent = Sudoku.filledPercent(game.board.cells, game.board.givens)
+    Surface(color = p.card, shape = Shapes.L, border = BorderStroke(2.dp, p.ink), modifier = Modifier.fillMaxWidth().pressedEdge(p.ink, Radius.L)) {
+        Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            MiniBoard(game, percent, Modifier.size(60.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Sudoku · ${game.shape.label}", color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${game.difficulty.label} · ${formatDuration(game.elapsedMs)} · $percent% done",
+                    color = p.muted, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                // The bar is a picture of the words above it.
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(Shapes.Full).background(p.ink.copy(alpha = 0.15f)).clearAndSetSemantics {}) {
+                    Box(Modifier.fillMaxWidth(percent / 100f).height(8.dp).background(p.primary))
+                }
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.heightIn(min = 48.dp).clip(Shapes.Full).background(p.primary).border(2.dp, p.ink, Shapes.Full)
+                    .clickable(role = Role.Button, onClick = onPlay).padding(horizontal = 16.dp),
+            ) { Text("Play", color = p.onPrimary, fontSize = TextSize.Body, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+/**
+ * A small, non-interactive picture of the saved board, scaled into the square. A single grid
+ * shows its digits (clues in ink, yours in colour); a joined board shows one mark per square,
+ * with squares off the board left blank.
+ */
+@Composable
+private fun MiniBoard(game: com.pippop.game.SoloGame, percent: Int, modifier: Modifier) {
+    val p = AppTheme.palette
+    val measurer = rememberTextMeasurer()
+    val shape = game.shape
+    val n = shape.size
+    Canvas(
+        modifier.clip(Shapes.S).background(p.boardBackground).border(2.dp, p.lineThick, Shapes.S)
+            .semantics { contentDescription = "Saved board, $percent% done" },
+    ) {
+        val cell = size.width / n
+        if (!shape.big) {
+            for (i in 1 until 9) {
+                val box = i % 3 == 0
+                val w = if (box) 1.5.dp.toPx() else 0.5.dp.toPx()
+                val c = if (box) p.lineThick else p.lineThin
+                drawLine(c, Offset(i * cell, 0f), Offset(i * cell, size.height), w)
+                drawLine(c, Offset(0f, i * cell), Offset(size.width, i * cell), w)
+            }
+        }
+        val style = TextStyle(fontSize = (cell * 0.72f).toSp(), fontWeight = FontWeight.Bold)
+        for (i in 0 until n * n) {
+            if (!shape.onBoard(i)) continue
+            val d = game.board.cells[i]
+            val given = game.board.givens[i]
+            val topLeft = Offset((i % n) * cell, (i / n) * cell)
+            if (shape.big) {
+                drawRect(if (d == 0) p.lineThin.copy(alpha = 0.35f) else if (given) p.given else p.entry, topLeft, Size(cell * 0.8f, cell * 0.8f))
+            } else if (d != 0) {
+                val text = measurer.measure(d.toString(), style.copy(color = if (given) p.given else p.entry))
+                drawText(text, topLeft = topLeft + Offset((cell - text.size.width) / 2f, (cell - text.size.height) / 2f))
+            }
         }
     }
 }
