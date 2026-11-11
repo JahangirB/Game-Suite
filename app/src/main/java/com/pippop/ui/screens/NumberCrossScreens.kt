@@ -7,7 +7,26 @@ import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Pieces
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.Dp
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.Radius
+import kotlin.math.PI
+import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +42,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import kotlin.random.Random
@@ -96,13 +114,52 @@ private fun shown(token: String) = when (token) {
     else -> token
 }
 
+/** Where the bank's tiles and the grid's blanks sit on screen, so a number can fly between them. */
+internal class FlightSpots {
+    val blanks = HashMap<Int, Rect>()
+    val chips = HashMap<Int, Rect>()
+    var origin = Offset.Zero
+}
+
+/** Set by your Undo tap so the next change to the entries flies back; it lapses if nothing changes. */
+internal class FlightHint {
+    var at by mutableLongStateOf(0L)
+
+    /** Notes that the change about to come is your Undo. */
+    fun mark() {
+        at = System.currentTimeMillis()
+    }
+}
+
+/** One number in the air: [value] to or from blank [k] ([back] means into the bank); [n] tells flights apart. */
+private data class Flight(val value: Int, val k: Int, val back: Boolean, val n: Int)
+
+/** A tile standing up from the table: a darker edge under a lighter face, outlined in [edge]. */
+private fun Modifier.raised(color: Color, edge: Color, edgeWidth: Dp, lift: Dp, corner: Dp = Radius.S) = drawBehind {
+    val liftPx = lift.toPx()
+    val face = Size(size.width, size.height - liftPx)
+    raisedTile(color, Offset.Zero, face, corner.toPx(), liftPx)
+    val half = edgeWidth.toPx() / 2
+    drawRoundRect(edge, Offset(half, half), Size(face.width - half * 2, face.height - half * 2), CornerRadius(corner.toPx()), style = Stroke(edgeWidth.toPx()))
+}
+
+/** A blank pressed into the board: [color] with a shadow cast down from its top and left edges and a lit lower lip. */
+private fun Modifier.sunken(color: Color, deeper: Float) = drawBehind {
+    drawRect(color)
+    drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.34f + deeper), 1f to Color.Transparent, endY = size.height * 0.34f))
+    drawRect(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.2f + deeper), 1f to Color.Transparent, endX = size.width * 0.2f))
+    drawRect(Color.White.copy(alpha = 0.35f), Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx()))
+}
+
 /**
  * The grid, cropped to the cells in use and drawn whole like a crossword: squares no sum uses
- * are stone blocks. Blanks show your entries; a sum turns green once it is
+ * are chunky stone blocks, given numbers are raised tiles and blanks are sunken slots showing
+ * your entries ([landing] is a blank whose number is still flying in, so its entry waits;
+ * [spots] learns where each blank sits); a sum turns green once it is
  * filled in and right, red when filled in and wrong. Tap a blank to pick it.
  */
 @Composable
-internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, modifier: Modifier) {
+internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, modifier: Modifier, spots: FlightSpots? = null, landing: Int? = null) {
     val p = AppTheme.palette
     val used = board.cells.indices.filter { board.cells[it] != "" }
     if (used.isEmpty()) return
@@ -142,24 +199,22 @@ internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int
                                     false -> Wrong
                                     null -> if (pick) p.primary else p.accent
                                 }
-                                Surface(
-                                    color = tint,
-                                    shape = Shapes.S,
-                                    border = BorderStroke(if (pick) 3.dp else 1.5.dp, if (pick) p.ink else p.ink.copy(alpha = 0.6f)),
-                                    modifier = Modifier.fillMaxWidth().height(cell).clickable(enabled = enabled) { onSelect(k) },
+                                Box(
+                                    Modifier.fillMaxWidth().height(cell).clip(Shapes.S).sunken(tint, if (p.dark) 0.2f else 0f)
+                                        .border(if (pick) 3.dp else 1.5.dp, if (pick) p.ink else p.ink.copy(alpha = 0.6f), Shapes.S)
+                                        .onGloballyPositioned { spots?.blanks?.put(k, it.boundsInRoot()) }
+                                        .clickable(enabled = enabled) { onSelect(k) },
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(token, color = if (verdict[i] != null || pick) Color.White else p.text, fontSize = fontSize, fontWeight = FontWeight.Bold)
-                                    }
+                                    val ink = if (k == landing) Color.Transparent else if (verdict[i] != null || pick) Color.White else p.text
+                                    Text(token, color = ink, fontSize = fontSize, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            NumberCross.isNumber(token) -> Surface(
-                                color = p.card,
-                                shape = Shapes.S,
-                                border = BorderStroke(1.5.dp, (verdict[i]?.let { if (it) Right else Wrong }) ?: p.ink),
-                                modifier = Modifier.fillMaxWidth().height(cell),
+                            NumberCross.isNumber(token) -> Box(
+                                Modifier.fillMaxWidth().height(cell).raised(p.card, (verdict[i]?.let { if (it) Right else Wrong }) ?: p.ink, 1.5.dp, cell / 12),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text(token, color = p.text, fontSize = fontSize, fontWeight = FontWeight.Bold) }
+                                Text(token, color = p.text, fontSize = fontSize, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = cell / 12))
                             }
                             else -> Box(Modifier.fillMaxSize().clip(Shapes.S).background(OperatorTile), contentAlignment = Alignment.Center) {
                                 Text(shown(token), color = p.muted, fontSize = fontSize, fontWeight = FontWeight.Bold)
@@ -178,36 +233,39 @@ private val Stone = GameColors.Stone
 private val StoneLight = GameColors.StoneLight
 private val StoneDark = GameColors.StoneDark
 
-/** An unused square: a stone block with a bevel and a crack or two, different square to square. */
+/** An unused square: a chunky stone block standing up from the board, with a wide bevel and a crack or two, different square to square. */
 @Composable
 private fun StoneBlock(seed: Int, modifier: Modifier) {
     Canvas(modifier.clip(Shapes.S)) {
         val w = size.width
-        drawRect(Stone)
+        val lift = w * 0.12f
+        val h = w - lift
+        raisedTile(Stone, Offset.Zero, Size(w, h), Radius.S.toPx(), lift)
         // Light top-left edge, dark bottom-right edge.
-        drawPath(Path().apply { moveTo(0f, 0f); lineTo(w, 0f); lineTo(w * 0.86f, w * 0.14f); lineTo(w * 0.14f, w * 0.14f); lineTo(w * 0.14f, w * 0.86f); lineTo(0f, w); close() }, StoneLight)
-        drawPath(Path().apply { moveTo(w, w); lineTo(0f, w); lineTo(w * 0.14f, w * 0.86f); lineTo(w * 0.86f, w * 0.86f); lineTo(w * 0.86f, w * 0.14f); lineTo(w, 0f); close() }, StoneDark)
+        val b = 0.2f
+        drawPath(Path().apply { moveTo(0f, 0f); lineTo(w, 0f); lineTo(w * (1 - b), h * b); lineTo(w * b, h * b); lineTo(w * b, h * (1 - b)); lineTo(0f, h); close() }, StoneLight)
+        drawPath(Path().apply { moveTo(w, h); lineTo(0f, h); lineTo(w * b, h * (1 - b)); lineTo(w * (1 - b), h * (1 - b)); lineTo(w * (1 - b), h * b); lineTo(w, 0f); close() }, StoneDark)
         val r = Random(seed)
         repeat(1 + r.nextInt(2)) {
             val x0 = w * (0.25f + 0.5f * r.nextFloat())
-            val y0 = w * (0.2f + 0.2f * r.nextFloat())
+            val y0 = h * (0.2f + 0.2f * r.nextFloat())
             drawPath(
                 Path().apply {
                     moveTo(x0, y0)
-                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.3f, y0 + w * 0.22f)
-                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.4f, y0 + w * 0.42f)
+                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.3f, y0 + h * 0.22f)
+                    lineTo(x0 + w * (r.nextFloat() - 0.5f) * 0.4f, y0 + h * 0.42f)
                 },
                 StoneDark, style = Stroke(w * 0.035f),
             )
         }
         // A few specks.
-        repeat(4) { drawCircle(StoneDark.copy(alpha = 0.5f), w * 0.03f, Offset(w * (0.2f + 0.6f * r.nextFloat()), w * (0.2f + 0.6f * r.nextFloat()))) }
+        repeat(4) { drawCircle(StoneDark.copy(alpha = 0.5f), w * 0.03f, Offset(w * (0.2f + 0.6f * r.nextFloat()), h * (0.2f + 0.6f * r.nextFloat()))) }
     }
 }
 
 /** The bank: each missing number with how many are left to place; Clear empties the picked blank. */
 @Composable
-private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean, onPlace: (String) -> Unit) {
+private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean, onPlace: (String) -> Unit, spots: FlightSpots) {
     val p = AppTheme.palette
     val placed = entries.filter { it != "" }.groupingBy { it }.eachCount()
     val counts = bank.groupingBy { it }.eachCount()
@@ -218,13 +276,13 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
                 row.forEach { (value, left) ->
                     val clear = value < 0
                     val on = enabled && (clear || left > 0)
-                    Surface(
-                        color = if (clear) p.card else if (left > 0) p.card else p.accent,
-                        shape = Shapes.M,
-                        border = BorderStroke(2.dp, if (on) p.ink else p.muted),
-                        modifier = Modifier.weight(1f).height(46.dp).clickable(enabled = on) { onPlace(if (clear) "" else value.toString()) },
+                    Box(
+                        Modifier.weight(1f).height(46.dp)
+                            .raised(if (clear) p.card else if (left > 0) p.card else p.accent, if (on) p.ink else p.muted, 2.dp, 4.dp, Radius.M)
+                            .onGloballyPositioned { if (!clear) spots.chips[value] = it.boundsInRoot() }
+                            .clickable(enabled = on) { onPlace(if (clear) "" else value.toString()) },
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Column(Modifier.fillMaxSize().padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Text(if (clear) "Clear" else value.toString(), color = if (on) p.text else p.muted, fontWeight = FontWeight.Bold, fontSize = if (clear) TextSize.Body else TextSize.BodyL)
                             if (!clear && counts.getValue(value) > 1) Text("×$left", color = p.muted, fontSize = TextSize.Micro)
                         }
@@ -236,14 +294,89 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
     }
 }
 
-/** The board and the bank, shared by the race and the game on your own. */
+/**
+ * The board and the bank, shared by the race and the game on your own. A number you place
+ * while watching lifts out of its bank tile and arcs into the blank (Undo sends it back); a
+ * change that wasn't your tap (the other side, the server, a new game) just appears.
+ */
 @Composable
-private fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit) {
+internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit, hint: FlightHint) {
     val used = board.cells.indices.filter { board.cells[it] != "" }
     val rows = used.map { it / board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
     val cols = used.map { it % board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
-    BoardArea(cols.toFloat() / rows) { size -> NumberGrid(board, entries, selected, enabled, onSelect, size) }
-    NumberBank(board.bank, entries, enabled && selected != null, onPlace)
+    val spots = remember(board) { FlightSpots() }
+    var flight by remember(board) { mutableStateOf<Flight?>(null) }
+    var count by remember(board) { mutableIntStateOf(0) }
+    val before = remember(board) { arrayOf(entries) }
+    val calm = LocalReduceMotion.current
+    val progress = remember(board) { Animatable(0f) }
+    // Undo: a change right after your tap, to exactly one blank, sends that number back.
+    LaunchedEffect(entries) {
+        val old = before[0]
+        before[0] = entries
+        if (calm || hint.at == 0L || old.size != entries.size) return@LaunchedEffect
+        val changed = entries.indices.filter { old[it] != entries[it] }
+        hint.at = 0L
+        val k = changed.singleOrNull() ?: return@LaunchedEffect
+        val value = old[k].toIntOrNull() ?: return@LaunchedEffect
+        flight = Flight(value, k, true, ++count)
+    }
+    // An undo that changed nothing must not leave the hint armed for a later change.
+    LaunchedEffect(hint.at) {
+        if (hint.at != 0L) {
+            delay(300)
+            hint.at = 0L
+        }
+    }
+    LaunchedEffect(flight) {
+        val f = flight ?: return@LaunchedEffect
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(250, easing = FastOutSlowInEasing))
+        progress.snapTo(0f)
+        if (flight == f) flight = null
+    }
+    Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { spots.origin = it.boundsInRoot().topLeft }) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            BoardArea(cols.toFloat() / rows) { size -> NumberGrid(board, entries, selected, enabled, onSelect, size, spots, flight?.takeIf { !it.back }?.k) }
+            NumberBank(board.bank, entries, enabled && selected != null, { v ->
+                // Your own pick starts flying now, so the number never shows in the blank first.
+                val k = selected
+                if (!calm && k != null && v != "" && entries.getOrNull(k) != v) flight = Flight(v.toInt(), k, false, ++count)
+                onPlace(v)
+            }, spots)
+        }
+        flight?.let { f ->
+            val blank = spots.blanks[f.k]
+            val chip = spots.chips[f.value]
+            if (blank != null && chip != null) {
+                val p = AppTheme.palette
+                val side = blank.width * 0.92f
+                val lift = side / 12
+                Box(
+                    Modifier.size(with(LocalDensity.current) { side.toDp() })
+                        .graphicsLayer {
+                            val t = progress.value
+                            val from = if (f.back) blank.center else chip.center
+                            val to = if (f.back) chip.center else blank.center
+                            val at = from + (to - from) * t - spots.origin
+                            translationX = at.x - side / 2
+                            translationY = at.y - side / 2 - sin(PI.toFloat() * t) * side * 1.1f
+                            val grow = 1f + 0.25f * sin(PI.toFloat() * t)
+                            scaleX = grow
+                            scaleY = grow
+                        }
+                        .raised(p.card, p.ink, 1.5.dp, with(LocalDensity.current) { lift.toDp() }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        f.value.toString(), color = p.text, fontWeight = FontWeight.Bold,
+                        fontSize = with(LocalDensity.current) { (side * 0.42f).toSp() },
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** The host's level for the next puzzle; everyone else sees it. */
@@ -283,6 +416,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     val board = numbers.board
     val entries = state.numberEntries.orEmpty()
     var reacting by remember { mutableStateOf(false) }
+    val hint = remember { FlightHint() }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
     val mine = if (board != null) progressOf(board, entries) else 0
@@ -301,7 +435,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         }),
         glow = GameKind.NUMBERS.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
-        tools = listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = vm::undoNumber)),
+        tools = listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = { hint.mark(); vm.undoNumber() })),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
@@ -332,7 +466,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
                 }
             }
         } else {
-            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber)
+            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber, hint)
         }
     }
 }
@@ -344,6 +478,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
 fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
+    val hint = remember { FlightHint() }
     if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
     val puzzle = state.puzzle
     val board = remember(puzzle) { puzzle?.toBoard() }
@@ -375,7 +510,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
                 }
             }
         } else {
-            NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place)
+            NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint)
         }
     }
 }
