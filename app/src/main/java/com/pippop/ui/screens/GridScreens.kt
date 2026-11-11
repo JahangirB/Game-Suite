@@ -7,7 +7,42 @@ import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.Radius
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.runtime.withFrameMillis
+import com.pippop.ui.theme.Board
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.Pieces
+import com.pippop.ui.theme.readableOn
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +56,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,18 +85,48 @@ import com.pippop.ui.art.color
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
 
+/** How a finished drag was judged: a new word, one already found, or not a word. */
+private enum class Verdict { GOOD, REPEAT, BAD }
+
+/** The ribbon left behind by a finished drag, shown briefly in the colour of its [verdict]. */
+private data class Settled(val path: List<Int>, val verdict: Verdict, val word: String)
+
 /**
- * The 4 × 4 letters. Drag through touching squares to spell a word (going back one square
- * takes the last letter off); letting go sends it to [onWord].
+ * The 4 × 4 letters on chunky cream tiles. Drag through touching squares to spell a word (going
+ * back one square takes the last letter off); letting go sends it to [onWord]. The path is one
+ * rounded ribbon through the letters; on letting go it turns green (new word, which flies up
+ * with its points), yellow (already found) or red (not a word). While [fuseLeftMs] is given, the
+ * frame round the grid runs down like a fuse over [LetterGrid.ROUND_MS] and turns red at the end.
+ * [startPath] is the squares already dragged over (only for pictures).
  */
 @Composable
-fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit, modifier: Modifier = Modifier) {
+fun LetterGridBoard(
+    letters: String, enabled: Boolean, onWord: (String) -> Unit, modifier: Modifier = Modifier,
+    found: List<String> = emptyList(), fuseLeftMs: (() -> Long)? = null, startPath: List<Int> = emptyList(),
+) {
     val p = AppTheme.palette
-    var path by remember(letters) { mutableStateOf(listOf<Int>()) }
+    var path by remember(letters) { mutableStateOf(startPath) }
+    var finger by remember(letters) { mutableStateOf<Offset?>(null) }
+    var shown by remember(letters) { mutableStateOf<Settled?>(null) }
+    val settle = remember(letters) { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+    val reduce = LocalReduceMotion.current
     val send by rememberUpdatedState(onWord)
+    val foundNow by rememberUpdatedState(found)
     val sfx = rememberSfx()
     val n = LetterGrid.SIZE
-    BoxWithConstraints(modifier) {
+    // The fuse reads the clock once a frame, but only the frame's drawing looks at it.
+    val frame = remember { mutableLongStateOf(0L) }
+    if (fuseLeftMs != null && enabled) LaunchedEffect(Unit) { while (true) withFrameMillis { frame.longValue = it } }
+    val framePad = if (fuseLeftMs != null) 10.dp else 0.dp
+    BoxWithConstraints(
+        modifier.drawBehind {
+            if (fuseLeftMs != null) {
+                frame.longValue
+                drawFuse((fuseLeftMs() / LetterGrid.ROUND_MS.toFloat()).coerceIn(0f, 1f), fuseLeftMs(), framePad.toPx(), p.ink, p.bad, p.ink)
+            }
+        }.padding(framePad),
+    ) {
         val cellPx = with(LocalDensity.current) { maxWidth.toPx() } / n
         val touch = if (!enabled) Modifier else Modifier.pointerInput(letters) {
             awaitEachGesture {
@@ -79,11 +143,14 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                 var trail = listOfNotNull(cellAt(down.position.x, down.position.y))
                 if (trail.isNotEmpty()) sfx.play(Sound.GRID_TRACE)
                 path = trail
+                shown = null
+                finger = down.position
                 while (true) {
                     val event = awaitPointerEvent()
                     val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
                     if (!pointer.pressed) break
                     pointer.consume()
+                    finger = pointer.position
                     val cell = cellAt(pointer.position.x, pointer.position.y) ?: continue
                     trail = when {
                         trail.isEmpty() -> listOf(cell)
@@ -95,43 +162,144 @@ fun LetterGridBoard(letters: String, enabled: Boolean, onWord: (String) -> Unit,
                     if (trail.size > path.size) sfx.play(Sound.GRID_TRACE, pitch = 1f + 0.06f * (trail.size - 1))
                     path = trail
                 }
-                if (trail.size >= 3) send(trail.joinToString("") { letters[it].toString() })
+                if (trail.size >= 3) {
+                    val word = trail.joinToString("") { letters[it].toString() }
+                    val verdict = when {
+                        word.lowercase() in foundNow -> Verdict.REPEAT
+                        LetterGrid.problem(letters, word.lowercase()) != null -> Verdict.BAD
+                        else -> Verdict.GOOD
+                    }
+                    shown = Settled(trail, verdict, word)
+                    // The ribbon holds its verdict colour a moment (a new word also flies up), then goes.
+                    scope.launch {
+                        settle.snapTo(0f)
+                        if (reduce) { delay(450); settle.snapTo(1f) } else settle.animateTo(1f, tween(650, easing = LinearEasing))
+                    }
+                    send(word)
+                }
                 path = emptyList()
+                finger = null
             }
         }
         val side = maxWidth / n - 6.dp
-        Column(Modifier.then(touch), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (r in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (c in 0 until n) {
-                    val i = r * n + c
-                    val on = i in path
-                    Surface(
-                        color = if (on) p.primary else p.card,
-                        shape = Shapes.M,
-                        border = BorderStroke(2.dp, p.ink),
-                        modifier = Modifier.size(side).pressedEdge(p.ink, Radius.M),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(letters[i].uppercase(), color = if (on) Color.White else p.text, fontSize = (side.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
+        val sidePx = with(LocalDensity.current) { side.toPx() }
+        val pitchPx = with(LocalDensity.current) { (side + 6.dp).toPx() }
+        // Tiles lift a little while the finger's path is over them.
+        val lifts = List(n * n) { i ->
+            animateFloatAsState(if (i in path) 1f else 0f, if (reduce) snap() else tween(90), label = "tileLift")
+        }
+        Box(Modifier.then(touch)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (r in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (c in 0 until n) {
+                        val lift = lifts[r * n + c]
+                        Box(
+                            Modifier.size(side).graphicsLayer { translationY = -3.dp.toPx() * lift.value }.drawBehind {
+                                val edge = 4.dp.toPx()
+                                val face = Size(size.width, size.height - edge)
+                                raisedTile(Board.Bone, Offset.Zero, face, Radius.M.toPx(), edge)
+                                drawRoundRect(Board.Ink, Offset.Zero, face, CornerRadius(Radius.M.toPx()), style = Stroke(2.dp.toPx()))
+                            },
+                        )
+                    }
+                }
+            }
+            // The ribbon: the path (and the finger's last stretch) as one rounded stroke, inked at the edge.
+            Canvas(Modifier.matchParentSize().semantics { contentDescription = if (path.isEmpty()) "" else "Path: " + path.joinToString("") { letters[it].toString() } }) {
+                val live = path
+                val now = shown
+                val cells = if (live.isNotEmpty()) live else now?.path.orEmpty()
+                if (cells.isEmpty()) return@Canvas
+                val color = if (live.isNotEmpty()) p.primary else when (now?.verdict) {
+                    Verdict.GOOD -> p.good
+                    Verdict.REPEAT -> Pieces.Yellow
+                    else -> p.bad
+                }
+                val alpha = if (live.isNotEmpty()) 1f else 1f - ((settle.value - 0.75f) / 0.25f).coerceIn(0f, 1f)
+                fun centre(i: Int) = Offset((i % n) * pitchPx + sidePx / 2, (i / n) * pitchPx + sidePx / 2 - 3.dp.toPx() * lifts[i].value)
+                val ribbon = Path().apply {
+                    moveTo(centre(cells[0]).x, centre(cells[0]).y)
+                    for (k in 1 until cells.size) centre(cells[k]).let { lineTo(it.x, it.y) }
+                    if (live.isNotEmpty()) finger?.let { lineTo(it.x, it.y) }
+                }
+                val w = sidePx * 0.3f
+                if (cells.size == 1 && live.size == 1 && finger == null) drawCircle(color, w / 2, centre(cells[0]), alpha)
+                drawPath(ribbon, Board.Ink, alpha, Stroke(w + 5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(ribbon, color, alpha, Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (r in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (c in 0 until n) {
+                        val i = r * n + c
+                        val lift = lifts[i]
+                        Box(Modifier.size(side).graphicsLayer { translationY = -3.dp.toPx() * lift.value }, contentAlignment = Alignment.Center) {
+                            Text(letters[i].uppercase(), color = Board.Ink, fontSize = (side.value * 0.45f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
                         }
                     }
                 }
             }
         }
+        // A new word flies up from the middle of the grid towards the score, with its points.
+        val flying = shown?.takeIf { it.verdict == Verdict.GOOD && !reduce }
+        if (flying != null) {
+            Box(
+                Modifier.align(Alignment.Center).clearAndSetSemantics {}.graphicsLayer {
+                    val t = settle.value
+                    translationY = -t * cellPx * n * 0.9f
+                    alpha = 1f - ((t - 0.6f) / 0.4f).coerceIn(0f, 1f)
+                    scaleX = 1f + 0.25f * (1f - t); scaleY = scaleX
+                }.background(p.good, Shapes.Full).padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                Text("${flying.word.uppercase()} +${LetterGrid.points(flying.word.lowercase())}", color = readableOn(p.good), fontSize = TextSize.Body, fontWeight = FontWeight.Black)
+            }
+        }
     }
 }
 
-/** Your found words as a few short lines, newest first. */
+/**
+ * The frame round the grid as a fuse: a faint track all the way round, and the part of the
+ * time still left in [color], red in the last ten seconds, with a spark at its burning end.
+ */
+private fun DrawScope.drawFuse(fraction: Float, leftMs: Long, pad: Float, color: Color, urgent: Color, track: Color) {
+    val stroke = pad * 0.5f
+    val inset = stroke / 2f
+    val outline = Path().apply {
+        addRoundRect(RoundRect(inset, inset, size.width - inset, size.height - inset, CornerRadius(pad * 1.6f)))
+    }
+    drawPath(outline, track.copy(alpha = 0.15f), style = Stroke(stroke))
+    val measure = PathMeasure().apply { setPath(outline, false) }
+    val len = measure.length
+    val left = Path()
+    measure.getSegment(len * (1f - fraction), len, left, true)
+    val live = if (leftMs <= 10_000L) urgent else color
+    drawPath(left, live, style = Stroke(stroke, cap = StrokeCap.Round))
+    if (fraction in 0.01f..0.99f) drawCircle(Pieces.Yellow, stroke * 0.9f, measure.getPosition(len * (1f - fraction)))
+}
+
+/** Your found words as a few short lines, newest first: the newest in green, dropping in. */
 @Composable
-private fun FoundWords(words: List<String>) {
+internal fun FoundWords(words: List<String>) {
     val p = AppTheme.palette
+    val reduce = LocalReduceMotion.current
     SoundOnChange(words.size.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
+    val drop = remember { Animatable(0f) }
+    val seen = remember { intArrayOf(words.size) }
+    LaunchedEffect(words.size) {
+        val grew = words.size > seen[0]
+        seen[0] = words.size
+        if (grew && !reduce) { drop.snapTo(1f); drop.animateTo(0f, tween(260)) }
+    }
+    val text = if (words.isEmpty()) AnnotatedString("Drag through touching letters to spell words of three letters or more.") else buildAnnotatedString {
+        val newest = words.reversed()
+        withStyle(SpanStyle(color = p.good, fontWeight = FontWeight.Black)) { append(newest.first().uppercase()) }
+        for (w in newest.drop(1)) append("  ·  " + w.uppercase())
+    }
     Text(
-        if (words.isEmpty()) "Drag through touching letters to spell words of three letters or more."
-        else words.reversed().joinToString("  ·  ") { it.uppercase() },
+        text,
         color = if (words.isEmpty()) p.muted else p.text,
         fontSize = TextSize.Body, fontWeight = if (words.isEmpty()) FontWeight.Normal else FontWeight.SemiBold,
-        maxLines = 3, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+        maxLines = 3, textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().graphicsLayer { translationY = -drop.value * 14.dp.toPx(); alpha = 1f - 0.6f * drop.value },
     )
 }
 
@@ -216,7 +384,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             }
         } else {
             TurnLine(if (playing) "Find words: drag through touching letters" else "Time's up!", playing, GameKind.GRID.color)
-            BoardArea(1f) { size -> LetterGridBoard(letters, playing, vm::findGridWord, size) }
+            BoardArea(1f) { size -> LetterGridBoard(letters, playing, vm::findGridWord, size, found = grid.mine, fuseLeftMs = { endsAt - state.serverNow() }) }
             FoundWords(grid.mine)
         }
     }
@@ -261,7 +429,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
             }
         } else {
             TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
-            BoardArea(1f) { size -> LetterGridBoard(letters, !state.over, vm::find, size) }
+            BoardArea(1f) { size -> LetterGridBoard(letters, !state.over, vm::find, size, found = state.found, fuseLeftMs = if (state.timed) ({ state.endsAt - System.currentTimeMillis() }) else null) }
             FoundWords(state.found)
             if (!state.over) SecondaryButton(if (state.timed) "Finish now" else "I'm done", vm::finish, Modifier.fillMaxWidth())
         }
