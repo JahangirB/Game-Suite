@@ -7,6 +7,7 @@ import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.SeatColors
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,8 +51,32 @@ import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.color
+import com.pippop.ui.art.KeyArt
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.LocalReduceMotion
 import com.pippop.ui.theme.OpponentColor
+import com.pippop.ui.theme.loopingFloat
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import kotlinx.coroutines.launch
 
 @Composable
 fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onLeave: () -> Unit) {
@@ -60,6 +85,12 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
     val room = state.room ?: return
     val opponent = room.opponent?.takeIf { !it.left }
     val now = rememberTicker()
+    // Players already in the room when the lobby opens (or after a rotation) don't pop in.
+    var known by rememberSaveable(room.code) { mutableStateOf(room.others.filter { !it.left }.joinToString("\u0001") { it.name }) }
+    val knownNames = known.split("\u0001")
+    val here = room.others.filter { !it.left }.map { it.name }
+    // Remember them once drawn, so each pops only once.
+    SideEffect { if (here.any { it !in knownNames }) known = (knownNames + here).distinct().joinToString("\u0001") }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("${room.game.label} lobby", onLeave)
@@ -70,6 +101,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            LobbyBanner(room.game)
             if (state.mode == BattleMode.NEARBY) {
                 AppCard("Nearby game") {
                     Text(
@@ -116,9 +148,12 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             AppCard(if (room.maxPlayers > 2) "Players (up to ${room.maxPlayers})" else "Players") {
                 PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game)
                 room.others.forEachIndexed { i, other ->
-                    if (!other.left) {
+                    if (!other.left) key(other.name) {
                         val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
-                        PlayerRow(other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now), seat = i + 1, game = room.game)
+                        PlayerRow(
+                            other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now),
+                            seat = i + 1, game = room.game, arrived = other.name !in knownNames,
+                        )
                     }
                 }
                 val joined = room.present.size
@@ -180,11 +215,59 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
     }
 }
 
+/**
+ * The lobby's banner: the game's key art, drifting slowly side to side,
+ * with the game's name on a dark chip. Still when motion is reduced.
+ */
 @Composable
-private fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int, game: GameKind) {
+internal fun LobbyBanner(game: GameKind) {
+    val drift = loopingFloat(0f, 1f, infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Reverse), still = 0.5f, label = "bannerDrift")
+    // Decorative: the top bar already names the game.
+    Box(Modifier.fillMaxWidth().height(96.dp).clip(Shapes.M).clearAndSetSemantics {}) {
+        KeyArt(
+            game,
+            Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.12f
+                scaleY = 1.12f
+                translationX = (drift.value - 0.5f) * 20.dp.toPx()
+            },
+        )
+        Text(
+            game.label,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = TextSize.BodyL,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                .clip(Shapes.Full).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/** One player's row; an [arrived] player's avatar bounces in with a burst of rays in their colour. */
+@Composable
+internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int, game: GameKind, arrived: Boolean = false) {
     val p = AppTheme.palette
+    val pops = arrived && !LocalReduceMotion.current
+    val pop = remember { Animatable(if (pops) 0f else 1f) }
+    val rays = remember { Animatable(if (pops) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (pops) {
+            launch { rays.animateTo(1f, tween(500)) }
+            pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium))
+        }
+    }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        PlayerAvatar(player.name, color, avatar = player.avatar, mark = seatMark(seat))
+        Box(
+            Modifier.drawWithContent {
+                drawContent()
+                burst(center, rays.value, color, size.minDimension * 0.9f)
+            }.graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            },
+        ) { PlayerAvatar(player.name, color, avatar = player.avatar, mark = seatMark(seat)) }
         Spacer(Modifier.width(12.dp))
         Text(
             player.name + if (isMe) " (you)" else "",
