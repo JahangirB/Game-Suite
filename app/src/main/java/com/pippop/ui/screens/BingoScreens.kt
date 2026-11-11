@@ -43,6 +43,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import kotlinx.coroutines.delay
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.loopingFloat
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import com.pippop.data.GameKind
 import com.pippop.data.RoomStatus
 import com.pippop.game.bingo.Bingo
@@ -59,9 +92,50 @@ private val ColumnColours = listOf(Pieces.Red, Pieces.Orange, Pieces.Green, Piec
 /** A number's column colour. */
 private fun ballColour(n: Int) = ColumnColours[((n - 1) / 15).coerceIn(0, 4)]
 
+/** Wins whose ribbon has played (card and line), so folding the result sheet or rotating never replays it. */
+private val playedWins = mutableSetOf<String>()
+
+/** The squares that finish a line when dabbed: lines with exactly one undabbed square left (the free centre counts as dabbed). */
+private fun oneAwaySquares(dabs: Set<Int>): Set<Int> = buildSet {
+    for (l in Bingo.LINES) {
+        val open = l.filter { it != Bingo.FREE && it !in dabs }
+        if (open.size == 1) add(open[0])
+    }
+}
+
 /**
- * A card under the BINGO letters. Tap a called number to dab it; [line] (at the end) is
- * outlined. The free centre is always dabbed.
+ * The win: the five squares hop one after another, a gold ribbon runs through them and a little
+ * confetti falls. [p] runs 0 to 1; at 1 only the ribbon is left. Squares sit in a grid of [cell]
+ * with the BINGO letters above, so square i has its centre at column i % 5, row i / 5 + 1.
+ */
+private fun DrawScope.winRibbon(line: List<Int>, p: Float, cell: Float) {
+    fun centre(i: Int) = Offset((i % Bingo.SIZE + 0.5f) * cell, (i / Bingo.SIZE + 1.5f) * cell)
+    val from = centre(line.first())
+    val to = centre(line.last())
+    val reach = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
+    val end = from + (to - from) * reach
+    // Once the run is over the ribbon thins to a light trace, so the numbers under it read.
+    val settle = ((p - 0.8f) / 0.2f).coerceIn(0f, 1f)
+    val strength = 1f - 0.65f * settle
+    val thin = 1f - 0.5f * settle
+    drawLine(Board.Ink.copy(alpha = 0.35f * strength), from, end, cell * 0.26f * thin, StrokeCap.Round)
+    drawLine(Board.Glow.copy(alpha = 0.7f * strength), from, end, cell * 0.18f * thin, StrokeCap.Round)
+    val t = ((p - 0.35f) / 0.65f).coerceIn(0f, 1f)
+    if (t <= 0f || t >= 1f) return
+    val mid = (from + to) / 2f
+    for (k in 0 until 28) {
+        val a = k * 2.4f
+        val speed = 0.5f + (k * 37 % 10) / 10f
+        val at = mid + Offset(cos(a) * speed * cell * 3f * t, (sin(a) * 0.6f - 0.6f) * speed * cell * 3f * t + cell * 4f * t * t)
+        drawRect(ColumnColours[k % 5].copy(alpha = 1f - t * t), at - Offset(cell * 0.05f, cell * 0.05f), Size(cell * 0.1f, cell * 0.1f))
+    }
+}
+
+/**
+ * A card printed on one sheet under the BINGO letters. Tap a called number to dab it (it looks
+ * like dauber ink, a little uneven, the same on every draw); [line] (at the end) is outlined,
+ * and its squares hop with a ribbon and confetti. A square that would finish a line glows gold
+ * and beats. The free centre is always dabbed.
  */
 @Composable
 fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -69,9 +143,39 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
     SoundOnChange(dabs.size.takeIf { enabled }) { play(Sound.BINGO_DAB) }
     // A full line dabbed: the Bingo button lights up with a shimmer.
     SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) { play(Sound.BINGO_LINE_READY) }
+    val oneAway = remember(dabs, enabled, line == null) { if (enabled && line == null) oneAwaySquares(dabs) else emptySet() }
+    // A heartbeat for the squares one dab from a line; a still glow when motion is reduced.
+    val beat = if (oneAway.isNotEmpty()) {
+        loopingFloat(0f, 0f, infiniteRepeatable(keyframes { durationMillis = 1200; 1f at 140; 0.25f at 300; 0.75f at 440; 0f at 700 }, RepeatMode.Restart), 0.6f, "oneAway")
+    } else null
+    // The win plays once when the line arrives (not again after a rotation); with reduced motion only the ribbon shows.
+    val reduce = LocalReduceMotion.current
+    val winLine = line?.sorted()
+    val winKey = "$card$winLine"
+    val win = remember { Animatable(0f) }
+    LaunchedEffect(winLine) {
+        if (winLine == null) win.snapTo(0f)
+        else {
+            if (reduce || winKey in playedWins) win.snapTo(1f) else win.animateTo(1f, tween(1300, easing = LinearEasing))
+            playedWins.add(winKey)
+        }
+    }
     BoxWithConstraints(modifier) {
         val cell = minOf(maxWidth, maxHeight * 5f / 6f) / Bingo.SIZE
-        Column(Modifier.align(Alignment.Center)) {
+        Column(
+            Modifier.align(Alignment.Center)
+                // The sheet: paper with a soft shadow under it.
+                .drawBehind {
+                    val corner = CornerRadius(cell.toPx() * 0.2f)
+                    boxShadow(Offset.Zero, size, corner.x, cell.toPx() * 0.06f, 0.25f)
+                    drawRoundRect(p.card, Offset.Zero, size, corner)
+                    drawRoundRect(p.ink.copy(alpha = 0.25f), Offset.Zero, size, corner, style = Stroke(1.dp.toPx()))
+                }
+                .drawWithContent {
+                    drawContent()
+                    if (winLine != null && win.value > 0f) winRibbon(winLine, win.value, cell.toPx())
+                },
+        ) {
             Row {
                 "BINGO".forEachIndexed { c, ch ->
                     Box(Modifier.size(cell).padding(3.dp).clip(Shapes.S).background(ColumnColours[c]), contentAlignment = Alignment.Center) {
@@ -86,24 +190,53 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
                     val free = i == Bingo.FREE
                     val dabbed = free || i in dabs
                     val inLine = line?.contains(i) == true
-                    Surface(
-                        color = if (inLine) Board.GlowSoft else p.card,
-                        shape = Shapes.S,
-                        border = BorderStroke(if (inLine) 3.dp else 2.dp, p.ink),
-                        modifier = Modifier.size(cell).padding(3.dp).clickable(enabled = enabled && !free) { onTap(i) },
+                    val away = i in oneAway
+                    val hopAt = winLine?.indexOf(i) ?: -1
+                    Box(
+                        Modifier.size(cell)
+                            .graphicsLayer {
+                                if (away) {
+                                    val s = 1f + 0.07f * (beat?.value ?: 0f)
+                                    scaleX = s
+                                    scaleY = s
+                                }
+                                // Squares of the winning line hop one after another.
+                                if (hopAt >= 0) translationY = -sin(PI.toFloat() * ((win.value - hopAt * 0.12f) / 0.3f).coerceIn(0f, 1f)) * size.height * 0.22f
+                            }
+                            .drawBehind {
+                                if (away) drawRoundRect(Board.Glow, alpha = 0.3f + 0.7f * (beat?.value ?: 0f), cornerRadius = CornerRadius(size.minDimension * 0.2f))
+                            },
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            // A dab pops onto the square (the free star is always dabbed, without the pop).
-                            if (dabbed) Box(
-                                Modifier.fillMaxSize().padding(cell * 0.12f)
-                                    .enterFrom(Unit, scaleFrom = 0.2f, durationMs = 220, onAppear = !free)
-                                    .clip(CircleShape).background(ColumnColours[c].copy(alpha = 0.75f)),
-                            )
-                            Text(
-                                if (free) "★" else n.toString(),
-                                color = if (dabbed) Color.White else p.text,
-                                fontSize = (cell.value * if (free) 0.42f else 0.36f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont,
-                            )
+                        Surface(
+                            color = if (inLine || away) Board.GlowSoft else p.card,
+                            shape = Shapes.S,
+                            // A one-away square also gets a thicker outline, so gold is not the only cue.
+                            border = BorderStroke(if (away) 4.dp else if (inLine) 3.dp else 2.dp, p.ink),
+                            modifier = Modifier.fillMaxSize().padding(3.dp)
+                                .semantics { if (away) stateDescription = "One dab from a line" }
+                                .clickable(enabled = enabled && !free) { onTap(i) },
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                // A dab pops onto the square like dauber ink, a little different on each square (the free star has no pop).
+                                if (dabbed) Box(
+                                    Modifier.fillMaxSize().padding(cell * 0.12f)
+                                        .enterFrom(Unit, scaleFrom = 0.2f, durationMs = 220, onAppear = !free)
+                                        .graphicsLayer {
+                                            scaleX = 0.94f + (i * 7 % 5) * 0.03f
+                                            scaleY = 0.94f + (i * 11 % 5) * 0.03f
+                                            rotationZ = ((i * 13 % 9) - 4) * 4f
+                                            translationX = ((i * 5 % 7) - 3) * 0.012f * size.width
+                                            translationY = ((i * 3 % 7) - 3) * 0.012f * size.height
+                                        }
+                                        .clip(CircleShape).background(ColumnColours[c].copy(alpha = 0.88f))
+                                        .border(1.5.dp, ColumnColours[c].darker(0.3f), CircleShape),
+                                )
+                                Text(
+                                    if (free) "★" else n.toString(),
+                                    color = if (dabbed) readableOn(lerp(p.card, ColumnColours[c], 0.88f)) else if (away) Board.Ink else p.text,
+                                    fontSize = (cell.value * if (free) 0.42f else 0.36f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont,
+                                )
+                            }
                         }
                     }
                 }
@@ -120,29 +253,84 @@ private fun Ball(n: Int, size: Dp) {
     ) {
         Box(Modifier.size(size * 0.66f).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(Bingo.letter(n).toString(), color = AppTheme.palette.ink, fontSize = (size.value * 0.16f).sp, fontWeight = FontWeight.Bold, lineHeight = (size.value * 0.17f).sp)
-                Text(n.toString(), color = AppTheme.palette.ink, fontSize = (size.value * 0.26f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont, lineHeight = (size.value * 0.27f).sp)
+                Text(Bingo.letter(n).toString(), color = Board.Ink, fontSize = (size.value * 0.16f).sp, fontWeight = FontWeight.Bold, lineHeight = (size.value * 0.17f).sp)
+                Text(n.toString(), color = Board.Ink, fontSize = (size.value * 0.26f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont, lineHeight = (size.value * 0.27f).sp)
             }
         }
     }
 }
 
-/** The latest call, big, and the few before it. */
+private val BigBall = 76.dp
+/** The older balls' size as a share of the newest one's (36dp of 76dp). */
+private const val SmallShare = 36f / 76f
+private const val RailSlots = 6
+
+/** Where a ball [slot] places along a rail [width] wide (dp): 0 is the newest, big, at the left. */
+private fun railX(slot: Int, width: Dp): Float = when {
+    slot == 0 -> 0f
+    slot < RailSlots -> BigBall.value + 8f + (slot - 1) * 42f
+    else -> width.value
+}
+
+/**
+ * One ball on the rail. A call that arrives while watching ([live]) rolls in from the left,
+ * turning once; every ball slides along and shrinks as newer ones arrive. Without [live]
+ * (opening the screen) it sits at rest; with reduced motion it jumps.
+ */
 @Composable
-private fun CallStrip(calls: List<Int>, called: Int) {
+private fun RailBall(n: Int, slot: Int, live: Boolean, width: Dp) {
+    val reduce = LocalReduceMotion.current
+    val density = LocalDensity.current.density
+    val targetX = railX(slot, width)
+    val targetScale = if (slot == 0) 1f else SmallShare
+    val rollIn = live && !reduce
+    val x = remember { Animatable(if (rollIn) -BigBall.value else targetX) }
+    val turn = remember { Animatable(if (rollIn) -360f else 0f) }
+    val scale = remember { Animatable(targetScale) }
+    LaunchedEffect(slot, width) {
+        if (reduce) {
+            x.snapTo(targetX); turn.snapTo(0f); scale.snapTo(targetScale)
+        } else {
+            launch { turn.animateTo(0f, tween(450, easing = FastOutSlowInEasing)) }
+            launch { scale.animateTo(targetScale, tween(450, easing = FastOutSlowInEasing)) }
+            x.animateTo(targetX, tween(450, easing = FastOutSlowInEasing))
+        }
+    }
+    Box(
+        Modifier.size(BigBall).graphicsLayer {
+            transformOrigin = TransformOrigin(0f, 0f)
+            translationX = x.value * density
+            scaleX = scale.value
+            scaleY = scale.value
+            // The smaller balls sit on the bottom of the rail.
+            translationY = BigBall.toPx() * (1f - scale.value)
+        },
+    ) {
+        Box(Modifier.graphicsLayer { rotationZ = turn.value }) { Ball(n, BigBall) }
+    }
+}
+
+/** The ball rail: the latest call big at the left, the few before it shuffling along to the right. */
+@Composable
+internal fun CallStrip(calls: List<Int>, called: Int) {
     val p = AppTheme.palette
     SoundOnChange(called.takeIf { it > 0 }) { play(Sound.BINGO_BALL) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (called == 0) {
-            Text("Get ready…", color = p.muted, fontSize = TextSize.BodyL)
-        } else {
-            // Each new call rolls in from the side, turning as it rolls.
-            Box(Modifier.enterFrom(called, dx = 260.dp, rotation = 360f, durationMs = 600)) { Ball(calls[called - 1], 76.dp) }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Call $called of ${Bingo.NUMBERS}", color = p.muted, fontSize = TextSize.Body)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (k in (called - 2) downTo maxOf(0, called - 6)) Ball(calls[k], 36.dp)
-                }
+    val base = remember(calls) { called }
+    if (called == 0) {
+        Text("Get ready…", color = p.muted, fontSize = TextSize.BodyL)
+        return
+    }
+    // Calls already made when this game came on screen sit at rest; later ones roll in.
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().height(BigBall + 8.dp).clip(Shapes.M)
+            .background(p.ink.copy(alpha = 0.08f))
+            .clearAndSetSemantics { contentDescription = "Call $called of ${Bingo.NUMBERS}: ${Bingo.letter(calls[called - 1])} ${calls[called - 1]}" },
+    ) {
+        val railWidth = maxWidth
+        Box(Modifier.fillMaxSize().padding(4.dp)) {
+            Text("Call $called of ${Bingo.NUMBERS}", color = p.muted, fontSize = TextSize.Body, modifier = Modifier.padding(start = BigBall + 8.dp))
+            key(calls) {
+                for (k in (called - 1) downTo maxOf(0, called - 1 - RailSlots)) key(k) { RailBall(calls[k], called - 1 - k, k >= base, railWidth) }
             }
         }
     }
@@ -189,6 +377,12 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             }
         }
     }
+    // Your own win seen live: the result sheet waits for the ribbon to finish (not on reopening, not with reduced motion).
+    val watched = remember(room.round) { !finished }
+    var ribbonDone by remember(room.round) { mutableStateOf(false) }
+    val myWin = finished && room.winner == "me" && bingo.line != null
+    LaunchedEffect(myWin) { if (myWin) { delay(1300); ribbonDone = true } }
+    val holdPopup = myWin && watched && !ribbonDone && !LocalReduceMotion.current
     val canClaim = card != null && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null
     GameFrame(
         title = "Bingo",
@@ -200,7 +394,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
-        popup = if (!finished) null else popupContent {
+        popup = if (!finished || holdPopup) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
                 room, GameKind.BINGO, outcomeOf(room.winner), resultTitle(room.winner, name),
@@ -246,6 +440,12 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.BINGO) { showRules = false }
     val playing = state.computers > 0
+    // As in battle: on your own live win the result sheet waits for the ribbon to finish.
+    val watched = remember(state.calls) { state.winner == null }
+    var ribbonDone by remember(state.calls) { mutableStateOf(false) }
+    val myWin = state.winner == "me"
+    LaunchedEffect(myWin) { if (myWin) { delay(1300); ribbonDone = true } }
+    val hold = myWin && watched && !ribbonDone && !LocalReduceMotion.current
     GameFrame(
         title = "Bingo",
         subtitle = if (playing) "Against ${state.computers} computer card${if (state.computers > 1) "s" else ""} · ${state.wins} won" else "On your own",
@@ -253,7 +453,7 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
         glow = GameKind.BINGO.color,
         menu = soloMenu(GameKind.BINGO, onHome, { showRules = true }, if (playing) vm::again else null),
         scrollable = !playing,
-        popup = if (!playing || state.winner == null) null else popupContent {
+        popup = if (!playing || state.winner == null || hold) null else popupContent {
             SoloPopup(
                 GameKind.BINGO, when (state.winner) { "me" -> "me"; "none" -> "none"; else -> "computer" },
                 when (state.winner) {
