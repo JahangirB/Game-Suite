@@ -47,7 +47,18 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,11 +84,15 @@ internal fun BlocksBoard(
     previewOk: Boolean,
     onTap: ((Int, Int) -> Unit)?,
     modifier: Modifier = Modifier,
+    /** Called when a drag across the board ends (the finger lifts). */
+    onDrop: (() -> Unit)? = null,
+    /** Told true when a drag starts and false when it ends, so the screen can tell tap from drag. */
+    onDragging: ((Boolean) -> Unit)? = null,
     /** "Where can I go?": the corners a piece of yours can build from, each with a pulsing dot. */
     spots: Set<Pair<Int, Int>> = emptySet(),
 ) {
     val p = AppTheme.palette
-    val pulse by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), still = 0.8f, label = "spots")
+    val pulse = loopingFloat(0.35f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), still = 0.8f, label = "spots")
     // The piece just placed drops onto the board from above and settles; earlier ones stay put.
     val land = remember { Animatable(1f) }
     val sfx = rememberSfx()
@@ -92,27 +107,48 @@ internal fun BlocksBoard(
         land.animateTo(1f, tween(Motion.MOVE_MS, easing = FastOutSlowInEasing))
         sfx.play(Sound.PIECE_PLACE)
     }
+    val dropped = rememberUpdatedState(onDrop)
+    val dragging = rememberUpdatedState(onDragging)
+    val dark = p.dark
     val landing = land.value < 1f
     val falling = if (landing) view.lastCells.toSet() else emptySet()
-    Canvas(
+    Box(
         modifier.then(
             if (onTap == null) Modifier else Modifier.pointerInput(view.size) {
                 detectTapGestures { o ->
                     val cell = size.width.toFloat() / view.size
                     onTap((o.x / cell).toInt().coerceIn(0, view.size - 1), (o.y / cell).toInt().coerceIn(0, view.size - 1))
                 }
-            },
+            }.then(
+                // Dragging carries the piece: the preview follows the finger, and lifting it is "drop".
+                if (onTap == null) Modifier else Modifier.pointerInput(view.size) {
+                    val cell = size.width.toFloat() / view.size
+                    // The piece is aimed two squares above the finger so the finger doesn't hide it.
+                    fun at(o: Offset) = onTap((o.x / cell).toInt().coerceIn(0, view.size - 1), ((o.y - 2 * cell) / cell).toInt().coerceIn(0, view.size - 1))
+                    detectDragGestures(
+                        onDragStart = { dragging.value?.invoke(true); at(it) },
+                        onDrag = { change, _ -> at(change.position) },
+                        onDragEnd = { dragging.value?.invoke(false); dropped.value?.invoke() },
+                        onDragCancel = { dragging.value?.invoke(false) },
+                    )
+                },
+            ),
         ),
     ) {
+      Canvas(Modifier.fillMaxSize()) {
         val n = view.size
         val c = size.width / n
+        // The board stands on the table: a shadow under it, and a dot in every square.
+        boxShadow(Offset.Zero, size, c * 0.4f, drop = c * 0.18f, strength = 0.22f)
         drawRoundRect(p.card, cornerRadius = CornerRadius(c * 0.4f))
         for (y in 0 until n) for (x in 0 until n) {
             val mark = view.board[y * n + x]
             val tl = Offset(x * c + c * 0.06f, y * c + c * 0.06f)
             val sz = Size(c * 0.88f, c * 0.88f)
-            if (mark == '.' || (x to y) in falling) drawRoundRect(p.accent, tl, sz, CornerRadius(c * 0.18f))
-            else drawRoundRect(markColor(mark), tl, sz, CornerRadius(c * 0.18f))
+            if (mark == '.' || (x to y) in falling) {
+                drawRoundRect(p.accent, tl, sz, CornerRadius(c * 0.18f))
+                drawCircle(p.ink.copy(alpha = 0.22f), c * 0.07f, Offset((x + 0.5f) * c, (y + 0.5f) * c))
+            } else plasticSquare(markColor(mark), tl, c)
         }
         if (landing) {
             // Falling from above, a little bigger, its shadow growing as it nears the board.
@@ -129,28 +165,65 @@ internal fun BlocksBoard(
                 val base = Offset((x + 0.5f) * c, (y + 0.5f) * c)
                 val at = Offset(cx + (base.x - cx) * grow, cy + (base.y - cy) * grow - k * c * 2.5f)
                 val half = c * 0.44f * grow
-                drawRoundRect(color, at - Offset(half, half), Size(half * 2, half * 2), CornerRadius(c * 0.18f))
+                plasticSquare(color, at - Offset(half, half), half * 2 / 0.88f)
             }
         }
         // Start squares nobody has covered yet.
         view.starts.forEach { (m, s) ->
             if (view.at(s.first, s.second) == '.') drawCircle(markColor(m), c * 0.3f, Offset((s.first + 0.5f) * c, (s.second + 0.5f) * c), style = Stroke(c * 0.12f))
         }
-        spots.forEach { (x, y) ->
-            drawCircle(markColor('m').copy(alpha = 0.35f + 0.5f * pulse), c * (0.16f + 0.06f * pulse), Offset((x + 0.5f) * c, (y + 0.5f) * c))
-        }
         if (!landing) view.lastCells.forEach { (x, y) ->
             drawRoundRect(p.ink, Offset(x * c + c * 0.06f, y * c + c * 0.06f), Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f), style = Stroke(c * 0.1f))
         }
-        preview?.forEach { (x, y) ->
-            if (x in 0 until n && y in 0 until n) {
-                drawRoundRect(
-                    (if (previewOk) Pieces.Green else Pieces.Red).copy(alpha = 0.75f),
-                    Offset(x * c + c * 0.06f, y * c + c * 0.06f), Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f),
-                )
+        if (preview != null) {
+            val ink = if (previewOk) Pieces.Green.darker(0.4f) else if (dark) Color.White else Pieces.Red.darker(0.4f)
+            if (previewOk) {
+                // The corners of yours it would touch, lit.
+                val lit = preview.flatMap { (x, y) -> listOf(x - 1 to y - 1, x + 1 to y - 1, x - 1 to y + 1, x + 1 to y + 1) }.filter { view.at(it.first, it.second) == 'm' }
+                lit.forEach { (x, y) ->
+                    val tl = Offset(x * c + c * 0.06f, y * c + c * 0.06f)
+                    drawRoundRect(p.ink, tl, Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f), style = Stroke(c * 0.2f))
+                    drawRoundRect(Pieces.Yellow, tl, Size(c * 0.88f, c * 0.88f), CornerRadius(c * 0.18f), style = Stroke(c * 0.12f))
+                }
+            }
+            preview.forEach { (x, y) ->
+                if (x in 0 until n && y in 0 until n) {
+                    val tl = Offset(x * c + c * 0.06f, y * c + c * 0.06f)
+                    val sz = Size(c * 0.88f, c * 0.88f)
+                    drawRoundRect((if (previewOk) Pieces.Green else Pieces.Red).copy(alpha = 0.75f), tl, sz, CornerRadius(c * 0.18f))
+                    if (previewOk) {
+                        // Fits: a solid outline.
+                        drawRoundRect(ink, tl, sz, CornerRadius(c * 0.18f), style = Stroke(c * 0.1f))
+                    } else {
+                        // Doesn't fit: a dashed outline and a cross, so colour is not the only clue.
+                        drawRoundRect(ink, tl, sz, CornerRadius(c * 0.18f), style = Stroke(c * 0.1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(c * 0.16f, c * 0.1f))))
+                        val m = c * 0.3f
+                        drawLine(ink, tl + Offset(m, m), tl + Offset(sz.width - m, sz.height - m), c * 0.08f)
+                        drawLine(ink, tl + Offset(sz.width - m, m), tl + Offset(m, sz.height - m), c * 0.08f)
+                    }
+                }
             }
         }
+      }
+      // The pulsing "where can I go" dots live on their own layer, so only they redraw each frame.
+      Canvas(Modifier.fillMaxSize()) {
+        val c = size.width / view.size
+        val t = pulse.value
+        spots.forEach { (x, y) ->
+            drawCircle(markColor('m').copy(alpha = 0.35f + 0.5f * t), c * (0.16f + 0.06f * t), Offset((x + 0.5f) * c, (y + 0.5f) * c))
+        }
+      }
     }
+}
+
+/** A raised, bevelled square of [color] for a cell of width [c], its top-left corner at [tl]. */
+private fun DrawScope.plasticSquare(color: Color, tl: Offset, c: Float) {
+    val side = c * 0.88f
+    val lift = c * 0.06f
+    raisedTile(color, tl, Size(side, side - lift), c * 0.18f, lift)
+    // The light catching the top and left edges.
+    drawRoundRect(Color.White.copy(alpha = 0.5f), tl + Offset(c * 0.1f, c * 0.07f), Size(side * 0.62f, c * 0.07f), CornerRadius(c * 0.04f))
+    drawRoundRect(Color.White.copy(alpha = 0.35f), tl + Offset(c * 0.07f, c * 0.1f), Size(c * 0.07f, side * 0.4f), CornerRadius(c * 0.04f))
 }
 
 /** A piece drawn small, for the tray. */
@@ -178,8 +251,60 @@ private fun PieceIcon(piece: Int, orient: Int, color: Color, selected: Boolean, 
 }
 
 /**
- * The board with your pieces underneath. Pick a piece, turn or flip it, tap the board to put
- * it there (green fits, red doesn't), and Place.
+ * Why [cells] can't go down, in a few plain words, or null when the game's own check
+ * ([BlocksView.allows]) accepts it. The game only answers yes or no; this gives the same yes/no
+ * answer from the same squares, and names the first rule that is broken.
+ */
+internal fun blocksWhy(view: BlocksView, cells: List<Pair<Int, Int>>, first: Boolean): String? {
+    if (cells.any { (x, y) -> view.at(x, y) == null }) return "Off the board"
+    if (cells.any { (x, y) -> view.at(x, y) != '.' }) return "Covers a piece"
+    if (cells.any { (x, y) -> listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).any { (dx, dy) -> view.at(x + dx, y + dy) == 'm' } }) return "Touches your colour along a side"
+    if (first) return if (view.starts['m'] in cells) null else "Must cover your start square"
+    return if (cells.any { (x, y) -> listOf(1 to 1, -1 to 1, 1 to -1, -1 to -1).any { (dx, dy) -> view.at(x + dx, y + dy) == 'm' } }) null else "Must touch your colour at a corner"
+}
+
+/** The pieces you have left: one chip per size with a count; the open size shows its pieces. */
+@Composable
+private fun BlocksTray(
+    mine: List<Int>,
+    chosen: Int?,
+    orient: Int,
+    openSize: Int?,
+    noRoom: (Int) -> Boolean,
+    onGroup: (Int) -> Unit,
+    onPiece: (Int) -> Unit,
+) {
+    val p = AppTheme.palette
+    val groups = mine.groupBy { Blocks.PIECES[it].size }.toSortedMap(compareByDescending { it })
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        groups.forEach { (size, pieces) ->
+            val open = size == openSize
+            Surface(
+                color = if (open) p.accent else p.card,
+                shape = Shapes.S,
+                border = BorderStroke(if (open) 3.dp else 2.dp, if (open) p.primary else p.ink),
+                modifier = Modifier.weight(1f).clickable { onGroup(size) }
+                    .semantics { contentDescription = "$size squares, ${pieces.size} left" },
+            ) {
+                Column(Modifier.padding(vertical = 4.dp).clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$size", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+                    Text("×${pieces.size}", color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+    val shown = groups[openSize].orEmpty()
+    if (shown.isNotEmpty()) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            shown.forEach { i -> PieceIcon(i, if (i == chosen) orient else 0, markColor('m'), i == chosen, noRoom = noRoom(i)) { onPiece(i) } }
+        }
+    }
+}
+
+/**
+ * The board with your pieces underneath. Pick a piece, turn or flip it, tap or drag on the
+ * board to put it there (green fits, red doesn't, with the reason under the board), and Place.
+ * Lifting your finger from a drag on red sends the piece back to the tray.
  */
 @Composable
 fun ColumnScope.BlocksPlay(
@@ -191,8 +316,26 @@ fun ColumnScope.BlocksPlay(
     flips: Int = 0,
     inlineTools: Boolean = true,
 ) {
+    val hintsOn = ProfileStore.get(LocalContext.current).profile.collectAsState().value.blocksHints && canPlay
+    BlocksPlayBody(view, canPlay, hintsOn, onPlace, turns, flips, inlineTools)
+}
+
+/** [BlocksPlay] with "Where can I go?" ([hintsOn]) given, and a piece and spot to start from (for pictures). */
+@Composable
+internal fun ColumnScope.BlocksPlayBody(
+    view: BlocksView,
+    canPlay: Boolean,
+    hintsOn: Boolean,
+    onPlace: (Placement) -> Unit,
+    turns: Int = 0,
+    flips: Int = 0,
+    inlineTools: Boolean = true,
+    startPiece: Int? = null,
+    startTarget: Pair<Int, Int>? = null,
+) {
+    val p = AppTheme.palette
     val mine = view.left['m'].orEmpty()
-    var piece by remember { mutableStateOf<Int?>(null) }
+    var piece by remember { mutableStateOf(startPiece) }
     var orient by remember { mutableStateOf(0) }
     var turnsSeen by remember { mutableIntStateOf(turns) }
     var flipsSeen by remember { mutableIntStateOf(flips) }
@@ -204,8 +347,12 @@ fun ColumnScope.BlocksPlay(
         if ((flips - flipsSeen) % 2 != 0) orient = (orient + 4) % 8
         flipsSeen = flips
     }
-    var target by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var target by remember { mutableStateOf(startTarget) }
+    var openSize by remember { mutableStateOf<Int?>(null) }
+    var dragging by remember { mutableStateOf(false) }
     val chosen = piece?.takeIf { it in mine }
+    // A turn that ends mid-drag removes the board's touch handling without a cancel; reset so announcements return.
+    LaunchedEffect(canPlay, chosen) { if (!canPlay || chosen == null) dragging = false }
     val shape = chosen?.let { Blocks.shape(it, orient) }
     val placement = if (shape != null && target != null) {
         val (tx, ty) = target!!
@@ -215,9 +362,10 @@ fun ColumnScope.BlocksPlay(
     }
     val cells = placement?.let { pl -> shape!!.map { (x, y) -> (pl.x + x) to (pl.y + y) } }
     val ok = placement != null && view.allows(placement)
+    // Why not, in plain words: the same squares the game's check looks at.
+    val why = if (cells != null && !ok) blocksWhy(view, cells, mine.size == Blocks.PIECES.size) else null
     // "Where can I go?" (on unless switched off): the corners to build from, only those the
     // chosen piece fits once one is picked, and pieces that fit nowhere greyed.
-    val hintsOn = ProfileStore.get(LocalContext.current).profile.collectAsState().value.blocksHints && canPlay
     val targets = remember(view.board, view.left, hintsOn) { if (hintsOn) view.targets() else emptyList() }
     val fits = remember(view.board, view.left, hintsOn) { if (hintsOn) mine.associateWith { view.fitsAt(it, targets) } else emptyMap() }
     val spots = when {
@@ -225,15 +373,54 @@ fun ColumnScope.BlocksPlay(
         chosen != null -> fits[chosen].orEmpty()
         else -> fits.values.flatten().toSet()
     }
-    BoardArea(1f) { size -> BlocksBoard(view, cells, ok, if (canPlay && chosen != null) { x, y -> target = x to y } else null, size, spots = if (cells == null) spots else emptySet()) }
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        mine.sortedByDescending { Blocks.PIECES[it].size }.forEach { i ->
-            PieceIcon(i, if (i == chosen) orient else 0, markColor('m'), i == chosen, noRoom = hintsOn && fits[i].isNullOrEmpty()) {
-                if (piece != i) orient = 0
-                piece = i
-            }
-        }
+    fun putBack() {
+        piece = null
+        target = null
+        orient = 0
     }
+    /** The legality of whatever is in hand right now, read fresh so a fast lift can't use an old verdict. */
+    fun okNow(): Boolean {
+        val c = piece?.takeIf { it in mine } ?: return false
+        val t = target ?: return false
+        val sh = Blocks.shape(c, orient)
+        return view.allows(Placement(c, orient, t.first - sh.maxOf { it.first } / 2, t.second - sh.maxOf { it.second } / 2))
+    }
+    BoardArea(1f) { size ->
+        BlocksBoard(
+            view, cells, ok, if (canPlay && chosen != null) { x, y -> target = x to y } else null, size,
+            onDrop = { if (!okNow()) putBack() }, onDragging = { dragging = it }, spots = if (cells == null) spots else emptySet(),
+        )
+    }
+    // The verdict on the piece in hand, always two lines tall so the board doesn't jump.
+    val verdict = when {
+        cells == null -> if (chosen == null) "Pick a piece" else "Drag the piece onto the board"
+        ok -> if (mine.size == Blocks.PIECES.size) "Fits" else "Fits at your corner"
+        else -> why ?: "Doesn't fit"
+    }
+    Text(
+        verdict, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, minLines = 2, maxLines = 2,
+        // Read out only on taps and drops, not at every square of a drag.
+        modifier = Modifier.fillMaxWidth().semantics { if (!dragging) liveRegion = LiveRegionMode.Polite },
+    )
+    // The open group: the chosen piece's, else the last one opened, else the largest.
+    val sizes = mine.map { Blocks.PIECES[it].size }.toSet()
+    val openNow = chosen?.let { Blocks.PIECES[it].size } ?: openSize?.takeIf { it in sizes } ?: sizes.maxOrNull()
+    BlocksTray(
+        mine, chosen, orient,
+        openSize = openNow,
+        noRoom = { hintsOn && fits[it].isNullOrEmpty() },
+        onGroup = { size ->
+            if (size != openNow) {
+                if (chosen != null) putBack()
+                openSize = size
+            }
+        },
+        onPiece = { i ->
+            if (piece != i) orient = 0
+            piece = i
+            openSize = Blocks.PIECES[i].size
+        },
+    )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (inlineTools) {
             SecondaryButton("Turn", { orient = (orient / 4) * 4 + (orient + 1) % 4 }, Modifier.weight(1f), enabled = chosen != null)
@@ -243,9 +430,7 @@ fun ColumnScope.BlocksPlay(
             "Place",
             {
                 placement?.let(onPlace)
-                piece = null
-                target = null
-                orient = 0
+                putBack()
             },
             Modifier.weight(1f), enabled = canPlay && ok,
         )
