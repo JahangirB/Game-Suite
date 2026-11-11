@@ -1,6 +1,19 @@
 package com.pippop.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.graphicsLayer
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.data.nearby.LocalRoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -188,6 +201,8 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         active = { player, isMe -> playing && draws(player, isMe) },
     )
     val secondsLeft = draw.endsAt?.let { ((it - now + 999) / 1000).coerceAtLeast(0) }
+    // The clock round the word: the share of the turn left, only while playing with a time limit.
+    val clock = draw.endsAt?.takeIf { playing }?.let { ((it - now) / LocalRoom.DRAW_TURN_MS.toFloat()).coerceIn(0f, 1f) }
     val context = LocalContext.current
     val sketchbook = remember { Sketchbook.get(context) }
     var showSketchbook by remember { mutableStateOf(false) }
@@ -201,7 +216,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     var replayed by remember { mutableStateOf(keyOf(draw.lastTurn)) }
     val replay = draw.lastTurn?.takeIf { keyOf(it) != replayed && it.strokes.isNotEmpty() }
     if (replay != null && !(drawing && playing)) {
-        ReplaySheet(replay, onKeep = { keepLast(replay) }) { replayed = keyOf(replay) }
+        ReplaySheet(replay, room.me.name, onKeep = { keepLast(replay) }) { replayed = keyOf(replay) }
     }
 
     GameFrame(
@@ -218,11 +233,6 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
             DockTool("Sketchbook", GameIcons.Book, badge = 0) { showSketchbook = true },
         ),
-        trailing = {
-            if (playing && secondsLeft != null) {
-                Text(style = Digits, text = "${secondsLeft}s", color = if (secondsLeft <= 10) p.bad else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-            }
-        },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
         popup = if (!finished) null else popupContent {
@@ -274,20 +284,103 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 }
             }
             finished -> BoardArea(1f) { size -> DrawingPad(state.drawStrokes, 0, 1, null, size) }
-            drawing -> DrawerView(draw, state.drawStrokes, vm)
-            else -> GuesserView(draw, state.drawStrokes, vm)
+            drawing -> DrawerView(draw, state.drawStrokes, vm, clock, secondsLeft)
+            else -> GuesserView(draw, state.drawStrokes, vm, clock, secondsLeft)
         }
     }
 }
 
+/**
+ * The clock round the word: an outline round [content] that shrinks as the turn runs out, from
+ * the theme colour to amber to red for the last seconds. [fraction] is the share of the turn
+ * left (null: no time limit, no ring). The ring is the only thing redrawn as it moves, and it
+ * moves in steps when the phone has animations off. [seconds] stays on screen beneath it.
+ */
 @Composable
-private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
+internal fun WordClock(fraction: Float?, seconds: Long?, content: @Composable () -> Unit) {
+    val p = AppTheme.palette
+    val reduce = LocalReduceMotion.current
+    val smooth = remember { Animatable(fraction ?: 0f) }
+    // It runs down smoothly between ticks, but a refill (a new turn) snaps full at once.
+    LaunchedEffect(fraction) {
+        val f = fraction ?: 0f
+        if (f > smooth.value) smooth.snapTo(f) else smooth.animateTo(f, tween(250, easing = LinearEasing))
+    }
+    val left: () -> Float = if (reduce) { { fraction ?: 0f } } else { { smooth.value } }
+    val measure = remember { PathMeasure() }
+    val track = remember { Path() }
+    val run = remember { Path() }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.drawBehind {
+                if (fraction == null) return@drawBehind
+                val w = 4.dp.toPx()
+                track.rewind()
+                track.addRoundRect(RoundRect(Rect(Offset(w / 2, w / 2), Size(size.width - w, size.height - w)), CornerRadius(size.height / 2)))
+                drawPath(track, p.ink.copy(alpha = 0.15f), style = Stroke(w))
+                val f = left()
+                val color = if (f > 0.25f) p.primary else if (f > 0.125f) p.warning else p.bad
+                measure.setPath(track, false)
+                run.rewind()
+                measure.getSegment(0f, measure.length * f, run, true)
+                drawPath(run, color, style = Stroke(w, cap = StrokeCap.Round))
+            }.padding(horizontal = 10.dp, vertical = 6.dp),
+        ) { content() }
+        if (seconds != null && fraction != null) {
+            Text(style = Digits, text = "${seconds}s", color = if (seconds <= 10) p.bad else p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/** The drawing pad with a right guess's stamp on it (the race); the stamp presses in only for a guess that arrives while you watch. */
+@Composable
+internal fun PadWithStamp(draw: DrawView, strokes: List<DrawStroke>, color: Int, width: Int, onStroke: ((DrawStroke) -> Unit)?, modifier: Modifier, fillMode: Boolean = false) {
+    val rightAt = draw.rightGuesses.lastIndexOf(true)
+    // What was already guessed when the screen opened shows the stamp already down; later right guesses press it in.
+    val seen = remember(draw.turn) { rightAt }
+    Box(modifier) {
+        DrawingPad(strokes, color, width, onStroke, fillMode = fillMode)
+        if (rightAt >= 0) {
+            val who = if (draw.guesses.getOrNull(rightAt)?.first == true) "You" else draw.guessers.getOrNull(rightAt)
+            androidx.compose.runtime.key(rightAt) { GuessStamp(who, rightAt > seen, Modifier.align(Alignment.BottomEnd).padding(12.dp)) }
+        }
+    }
+}
+
+/**
+ * A rubber stamp on the page: a tilted rounded outline saying "Got it!" and who. With [press] it
+ * lands from slightly large in under a fifth of a second (not at all when motion is reduced).
+ * It takes no touches, so drawing and the controls work through it.
+ */
+@Composable
+internal fun GuessStamp(who: String?, press: Boolean, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    val lands = press && !LocalReduceMotion.current
+    val scale = remember { Animatable(if (lands) 1.5f else 1f) }
+    LaunchedEffect(Unit) { if (lands) scale.animateTo(1f, tween(180, easing = FastOutSlowInEasing)) }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .graphicsLayer { rotationZ = -12f; scaleX = scale.value; scaleY = scale.value }
+            .clip(Shapes.M).background(Color.White.copy(alpha = 0.7f)).border(3.dp, Board.Stamp, Shapes.M)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Text("Got it!", color = Board.Stamp, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        if (who != null) Text(who.uppercase(), color = Board.Stamp, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel, clock: Float?, secondsLeft: Long?) {
     val p = AppTheme.palette
     var color by rememberSaveable { mutableStateOf(0) }
     var width by rememberSaveable { mutableStateOf(1) }
     var bucket by rememberSaveable { mutableStateOf(false) }
-    Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-    BoardArea(1f) { size -> DrawingPad(strokes, color, width, vm::sendStroke, size, fillMode = bucket) }
+    WordClock(clock, secondsLeft) {
+        Text("Draw: ${draw.word.orEmpty().uppercase()}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+    }
+    BoardArea(1f) { size -> PadWithStamp(draw, strokes, color, width, vm::sendStroke, size, fillMode = bucket) }
     // The tray: eight colours and the eraser, three brush sizes, the bucket, and Clear.
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         (TrayColors + ERASER).forEach { i ->
@@ -323,7 +416,7 @@ private fun ColumnScope.DrawerView(draw: DrawView, strokes: List<DrawStroke>, vm
 }
 
 @Composable
-private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel) {
+private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, vm: BattleViewModel, clock: Float?, secondsLeft: Long?) {
     val p = AppTheme.palette
     var guess by rememberSaveable(draw.turn) { mutableStateOf("") }
     val send = {
@@ -331,12 +424,14 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
         guess = ""
     }
     // The race: once you've got it you see the word, and wait for the others.
-    Text(
-        if (draw.gotIt && draw.word != null) "You got it: ${draw.word.uppercase()}!" else draw.hint.orEmpty().map { it }.joinToString(" "),
-        color = if (draw.gotIt) p.good else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
-        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-    )
-    BoardArea(1f) { size -> DrawingPad(strokes, 0, 1, null, size) }
+    WordClock(clock, secondsLeft) {
+        Text(
+            if (draw.gotIt && draw.word != null) "You got it: ${draw.word.uppercase()}!" else draw.hint.orEmpty().map { it }.joinToString(" "),
+            color = if (draw.gotIt) p.good else p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
+            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+        )
+    }
+    BoardArea(1f) { size -> PadWithStamp(draw, strokes, 0, 1, null, size) }
     if (!draw.gotIt) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = guess,
@@ -379,7 +474,7 @@ private fun GuessFeed(draw: DrawView) {
 /** A finished turn's drawing playing back in about four seconds, with the word; Keep saves it. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ReplaySheet(last: com.pippop.data.DrawTurnResult, onKeep: () -> Unit, onDone: () -> Unit) {
+private fun ReplaySheet(last: com.pippop.data.DrawTurnResult, myName: String, onKeep: () -> Unit, onDone: () -> Unit) {
     val p = AppTheme.palette
     var shown by remember(last) { mutableStateOf(0) }
     var kept by remember(last) { mutableStateOf(false) }
@@ -401,7 +496,13 @@ private fun ReplaySheet(last: com.pippop.data.DrawTurnResult, onKeep: () -> Unit
             } + (last.drawerName?.let { " · drawn by ${if (last.drewIt) "you" else it}" } ?: ""),
             color = p.muted, fontSize = TextSize.Body,
         )
-        Box(Modifier.fillMaxWidth(0.8f).align(Alignment.CenterHorizontally)) { DrawingPad(last.strokes.take(shown), 0, 1, null) }
+        Box(Modifier.fillMaxWidth(0.8f).align(Alignment.CenterHorizontally)) {
+            DrawingPad(last.strokes.take(shown), 0, 1, null)
+            // A right guess stamps the finished picture once the replay has drawn it all.
+            if (last.guessed && shown >= last.strokes.size) {
+                GuessStamp(if (last.guessedIt) "You" else (last.guesserName ?: last.rights.firstOrNull()).let { if (it == myName) "You" else it }, true, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             if (kept) Text("In the sketchbook", color = p.good, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(top = 14.dp))
             else PrimaryButton("Keep", { kept = true; onKeep() }, Modifier.weight(1f))

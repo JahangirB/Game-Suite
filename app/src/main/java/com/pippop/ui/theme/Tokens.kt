@@ -112,6 +112,8 @@ object Pieces {
  * domino is light even in dark mode, so it is drawn with this fixed [Ink], not the theme's.
  */
 object Board {
+    /** A right guess's rubber stamp: dark green that reads on the always-white drawing pad. */
+    val Stamp = Color(0xFF047857)
     /** Outlines and pips on light boards. */
     val Ink = Color(0xFF2B2440)
     /** A die's face. */
