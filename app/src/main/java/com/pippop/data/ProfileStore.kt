@@ -70,6 +70,8 @@ data class Profile(
     val blocksHints: Boolean = true,
     /** Word Race: hard mode (letters found must be used again). */
     val wordsHard: Boolean = false,
+    /** Letter games (Word Race, later Code Breaker): a small mark on each result tile besides its colour. */
+    val letterMarks: Boolean = true,
     /** Mini Golf's look: "day", "sunset", "night" or "mixed" (each hole picks one). */
     val golfTime: String = "day",
     /**
@@ -171,6 +173,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(wordsHard = on) }
     }
 
+    fun setLetterMarks(on: Boolean) {
+        prefs.edit { putBoolean(KEY_LETTER_MARKS, on) }
+        _profile.update { it.copy(letterMarks = on) }
+    }
+
     fun setBlocksHints(on: Boolean) {
         prefs.edit { putBoolean(KEY_BLOCKS_HINTS, on) }
         _profile.update { it.copy(blocksHints = on) }
@@ -266,6 +273,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             sound = prefs.getBoolean(KEY_SOUND, true),
             blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             wordsHard = prefs.getBoolean(KEY_WORDS_HARD, false),
+            letterMarks = prefs.getBoolean(KEY_LETTER_MARKS, true),
             golfTime = prefs.getString(KEY_GOLF_TIME, "day") ?: "day",
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
@@ -303,6 +311,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_SOUND = "sound"
         private const val KEY_BLOCKS_HINTS = "blocks_hints"
         private const val KEY_WORDS_HARD = "words_hard"
+        private const val KEY_LETTER_MARKS = "letter_marks"
         private const val KEY_GOLF_TIME = "golf_time"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"

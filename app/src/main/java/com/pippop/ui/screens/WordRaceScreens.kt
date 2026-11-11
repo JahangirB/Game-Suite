@@ -5,6 +5,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import com.pippop.ui.theme.LocalReduceMotion
 import com.pippop.ui.Sound
 import com.pippop.ui.Sfx
 import com.pippop.ui.SoundOnChange
@@ -61,6 +72,7 @@ import com.pippop.ui.SoloWordsViewModel
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.OpponentColor
 import kotlinx.coroutines.delay
@@ -75,10 +87,61 @@ private fun tileColor(score: Char) = when (score) {
     else -> Grey
 }
 
+/** Whether the player wants small marks on result tiles (a setting shared by the letter games). */
+@Composable
+private fun letterMarksOn(): Boolean {
+    val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
+    return store.profile.collectAsState().value.letterMarks
+}
+
+/**
+ * A small dark mark in a tile's corner, so a result can be read without the colour: a tick for
+ * the right place, a dot for in the word elsewhere, a dash for not in the word.
+ */
+@Composable
+private fun ResultMark(score: Char, modifier: Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val line = Stroke(width = w * 0.2f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        when (score) {
+            'g' -> drawPath(
+                Path().apply {
+                    moveTo(w * 0.1f, w * 0.55f)
+                    lineTo(w * 0.4f, w * 0.85f)
+                    lineTo(w * 0.9f, w * 0.2f)
+                },
+                Board.Ink, style = line,
+            )
+            'y' -> drawCircle(Board.Ink, radius = w * 0.3f, center = Offset(w / 2, w / 2))
+            else -> drawLine(Board.Ink, Offset(w * 0.15f, w / 2), Offset(w * 0.85f, w / 2), strokeWidth = line.width, cap = StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * A winning row's tiles each hop once, one after another, once the letters have landed. Plays
+ * each time [key] changes to non-null; nothing when null or when motion is reduced.
+ */
+private fun Modifier.winJump(key: Any?, delayMs: Int): Modifier = composed {
+    if (LocalReduceMotion.current) return@composed Modifier
+    val up = remember { Animatable(0f) }
+    LaunchedEffect(key) {
+        if (key == null) return@LaunchedEffect
+        delay(delayMs.toLong())
+        up.animateTo(0f, keyframes {
+            durationMillis = 300
+            1f at 130
+        })
+    }
+    val density = LocalDensity.current
+    graphicsLayer { translationY = -with(density) { 10.dp.toPx() } * up.value }
+}
+
 /** Six rows of [length] tiles: [guesses] with their colours, then [input] being typed. */
 @Composable
 internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, length: Int, modifier: Modifier = Modifier, shake: Int = 0) {
     val p = AppTheme.palette
+    val marks = letterMarksOn()
     // A refused guess (hard mode): the row being typed shakes from side to side.
     val nudge = remember { Animatable(0f) }
     LaunchedEffect(shake) {
@@ -115,6 +178,8 @@ internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, lengt
                         fresh -> Modifier
                             .dropIn(guess!!.score, delayMs = i * Motion.STAGGER_MS)
                             .shake(guess.score.takeIf { it[i] == 'g' }, delayMs = i * Motion.STAGGER_MS + Motion.DROP_MS)
+                            // The winning word: a quick wave of hops once the last letter has landed.
+                            .winJump(true.takeIf { guess.score.all { it == 'g' } }, delayMs = length * Motion.STAGGER_MS + Motion.DROP_MS + i * 50)
                         guess == null -> Modifier.enterFrom(letter, scaleFrom = 0.7f, durationMs = 140)
                         else -> Modifier
                     }
@@ -133,6 +198,9 @@ internal fun WordGrid(guesses: List<WordGuess>, input: String, tries: Int, lengt
                                 letter.uppercase(), color = if (fill != null) Color.White else p.text,
                                 fontSize = if (length > 6) TextSize.Title else TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
                             )
+                        }
+                        if (marks && guess != null) {
+                            ResultMark(guess.score[i], Modifier.align(Alignment.TopEnd).padding(if (length > 6) 1.5.dp else 2.dp).size(if (length > 6) 6.dp else 10.dp))
                         }
                     }
                 }
@@ -171,6 +239,7 @@ private fun ColourRows(guesses: List<WordGuess>, tries: Int, length: Int, small:
 private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onDelete: () -> Unit, onEnter: () -> Unit) {
     val p = AppTheme.palette
     val sfx = rememberSfx()
+    val marks = letterMarksOn()
     val best = mutableMapOf<Char, Char>()
     for (g in guesses) {
         val word = g.word ?: continue
@@ -215,6 +284,7 @@ private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onD
                             fontWeight = FontWeight.Bold,
                             fontSize = if (wide) TextSize.Body else TextSize.BodyL,
                         )
+                        if (marks && state != null) ResultMark(state, Modifier.align(Alignment.TopEnd).padding(2.dp).size(7.dp))
                     }
                 }
                 if (row.length == 9 && row[0] != '+') Box(Modifier.weight(0.5f))
@@ -266,7 +336,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.WORDS.color,
-        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave, showLetterMarks = true),
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         tools = listOf(DockTool("Letters", GameIcons.Sort) { showLetters = true }),
         trayVisible = reacting,
@@ -362,7 +432,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
         players = emptyList(),
         glow = GameKind.WORDS.color,
         menu = GameMenu(
-            GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home",
+            GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home", showLetterMarks = true,
             mode = daily?.let { "Daily or practice" }, onChangeMode = if (daily != null) vm::chooseMode else null,
         ),
         scrollable = daily == null,

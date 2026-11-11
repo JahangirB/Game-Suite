@@ -105,6 +105,8 @@ class GameMenu(
     val onSwitchGame: (() -> Unit)? = null,
     val leaveLabel: String = "Leave game",
     val onOpen: (Boolean) -> Unit = {},
+    /** Show the "Marks on letter tiles" switch (letter games). */
+    val showLetterMarks: Boolean = false,
 )
 
 /** The menu as a sheet over the game: everything in one list. */
@@ -134,6 +136,12 @@ fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
             MenuRow("Sound", onClick = { store.setSound(!profile.sound) }) {
                 Switch(
                     checked = profile.sound, onCheckedChange = store::setSound,
+                    colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
+                )
+            }
+            if (menu.showLetterMarks) MenuRow("Marks on letter tiles", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
+                Switch(
+                    checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
                     colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
                 )
             }
@@ -196,11 +204,11 @@ val RoomState.inMatch get() = status == RoomStatus.COUNTDOWN || status == RoomSt
  * match (and restart it), Switch game invites them to another one.
  */
 @Composable
-fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit): GameMenu {
+fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLetterMarks: Boolean = false): GameMenu {
     val controls = LocalRoomControls.current
     var switching by remember { mutableStateOf(false) }
     if (switching && controls != null) SwitchGameSheet(controls, onDismiss = { switching = false })
-    if (controls == null) return GameMenu(game, onRules, onLeave)
+    if (controls == null) return GameMenu(game, onRules, onLeave, showLetterMarks = showLetterMarks)
     val room = controls.room
     val partner = room.present.isNotEmpty()
     return GameMenu(
@@ -220,6 +228,7 @@ fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit): GameMe
         }),
         onSwitchGame = if (room.inSession && partner) ({ switching = true }) else null,
         leaveLabel = if (room.inSession) "Leave game" else "Leave",
+        showLetterMarks = showLetterMarks,
     )
 }
 
