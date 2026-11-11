@@ -35,6 +35,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -189,6 +193,7 @@ fun ShipsSea(
     Canvas(modifier.fillMaxWidth().aspectRatio(1f).clip(Shapes.M).then(tapModifier)) {
         val cell = size.width / Sea.SIZE
         drawSeaArt(style, Sea.SIZE, cell)
+        deepen()
         wavelets(time, cell)
         // Sunk ships the list doesn't already hold (revealed enemy ships) are drawn too.
         val all = ships + sunk.filter { it !in ships }
@@ -196,9 +201,22 @@ fun ShipsSea(
             val down = ship in sunk
             // Afloat, a ship rocks gently on the swell; a sunk one lies still.
             val bob = if (down) 0f else sin(time + i * 1.3f) * cell * 0.05f
+            // The hull's shadow on the water stays put while the ship rocks above it.
+            val across = (if (ship.horizontal) ship.len else 1) * cell
+            val down1 = (if (ship.horizontal) 1 else ship.len) * cell
+            val (ix, iy) = if (ship.horizontal) cell * 0.07f to cell * 0.16f else cell * 0.16f to cell * 0.07f
+            boxShadow(
+                Offset(ship.x * cell + ix, ship.y * cell + iy), Size(across - 2 * ix, down1 - 2 * iy),
+                cell * 0.3f, cell * 0.07f, strength = 0.3f,
+            )
             translate(0f, bob) { drawShipArt(style, kind, ship, cell, sunk = down) }
         }
-        for (shot in shots) drawShotArt(style, shot.x, shot.y, shot.hit, cell)
+        for (shot in shots) {
+            val c = Offset((shot.x + 0.5f) * cell, (shot.y + 0.5f) * cell)
+            // A miss on the Toy sea spreads a ripple (Pirate's miss is rings already); a hit casts a small shadow, so the marker sits on the ship.
+            if (shot.hit) roundShadow(c, cell * 0.3f) else if ((style as? ShipLook.BuiltIn)?.style == ShipStyle.TOY) drawCircle(Color.White.copy(alpha = 0.5f), cell * 0.36f, c, style = Stroke(cell * 0.04f))
+            drawShotArt(style, shot.x, shot.y, shot.hit, cell)
+        }
         lastShot?.takeIf { blast.value < 1f }?.let { boom(it, blast.value, cell) }
         lastShot?.let {
             drawCircle(
@@ -214,6 +232,11 @@ fun ShipsSea(
             drawCircle(p.primary, radius = cell * 0.1f, center = center)
         }
     }
+}
+
+/** Gives the water depth: lighter towards the top left, deeper towards the bottom right. */
+private fun DrawScope.deepen() {
+    drawRect(Brush.linearGradient(0f to Color.White.copy(alpha = 0.16f), 1f to Color.Black.copy(alpha = 0.24f), start = Offset.Zero, end = Offset(size.width, size.height)))
 }
 
 /** How long a shot's blast or splash plays. */
@@ -264,6 +287,39 @@ private fun DrawScope.boom(shot: Shot, t: Float, cell: Float) {
             val a = k * PI.toFloat() / 3
             val d = cell * 0.6f * t
             drawCircle(GameColors.Spray.copy(alpha = fade), cell * 0.07f, c + Offset(cos(a) * d, sin(a) * d - cell * 0.8f * t * (1f - t)))
+        }
+    }
+}
+
+/**
+ * A row of small ship silhouettes, one per ship of the classic fleet and as long as the ship;
+ * those in [sunk] are dimmed and crossed out. [who] is "Enemy" or "Your", for screen readers
+ * ("Enemy fleet: 2 of 5 sunk").
+ */
+@Composable
+fun FleetTracker(who: String, sunk: List<Ship>, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    // Each sunk ship crosses out one ship of its length (there are two of length 3).
+    val left = sunk.map { it.len }.toMutableList()
+    val gone = Sea.FLEET.map { left.remove(it) }
+    val unit = 7.dp
+    Canvas(
+        modifier.size(unit * (Sea.FLEET_CELLS + Sea.FLEET.size - 1), unit)
+            .semantics { contentDescription = "$who fleet: ${gone.count { it }} of ${Sea.FLEET.size} sunk" },
+    ) {
+        val u = size.height
+        var x = 0f
+        Sea.FLEET.forEachIndexed { i, len ->
+            val w = len * u
+            val hull = Size(w, u * 0.7f)
+            val top = Offset(x, u * 0.2f)
+            if (gone[i]) {
+                drawRoundRect(p.muted.copy(alpha = 0.35f), top, hull, CornerRadius(u * 0.3f))
+                drawLine(p.bad, Offset(x - u * 0.1f, u * 0.95f), Offset(x + w + u * 0.1f, u * 0.05f), u * 0.2f, StrokeCap.Round)
+            } else {
+                drawRoundRect(p.text.copy(alpha = 0.8f), top, hull, CornerRadius(u * 0.3f))
+            }
+            x += w + u
         }
     }
 }
@@ -364,7 +420,9 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         },
     ) {
         TurnBanner(myTurn && !finished, opponent?.name ?: "The other player", finished)
+        val mySunk = ships.myFleet.filter { s -> Fleet.isSunk(s, ships.theirShots) }
         SeaPair(
+            sunkEnemy = ships.sunkEnemy, sunkMine = mySunk,
             enemy = {
                 ShipsSea(
                     ships = ships.enemyFleet ?: emptyList(),
@@ -382,7 +440,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 ShipsSea(
                     ships = ships.myFleet,
                     shots = ships.theirShots,
-                    sunk = ships.myFleet.filter { s -> Fleet.isSunk(s, ships.theirShots) },
+                    sunk = mySunk,
                     lastShot = ships.theirShots.lastOrNull()?.takeIf { ships.lastShotByMe == false },
                     modifier = it,
                     replay = if (ships.lastShotByMe == false) replay else 0,
@@ -394,11 +452,23 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 
 /** The enemy sea (large, to aim at) above your own (smaller), both sized to fit the screen. */
 @Composable
-private fun ColumnScope.SeaPair(enemy: @Composable (Modifier) -> Unit, mine: @Composable (Modifier) -> Unit) {
+private fun ColumnScope.SeaPair(
+    enemy: @Composable (Modifier) -> Unit,
+    mine: @Composable (Modifier) -> Unit,
+    sunkEnemy: List<Ship>,
+    sunkMine: List<Ship>,
+) {
     val p = AppTheme.palette
-    Text("Enemy sea", color = p.text, fontWeight = FontWeight.SemiBold)
+    // The fleet trackers share the sea's label row, so they take no extra height.
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text("Enemy sea", color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        FleetTracker("Enemy", sunkEnemy)
+    }
     BoardArea(1f, weight = 0.62f, content = enemy)
-    Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text("Your sea", color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        FleetTracker("Your", sunkMine)
+    }
     BoardArea(1f, weight = 0.38f, content = mine)
 }
 
@@ -483,6 +553,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
 private fun ColumnScope.SoloShipsBattle(game: com.pippop.game.ships.SoloShips, vm: SoloShipsViewModel) {
     TurnBanner(game.myTurn && game.winner == null, "The computer", game.winner != null)
     SeaPair(
+        sunkEnemy = game.sunkEnemy, sunkMine = game.sunkMine,
         enemy = {
             ShipsSea(
                 ships = if (game.winner != null) game.enemyFleet else emptyList(),
