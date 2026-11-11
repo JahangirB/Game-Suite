@@ -105,7 +105,7 @@ class GameMenu(
     val onSwitchGame: (() -> Unit)? = null,
     val leaveLabel: String = "Leave game",
     val onOpen: (Boolean) -> Unit = {},
-    /** Show the "Marks on letter tiles" switch (letter games). */
+    /** Show the "Marks on tiles and pegs" switch (Word Race, Code Breaker). */
     val showLetterMarks: Boolean = false,
 )
 
@@ -139,7 +139,7 @@ fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
                     colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
                 )
             }
-            if (menu.showLetterMarks) MenuRow("Marks on letter tiles", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
+            if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
                 Switch(
                     checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
                     colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
