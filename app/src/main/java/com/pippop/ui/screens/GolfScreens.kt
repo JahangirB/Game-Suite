@@ -1,6 +1,18 @@
 package com.pippop.ui.screens
 
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box as LayoutBox
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -222,6 +234,105 @@ private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
     }
 }
 
+/** One hole of a scorecard: the strokes taken so far ([strokes], null before the hole), how far from par once it is finished ([vsPar]). */
+private data class HoleScore(val strokes: Int?, val vsPar: Int?)
+
+/** How [who] stands on hole [index]: finished holes carry their score against par, the hole in play only its strokes so far. */
+private fun holeScore(view: GolfView, who: Char, index: Int): HoleScore {
+    val taken = view.strokes[who]?.getOrNull(index)?.takeIf { it > 0 } ?: return HoleScore(null, null)
+    val finished = index < view.hole || view.done[who] == true
+    return HoleScore(taken, if (finished) taken - view.holeAt(index).par else null)
+}
+
+/** A score against par as a sign you can read without colour: "−1", "E" (level), "+2". */
+private fun vsParText(vs: Int) = if (vs > 0) "+$vs" else if (vs == 0) "E" else "−${-vs}"
+
+/**
+ * One hole's cell: its number, the strokes and the sign against par. Good holes (under par) are
+ * green, bad ones (over par) red, level ones plain; [ringed] marks the hole being played.
+ */
+@Composable
+private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, ringed: Boolean, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    Column(
+        modifier
+            .clip(Shapes.S)
+            .background(if (tone == p.text) Color.Transparent else tone.copy(alpha = 0.16f))
+            .then(if (ringed) Modifier.border(2.dp, p.text, Shapes.S) else Modifier)
+            .padding(vertical = 3.dp)
+            .clearAndSetSemantics {},
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("$number", color = p.muted, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
+        Text(top, color = tone, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        Text(bottom, color = tone, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
+    }
+}
+
+/** [who]'s nine cells in a row (or the pars when [who] is null), the hole in play ringed. */
+@Composable
+private fun ScoreRow(view: GolfView, who: Char?, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (i in 0 until view.holes) {
+            val cell = Modifier.weight(1f)
+            val ringed = i == view.hole && who != null
+            if (who == null) {
+                ScoreCell(i + 1, "${view.holeAt(i).par}", " ", p.muted, false, cell)
+            } else {
+                val s = holeScore(view, who, i)
+                val tone = when {
+                    s.vsPar == null -> p.text
+                    s.vsPar < 0 -> p.good
+                    s.vsPar > 0 -> p.bad
+                    else -> p.text
+                }
+                ScoreCell(i + 1, s.strokes?.toString() ?: "–", s.vsPar?.let(::vsParText) ?: " ", tone, ringed, cell)
+            }
+        }
+    }
+}
+
+/** Your strokes spoken for a screen reader: "hole 1: 3, 1 under par; hole 2: 5, 2 over par; hole 3: 1 so far". */
+private fun scoreSpeech(view: GolfView, who: Char) = (0 until view.holes).mapNotNull { i ->
+    val s = holeScore(view, who, i)
+    val taken = s.strokes ?: return@mapNotNull null
+    "hole ${i + 1}: $taken" + when {
+        s.vsPar == null -> " so far"
+        s.vsPar == 0 -> ", par"
+        s.vsPar < 0 -> ", ${-s.vsPar} under par"
+        else -> ", ${s.vsPar} over par"
+    }
+}.joinToString("; ")
+
+/**
+ * A strip under the header with your strokes on each of the nine holes (the hole you're on
+ * ringed, under par green with a minus, over par red with a plus). Tap it for the full card
+ * with everyone's strokes ([names]: just you when you play alone).
+ */
+@Composable
+internal fun GolfScoreStrip(view: GolfView, names: List<Pair<Char, String>>) {
+    val p = AppTheme.palette
+    var open by remember { mutableStateOf(false) }
+    if (open) InfoSheet("Scorecard", onDismiss = { open = false }) {
+        val par = (0 until view.holes).sumOf { view.holeAt(it).par }
+        Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
+        Text("Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+        ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
+        names.forEach { (m, n) ->
+            val t = view.total(m)
+            Text("$n · $t", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+            ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
+        }
+    }
+    LayoutBox(
+        Modifier.fillMaxWidth().clip(Shapes.M).background(p.card)
+            .clickable(onClickLabel = "Open the full scorecard", role = Role.Button) { open = true }
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "Scorecard, hole ${view.hole + 1} of ${view.holes}. ${scoreSpeech(view, 'm')}" },
+    ) { ScoreRow(view, 'm') }
+}
+
 /**
  * Once someone is in, the countdown for everyone still out: "Someone's in! Shots left: You 3 ·
  * Ben 2". Nothing before that.
@@ -314,6 +425,7 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         },
     ) {
         GolfHeader(view, names)
+        GolfScoreStrip(view, names)
         GolfCountdown(view, names)
         TurnLine(
             when {
@@ -393,6 +505,7 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
             }
         } else {
             GolfHeader(view, names)
+            GolfScoreStrip(view, names)
             GolfCountdown(view, names)
             val myTurn = state.turn == 'm' && state.result == null
             TurnLine(

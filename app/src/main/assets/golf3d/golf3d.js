@@ -394,6 +394,38 @@ function buildBridgeNew(b) {
     const pile = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.8, 10), new THREE.MeshStandardMaterial({ map: TEX.bark, roughness: 1 }));
     pile.position.set(cx + (along ? s * span : t * len), -1.0, cz + (along ? t * len : s * span)); g.add(pile);
   }
+  // Night lanterns on the end posts of each rail (hidden by day and at sunset, see glowNow).
+  let li = 0;
+  for (const rail of railsOf(b)) {
+    const mid = [(rail[0] + rail[2]) / 2, (rail[1] + rail[3]) / 2];
+    const a = along ? [mid[0], b[1] + 0.015] : [b[0] + 0.015, mid[1]], z = along ? [mid[0], b[3] - 0.015] : [b[2] - 0.015, mid[1]];
+    for (const p of [a, z]) { const l = lanternAt(wx(p[0]), wz(p[1]), li++ * 2.1 + b[0] * 7); l.visible = false; fx.lanternGroups.push(l); g.add(l); }
+  }
+  return g;
+}
+// ---- Night lanterns: shown only on night holes (see glowNow), flickering in ambient ------------------
+/** A soft round light for glow discs: white in the middle, fading to clear. */
+const GLOW_TEX = canvasTex(64, 64, (g, w) => { const c = w / 2, gr = g.createRadialGradient(c, c, 0, c, c, c); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, w); });
+/** A flat glow disc lying at height [y], [size] wide, in [color]; additive so it only ever brightens what is under it. */
+function glowDisc(size, y, color, opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: GLOW_TEX, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  m.position.y = y; m.userData.base = opacity;
+  return m;
+}
+/** A lantern on top of the post at world (x, z): a dark cage round a glowing flame, with light spilling on the planks and the water under it. */
+function lanternAt(x, z, phase) {
+  const g = new THREE.Group();
+  // A dark cap and base, with the flame and its halo showing between them.
+  const capMat = new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.8 });
+  for (const y of [0.87, 0.62]) { const cap = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.035, 0.19), capMat); cap.position.y = y; g.add(cap); }
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffd98a' }));
+  flame.position.y = 0.74; g.add(flame);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW_TEX, color: '#ffb347', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  halo.scale.setScalar(0.7); halo.position.y = 0.74; g.add(halo);
+  const planks = glowDisc(2.0, 0.05, '#ffb347', 0.75); g.add(planks);
+  const water = glowDisc(3.4, WATER_Y + 0.16, '#ff9a3c', 0.5); g.add(water);
+  g.position.set(x, 0, z);
+  fx.lanterns.push({ halo, planks, water, phase });
   return g;
 }
 function rockMesh(size, seed) {
@@ -523,7 +555,7 @@ function setTimeoutT(after, fn) { timers.push({ at: W.t + after, fn }); }
 function stepTimers() { for (let i = timers.length - 1; i >= 0; i--) if (W.t >= timers[i].at) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
 // ---- The course ---------------------------------------------------------------------------------
 let course = null, flag = null, flagPole = null, cupRing = null;
-const fx = { fires: [], portals: [], tufts: [], ripples: [], walls: [], eyes: [], fireLight: null };
+const fx = { fires: [], portals: [], tufts: [], ripples: [], walls: [], eyes: [], fireLight: null, lanterns: [], lanternGroups: [], cupGlow: null };
 // The solid things on the course (from the hole's props) and the soft ones that bend.
 const COLLIDERS = [];   // { x, y, r, h, kind, obj }
 const PLANTS = [];      // { x, y, obj, bendAt, dir }
@@ -569,6 +601,7 @@ function marker() {
 
 function buildHole(h, num) {
   if (course) { scene.remove(course); course.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  fx.lanterns = []; fx.lanternGroups = [];
   HOLE = Object.assign({ bridges: [], walls: [], sand: [], water: [], zones: [], props: [] }, h);
   const len = HOLE.len || 1.6;
   HALF = len / 2;
@@ -619,6 +652,7 @@ function buildHole(h, num) {
   cup.position.set(wx(HOLE.cup[0]), 0.012, wz(HOLE.cup[1])); course.add(cup);
   cupRing = new THREE.Mesh(new THREE.RingGeometry(CUP * S, CUP * S + 0.06, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
   cupRing.position.copy(cup.position); cupRing.position.y = 0.014; course.add(cupRing);
+  fx.cupGlow = glowDisc(1.1, 0.016, '#ffd76a', 0.55); fx.cupGlow.position.x = cup.position.x; fx.cupGlow.position.z = cup.position.z; fx.cupGlow.visible = false; course.add(fx.cupGlow);
   flagPole = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 8), new THREE.MeshLambertMaterial({ map: TEX.pole }));
   pole.position.y = 1.3; pole.castShadow = true; flagPole.add(pole);
@@ -692,6 +726,8 @@ function glowNow() {
   const k = TIMES[tod].glow;
   for (const [, b] of balls) { b.mesh.material.emissive.set(b.color); b.mesh.material.emissiveIntensity = 0.55 * k; }
   if (cupRing) cupRing.material.color.set(k > 0 ? '#ffd76a' : '#ffffff');
+  for (const l of fx.lanternGroups) l.visible = k > 0.5;
+  if (fx.cupGlow) fx.cupGlow.visible = k > 0.5;
   if (flag) { flag.material.emissive = new THREE.Color(k > 0.5 ? '#ffcc66' : '#000000'); flag.material.emissiveIntensity = 0.35 * k; }
 }
 /** The sticker spots: a sign set into the grass for each, and what stands on them. */
@@ -1228,7 +1264,15 @@ function ambient(t, dt, focus) {
     // The flag jumps up for a ball in the cup.
     const k = st.play && st.play.holedAt ? t - st.play.holedAt : 9;
     flagPole.position.y = k > 0.5 && k < 1.6 ? Math.sin((k - 0.5) / 1.1 * Math.PI) * 0.9 : 0;
-    cupRing.material.color.set(k < 2.5 ? '#ffd23f' : '#ffffff');
+    cupRing.material.color.set(k < 2.5 ? '#ffd23f' : TIMES[tod].glow > 0.5 ? '#ffd76a' : '#ffffff');
+  }
+  // Night: the lanterns flicker and the cup's rim breathes; with reduced motion the glow stays steady.
+  if (TIMES[tod].glow > 0.5) {
+    for (const l of fx.lanterns) {
+      const f = reduceMotion ? 1 : 0.86 + Math.sin(t * 11 + l.phase) * 0.08 + Math.sin(t * 17.3 + l.phase * 2) * 0.06;
+      l.halo.material.opacity = 0.8 * f; l.planks.material.opacity = l.planks.userData.base * f; l.water.material.opacity = l.water.userData.base * f;
+    }
+    if (fx.cupGlow) fx.cupGlow.material.opacity = fx.cupGlow.userData.base * (reduceMotion ? 1 : 0.85 + Math.sin(t * 2.4) * 0.15);
   }
   for (const tf of fx.tufts) tf.rotation.z = Math.sin(t * (tf.userData.palm ? 0.9 : 1.8) + tf.userData.phase) * (tf.userData.palm ? 0.03 : 0.12);
   if (clouds.visible) for (const c of clouds.children) { c.userData.a += c.userData.speed * dt; c.position.x = Math.cos(c.userData.a) * c.userData.d; c.position.z = Math.sin(c.userData.a) * c.userData.d; }
