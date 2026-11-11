@@ -1,6 +1,29 @@
 package com.pippop.ui.screens
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.pippop.ui.theme.Board
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.Radius
+import com.pippop.ui.theme.SeatColors
+import com.pippop.ui.theme.contrast
 
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.alpha
@@ -13,7 +36,6 @@ import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -28,7 +50,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,22 +90,29 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
     // A tile taps along one square; the last one in place sets off the cascade and chime.
     SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
     val p = AppTheme.palette
-    BoxWithConstraints(
-        modifier.clip(Shapes.L).background(p.accent),
-    ) {
+    // A wooden tray: the frame is Board.Wood, the tiles sit in a darker well.
+    Box(modifier.clip(Shapes.L).background(Brush.verticalGradient(listOf(Board.Wood.lighter(0.2f), Board.Wood.darker(0.2f)))).padding(6.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize().clip(Shapes.M).background(Board.Wood.darker(0.45f))) {
         val cell = maxWidth / size
         val goal = Slide.solved(size)
+        // A tile in place gets a green edge and a tick in its corner, in a contrasting ink.
+        val tickInk = if (contrast(p.good, Color.White) >= contrast(p.good, Board.Ink)) Color.White else Board.Ink
         for (tile in 1 until size * size) key(tile) {
             val at = tiles.indexOf(tile)
             val x by animateDpAsState(cell * (at % size), tween(120), label = "x")
             val y by animateDpAsState(cell * (at / size), tween(120), label = "y")
             val home = goal[at] == tile
-            Surface(
-                color = if (home) GameKind.SLIDE.color else p.card,
-                shape = Shapes.M,
-                // With a photo, pieces in place get a soft orange edge.
-                border = BorderStroke(if (photo != null && home) 3.dp else 2.dp, if (photo != null && home) GameKind.SLIDE.color else p.ink),
-                modifier = Modifier.offset(x, y).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) },
+            Box(
+                Modifier.offset(x, y).size(cell).padding(3.dp).clickable(enabled = enabled) { onTap(tile) }
+                    .drawBehind {
+                        // A thick tile: a shadow under it and a darker edge below a lighter top.
+                        val lift = 4.dp.toPx()
+                        val face = Size(this.size.width, this.size.height - lift)
+                        val corner = Radius.M.toPx()
+                        boxShadow(Offset(0f, lift * 0.5f), face, corner, drop = lift * 0.8f)
+                        raisedTile(p.card, Offset.Zero, face, corner, lift)
+                    }
+                    .padding(bottom = 4.dp).clip(Shapes.M).border(if (home) 3.dp else 2.dp, if (home) p.good else p.ink, Shapes.M),
             ) {
                 if (photo != null) {
                     // This tile's piece of the photo, and its number small in the corner.
@@ -93,8 +121,10 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
                             val piece = photo.width / size
                             val r = (tile - 1) / size
                             val c = (tile - 1) % size
+                            // The face is a little shorter than wide: crop the slice to match, not squeeze it.
+                            val high = (piece * this.size.height / this.size.width).toInt()
                             drawImage(
-                                photo, srcOffset = androidx.compose.ui.unit.IntOffset(c * piece, r * piece), srcSize = androidx.compose.ui.unit.IntSize(piece, piece),
+                                photo, srcOffset = androidx.compose.ui.unit.IntOffset(c * piece, r * piece + (piece - high) / 2), srcSize = androidx.compose.ui.unit.IntSize(piece, high),
                                 dstSize = androidx.compose.ui.unit.IntSize(this.size.width.toInt(), this.size.height.toInt()),
                             )
                         }
@@ -104,10 +134,67 @@ fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Un
                         )
                     }
                 } else {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(tile.toString(), color = if (home) Color.White else p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(tile.toString(), color = p.text, fontSize = (cell.value * 0.38f).sp, fontWeight = FontWeight.Black, fontFamily = DisplayFont)
                     }
                 }
+                if (home) {
+                    // The tick sits in the top right corner, clear of the number (top left in photos, centred otherwise).
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxSize().semantics { contentDescription = "in place" }) {
+                        val r = this.size.minDimension * 0.11f
+                        val c = Offset(this.size.width - r * 1.4f, r * 1.4f)
+                        drawCircle(Color.White.copy(alpha = 0.9f), r * 1.18f, c)
+                        drawCircle(p.good, r, c)
+                        val tick = Path().apply {
+                            moveTo(c.x - r * 0.45f, c.y + r * 0.02f)
+                            lineTo(c.x - r * 0.12f, c.y + r * 0.35f)
+                            lineTo(c.x + r * 0.48f, c.y - r * 0.32f)
+                        }
+                        drawPath(tick, tickInk, style = Stroke(r * 0.3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    }
+                }
+            }
+        }
+    }
+    }
+}
+
+/** One player's progress for [SlideProgressBars]: [home] of [total] tiles in place. */
+class SlideBar(val name: String, val color: Color, val home: Int, val total: Int)
+
+/** How many tiles are in their right place. */
+internal fun slideHome(tiles: List<Int>, size: Int): Int {
+    val goal = Slide.solved(size)
+    return tiles.indices.count { tiles[it] != 0 && tiles[it] == goal[it] }
+}
+
+/** Tiles home for a progress percentage from the server (which rounds down). */
+internal fun slideHomeFromPercent(percent: Int, size: Int): Int {
+    val total = size * size - 1
+    return ((percent * total + 99) / 100).coerceIn(0, total)
+}
+
+/**
+ * A bar for each player under the board: their name, how full the bar is, and the count of
+ * tiles home as text, so it never relies on colour alone.
+ */
+@Composable
+fun SlideProgressBars(bars: List<SlideBar>, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    val reduce = LocalReduceMotion.current
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (bar in bars) {
+            val target = if (bar.total == 0) 0f else bar.home.toFloat() / bar.total
+            val fill = animateFloatAsState(target, if (reduce) snap() else tween(200), label = "bar")
+            Row(
+                Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "${bar.name}: ${bar.home} of ${bar.total} tiles home" },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(bar.name, color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(76.dp).clearAndSetSemantics {})
+                Box(Modifier.weight(1f).height(12.dp).clip(Shapes.Full).background(p.accent).border(2.dp, p.ink, Shapes.Full).drawBehind {
+                    drawRoundRect(bar.color, size = Size(size.width * fill.value, size.height), cornerRadius = CornerRadius(size.height / 2))
+                })
+                Text("${bar.home} / ${bar.total}", style = Digits, color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 52.dp).clearAndSetSemantics {})
             }
         }
     }
@@ -244,6 +331,12 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                         }
                     }
                 }
+                // Your bar from your own tiles; the others' from the progress the server sends.
+                val total = slide.size * slide.size - 1
+                SlideProgressBars(
+                    listOf(SlideBar("You", p.primary, slideHome(tiles, slide.size), total)) +
+                        room.others.mapIndexed { i, o -> SlideBar(o.name, SeatColors[i % SeatColors.size], slideHomeFromPercent(o.progress ?: 0, slide.size), total) },
+                )
             }
         }
     }
@@ -286,6 +379,8 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
             Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
                 BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
+                // On your own there is only your bar: your tiles are all the screen knows.
+                SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))
             }
         }
     }
