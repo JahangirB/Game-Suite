@@ -7,7 +7,10 @@ import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,11 +18,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.center
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.util.lerp
+import com.pippop.data.GameKind
+import com.pippop.ui.art.color
+import com.pippop.ui.theme.Radius
 import com.pippop.ui.theme.LocalReduceMotion
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 
 /**
@@ -132,5 +149,100 @@ fun FlipCard(faceUp: Boolean, modifier: Modifier = Modifier, key: Any? = null, b
     val density = LocalDensity.current.density
     Box(modifier.graphicsLayer { rotationY = turn.value; cameraDistance = 14 * density }) {
         if (turn.value < 90f) back() else Box(Modifier.graphicsLayer { rotationY = 180f }) { front() }
+    }
+}
+
+/**
+ * Where each game's tile is on the Home shelf (in window coordinates), and which game the
+ * player just chose to open from it. The Home reports; the app reads it to grow a game out of
+ * its tile and to shrink it back.
+ */
+class TileBounds {
+    val rects = HashMap<GameKind, Rect>()
+    /** Set by the Home right before it opens a game from a tile; the app takes it. */
+    var pending: GameKind? = null
+}
+
+/** Reports this tile's on-screen rectangle to [bounds] while it is on the Home. */
+fun Modifier.reportTile(bounds: TileBounds, kind: GameKind): Modifier = composed {
+    DisposableEffect(kind) { onDispose { bounds.rects.remove(kind) } }
+    onGloballyPositioned { bounds.rects[kind] = Rect(it.positionInRoot(), it.size.toSize()) }
+}
+
+/**
+ * A game opening out of its tile: a block in the game's colour grows from the tile to the whole
+ * screen, the game takes its place under it and the colour fades away to show the board.
+ * Going back runs it in reverse. Taps are swallowed while it plays (about a third of a second opening, a little longer going back).
+ */
+class TileTransition(private val bounds: TileBounds) {
+    private val grow = Animatable(0f)
+    private val fade = Animatable(0f)
+    private var kind by mutableStateOf<GameKind?>(null)
+    /** True while the animation plays: the app ignores back and taps for that moment. */
+    var busy by mutableStateOf(false)
+        private set
+
+    /** Grows [game]'s colour from its tile, calls [switch] once the screen is covered, then reveals. */
+    suspend fun open(game: GameKind, switch: () -> Unit) {
+        if (busy) return
+        busy = true
+        kind = game
+        grow.snapTo(0f); fade.snapTo(1f)
+        grow.animateTo(1f, tween(OPEN_MS, easing = FastOutSlowInEasing))
+        switch()
+        fade.animateTo(0f, tween(FADE_MS))
+        kind = null
+        busy = false
+    }
+
+    /** Covers the game with its colour, calls [switch] to show the Home, then shrinks it into the tile. */
+    suspend fun close(game: GameKind, switch: () -> Unit) {
+        if (busy) return
+        busy = true
+        kind = game
+        grow.snapTo(1f); fade.snapTo(0f)
+        fade.animateTo(1f, tween(FADE_MS))
+        switch()
+        // One frame, so the Home has been laid out and its tile has reported where it is.
+        withFrameNanos { }
+        grow.animateTo(0f, tween(OPEN_MS, easing = FastOutSlowInEasing))
+        fade.animateTo(0f, tween(FADE_MS / 2))
+        kind = null
+        busy = false
+    }
+
+    /** The colour block, over everything while it plays; give it the same size as the screen it covers. */
+    @Composable
+    fun Layer(modifier: Modifier = Modifier) {
+        val game = kind ?: return
+        val colour = game.color
+        val corner = Radius.L
+        var origin by remember { mutableStateOf(Offset.Zero) }
+        Box(
+            modifier
+                .onGloballyPositioned { origin = it.positionInRoot() }
+                // Swallows every touch so nothing underneath can be tapped twice.
+                .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
+                .drawBehind {
+                    val t = grow.value
+                    val full = Rect(Offset.Zero, size)
+                    // A tile that is not on screen any more: grow from the middle of the screen.
+                    val tile = bounds.rects[game]?.translate(-origin.x, -origin.y)?.takeIf { it.overlaps(full) }
+                        ?: Rect(size.center, 0f)
+                    val r = Rect(
+                        lerp(tile.left, full.left, t), lerp(tile.top, full.top, t),
+                        lerp(tile.right, full.right, t), lerp(tile.bottom, full.bottom, t),
+                    )
+                    drawRoundRect(
+                        colour.copy(alpha = fade.value), r.topLeft, r.size,
+                        CornerRadius(lerp(corner.toPx(), 0f, t)),
+                    )
+                },
+        )
+    }
+
+    companion object {
+        const val OPEN_MS = 200
+        const val FADE_MS = 120
     }
 }

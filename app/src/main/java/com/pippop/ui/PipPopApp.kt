@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -102,6 +103,10 @@ import com.pippop.ui.screens.BuiltInShips
 import com.pippop.ui.art.ShipLook
 import com.pippop.data.SkinStore
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.screens.TileBounds
+import com.pippop.ui.screens.TileTransition
+import kotlinx.coroutines.launch
 
 private enum class Dest { HOME, PROFILE, ARRANGE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
@@ -206,10 +211,39 @@ fun PipPopApp(
     LaunchedEffect(room?.status) { if (room?.inMatch == true) setupOpen.value = false }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { battle.setForeground(true) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { battle.setForeground(false) }
+    // A game opened from its Home tile grows out of it and shrinks back into it; every other
+    // way of getting to a screen, and every other way home, stays an instant switch.
+    val tiles = remember { TileBounds() }
+    val transition = remember { TileTransition(tiles) }
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
+    var openedFrom by remember { mutableStateOf<GameKind?>(null) }
+    // Goes to [target]; if the player chose it from a Home tile, with the grow-out animation.
+    val go: (Dest) -> Unit = { target ->
+        val from = tiles.pending
+        tiles.pending = null
+        if (from == null || reduceMotion || target == Dest.HOME) {
+            dest = target
+        } else {
+            scope.launch { transition.open(from) { dest = target; openedFrom = from } }
+        }
+    }
+    // Back to the Home, shrinking into the tile the game came from when it came from one.
+    val goHome: () -> Unit = {
+        val from = openedFrom
+        if (from == null || reduceMotion || inRoomGame) {
+            openedFrom = null
+            dest = Dest.HOME
+        } else {
+            scope.launch { transition.close(from) { dest = Dest.HOME; openedFrom = null } }
+        }
+    }
     BackHandler(enabled = !inRoomGame && dest != Dest.HOME) {
         if (dest == Dest.SOLO) solo.pause()
-        dest = Dest.HOME
+        goHome()
     }
+    // While the animation plays, back does nothing instead of piling a second one on top.
+    BackHandler(enabled = transition.busy) {}
 
     val tutorials = remember { TutorialHost() }
     CompositionLocalProvider(LocalTutorialHost provides tutorials) {
@@ -273,25 +307,25 @@ fun PipPopApp(
                         inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null -> GameScreen(battleState, battle, onLeave = requestLeave)
-                        dest == Dest.SHIPS -> SoloShipsScreen(shipsState, ships, onHome = { dest = Dest.HOME })
-                        dest == Dest.CONNECT4 -> SoloConnectFourScreen(connectFourState, connectFour, onHome = { dest = Dest.HOME })
-                        dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = { dest = Dest.HOME })
-                        dest == Dest.MEMORY -> SoloMemoryScreen(memoryState, memory, onHome = { dest = Dest.HOME })
-                        dest == Dest.WORDS -> SoloWordsScreen(wordsState, words, onHome = { dest = Dest.HOME })
-                        dest == Dest.TTT -> SoloTttScreen(tttState, ttt, onHome = { dest = Dest.HOME })
-                        dest == Dest.DOMINOES -> SoloDominoesScreen(dominoesState, dominoes, onHome = { dest = Dest.HOME })
-                        dest == Dest.NUMBERS -> SoloNumbersScreen(numbersState, numbers, onHome = { dest = Dest.HOME })
-                        dest == Dest.HOCKEY -> SoloHockeyScreen(hockeyState, hockey, onHome = { dest = Dest.HOME })
-                        dest == Dest.CLASH -> SoloClashScreen(clashState, clash, onHome = { dest = Dest.HOME })
-                        dest == Dest.LUDO -> SoloLudoScreen(ludoState, ludo, onHome = { dest = Dest.HOME })
-                        dest == Dest.GRID -> SoloGridScreen(gridState, grid, onHome = { dest = Dest.HOME })
-                        dest == Dest.BALLOON -> SoloBalloonScreen(balloonState, balloon, onHome = { dest = Dest.HOME })
-                        dest == Dest.CODE -> SoloCodeScreen(codeState, codeBreaker, onHome = { dest = Dest.HOME })
-                        dest == Dest.SLIDE -> SoloSlideScreen(slideState, slide, onHome = { dest = Dest.HOME })
-                        dest == Dest.BINGO -> SoloBingoScreen(bingoState, bingo, onHome = { dest = Dest.HOME })
-                        dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = { dest = Dest.HOME })
-                        dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = { dest = Dest.HOME })
-                        dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = { dest = Dest.HOME })
+                        dest == Dest.SHIPS -> SoloShipsScreen(shipsState, ships, onHome = goHome)
+                        dest == Dest.CONNECT4 -> SoloConnectFourScreen(connectFourState, connectFour, onHome = goHome)
+                        dest == Dest.DOTS -> SoloDotsScreen(dotsState, dots, onHome = goHome)
+                        dest == Dest.MEMORY -> SoloMemoryScreen(memoryState, memory, onHome = goHome)
+                        dest == Dest.WORDS -> SoloWordsScreen(wordsState, words, onHome = goHome)
+                        dest == Dest.TTT -> SoloTttScreen(tttState, ttt, onHome = goHome)
+                        dest == Dest.DOMINOES -> SoloDominoesScreen(dominoesState, dominoes, onHome = goHome)
+                        dest == Dest.NUMBERS -> SoloNumbersScreen(numbersState, numbers, onHome = goHome)
+                        dest == Dest.HOCKEY -> SoloHockeyScreen(hockeyState, hockey, onHome = goHome)
+                        dest == Dest.CLASH -> SoloClashScreen(clashState, clash, onHome = goHome)
+                        dest == Dest.LUDO -> SoloLudoScreen(ludoState, ludo, onHome = goHome)
+                        dest == Dest.GRID -> SoloGridScreen(gridState, grid, onHome = goHome)
+                        dest == Dest.BALLOON -> SoloBalloonScreen(balloonState, balloon, onHome = goHome)
+                        dest == Dest.CODE -> SoloCodeScreen(codeState, codeBreaker, onHome = goHome)
+                        dest == Dest.SLIDE -> SoloSlideScreen(slideState, slide, onHome = goHome)
+                        dest == Dest.BINGO -> SoloBingoScreen(bingoState, bingo, onHome = goHome)
+                        dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = goHome)
+                        dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = goHome)
+                        dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = goHome)
                         dest == Dest.PROFILE -> ProfileScreen(
                             profile, battleState.busy, app, battle, updateState,
                             onCheckUpdates = { updates.check(manual = true) },
@@ -305,15 +339,15 @@ fun PipPopApp(
                             profile = profile,
                             onContinue = {
                                 solo.resume()
-                                dest = Dest.SOLO
+                                go(Dest.SOLO)
                             },
                             onNewGame = { level, shape ->
                                 solo.startNew(level, shape)
-                                dest = Dest.SOLO
+                                go(Dest.SOLO)
                             },
                             onProfile = { dest = Dest.PROFILE },
                             onSolo = { game ->
-                                dest = when (game) {
+                                go(when (game) {
                                     GameKind.SHIPS -> Dest.SHIPS
                                     GameKind.CONNECT4 -> Dest.CONNECT4
                                     GameKind.DOTS -> Dest.DOTS
@@ -335,7 +369,7 @@ fun PipPopApp(
                                     // Draw & Guess needs two players; its sheet offers no solo game.
                                     GameKind.DRAW -> Dest.HOME
                                     GameKind.SUDOKU -> Dest.SOLO
-                                }
+                                })
                             },
                             onArrange = { dest = Dest.ARRANGE },
                             onScores = { dest = Dest.SCORES },
@@ -353,6 +387,7 @@ fun PipPopApp(
                             onLeaveRoom = { confirmDisconnect = true },
                             onNotificationsAnswered = app::notificationsAnswered,
                             onTutorialSeen = app::tutorialSeen,
+                            tiles = tiles,
                         )
                     }
                 }
@@ -364,6 +399,8 @@ fun PipPopApp(
                 if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter), onRestart = battle::wantRestart)
                 // A game's tutorial, over everything, in the same safe area as every screen.
                 TutorialLayer(tutorials)
+                // The colour that grows out of a Home tile, over everything while it plays.
+                transition.Layer(Modifier.fillMaxSize())
             }
         }
     }

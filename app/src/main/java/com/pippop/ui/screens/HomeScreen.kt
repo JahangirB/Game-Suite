@@ -140,6 +140,8 @@ fun HomeScreen(
     onLeaveRoom: () -> Unit = {},
     onNotificationsAnswered: () -> Unit = {},
     onTutorialSeen: (GameKind) -> Unit = {},
+    /** Where each tile is, and which one a game is being opened from (for the grow-out animation). */
+    tiles: TileBounds = remember { TileBounds() },
 ) {
     val p = AppTheme.palette
     var pickingLevel by rememberSaveable { mutableStateOf(false) }
@@ -198,7 +200,7 @@ fun HomeScreen(
                 ShelfRow {
                     pair.forEach { kind ->
                         GameTile(
-                            kind, Modifier.weight(1f), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
+                            kind, Modifier.weight(1f).reportTile(tiles, kind), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
                             onLongClick = onArrange,
                         ) { if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind }
                     }
@@ -230,9 +232,9 @@ fun HomeScreen(
                 onOpenGame = { close(); onOpenGame(kind) },
                 partner = profile.partner,
                 busy = partnerBusy,
-                onContinue = { close(); onContinue() },
+                onContinue = { close(); tiles.pending = kind; onContinue() },
                 onNewSudoku = { close(); pickingLevel = true },
-                onSolo = { close(); onSolo(kind) },
+                onSolo = { close(); tiles.pending = kind; onSolo(kind) },
                 onPartner = { close(); onPlayWithPartner(kind) },
                 onInvite = { close(); onInvitePartner(kind) },
             )
@@ -245,6 +247,7 @@ fun HomeScreen(
             onDismiss = { pickingLevel = false },
             onPick = { level, shape ->
                 pickingLevel = false
+                tiles.pending = GameKind.SUDOKU
                 onNewGame(level, shape)
             },
         )
