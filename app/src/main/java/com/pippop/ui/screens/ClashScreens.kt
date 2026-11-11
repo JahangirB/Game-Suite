@@ -12,9 +12,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,10 +38,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -64,8 +76,10 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.MarkIcon
+import com.pippop.ui.theme.Radius
 import com.pippop.ui.theme.Pieces
 import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.markOf
 import kotlinx.coroutines.delay
 
@@ -98,57 +112,88 @@ private fun faceLabel(card: String) = when (Clash.face(card)) {
     else -> Clash.face(card)
 }
 
-/** One card, [width] wide. A wild shows the four colours, or the named colour once played. */
+/** The ink outline of a card with corner radius [r], just inside its bounds. */
+private fun DrawScope.cardEdge(ink: Color, r: Float) {
+    val edge = 1.dp.toPx()
+    drawRoundRect(ink, Offset(edge, edge), Size(size.width - 2 * edge, size.height - 2 * edge), CornerRadius(r - edge), style = Stroke(2.dp.toPx()))
+}
+
+/**
+ * A card's body: a soft shadow under it, its colour shaded a little lighter at the top and
+ * darker at the bottom, and the ink outline. A [soft] card (one you can play) also gets a thin
+ * soft gold line just inside the outline.
+ */
+private fun Modifier.cardBody(base: Color, width: Dp, ink: Color, soft: Boolean = false) = drawBehind {
+    val r = width.toPx() * 0.18f
+    boxShadow(Offset.Zero, size, r, drop = 2.dp.toPx(), strength = 0.28f)
+    drawRoundRect(Brush.verticalGradient(listOf(base.lighter(0.18f), base.darker(0.14f))), cornerRadius = CornerRadius(r))
+    cardEdge(ink, r)
+    if (soft) {
+        val inset = 3.dp.toPx()
+        drawRoundRect(Board.GlowSoft, Offset(inset, inset), Size(size.width - 2 * inset, size.height - 2 * inset), CornerRadius((r - inset).coerceAtLeast(0f)), style = Stroke(2.dp.toPx()))
+    }
+}
+
+/**
+ * One card, [width] wide. A wild shows the four colours, or the named colour once played. Its
+ * value is small in two opposite corners as well as large in the middle; [soft] marks a card
+ * you can play with a gold line inside its outline.
+ */
 @Composable
-fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Char? = null) {
+fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Char? = null, soft: Boolean = false) {
     val p = AppTheme.palette
     val wild = Clash.isWild(card)
-    Surface(
-        color = if (wild) Wild else clashColor(card[0]),
-        shape = RoundedCornerShape(width * 0.18f),
-        border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.size(width, width * 1.45f),
+    val shape = RoundedCornerShape(width * 0.18f)
+    Box(
+        modifier.size(width, width * 1.45f).cardBody(if (wild) Wild else clashColor(card[0]), width, p.ink, soft).clip(shape),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            if (wild) {
-                // Four colour quarters (or the colour named) behind the face.
-                Canvas(Modifier.size(width * 0.62f)) {
-                    val r = size.minDimension / 2
-                    val parts = if (named != null) listOf(named, named, named, named) else Clash.COLOURS.toList()
-                    parts.forEachIndexed { i, c ->
-                        drawArc(clashColor(c), i * 90f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
-                    }
-                }
-            } else if (Clash.isKylian(card)) {
-                // Kylian Dictador himself, standing on his colour, with what he costs.
-                Canvas(Modifier.align(Alignment.BottomCenter).size(width * 0.96f)) { drawSticker(stickerOf(Reaction.KYLIAN)) }
-                markOf(clashColor(card[0]))?.let { mark ->
-                    MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
-                }
-                Text(
-                    "+8",
-                    color = Color.White,
-                    fontSize = (width.value * 0.2f).sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = DisplayFont,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(end = width * 0.08f, top = width * 0.02f),
-                )
-                return@Box
-            } else {
-                Surface(color = Color.White, shape = CircleShape, modifier = Modifier.size(width * 0.66f)) {}
-                // The colour's mark in the corner, so cards can be told apart without seeing colour.
-                markOf(clashColor(card[0]))?.let { mark ->
-                    MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
+        if (wild) {
+            // Four colour quarters (or the colour named) behind the face.
+            Canvas(Modifier.size(width * 0.62f)) {
+                val r = size.minDimension / 2
+                val parts = if (named != null) listOf(named, named, named, named) else Clash.COLOURS.toList()
+                parts.forEachIndexed { i, c ->
+                    drawArc(clashColor(c), i * 90f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
                 }
             }
+        } else if (Clash.isKylian(card)) {
+            // Kylian Dictador himself, standing on his colour, with what he costs.
+            Canvas(Modifier.align(Alignment.BottomCenter).size(width * 0.96f)) { drawSticker(stickerOf(Reaction.KYLIAN)) }
+            markOf(clashColor(card[0]))?.let { mark ->
+                MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
+            }
             Text(
-                faceLabel(card),
-                color = if (wild) Color.White else clashColor(card[0]),
-                fontSize = (width.value * 0.34f).sp,
+                "+8",
+                color = if (card[0] == 'y') Board.Ink else Color.White,
+                fontSize = (width.value * 0.2f).sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = DisplayFont,
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = width * 0.08f, top = width * 0.02f),
             )
+            // The outline again on top, so the sticker doesn't hide it.
+            Canvas(Modifier.fillMaxSize()) { cardEdge(p.ink, width.toPx() * 0.18f) }
+            return@Box
+        } else {
+            Surface(color = Color.White, shape = CircleShape, modifier = Modifier.size(width * 0.66f)) {}
+            // The colour's mark in the corner, so cards can be told apart without seeing colour.
+            markOf(clashColor(card[0]))?.let { mark ->
+                MarkIcon(mark, Modifier.align(Alignment.TopStart).padding(width * 0.08f).size(width * 0.22f))
+            }
         }
+        val corner = Modifier.padding(horizontal = width * 0.08f, vertical = width * 0.04f)
+        val small = (width.value * 0.17f).sp
+        // The small corner values repeat the big one, so a screen reader skips them.
+        val cornerInk = if (card[0] == 'y') Board.Ink else Color.White
+        Text(faceLabel(card), color = cornerInk, fontSize = small, fontWeight = FontWeight.Black, fontFamily = DisplayFont, modifier = Modifier.align(Alignment.TopEnd).then(corner).clearAndSetSemantics {})
+        Text(faceLabel(card), color = cornerInk, fontSize = small, fontWeight = FontWeight.Black, fontFamily = DisplayFont, modifier = Modifier.align(Alignment.BottomStart).then(corner).graphicsLayer { rotationZ = 180f }.clearAndSetSemantics {})
+        Text(
+            faceLabel(card),
+            color = if (wild) Color.White else clashColor(card[0]),
+            fontSize = (width.value * 0.34f).sp,
+            fontWeight = FontWeight.Black,
+            fontFamily = DisplayFont,
+        )
     }
 }
 
@@ -156,15 +201,22 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
 @Composable
 internal fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    Surface(color = Board.Ink, shape = RoundedCornerShape(width * 0.18f), border = BorderStroke(2.dp, p.ink), modifier = modifier.size(width, width * 1.45f)) {
-        Box(contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(width * 0.62f)) {
-                val r = size.minDimension / 2
-                Clash.COLOURS.forEachIndexed { i, c ->
-                    drawArc(clashColor(c), i * 90f + 45f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
-                }
+    Box(modifier.size(width, width * 1.45f).cardBody(Board.Ink, width, p.ink).clip(RoundedCornerShape(width * 0.18f)), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(width * 0.62f)) {
+            val r = size.minDimension / 2
+            Clash.COLOURS.forEachIndexed { i, c ->
+                drawArc(clashColor(c), i * 90f + 45f, 90f, true, Offset(size.width / 2 - r, size.height / 2 - r), Size(r * 2, r * 2))
             }
         }
+    }
+}
+
+/** The deck as a stack: up to [edges] card edges show, offset, under the top card. */
+@Composable
+private fun ClashStack(width: Dp, edges: Int) {
+    Box(Modifier.size(width + 3.dp * edges, width * 1.45f + 3.dp * edges)) {
+        for (n in edges downTo 1) ClashBack(width, Modifier.offset(3.dp * n, 3.dp * n))
+        ClashBack(width)
     }
 }
 
@@ -208,7 +260,7 @@ private fun clashNews(view: ClashView, name: (Char) -> String): String? {
 
 /** The pile, your hand and what you can do: shared by battle and solo. */
 @Composable
-private fun ColumnScope.ClashTable(
+internal fun ColumnScope.ClashTable(
     view: ClashView,
     myTurn: Boolean,
     enabled: Boolean,
@@ -242,7 +294,7 @@ private fun ColumnScope.ClashTable(
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ClashBack(64.dp)
+                ClashStack(64.dp, edges = (view.deck - 1).coerceIn(0, 2))
                 Text("${view.deck} left", color = p.muted, fontSize = TextSize.Label)
             }
             Spacer(Modifier.width(28.dp))
@@ -259,20 +311,59 @@ private fun ColumnScope.ClashTable(
                         play(Sound.KYLIAN_DICTADOR)
                     }
                 }
-                FlipCard(
-                    faceUp = true,
-                    key = played,
-                    modifier = Modifier.enterFrom(played, dy = if (mine) 260.dp else (-260).dp, rotation = if (mine) -20f else 20f, scaleFrom = 0.6f),
-                    back = { ClashBack(108.dp) },
-                ) { ClashCard(view.top, 108.dp, named = view.colour) }
-                Text("Match ${colourName(view.colour)}", color = clashColor(view.colour), fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
+                // The view holds only the top card, so the last few tops are remembered here: the
+                // one or two before it show, a little turned, under the top card.
+                var tops by remember { mutableStateOf(listOf(view.top)) }
+                var lastPlay by remember { mutableStateOf(played) }
+                LaunchedEffect(view.lastMove) {
+                    if (view.lastMove == null) tops = listOf(view.top)
+                    else if (played != null && played != lastPlay) { tops = (tops + view.top).takeLast(3); lastPlay = played }
+                }
+                // A reshuffle (the deck grows) turns the old pile into the deck: start the pile again.
+                var deckBefore by remember { mutableIntStateOf(view.deck) }
+                LaunchedEffect(view.deck) {
+                    if (view.deck > deckBefore) tops = listOf(view.top)
+                    deckBefore = view.deck
+                }
+                // The cards under the top one, worked out now so a new top never shows twice.
+                val under = (if (tops.lastOrNull() == view.top) tops.dropLast(1) else tops).takeLast(2)
+                // A soft ring in the colour in play (the colour named, after a wild) glows round
+                // the pile, pulsing on your turn and steady otherwise; its name is written below.
+                val pulse = loopingFloat(0.55f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), still = 0.85f, label = "clashRing")
+                // Darker on the light theme, where yellow and green would barely show on the table.
+                val ringBase = clashColor(view.colour).let { if (p.dark) it else it.darker(0.4f) }
+                Box(
+                    Modifier.size(144.dp, 190.dp).drawBehind {
+                        val ring = ringBase.copy(alpha = if (myTurn) pulse.value else 0.85f)
+                        val corner = CornerRadius(Radius.L.toPx())
+                        val at = Offset(3.dp.toPx(), 3.dp.toPx())
+                        val inner = Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx())
+                        drawRoundRect(ring.copy(alpha = ring.alpha * 0.14f), at, inner, corner, style = Stroke(14.dp.toPx()))
+                        drawRoundRect(ring.copy(alpha = ring.alpha * 0.28f), at, inner, corner, style = Stroke(7.dp.toPx()))
+                        drawRoundRect(ring, at, inner, corner, style = Stroke(2.dp.toPx()))
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    under.forEach { card ->
+                        // Each card keeps its own tilt for as long as it is in the pile.
+                        val turn = listOf(-11f, 8f, -6f, 12f, -9f, 6f)[Math.floorMod(card.hashCode(), 6)]
+                        ClashCard(card, 108.dp, Modifier.graphicsLayer { rotationZ = turn })
+                    }
+                    FlipCard(
+                        faceUp = true,
+                        key = played,
+                        modifier = Modifier.enterFrom(played, dy = if (mine) 260.dp else (-260).dp, rotation = if (mine) -20f else 20f, scaleFrom = 0.6f),
+                        back = { ClashBack(108.dp) },
+                    ) { ClashCard(view.top, 108.dp, named = view.colour) }
+                }
+                Text("${colourName(view.colour).replaceFirstChar { it.uppercase() }} in play", color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
             }
             Spacer(Modifier.width(28.dp))
             Text(if (view.direction > 0) "↻" else "↺", color = p.muted, fontSize = TextSize.DisplayL)
         }
     }
 
-    // Your hand: cards you can play stand up; the rest are dimmed on your turn.
+    // Your hand: on your turn the cards you can play rise with a gold line inside; the rest are dimmed.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             // Keyed by card (and which copy), so a newly dealt or drawn card arrives from the
@@ -302,12 +393,12 @@ private fun ColumnScope.ClashTable(
                         modifier = Modifier
                             .enterFrom(Unit, dx = (-120).dp, dy = (-240).dp, rotation = -30f, scaleFrom = 0.7f, delayMs = if (dealing) i * Motion.STAGGER_MS else 0, onAppear = true)
                             .graphicsLayer {
-                                translationY = if (ok) -10.dp.toPx() else 0f
+                                translationY = if (ok) -8.dp.toPx() else 0f
                                 alpha = if (!canMove || ok) 1f else 0.5f
                             }
                             .clickable(enabled = ok) { if (Clash.isWild(card)) wildAt = i else onPlay(i, null) },
                         back = { ClashBack(50.dp) },
-                    ) { ClashCard(card, 50.dp) }
+                    ) { ClashCard(card, 50.dp, soft = ok) }
                 }
             }
         }
