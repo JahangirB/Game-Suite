@@ -15,9 +15,20 @@ import com.pippop.ui.SoundOnChange
 import com.pippop.ui.rememberSfx
 import kotlinx.coroutines.delay
 import com.pippop.ui.theme.markOf
-import com.pippop.ui.theme.MarkIcon
+import com.pippop.ui.theme.drawMark
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.readableOn
+import com.pippop.ui.theme.loopingFloat
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.pippop.ui.theme.Board
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Pieces
@@ -40,6 +51,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,40 +89,91 @@ fun pegColor(c: Char): Color = when (c) {
     else -> Color.LightGray
 }
 
+/** What a peg colour is called, for screen readers. */
+private fun pegName(c: Char) = when (c) {
+    'r' -> "red"; 'y' -> "yellow"; 'g' -> "green"; 'b' -> "blue"; 'p' -> "purple"; 'o' -> "orange"; else -> "teal"
+}
+
+/** Whether the player wants a small mark inside each peg (the setting shared by the letter games). */
 @Composable
-private fun Peg(c: Char?, size: Dp, modifier: Modifier = Modifier) {
+private fun letterMarksOn(): Boolean {
+    val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
+    return store.profile.collectAsState().value.letterMarks
+}
+
+/**
+ * A glossy marble of colour [c] (or an empty hole when null). A [seated] marble sits a little
+ * smaller in a dark hole of the wooden tray. With [marks] on, each colour has its own shape
+ * inside, in dark or light ink, whichever reads better on that colour.
+ */
+@Composable
+private fun Peg(c: Char?, size: Dp, marks: Boolean, modifier: Modifier = Modifier, seated: Boolean = false) {
     val p = AppTheme.palette
-    Box(
-        modifier.size(size).clip(CircleShape).background(if (c == null) p.accent else pegColor(c))
-            .border(2.dp, if (c == null) p.muted else p.ink, CircleShape),
-    ) {
-        // Each colour's mark, so pegs can be told apart without seeing colour.
-        val mark = c?.let { markOf(pegColor(it)) }
-        if (mark != null) MarkIcon(mark, Modifier.fillMaxSize().padding(size * 0.26f))
+    val color = c?.let { pegColor(it) }
+    val describe = if (c == null) modifier else modifier.semantics { contentDescription = pegName(c) + " peg" }
+    Canvas(describe.size(size)) {
+        val r = this.size.minDimension / 2
+        when {
+            seated -> drawCircle(Board.Wood.darker(0.5f), r, center)
+            color == null -> {
+                drawCircle(p.accent, r, center)
+                drawCircle(p.muted, r - 1.dp.toPx(), center, style = Stroke(2.dp.toPx()))
+            }
+        }
+        if (color != null) {
+            val rm = if (seated) r * 0.86f else r * 0.96f
+            if (!seated) roundShadow(center, rm)
+            glossyDisc(color, rm, center)
+            if (marks) {
+                val ink = readableOn(color)
+                val mark = markOf(color)
+                if (mark != null) drawMark(mark, center, r * 0.96f, ink)
+                // The seventh colour (teal) has a ring, which no other piece colour uses.
+                else drawCircle(ink, r * 0.4f, center, style = Stroke(r * 0.2f))
+            }
+        }
     }
 }
 
 /** A right colour in the right place. */
 private val RightPlace = Pieces.Red
 
-/** The small score pins: red for right colour and place, white for right colour, wrong place. */
+/**
+ * The small score pins: red for right colour and place, white for right colour, wrong place.
+ * With [drop] on (a guess that just arrived) each pin falls into its hole in turn, a tenth of a
+ * second each, red ones first; otherwise (and with reduced motion) they are simply there.
+ */
 @Composable
-private fun ScorePegs(black: Int, white: Int) {
+private fun ScorePegs(black: Int, white: Int, drop: Boolean = false) {
     val p = AppTheme.palette
+    val scored = black + white
+    val animate = drop && !LocalReduceMotion.current
+    // How many pins have landed so far; pin i lands when this reaches i + 1.
+    val landed = remember { Animatable(if (animate) 0f else scored.toFloat()) }
+    LaunchedEffect(animate, scored) {
+        if (animate) landed.animateTo(scored.toFloat(), tween(scored * 100, easing = LinearEasing))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (row in 0 until 2) Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             for (col in 0 until 2) {
                 val i = row * 2 + col
-                val fill = when {
-                    i < black -> RightPlace
-                    i < black + white -> Color.White
-                    else -> p.accent
-                }
                 // Right colour and place is filled; right colour only is a white pin with a dark
                 // ring; so the two read apart by shape as well as colour.
-                val ring = if (i in black until black + white) 2.dp else 1.dp
-                val ringColor = if (i in black until black + white) Board.Ink else p.ink.copy(alpha = 0.5f)
-                Box(Modifier.size(9.dp).clip(CircleShape).background(fill).border(ring, ringColor, CircleShape))
+                val isWhite = i in black until scored
+                Box(Modifier.size(9.dp)) {
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(p.accent).border(1.dp, p.ink.copy(alpha = 0.5f), CircleShape))
+                    if (i < scored) Box(
+                        Modifier.size(9.dp)
+                            // Falls in from above while it lands; read in the draw step only.
+                            .graphicsLayer {
+                                val t = (landed.value - i).coerceIn(0f, 1f)
+                                alpha = t
+                                translationY = -(1f - t) * 12.dp.toPx()
+                            }
+                            .clip(CircleShape).background(if (isWhite) Color.White else RightPlace)
+                            .border(if (isWhite) 2.dp else 1.dp, if (isWhite) Board.Ink else p.ink.copy(alpha = 0.5f), CircleShape),
+                    )
+                }
             }
         }
     }
@@ -120,24 +183,38 @@ private fun ScorePegs(black: Int, white: Int) {
 @Composable
 internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier, pegs: Int = CodeBreaker.PEGS) {
     // A scored guess: a click for each red pin, then each white one, and a lock springing open when cracked.
+    // Each tick sounds as its pin lands, a tenth of a second apart (the pins fall in ScorePegs).
     SoundOnChange(guesses.size.takeIf { it > 0 }) {
         val g = guesses.last()
         repeat(g.black) {
+            delay(100)
             play(Sound.CODE_PIN_RED)
-            delay(120)
         }
         repeat(g.white) {
+            delay(100)
             play(Sound.CODE_PIN_WHITE)
-            delay(120)
         }
         if (g.black == pegs) play(Sound.CODE_CRACKED)
     }
+    val marks = letterMarksOn()
+    // Only guesses that arrive while the screen is showing drop their pins in: not the ones
+    // already there on opening, and a new game starts counting again from none.
+    val watchFrom = remember { intArrayOf(guesses.size) }
+    if (guesses.size < watchFrom[0]) watchFrom[0] = 0
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         guesses.forEachIndexed { i, g ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${i + 1}", color = AppTheme.palette.muted, fontSize = TextSize.Label, modifier = Modifier.width(18.dp))
-                for (k in 0 until pegs) Peg(g.code?.getOrNull(k), 26.dp)
-                ScorePegs(g.black, g.white)
+            key(i, g) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${i + 1}", color = AppTheme.palette.muted, fontSize = TextSize.Label, modifier = Modifier.width(18.dp))
+                    // Each guess sits in its own wooden tray, one marble to a hole.
+                    Row(
+                        Modifier.background(Board.Wood, Shapes.S).padding(horizontal = 5.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        for (k in 0 until pegs) Peg(g.code?.getOrNull(k), 26.dp, marks, seated = true)
+                    }
+                    ScorePegs(g.black, g.white, drop = i >= watchFrom[0])
+                }
             }
         }
     }
@@ -148,16 +225,17 @@ internal fun GuessRows(guesses: List<CodeGuess>, modifier: Modifier = Modifier, 
 fun CodeExamples() {
     val p = AppTheme.palette
     val secret = "rygb"
+    val marks = letterMarksOn()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Secret:", color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, modifier = Modifier.width(64.dp))
-            secret.forEach { Peg(it, 22.dp) }
+            secret.forEach { Peg(it, 22.dp, marks) }
         }
         listOf("rybg", "gbry", "rrrr", "oppo", "rygb").forEach { guess ->
             val (red, white) = CodeBreaker.score(guess, secret)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Spacer(Modifier.width(64.dp))
-                guess.forEach { Peg(it, 22.dp) }
+                guess.forEach { Peg(it, 22.dp, marks) }
                 ScorePegs(red, white)
             }
             Text(
@@ -181,22 +259,23 @@ private fun pinsMeaning(red: Int, white: Int): String {
 
 /** Four holes to fill from the colour buttons, with Clear and the send button. */
 @Composable
-private fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit, clearKey: Int = 0, clearButton: Boolean = true, rules: CodeRules = CodeRules()) {
+internal fun CodeEntry(enabled: Boolean, sendLabel: String, onSend: (String) -> Unit, clearKey: Int = 0, clearButton: Boolean = true, rules: CodeRules = CodeRules()) {
     var code by remember { mutableStateOf("") }
     // The dock's Clear row empties it from outside.
     LaunchedEffect(clearKey) { if (clearKey > 0) code = "" }
     val sfx = rememberSfx()
+    val marks = letterMarksOn()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         // 48 dp pegs: big enough to hit with a thumb (42 with seven colours, so they fit across).
         val pegSize = if (rules.colours > 6) 42.dp else 48.dp
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (k in 0 until rules.pegs) Peg(code.getOrNull(k), 48.dp, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
+            for (k in 0 until rules.pegs) Peg(code.getOrNull(k), 48.dp, marks, Modifier.clickable(enabled = enabled && k < code.length) { code = code.removeRange(k, k + 1) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             rules.palette.forEach { c ->
                 // No repeats: a colour already in the code can't be used again.
                 val free = rules.repeats || c !in code
-                Peg(c, pegSize, Modifier.alpha(if (free) 1f else 0.3f).clickable(enabled = enabled && free && code.length < rules.pegs) {
+                Peg(c, pegSize, marks, Modifier.alpha(if (free) 1f else 0.3f).clickable(enabled = enabled && free && code.length < rules.pegs) {
                     sfx.play(Sound.CODE_PEG)
                     code += c
                 })
@@ -225,6 +304,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     val name = opponent?.name ?: "The other player"
     var clearKey by remember { mutableIntStateOf(0) }
+    val marks = letterMarksOn()
     GameFrame(
         title = "Code Breaker",
         // Harder settings show as a badge for both players.
@@ -235,7 +315,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             else "$n of ${code.tries} guesses"
         }),
         glow = GameKind.CODE.color,
-        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave, showLetterMarks = true),
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         tools = listOf(DockTool("Clear row", Icons.Filled.Clear, enabled = !finished) { clearKey++ }),
         trayVisible = reacting,
@@ -255,7 +335,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 code.theirCode?.let { c ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Their code:", color = p.muted, fontSize = TextSize.Body)
-                        c.forEach { Peg(it, 22.dp) }
+                        c.forEach { Peg(it, 22.dp, marks) }
                     }
                 }
             }
@@ -271,7 +351,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 TurnLine("Waiting for $name to set their code…", false)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth()) {
                     Text("Your code:", color = p.muted, fontSize = TextSize.Body)
-                    code.myCode.orEmpty().forEach { Peg(it, 24.dp) }
+                    code.myCode.orEmpty().forEach { Peg(it, 24.dp, marks) }
                 }
             }
             else -> {
@@ -318,7 +398,10 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.CODE.color,
-        menu = soloMenu(GameKind.CODE, onHome, { showRules = true }, if (state.started) vm::start else null),
+        menu = GameMenu(
+            GameKind.CODE, onRules = { showRules = true }, onLeave = onHome, onNewGame = if (state.started) vm::start else null,
+            leaveLabel = "Home", showLetterMarks = true,
+        ),
         scrollable = !state.started,
         popup = if (!state.started || !state.done) null else popupContent {
             ResultPopup(
@@ -385,6 +468,8 @@ fun CodeSafe(guesses: List<CodeGuess>, pegs: Int, modifier: Modifier = Modifier)
     val reduce = com.pippop.ui.theme.LocalReduceMotion.current
     val clicks = guesses.sumOf { it.black + 1 }
     val dial by androidx.compose.animation.core.animateFloatAsState(clicks * 36f, androidx.compose.animation.core.tween(if (reduce) 0 else 700), label = "dial")
+    // A slow idle drift on top of the clicks; still with reduced motion. Read only while drawing.
+    val drift = loopingFloat(0f, 360f, infiniteRepeatable(tween(90_000, easing = LinearEasing)), 0f, "dialDrift")
     val cracked = guesses.any { it.black == pegs }
     val open by androidx.compose.animation.core.animateFloatAsState(if (cracked) 1f else 0f, androidx.compose.animation.core.tween(if (reduce) 0 else 900, delayMillis = 500), label = "door")
     val best = guesses.maxOfOrNull { it.black } ?: 0
@@ -411,7 +496,7 @@ fun CodeSafe(guesses: List<CodeGuess>, pegs: Int, modifier: Modifier = Modifier)
             drawCircle(dark, r * 1.08f, c)
             drawCircle(Pieces.SafeDial, r, c)
             for (t in 0 until 12) {
-                val a = Math.toRadians((dial + t * 30).toDouble())
+                val a = Math.toRadians((dial + drift.value + t * 30).toDouble())
                 val inner = if (t == 0) 0.55f else 0.75f
                 drawLine(p.ink, Offset(c.x + (r * inner * kotlin.math.cos(a)).toFloat(), c.y + (r * inner * kotlin.math.sin(a)).toFloat()), Offset(c.x + (r * 0.95f * kotlin.math.cos(a)).toFloat(), c.y + (r * 0.95f * kotlin.math.sin(a)).toFloat()), side * if (t == 0) 0.03f else 0.012f)
             }
