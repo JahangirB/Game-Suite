@@ -23,6 +23,9 @@ object Ludo {
     /** The ring square a token of [colour] at [progress] stands on, or null off the ring. */
     fun square(colour: Int, progress: Int) = if (progress in 0..50) (colour * 13 + progress) % RING else null
 
+    /** Where a token at [progress] lands for [roll]: a token in the yard comes out onto square 0. */
+    fun landing(progress: Int, roll: Int) = if (progress == -1) 0 else progress + roll
+
     fun movable(tokens: List<Int>, roll: Int) = tokens.indices.filter {
         val p = tokens[it]
         if (p == -1) roll == 6 else p != HOME && p + roll <= HOME
@@ -130,7 +133,7 @@ class LudoMatch(val marks: List<Char>, private val random: Random = fairDie) : T
         val mine = tokens.getValue(mark)
         require(i in Ludo.movable(mine, r)) { "That token can't move." }
         val from = mine[i]
-        val to = if (from == -1) 0 else from + r
+        val to = Ludo.landing(from, r)
         mine[i] = to
         roll = null
         val captured = JSONArray()
@@ -201,7 +204,7 @@ class LudoComputer {
         val options = Ludo.movable(mine, r)
         val best = options.maxBy { i ->
             val from = mine[i]
-            val to = if (from == -1) 0 else from + r
+            val to = Ludo.landing(from, r)
             val sq = Ludo.square(colour, to)
             val captures = sq != null && sq !in Ludo.SAFE && match.marks.any { m ->
                 m != mark && match.tokens.getValue(m).any { Ludo.square(match.colours.getValue(m), it) == sq }

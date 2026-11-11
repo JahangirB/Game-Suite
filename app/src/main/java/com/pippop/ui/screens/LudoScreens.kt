@@ -71,6 +71,7 @@ import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
 import com.pippop.ui.theme.AppTheme
 import kotlin.math.hypot
+import androidx.compose.runtime.SideEffect
 
 /** A Ludo colour (0 red, 1 green, 2 yellow, 3 blue). */
 fun ludoColor(c: Int): Color = when (c) {
@@ -99,8 +100,39 @@ private fun DrawScope.drawStar(c: Offset, r: Float, color: Color) {
 }
 
 /**
+ * A little pawn in [color] standing at [at] (the square's centre), [u] tall-ish: a flared body, a
+ * glossy head, a light outline over a darker rim so it shows on the white squares, and a shadow.
+ */
+private fun DrawScope.drawPawn(at: Offset, u: Float, color: Color) {
+    val foot = Offset(at.x, at.y + u * 0.34f)
+    val head = Offset(at.x, at.y - u * 0.22f)
+    val rim = color.darker(0.5f)
+    val light = Color.White.copy(alpha = 0.75f)
+    roundShadow(foot, u * 0.3f, drop = u * 0.07f)
+    val body = Path().apply {
+        moveTo(foot.x - u * 0.3f, foot.y)
+        quadraticBezierTo(at.x - u * 0.1f, at.y + u * 0.15f, at.x - u * 0.09f, at.y - u * 0.1f)
+        lineTo(at.x + u * 0.09f, at.y - u * 0.1f)
+        quadraticBezierTo(at.x + u * 0.1f, at.y + u * 0.15f, foot.x + u * 0.3f, foot.y)
+        close()
+    }
+    val baseTop = Offset(foot.x - u * 0.3f, foot.y - u * 0.08f)
+    val baseSize = Size(u * 0.6f, u * 0.16f)
+    drawPath(body, rim, style = Stroke(u * 0.1f))
+    drawOval(rim, baseTop - Offset(u * 0.03f, u * 0.03f), Size(baseSize.width + u * 0.06f, baseSize.height + u * 0.06f))
+    drawPath(body, color.darker(0.08f))
+    drawOval(color.darker(0.08f), baseTop, baseSize)
+    drawPath(body, light, style = Stroke(u * 0.035f))
+    drawCircle(rim, u * 0.26f, head)
+    glossyDisc(color, u * 0.22f, head)
+    drawCircle(light, u * 0.22f, head, style = Stroke(u * 0.035f))
+    markOf(color)?.let { drawMark(it, head, u * 0.22f) }
+}
+
+/**
  * The classic cross board. Your [movable] tokens bob; tapping one calls [onToken] with its
- * index. Tokens sharing a square sit side by side.
+ * index. Tokens sharing a square sit side by side. After a roll each token you can move shows
+ * where it will land, with a dotted trail leading there; a knocked token flies back to its yard.
  */
 @Composable
 fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Modifier) {
@@ -127,6 +159,32 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         steps.snapTo(0f)
         if (reduce) steps.snapTo(count.toFloat()) else steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
     }
+    // A token knocked home flies from the square it was hit on to its yard slot, after the hop
+    // that hit it. [before] is last frame's board, to tell which token was the one knocked.
+    val before = remember { arrayOfNulls<Map<Char, List<Int>>>(1) }
+    val knock = view.lastMove?.takeIf { it.captured.isNotEmpty() && it.to != null }
+    val flights = remember(knock) {
+        val prev = before[0]
+        if (knock == null || prev == null) emptyList() else {
+            val taken = mutableSetOf<Pair<Char, Int>>()
+            knock.captured.mapNotNull { w ->
+                val now = view.tokens[w].orEmpty()
+                val was = prev[w].orEmpty()
+                val sq = view.colours[knock.who]?.let { Ludo.square(it, knock.to!!) }
+                val left = now.indices.filter { now[it] == -1 && (w to it) !in taken && was.getOrElse(it) { -1 } >= 0 }
+                // The token that stood on the square the mover landed on; any knocked one if none did.
+                val i = left.firstOrNull { sq != null && Ludo.square(view.colours[w] ?: 0, was[it]) == sq } ?: left.firstOrNull() ?: return@mapNotNull null
+                taken += w to i
+                // It is hit on the mover's landing square.
+                Triple(w, i, if (sq != null) Ludo.ringCells[sq].let { (x, y) -> x + 0.5f to y + 0.5f } else Ludo.cellOf(view.colours[w] ?: 0, was[i], i))
+            }
+        }
+    }
+    val fly = remember(flights) { Animatable(if (flights.isEmpty() || reduce) 1f else 0f) }
+    LaunchedEffect(fly) {
+        if (fly.value < 1f) fly.animateTo(1f, tween(FLY_MS, delayMillis = ((knock?.to ?: 0) - (knock?.from ?: 0)) * HOP_MS, easing = LinearEasing))
+    }
+    SideEffect { before[0] = view.tokens }
     val touch = if (onToken == null) Modifier else Modifier.pointerInput(Unit) {
         detectTapGestures { pos ->
             val v = current
@@ -165,7 +223,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         Ludo.ringCells.forEachIndexed { i, (x, y) ->
             val start = i % 13 == 0
             sq(x, y, if (start) ludoColor(i / 13).copy(alpha = 0.75f) else Color.White)
-            if (i % 13 == 8) drawStar(Offset((x + 0.5f) * cell, (y + 0.5f) * cell), cell * 0.38f, Ink.copy(alpha = 0.3f))
+            if (i % 13 == 8 || start) drawStar(Offset((x + 0.5f) * cell, (y + 0.5f) * cell), cell * 0.38f, Ink.copy(alpha = 0.3f))
         }
         for (c in 0..3) for (k in 0 until 5) {
             val (x, y) = Ludo.homeCell(c, k)
@@ -183,11 +241,30 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
             }
             drawPath(path, ludoColor(c))
         }
+        // After a roll: where each token you can move will land, and a dotted trail to it.
+        val roll = view.roll
+        val mineNow = view.tokens['m']
+        val myColour = view.colours['m']
+        if (roll != null && mineNow != null && myColour != null) for (i in view.movable) {
+            val from = mineNow[i]
+            val to = Ludo.landing(from, roll)
+            val mark = ludoColor(myColour)
+            fun centre(prog: Int) = Ludo.cellOf(myColour, prog, i).let { (x, y) -> Offset(x * cell, y * cell) }
+            val path = (if (from < 0) listOf(-1, 0) else (from..to).toList()).map { centre(it) }
+            for (k in 0 until path.size - 1) for (t in listOf(0.35f, 0.7f)) {
+                drawCircle(Ink, cell * 0.07f, path[k] + (path[k + 1] - path[k]) * t)
+            }
+            val end = centre(to)
+            val half = if (to == Ludo.HOME) cell * 0.3f else cell * 0.5f
+            drawRect(mark.copy(alpha = 0.35f), end - Offset(half, half), Size(half * 2, half * 2))
+            drawRect(Ink, end - Offset(half * 0.92f, half * 0.92f), Size(half * 1.84f, half * 1.84f), style = Stroke(cell * 0.07f))
+        }
         // Tokens: stacks on one square spread out a little.
         val all = view.tokens.flatMap { (who, list) -> list.mapIndexed { i, prog -> Triple(who, i, prog) } }
         val placed = mutableMapOf<Pair<Float, Float>, Int>()
         for ((who, i, prog) in all) {
             val colour = view.colours[who] ?: continue
+            if (fly.value < 1f && flights.any { it.first == who && it.second == i }) continue
             // The token on the move: between two squares, with a little hop.
             val hopping = move != null && who == move.who && i == move.token && steps.value < stepsFor(move)
             val (x, y) = if (hopping) {
@@ -205,17 +282,27 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
             val shift = if (prog in 0 until Ludo.HOME && !hopping) n * cell * 0.18f else 0f
             val lift = if (who == 'm' && i in view.movable) -cell * 0.18f * bob else 0f
             val at = Offset(x * cell + shift, y * cell + shift + lift)
-            drawCircle(Ink, cell * 0.38f, at)
-            drawCircle(ludoColor(colour), cell * 0.31f, at)
-            markOf(ludoColor(colour))?.let { drawMark(it, at, cell * 0.3f) }
-            drawCircle(Color.White.copy(alpha = 0.45f), cell * 0.12f, Offset(at.x - cell * 0.08f, at.y - cell * 0.08f))
+            drawPawn(at, cell, ludoColor(colour))
             if (who == 'm' && i in view.movable) drawCircle(Ink, cell * 0.46f, at, style = Stroke(cell * 0.07f))
+        }
+        // Knocked tokens: a burst where they were hit, then an arc home, a little bigger at the top.
+        if (fly.value < 1f) for ((who, i, hitAt) in flights) {
+            val colour = view.colours[who] ?: continue
+            val a = Offset(hitAt.first * cell, hitAt.second * cell)
+            val b = Ludo.cellOf(colour, -1, i).let { Offset(it.first * cell, it.second * cell) }
+            val f = fly.value
+            val arc = sin(f * PI.toFloat())
+            drawPawn(a + (b - a) * f - Offset(0f, arc * cell * 1.5f), cell * (1f + 0.3f * arc), ludoColor(colour))
+            burst(a, f * 2.5f, ludoColor(colour), cell * 1.1f)
         }
     }
 }
 
 /** How long a token takes per square. */
 private const val HOP_MS = 150
+
+/** How long a knocked token takes to fly home. */
+private const val FLY_MS = 450
 
 private const val TUMBLE_MS = 560
 
