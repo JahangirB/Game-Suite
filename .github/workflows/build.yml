@@ -80,6 +80,66 @@ jobs:
           name: pip-pop-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
+  # Publishes the preview app from the work branch: the same code under its own id and name, so it
+  # installs next to the real Pip & Pop and keeps its own data. It goes out as the "preview"
+  # PRE-release. That matters: the real app looks for updates in GitHub's "latest" release, which
+  # never is a pre-release, so the real app cannot see these builds. Keep --prerelease and
+  # --latest=false; without them every installed Pip & Pop would be offered the preview.
+  preview:
+    name: Publish preview app
+    needs: [backend, cloudflare, android]
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'between-the-boards') && github.ref_name != github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      # The signing key only. No Firebase config: the preview's id is not in the Firebase project,
+      # so it is built without invitations.
+      - name: Signing key from secrets
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SIGNING_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          fi
+      - name: Preview APK
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          APP_ID: ${{ vars.APP_ID }}
+        run: ./gradlew assemblePreview --stacktrace
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          # Only builds signed with your own key are published: they must install over each other.
+          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "::warning::No SIGNING_KEYSTORE_BASE64 secret, so nothing is published. See the README."
+            exit 0
+          fi
+          # PipPop.apk is the name the preview's updater asks for; PipPopPreview.apk is for the download link.
+          cp app/build/outputs/apk/preview/app-preview.apk PipPop.apk
+          cp app/build/outputs/apk/preview/app-preview.apk PipPopPreview.apk
+          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"1.0.${GITHUB_RUN_NUMBER}-preview\"}" > version.json
+          cat version.json
+          gh release delete preview --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create preview PipPop.apk PipPopPreview.apk version.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --latest=false \
+            --title "Pip & Pop Preview 1.0.${GITHUB_RUN_NUMBER}" \
+            --notes "The preview app, built from commit ${GITHUB_SHA::7} of ${GITHUB_REF_NAME}. It installs next to the real Pip & Pop and keeps its own data. Install PipPopPreview.apk."
+
   # Publishes the APK as the "latest" release, which the README download button points to.
   # Runs for pushes to the repository's default branch, or by hand (Actions → Build → Run workflow).
   release:

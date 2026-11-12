@@ -36,6 +36,11 @@ val firebase: Map<String, String> = file("google-services.json").takeIf { it.exi
     )
 } ?: emptyMap()
 
+// The repository and the branch CI built from: where the updater, the skins and the sticker packs
+// come from. Local builds have neither.
+val repository = System.getenv("GITHUB_REPOSITORY").orEmpty()
+val branch = System.getenv("GITHUB_REF_NAME").orEmpty()
+
 android {
     namespace = "com.pippop"
     compileSdk = 35
@@ -53,11 +58,14 @@ android {
 
         // The in-app updater checks the releases of the repository CI built from, so every copy
         // of this project updates from its own releases. Local builds don't update themselves.
-        val repository = System.getenv("GITHUB_REPOSITORY").orEmpty()
         buildConfigField(
             "String", "UPDATE_BASE_URL",
             "\"${if (repository.isEmpty()) "" else "https://github.com/$repository/releases/latest/download"}\"",
         )
+        // False in the real app; the preview build type below turns it on.
+        buildConfigField("boolean", "PREVIEW", "false")
+        // The name phones look for when playing nearby. The preview has its own, so the two never meet.
+        buildConfigField("String", "NEARBY_SERVICE_ID", "\"com.arcade.sudoku.battle\"")
         // Ship Battle skins are files in the same repository's skins/ folder, read straight from
         // its default branch: publishing a new one needs no app update. Local builds have none.
         buildConfigField(
@@ -82,6 +90,30 @@ android {
     }
 
     buildTypes {
+        // The preview app: the same code under its own id, name and icon colour, so it installs
+        // next to the real Pip & Pop and keeps its own data. CI builds it from the work branch
+        // and publishes it as the "preview" pre-release, which is also where it updates from.
+        create("preview") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-preview"
+            matchingFallbacks += listOf("debug")
+            buildConfigField("boolean", "PREVIEW", "true")
+            buildConfigField("String", "NEARBY_SERVICE_ID", "\"com.arcade.sudoku.battle.preview\"")
+            buildConfigField(
+                "String", "UPDATE_BASE_URL",
+                "\"${if (repository.isEmpty()) "" else "https://github.com/$repository/releases/download/preview"}\"",
+            )
+            // Skins and sticker packs come from the branch being previewed, not the default branch.
+            buildConfigField(
+                "String", "SKINS_BASE_URL",
+                "\"${if (repository.isEmpty() || branch.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/$branch/skins"}\"",
+            )
+            // No Firebase: the preview's id is not in the Firebase project, so invitations stay off.
+            for (key in listOf("PROJECT_ID", "SENDER_ID", "APP_ID", "API_KEY")) {
+                buildConfigField("String", "FIREBASE_$key", "\"\"")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

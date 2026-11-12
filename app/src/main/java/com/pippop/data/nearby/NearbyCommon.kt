@@ -1,5 +1,6 @@
 package com.pippop.data.nearby
 
+import com.pippop.BuildConfig
 import com.pippop.data.Avatar
 import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.Strategy
@@ -13,8 +14,10 @@ import kotlin.coroutines.resumeWithException
  * Identifies the app's games among everything else using Nearby Connections. It keeps the
  * app's first name on purpose: phones only find each other with the same id, and a phone one
  * version behind should still find the room (and be told to update) rather than see nothing.
+ * The preview app has an id of its own (set in app/build.gradle.kts), so it only ever meets
+ * other preview apps and never lands in a room with the real one.
  */
-internal const val SERVICE_ID = "com.arcade.sudoku.battle"
+internal val SERVICE_ID: String = BuildConfig.NEARBY_SERVICE_ID
 
 /** Phones connected directly over Bluetooth / Wi-Fi without internet. */
 // A star: the host's phone in the middle, up to three guests connected to it.
