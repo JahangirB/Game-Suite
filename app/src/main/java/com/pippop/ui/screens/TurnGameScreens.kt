@@ -23,6 +23,7 @@ import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.textFill
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Board
@@ -92,6 +93,7 @@ import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -797,25 +799,56 @@ private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pai
 
 // ---- Shared pieces -----------------------------------------------------------------------
 
+/**
+ * What a turn banner says: "Your turn" and, on your first two turns of the game only, what to do
+ * (the text after "Your turn: ", capitalised). Any other line comes back whole. Turns are counted
+ * by whose turn it is ([myTurn]), never by the wording, so "A pair! Go again" or a roll after a
+ * six is the same turn. [LocalTurnHints] shares the count between a game's banners.
+ */
+@Composable
+internal fun turnWords(text: String, myTurn: Boolean): Pair<String, String?> =
+    turnWords(text, myTurn, LocalTurnHints.current ?: remember { TurnHints() })
+
+internal fun turnWords(text: String, myTurn: Boolean, hints: TurnHints): Pair<String, String?> {
+    val turn = hints.note(myTurn)
+    if (!myTurn || !text.startsWith("$YOUR_TURN:")) return text to null
+    val hint = text.removePrefix("$YOUR_TURN:").trim().takeIf { it.isNotEmpty() && TurnHints.showsHint(turn) }
+    return YOUR_TURN to hint?.replaceFirstChar { it.uppercase() }
+}
+
+private const val YOUR_TURN = "Your turn"
+
 @Composable
 internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.palette.primary) {
     val p = AppTheme.palette
+    val (title, hint) = turnWords(text, highlight)
     // When the turn is yours the line becomes a banner in the game's colour and pops in, so it
-    // can't be missed; otherwise it sits quietly in grey.
+    // can't be missed; otherwise it sits quietly in grey. "Your turn" stays big on one line and
+    // what to do sits small under it for your first turns. The fill is the same with or without
+    // the hint, and dark enough for the small text.
+    val fill = if (highlight) textFill(color) else p.accent
     Surface(
-        color = if (highlight) color else p.accent,
+        color = fill,
         shape = Shapes.L,
         border = BorderStroke(if (highlight) 3.dp else 2.dp, p.ink),
         modifier = Modifier.fillMaxWidth().enterFrom(highlight.takeIf { it }, scaleFrom = 0.9f, durationMs = 220),
     ) {
-        Text(
-            (if (highlight) "● " else "") + text,
-            color = if (highlight) readableOn(color) else p.text,
-            fontWeight = FontWeight.Bold,
-            fontSize = if (highlight) TextSize.Title else TextSize.BodyL,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = if (highlight) 14.dp else 12.dp),
-        )
+        Column(
+            Modifier.semantics(mergeDescendants = true) {}
+                .padding(horizontal = 12.dp, vertical = if (hint != null) 9.dp else if (highlight) 14.dp else 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                (if (highlight) "● " else "") + title,
+                color = if (highlight) readableOn(fill) else p.text,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (highlight) TextSize.Title else TextSize.BodyL,
+                textAlign = TextAlign.Center,
+            )
+            if (hint != null) {
+                Text(hint, color = readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 

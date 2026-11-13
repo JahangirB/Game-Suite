@@ -45,6 +45,10 @@ import com.pippop.ui.screens.ConnectKind
 import com.pippop.ui.screens.ConnectSheet
 import com.pippop.ui.screens.ConnectionBanners
 import com.pippop.ui.screens.LocalMatchSession
+import com.pippop.ui.screens.LocalTonight
+import com.pippop.ui.screens.LocalTurnHints
+import com.pippop.ui.screens.TurnHints
+import com.pippop.ui.screens.tonightScore
 import com.pippop.ui.screens.MatchSession
 import com.pippop.data.PlayMode
 import android.content.Intent
@@ -333,6 +337,9 @@ fun PipPopApp(
                 CompositionLocalProvider(
                     LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle),
                     LocalMatchSession provides session, LocalRoomControls provides controls,
+                    // Tonight's score in a game against one other player, and the turn count for its "Your turn" hint.
+                    LocalTonight provides room?.takeIf { inRoomGame }?.let { tonightScore(it, battleState.tally) },
+                    LocalTurnHints provides remember(room?.game, room?.round) { TurnHints() }.takeIf { inRoomGame },
                     LocalSlidePhoto provides room?.takeIf { it.game == GameKind.SLIDE }?.let { r -> (r.slide?.photoId != null) to battle::setSlidePhoto },
                 ) {
                     when {

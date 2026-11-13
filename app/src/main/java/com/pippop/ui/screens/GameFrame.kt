@@ -155,9 +155,10 @@ fun GameFrame(
                 if (!(swipeToFocus && focused)) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
-                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = TextSize.Body)
+                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    trailing()
+                    Box(Modifier.padding(start = 8.dp)) { trailing() }
+                    LocalTonight.current?.let { Box(Modifier.padding(start = 8.dp)) { TonightPill(it) } }
                 }
                 if (players.isNotEmpty() && !(swipeToFocus && focused)) {
                     // Three or four players share the row as smaller chips.

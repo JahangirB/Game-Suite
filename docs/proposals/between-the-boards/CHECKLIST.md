@@ -90,9 +90,9 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase F: in the game and at its end
 
-- [ ] **Step 16. In the game**
-  - [ ] Tonight's score in the title row (game-tonight)
-  - [ ] "Your turn" on one line; the how-to leaves from the third turn (game-turn)
+- [x] **Step 16. In the game**
+  - [x] Tonight's score in the title row (game-tonight)
+  - [x] "Your turn" on one line; the how-to leaves from the third turn (game-turn)
 - [ ] **Step 17. The result goes under the board**
   - [ ] The result is a card under the board wherever it fits (result-under)
   - [ ] The winner's face with a crown (result-faces)

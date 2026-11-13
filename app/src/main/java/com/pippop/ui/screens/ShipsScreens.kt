@@ -7,6 +7,8 @@ import com.pippop.ui.SoundOnChange
 import kotlinx.coroutines.delay
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.readableOn
+import com.pippop.ui.theme.textFill
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Board
@@ -469,24 +471,30 @@ private fun ColumnScope.SeaPair(
 }
 
 @Composable
-private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = false) {
+internal fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = false) {
     val p = AppTheme.palette
+    val line = when {
+        over -> "Game over"
+        myTurn -> "Your turn: tap the enemy sea to fire"
+        else -> "$opponentName is aiming…"
+    }
+    val (title, hint) = turnWords(line, myTurn)
+    val fill = if (myTurn) textFill(p.primary) else p.accent
     Surface(
-        color = if (myTurn) p.primary else p.accent,
+        color = fill,
         shape = Shapes.M,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            when {
-                over -> "Game over"
-                myTurn -> "Your turn: tap the enemy sea to fire"
-                else -> "$opponentName is aiming…"
-            },
-            color = if (myTurn) p.onPrimary else p.text,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(12.dp),
-        )
+        Column(Modifier.semantics(mergeDescendants = true) {}.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                title,
+                color = if (myTurn) readableOn(fill) else p.text,
+                fontWeight = if (myTurn) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = if (myTurn) TextSize.Title else TextSize.BodyL,
+                textAlign = TextAlign.Center,
+            )
+            if (hint != null) Text(hint, color = readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        }
     }
 }
 
