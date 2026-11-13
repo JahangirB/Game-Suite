@@ -14,7 +14,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.material3.FilterChip
 
 import com.pippop.game.memory.MemoryMatch
 import com.pippop.game.memory.CardFace
@@ -1130,11 +1129,7 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
         )
         // Before the first line: the board to play on.
         if (state.lines.none { it != '.' && it != ' ' }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                DotsShape.ALL.forEach { b ->
-                    FilterChip(selected = state.board == b.key, onClick = { vm.newGame(b.key) }, label = { Text(DotsShape.label(b.key)) })
-                }
-            }
+            Choices(DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, state.board, vm::newGame, Modifier.fillMaxWidth())
         }
         BoardArea(dotsAspect(DotsShape.from(state.board))) { size ->
             DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size, shape = DotsShape.from(state.board))
@@ -1241,9 +1236,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
             if (found.isEmpty() && state.flips > 0) Text("Find all ${state.cards / 2} pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
             // Before the first flip: the deck size.
             if (state.flips == 0) {
-                MemoryMatch.DECKS.forEach { n ->
-                    FilterChip(selected = state.cards == n, onClick = { vm.newGame(n) }, label = { Text("$n cards") }, modifier = Modifier.padding(end = 6.dp))
-                }
+                Choices(MemoryMatch.DECKS.map { it to "$it cards" }, state.cards, vm::newGame, Modifier.weight(1f))
             }
             found.forEach { CardPicture(it, 24.dp) }
             Spacer(Modifier.width(4.dp))

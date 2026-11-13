@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -431,27 +430,16 @@ private fun dominoRulesLine(o: DominoOptions) =
     (if (o.draw) "Draw from the boneyard" else "Block game: pass when stuck") + " · first to ${o.target}" +
         (if (o.teams) " · two against two" else "")
 
-/** Chips for drawing or blocking, the points target and (four players) teams. */
+/** [OptionRow]s for drawing or blocking, the points target and (four players) teams. */
 @Composable
 private fun DominoOptionChips(o: DominoOptions, fourPlayers: Boolean, enabled: Boolean, onChange: (DominoOptions) -> Unit) {
     val p = AppTheme.palette
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(selected = o.draw, onClick = { onChange(o.copy(draw = true)) }, enabled = enabled, label = { Text("Draw") })
-        FilterChip(selected = !o.draw, onClick = { onChange(o.copy(draw = false)) }, enabled = enabled, label = { Text("Block") })
-    }
-    Text(
-        if (o.draw) "Stuck? Take tiles from the boneyard until one fits." else "Stuck? Pass. Nobody can play: the lightest hand wins the round.",
-        color = p.muted, fontSize = TextSize.Body,
+    OptionRow(
+        "When stuck", listOf(true to "Draw", false to "Block"), o.draw, { onChange(o.copy(draw = it)) }, enabled = enabled,
+        note = if (o.draw) "Stuck? Take tiles from the boneyard until one fits." else "Stuck? Pass. Nobody can play: the lightest hand wins the round.",
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        DominoOptions.TARGETS.forEach { t ->
-            FilterChip(selected = o.target == t, onClick = { onChange(o.copy(target = t)) }, enabled = enabled, label = { Text("To $t") })
-        }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(selected = !o.teams, onClick = { onChange(o.copy(teams = false)) }, enabled = enabled, label = { Text("Each for themselves") })
-        FilterChip(selected = o.teams, onClick = { onChange(o.copy(teams = true)) }, enabled = enabled, label = { Text("2 v 2") })
-    }
+    OptionRow("Play to", DominoOptions.TARGETS.map { it to "$it" }, o.target, { onChange(o.copy(target = it)) }, enabled = enabled)
+    OptionRow("Sides", listOf(false to "Each alone", true to "2 v 2"), o.teams, { onChange(o.copy(teams = it)) }, enabled = enabled)
     if (o.teams && !fourPlayers) Text("Teams need four players; with fewer everyone plays for themselves.", color = p.muted, fontSize = TextSize.Body)
 }
 
@@ -486,9 +474,7 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
         if (view == null) {
             AppCard("Set up the table") {
                 Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
-                }
+                Choices((1..3).map { it to "$it" }, state.opponents, vm::setOpponents)
                 DominoOptionChips(state.options, fourPlayers = state.opponents == 3, enabled = true, onChange = vm::setOptions)
                 if (state.options.teams && state.opponents == 3) Text("Your partner is Computer 2, sitting opposite.", color = p.muted, fontSize = TextSize.Body)
                 PrimaryButton("Deal", vm::start, Modifier.fillMaxWidth())

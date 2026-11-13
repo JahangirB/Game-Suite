@@ -38,8 +38,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] `ToyField`, `CodeField`; all seven `OutlinedTextField`s replaced
   - [x] "Paste the message instead" is a button
   - [x] The password field's label is "Password", its explanation is under it
-- [ ] **Step 5. The app's own switch and choices** (toy-controls)
-  - [ ] `Choices`, `OptionRow`, `ToySwitch`; no `FilterChip` and no Material `Switch` left
+- [x] **Step 5. The app's own switch and choices** (toy-controls)
+  - [x] `Choices`, `OptionRow`, `ToySwitch`; no `FilterChip` and no Material `Switch` left
 - [ ] **Step 6. Pip and Pop while you wait, and messages with a mark** (toy-loader, toy-toast)
   - [ ] `PipPopLoader` in all five places; `Toast` in place of the snackbar
   - [ ] `scripts/check-tokens.sh` fails on stock parts

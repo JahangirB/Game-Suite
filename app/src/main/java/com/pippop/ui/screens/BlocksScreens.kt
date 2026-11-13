@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
 
 import com.pippop.ui.theme.loopingFloat
@@ -573,11 +575,11 @@ fun BlocksHintsSwitch() {
     val p = AppTheme.palette
     val store = ProfileStore.get(LocalContext.current)
     val on = store.profile.collectAsState().value.blocksHints
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = on, role = Role.Switch, onValueChange = store::setBlocksHints)) {
         Column(Modifier.weight(1f)) {
             Text("Where can I go?", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
             Text("Light the corners your pieces can build from; grey the pieces that fit nowhere.", color = p.muted, fontSize = TextSize.Label)
         }
-        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setBlocksHints)
+        ToySwitch(checked = on, onCheckedChange = null)
     }
 }

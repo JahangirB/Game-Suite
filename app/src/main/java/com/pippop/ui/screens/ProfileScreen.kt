@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import com.pippop.BuildConfig
 import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.layout.Arrangement
@@ -11,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -171,52 +171,39 @@ fun ProfileScreen(
             }
 
             AppCard("Appearance") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ThemeMode.entries.forEach { mode ->
-                        FilterChip(
-                            selected = profile.theme == mode,
-                            onClick = { app.setTheme(mode) },
-                            label = { Text(mode.label) },
-                        )
-                    }
-                }
+                OptionRow("Theme", ThemeMode.entries.map { it to it.label }, profile.theme, app::setTheme)
                 Text("Ship Battle style", color = p.muted, fontSize = TextSize.Body)
                 // The two built in, then any skins downloaded in Ship Battle (its Skins button).
                 val skinId by SkinStore.selected.collectAsState()
                 val skins by SkinStore.installed.collectAsState()
                 val using = skins.firstOrNull { it.id == skinId }
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ShipStyle.entries.forEach { style ->
-                        FilterChip(
-                            selected = using == null && profile.shipStyle == style,
-                            onClick = {
-                                app.setShipStyle(style)
-                                SkinStore.use(null)
-                            },
-                            label = { Text(style.label) },
-                        )
+                val styles = ShipStyle.entries.map { "style:${it.name}" to it.label } + skins.map { "skin:${it.id}" to it.name }
+                val chosen = if (using == null) "style:${profile.shipStyle.name}" else "skin:${using.id}"
+                // Downloaded skins have longer names: two to a row so they keep their room.
+                Choices(styles, chosen, perRow = 2, onPick = { key ->
+                    if (key.startsWith("skin:")) SkinStore.use(key.removePrefix("skin:"))
+                    else {
+                        app.setShipStyle(ShipStyle.valueOf(key.removePrefix("style:")))
+                        SkinStore.use(null)
                     }
-                    skins.forEach { skin ->
-                        FilterChip(selected = using?.id == skin.id, onClick = { SkinStore.use(skin.id) }, label = { Text(skin.name) })
-                    }
-                }
+                })
                 Text("More skins: tap Skins at the bottom of Ship Battle.", color = p.muted, fontSize = TextSize.Label)
             }
 
             AppCard("Sound and touch") {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = profile.sound, role = Role.Switch, onValueChange = app::setSound)) {
                     Column(Modifier.weight(1f)) {
                         Text("Sound", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
                         Text("Game sounds, on or off here: the phone's silent mode doesn't change them. The media volume sets how loud.", color = p.muted, fontSize = TextSize.Body)
                     }
-                    Switch(checked = profile.sound, onCheckedChange = app::setSound)
+                    ToySwitch(checked = profile.sound, onCheckedChange = null)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = profile.vibration, role = Role.Switch, onValueChange = app::setVibration)) {
                     Column(Modifier.weight(1f)) {
                         Text("Vibration", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
                         Text("A buzz for your turn, your moves and the result.", color = p.muted, fontSize = TextSize.Body)
                     }
-                    Switch(checked = profile.vibration, onCheckedChange = app::setVibration)
+                    ToySwitch(checked = profile.vibration, onCheckedChange = null)
                 }
             }
 

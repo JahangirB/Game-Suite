@@ -23,7 +23,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -510,9 +509,7 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
             AppCard("Set up the table") {
                 Text("Match the colour or the number; first to empty their hand wins.", color = p.muted, fontSize = TextSize.Body)
                 Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
-                }
+                Choices((1..3).map { it to "$it" }, state.opponents, vm::setOpponents)
                 PrimaryButton("Deal", vm::start, Modifier.fillMaxWidth())
             }
         } else {

@@ -197,18 +197,12 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * A choice among a few [options] (value to label): the chosen one is the main button, the
- * rest secondary. Without [enabled] nothing can be picked.
- */
+/** A choice among a few [options] (value to label), as [Choices] (stacked full width when a label is long). Without [enabled] nothing can be picked. */
 @Composable
 fun <T> OptionGroup(options: List<Pair<T, String>>, selected: T, enabled: Boolean, onPick: (T) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S)) {
-        options.forEach { (value, label) ->
-            if (value == selected) PrimaryButton(label, {}, Modifier.fillMaxWidth(), enabled = enabled)
-            else SecondaryButton(label, { onPick(value) }, Modifier.fillMaxWidth(), enabled = enabled)
-        }
-    }
+    // Long labels need the full width, so they stack; short ones sit side by side.
+    val long = options.any { (_, l) -> l.length > 12 || " · " in l || ":" in l }
+    Choices(options, selected, onPick, enabled = enabled, perRow = if (long) 1 else null)
 }
 
 @Composable

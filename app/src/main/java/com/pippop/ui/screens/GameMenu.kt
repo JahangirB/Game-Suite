@@ -27,8 +27,8 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -136,17 +136,11 @@ internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) 
         menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
         menu.onChangeMode?.let { MenuRow("Change mode", detail = menu.mode, onClick = then(it)) }
         MenuRow("Rules", onClick = then(menu.onRules))
-        MenuRow("Sound", onClick = { store.setSound(!profile.sound) }) {
-            Switch(
-                checked = profile.sound, onCheckedChange = store::setSound,
-                colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-            )
+        MenuRow("Sound", checked = profile.sound, onClick = { store.setSound(!profile.sound) }) {
+            ToySwitch(profile.sound, null)
         }
-        if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
-            Switch(
-                checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
-                colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-            )
+        if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", checked = profile.letterMarks, onClick = { store.setLetterMarks(!profile.letterMarks) }) {
+            ToySwitch(profile.letterMarks, null)
         }
         menu.onSwitchGame?.let { MenuRow("Switch game", onClick = then(it)) }
         MenuRow(menu.leaveLabel, color = p.bad, last = true, onClick = then(menu.onLeave))
@@ -159,13 +153,20 @@ private fun MenuRow(
     detail: String? = null,
     color: Color = AppTheme.palette.text,
     last: Boolean = false,
+    checked: Boolean? = null,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = AppTheme.palette
     Column {
         Row(
-            Modifier.fillMaxWidth().clip(Shapes.M).clickable(onClick = onClick).padding(horizontal = Space.S, vertical = 14.dp),
+            Modifier.fillMaxWidth().clip(Shapes.M)
+                .then(
+                    // A switch row is one switch for a screen reader: the row toggles, the switch only shows.
+                    if (checked != null) Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = { onClick() })
+                    else Modifier.clickable(onClick = onClick),
+                )
+                .padding(horizontal = Space.S, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, color = color, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

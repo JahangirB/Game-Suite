@@ -59,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.FilterChip
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -483,30 +482,7 @@ private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, share
 /** Two segments, Offline and Online; the chosen one is filled. */
 @Composable
 private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> Unit) {
-    val p = AppTheme.palette
-    Row(
-        Modifier.fillMaxWidth().clip(Shapes.Full).border(2.dp, p.ink, Shapes.Full).selectableGroup(),
-    ) {
-        listOf(PlayMode.OFFLINE to "Offline · nearby", PlayMode.ONLINE to "Online").forEach { (value, label) ->
-            val on = value == mode
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .background(if (on) p.primary else Color.Transparent)
-                    .selectable(selected = on, enabled = enabled, role = Role.Tab) { onPick(value) },
-            ) {
-                Text(
-                    label,
-                    color = if (on) p.onPrimary else p.text,
-                    fontSize = TextSize.Body,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.alpha(if (enabled || on) 1f else 0.5f),
-                )
-            }
-        }
-    }
+    Choices(listOf(PlayMode.OFFLINE to "Offline · nearby", PlayMode.ONLINE to "Online"), mode, onPick, enabled = enabled)
 }
 
 /** What tapping a game offers: play with your partner, alone or against the computer, or online with a code. */

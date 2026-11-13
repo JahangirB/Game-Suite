@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.offset
@@ -509,11 +511,11 @@ fun WordsHardSwitch() {
     val p = AppTheme.palette
     val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
     val on = store.profile.collectAsState().value.wordsHard
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = on, role = Role.Switch, onValueChange = store::setWordsHard)) {
         Column(Modifier.weight(1f)) {
             Text("Hard mode", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
             Text("Green letters stay in place, yellow ones must be used. Others see a Hard badge.", color = p.muted, fontSize = TextSize.Label)
         }
-        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setWordsHard)
+        ToySwitch(checked = on, onCheckedChange = null)
     }
 }
