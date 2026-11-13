@@ -2,6 +2,7 @@ package com.pippop.ui
 
 import com.pippop.ui.screens.Tone
 import com.pippop.ui.screens.TALLY_ME
+import com.pippop.ui.screens.inMatch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -215,6 +216,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var strokesTurn = -1 to -1
     private var strokesClears = 0
     private var recordedRound = -1
+
+    /** The game and round last noted as played (for the home's recent games), so each start counts once. */
+    private var notedStart: Pair<GameKind, Int>? = null
 
     /** The round last added to the Scoreboard, so each match counts once. */
     private var scoredRound = -1
@@ -462,6 +466,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         loadedRound = -1
         recordedRound = -1
         scoredRound = -1
+        notedStart = null
         lastSentBoard = null
         bestRoundTripMs = Long.MAX_VALUE
         lastVersion = -1
@@ -1758,6 +1763,11 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
         if (room.game == GameKind.SLIDE) fetchSlidePhoto(room)
         countForTonight(room)
+        // A game starting (its countdown, or playing if it has none) is noted once per round, for you being in it.
+        if (room.atGame && room.inMatch && notedStart != room.game to room.round) {
+            notedStart = room.game to room.round
+            store.noteGamePlayed(room.game)
+        }
         // A match counts for the players who were in it, not for someone waiting in the menu.
         if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round

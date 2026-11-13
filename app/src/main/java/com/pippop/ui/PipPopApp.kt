@@ -336,20 +336,24 @@ fun PipPopApp(
                             onBack = { dest = Dest.HOME },
                         )
                         dest == Dest.SCORES -> ScoreboardScreen(onBack = { dest = Dest.HOME })
-                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
+                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, profile.putAway, app::setArrangement, onBack = { dest = Dest.HOME })
                         else -> HomeScreen(
                             solo = soloState,
                             profile = profile,
                             onContinue = {
+                                app.noteGamePlayed(GameKind.SUDOKU)
                                 solo.resume()
                                 go(Dest.SOLO)
                             },
                             onNewGame = { level, shape ->
+                                app.noteGamePlayed(GameKind.SUDOKU)
                                 solo.startNew(level, shape)
                                 go(Dest.SOLO)
                             },
                             onProfile = { dest = Dest.PROFILE },
                             onSolo = { game ->
+                                // Draw & Guess has no solo game, so it never starts here.
+                                if (game != GameKind.DRAW) app.noteGamePlayed(game)
                                 go(when (game) {
                                     GameKind.SHIPS -> Dest.SHIPS
                                     GameKind.CONNECT4 -> Dest.CONNECT4

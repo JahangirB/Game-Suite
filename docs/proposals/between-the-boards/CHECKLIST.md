@@ -47,9 +47,9 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase C: the home
 
-- [ ] **Step 8. What the home remembers**
-  - [ ] Recent games, put-away games and "arranged once" are stored and tested
-  - [ ] The arrange screen has its "Put away" line
+- [x] **Step 8. What the home remembers**
+  - [x] Recent games, put-away games and "arranged once" are stored and tested
+  - [x] The arrange screen has its "Put away" line
 - [ ] **Step 9. The home, before you connect**
   - [ ] Every game as its picture, three to a row (home-art)
   - [ ] One line to connect (home-connect)

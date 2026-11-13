@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -38,6 +39,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -55,21 +58,33 @@ private val ROW_HEIGHT = 64.dp
 
 /**
  * The home's games in your own order: hold a game and drag it to its place, or move it with
- * the arrows. Every move is saved on this phone straight away.
+ * the arrows. A "Put away" line sits in the list: games under it leave the shelf, games above
+ * it are on it. Nothing is deleted, and every move is saved on this phone straight away.
  */
 @Composable
-fun ArrangeGamesScreen(order: List<GameKind>, onChange: (List<GameKind>?) -> Unit, onBack: () -> Unit) {
+fun ArrangeGamesScreen(
+    order: List<GameKind>,
+    putAway: Set<GameKind>,
+    onChange: (order: List<GameKind>?, putAway: Set<GameKind>) -> Unit,
+    onBack: () -> Unit,
+) {
     val p = AppTheme.palette
-    var games by remember { mutableStateOf(order) }
+    // The shelf, the line (null) and then what is put away: the line moves like a game does.
+    var rows by remember { mutableStateOf(rowsOf(order, putAway)) }
     var dragging by remember { mutableStateOf<GameKind?>(null) }
     var offset by remember { mutableFloatStateOf(0f) }
     // One step down the list: a row and the gap under it.
     val step = with(LocalDensity.current) { (ROW_HEIGHT + Space.S).toPx() }
 
+    fun save() {
+        val line = rows.indexOf(null)
+        onChange(rows.filterNotNull(), rows.drop(line + 1).filterNotNull().toSet())
+    }
+
     fun move(from: Int, to: Int) {
-        if (to !in games.indices || from == to) return
-        games = games.toMutableList().apply { add(to, removeAt(from)) }
-        onChange(games)
+        if (to !in rows.indices || from == to) return
+        rows = rows.toMutableList().apply { add(to, removeAt(from)) }
+        save()
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -80,10 +95,20 @@ fun ArrangeGamesScreen(order: List<GameKind>, onChange: (List<GameKind>?) -> Uni
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Space.L, vertical = Space.S),
             verticalArrangement = Arrangement.spacedBy(Space.S),
         ) {
-            Text("Hold a game and drag it to its new place, or use the arrows. Your order is saved on this phone.", color = p.muted, fontSize = TextSize.Body)
-            games.forEachIndexed { index, kind ->
+            Text(
+                "Hold a game and drag it to its new place, or use the arrows. Games under the Put away line leave the shelf; move them back above it any time. Your order is saved on this phone.",
+                color = p.muted,
+                fontSize = TextSize.Body,
+            )
+            val line = rows.indexOf(null)
+            rows.forEachIndexed { index, kind ->
+                if (kind == null) {
+                    PutAwayLine()
+                    return@forEachIndexed
+                }
                 key(kind) {
                     val lifted = dragging == kind
+                    val away = index > line
                     Surface(
                         color = p.card,
                         shape = Shapes.M,
@@ -94,6 +119,7 @@ fun ArrangeGamesScreen(order: List<GameKind>, onChange: (List<GameKind>?) -> Uni
                             .height(ROW_HEIGHT)
                             .zIndex(if (lifted) 1f else 0f)
                             .graphicsLayer { translationY = if (lifted) offset else 0f }
+                            .semantics { stateDescription = if (away) "Put away" else "On the shelf" }
                             .pointerInput(kind) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = { dragging = kind; offset = 0f },
@@ -102,9 +128,9 @@ fun ArrangeGamesScreen(order: List<GameKind>, onChange: (List<GameKind>?) -> Uni
                                 ) { change, amount ->
                                     change.consume()
                                     offset += amount.y
-                                    val at = games.indexOf(kind)
-                                    // Past half a row, the game swaps with its neighbour and the offset carries on from there.
-                                    if (offset > step / 2 && at < games.lastIndex) {
+                                    val at = rows.indexOf(kind)
+                                    // Past half a row, the game swaps with its neighbour (the line too) and the offset carries on from there.
+                                    if (offset > step / 2 && at < rows.lastIndex) {
                                         move(at, at + 1)
                                         offset -= step
                                     } else if (offset < -step / 2 && at > 0) {
@@ -121,23 +147,42 @@ fun ArrangeGamesScreen(order: List<GameKind>, onChange: (List<GameKind>?) -> Uni
                             ) { GameIcon(kind, Modifier.size(24.dp)) }
                             Spacer(Modifier.width(Space.M))
                             Column(Modifier.weight(1f)) {
-                                Text(kind.label, color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                                Text(kind.label, color = if (away) p.muted else p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
                                 Text(kind.tagline, color = p.muted, fontSize = TextSize.Label, maxLines = 1)
                             }
                             IconButton(onClick = { move(index, index - 1) }, enabled = index > 0) {
                                 Icon(Icons.Filled.KeyboardArrowUp, "Move ${kind.label} up", tint = if (index > 0) p.text else p.hairline)
                             }
-                            IconButton(onClick = { move(index, index + 1) }, enabled = index < games.lastIndex) {
-                                Icon(Icons.Filled.KeyboardArrowDown, "Move ${kind.label} down", tint = if (index < games.lastIndex) p.text else p.hairline)
+                            IconButton(onClick = { move(index, index + 1) }, enabled = index < rows.lastIndex) {
+                                Icon(Icons.Filled.KeyboardArrowDown, "Move ${kind.label} down", tint = if (index < rows.lastIndex) p.text else p.hairline)
                             }
                         }
                     }
                 }
             }
             TextButton(onClick = {
-                games = GameKind.entries
-                onChange(null)
+                val away = rows.drop(rows.indexOf(null) + 1).filterNotNull().toSet()
+                rows = rowsOf(GameKind.entries, away)
+                onChange(null, away)
             }) { Text("Reset to the default order", color = p.primaryText) }
         }
+    }
+}
+
+/** The shelf's games, then the line (null), then the games put away, each in [order]. */
+private fun rowsOf(order: List<GameKind>, putAway: Set<GameKind>): List<GameKind?> =
+    order.filter { it !in putAway } + listOf(null) + order.filter { it in putAway }
+
+/** The "Put away" line: a divider as tall as a game, so dragging by whole rows keeps its sums. */
+@Composable
+private fun PutAwayLine() {
+    val p = AppTheme.palette
+    Column(Modifier.fillMaxWidth().height(ROW_HEIGHT), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M)) {
+            HorizontalDivider(Modifier.weight(1f), color = p.ink, thickness = 2.dp)
+            Text("Put away", color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            HorizontalDivider(Modifier.weight(1f), color = p.ink, thickness = 2.dp)
+        }
+        Text("Off the shelf, not deleted", color = p.muted, fontSize = TextSize.Label)
     }
 }

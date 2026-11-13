@@ -33,6 +33,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
     fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
+    /** The arrange screen's result: the order, and the games below its "Put away" line. */
+    fun setArrangement(order: List<GameKind>?, putAway: Set<GameKind>) {
+        if (putAway != profile.value.putAway) store.setPutAway(putAway)
+        store.setGameOrder(order)
+    }
+    fun noteGamePlayed(game: GameKind) = store.noteGamePlayed(game)
     fun finishFirstRun() = store.finishFirstRun()
     fun setVibration(on: Boolean) = store.setVibration(on)
     fun setSound(on: Boolean) = store.setSound(on)

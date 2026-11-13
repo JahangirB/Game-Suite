@@ -16,6 +16,9 @@ enum class PlayMode { OFFLINE, ONLINE }
 /** How the ships look in Ship Battle; each player picks their own. */
 enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood") }
 
+/** A game that was played, and when (epoch milliseconds), for the home's "jump back in" row. */
+data class RecentGame(val game: GameKind, val at: Long)
+
 data class LevelStats(val wins: Int = 0, val bestMs: Long? = null)
 
 data class Stats(
@@ -82,6 +85,12 @@ data class Profile(
     val notificationsAsked: Boolean = false,
     /** Games whose tutorial has been seen (it plays the first time a game is opened). */
     val tutorialsSeen: Set<GameKind> = emptySet(),
+    /** The last six different games played, newest first. */
+    val recentGames: List<RecentGame> = emptyList(),
+    /** Games taken off the shelf on the arrange screen; they stay in [gameOrder]. */
+    val putAway: Set<GameKind> = emptySet(),
+    /** True once the order has been changed, so the home can stop saying how. */
+    val arrangedOnce: Boolean = false,
 )
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
@@ -141,8 +150,27 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
 
     /** Saves the home's game order; null puts the games back in the default order. */
     fun setGameOrder(order: List<GameKind>?) {
-        prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
-        _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
+        prefs.edit {
+            if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key })
+            putBoolean(KEY_ARRANGED_ONCE, true)
+        }
+        _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key }), arrangedOnce = true) }
+    }
+
+    /** Saves the games taken off the shelf (none: all back). Nothing is deleted; [Profile.gameOrder] still holds them. */
+    fun setPutAway(games: Set<GameKind>) {
+        prefs.edit {
+            putString(KEY_PUT_AWAY, games.joinToString(",") { it.key })
+            putBoolean(KEY_ARRANGED_ONCE, true)
+        }
+        _profile.update { it.copy(putAway = games, arrangedOnce = true) }
+    }
+
+    /** A game has started: it goes to the front of [Profile.recentGames], once, and only six are kept. */
+    fun noteGamePlayed(game: GameKind, at: Long = System.currentTimeMillis()) {
+        val recent = (listOf(RecentGame(game, at)) + _profile.value.recentGames.filter { it.game != game }).take(MAX_RECENT)
+        prefs.edit { putString(KEY_RECENT, recent.joinToString(",") { "${it.game.key}:${it.at}" }) }
+        _profile.update { it.copy(recentGames = recent) }
     }
 
     /** An invitation went out or came in: from now on the home offers to turn on notifications. */
@@ -278,6 +306,10 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
+            recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
+            putAway = gamesOf(prefs.getString(KEY_PUT_AWAY, null)),
+            // Someone who arranged the games before this was kept has already learned how.
+            arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, prefs.contains(KEY_GAME_ORDER)),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -287,6 +319,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
 
     companion object {
         const val MAX_NAME = 16
+        const val MAX_RECENT = 6
         // These two keys predate the profile screen; keep them so saved settings carry over.
         private const val KEY_URL = "script_url"
         private const val KEY_NAME = "player_name"
@@ -316,6 +349,21 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"
+        private const val KEY_RECENT = "recent_games"
+        private const val KEY_PUT_AWAY = "put_away"
+        private const val KEY_ARRANGED_ONCE = "arranged_once"
+
+        /** Games from a comma list of keys; unknown keys and repeats are left out. */
+        fun gamesOf(saved: String?): Set<GameKind> =
+            saved.orEmpty().split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.toSet()
+
+        /** Recent games from "key:millis" pairs, newest first; anything unreadable is left out. */
+        fun recentOf(saved: String?): List<RecentGame> =
+            saved.orEmpty().split(",").mapNotNull { pair ->
+                val (key, at) = pair.split(":").takeIf { it.size == 2 } ?: return@mapNotNull null
+                val game = GameKind.entries.firstOrNull { it.key == key } ?: return@mapNotNull null
+                RecentGame(game, at.toLongOrNull() ?: return@mapNotNull null)
+            }.sortedByDescending { it.at }.distinctBy { it.game }.take(MAX_RECENT)
 
         /** The saved order, with games added since (or not known any more) put right. */
         fun orderOf(saved: String?): List<GameKind> {
