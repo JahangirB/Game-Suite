@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.BuildConfig
 import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -257,6 +258,14 @@ fun ProfileScreen(
                         color = p.muted,
                         fontSize = TextSize.Body,
                     )
+                }
+            }
+
+            // Only in the preview app, so the owner always knows which of the two apps is open.
+            if (BuildConfig.PREVIEW) {
+                AppCard("Preview app") {
+                    Text("This is the preview app. It keeps its own games and scores.", color = p.text)
+                    Text("Version ${BuildConfig.VERSION_NAME}", color = p.muted, fontSize = TextSize.Body)
                 }
             }
         }

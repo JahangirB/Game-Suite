@@ -13,20 +13,20 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Step 0: before you start
 
-- [ ] The live branch's name is known (`git remote show origin | grep 'HEAD branch'`): …
-- [ ] The work branch `between-the-boards` is created from `origin/claude/brave-faraday-w5scs4` and pushed
-- [ ] `./gradlew assemblePreview` works in this session (environment set up, SDK installed)
-- [ ] Baseline checks run on the untouched branch; result: …
-- [ ] Looked at the targets and read `prototypes/ProtoKit.kt`
+- [x] The live branch's name is known (`git remote show origin | grep 'HEAD branch'`): `ccr-d293cbfe-amy86v`
+- [x] The work branch `between-the-boards` is created from `origin/claude/brave-faraday-w5scs4` and pushed
+- [x] `./gradlew assemblePreview` works in this session (environment set up, SDK installed): session moved onto the "Game-Suite" environment, SDK installed with `setup-android-sdk.sh`
+- [x] Baseline checks run on the untouched branch; result: all green. Design tokens OK; Android unit tests 260 run, 0 failed; Apps Script 17 pass; Cloudflare 150 pass
+- [x] Looked at the targets and read `prototypes/ProtoKit.kt`
 
 ## Phase A: the preview app
 
-- [ ] **Step 1. The preview app is real**
-  - [ ] The "Build" run on the work branch is green, "Publish preview app" included
-  - [ ] Release `preview` is a pre-release with `PipPopPreview.apk`, `PipPop.apk`, `version.json`
-  - [ ] The latest release is still `latest`, unchanged
-  - [ ] "Preview app" card on the profile, shown only in the preview
-  - [ ] The owner has the download link and knows invitations are off in the preview
+- [x] **Step 1. The preview app is real**
+  - [x] The "Build" run on the work branch is green, "Publish preview app" included (run 168)
+  - [x] Release `preview` is a pre-release with `PipPopPreview.apk`, `PipPop.apk`, `version.json`
+  - [x] The latest release is still `latest`, unchanged (1.0.163, commit e037637)
+  - [x] "Preview app" card on the profile, shown only in the preview
+  - [x] The owner has the download link and knows invitations are off in the preview
 
 ## Phase B: one toy box
 
