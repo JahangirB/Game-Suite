@@ -356,7 +356,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DOMINOES) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DOMINOES) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char) = if (mark == 'm') "You" else room.others.getOrNull("opq".indexOf(mark))?.name ?: "Someone"
     val turnName = turns.turnName ?: room.opponent?.name
@@ -451,7 +451,7 @@ private fun DominoOptionChips(o: DominoOptions, fourPlayers: Boolean, enabled: B
 fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DOMINOES) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DOMINOES) { showRules = false }
     val view = state.view
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (view == null) { BackToHome(onHome); return }

@@ -418,7 +418,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     var reacting by remember { mutableStateOf(false) }
     val hint = remember { FlightHint() }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.NUMBERS) { showRules = false }
     val mine = if (board != null) progressOf(board, entries) else 0
     val startAt = room.startAt ?: now
     val elapsed = when (phase) {
@@ -479,7 +479,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     val hint = remember { FlightHint() }
-    if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.NUMBERS) { showRules = false }
     val puzzle = state.puzzle
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (puzzle == null) { BackToHome(onHome); return }

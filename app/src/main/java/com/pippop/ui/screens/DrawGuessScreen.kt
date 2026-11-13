@@ -185,7 +185,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val localNow = rememberTicker()
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DRAW) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DRAW) { showRules = false }
     val drawing = draw.drawing == true
     val playing = phase == RoomStatus.PLAYING
     // Who draws: you, or the player the server names (the only other one with two players).

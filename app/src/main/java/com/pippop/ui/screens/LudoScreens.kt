@@ -452,7 +452,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.LUDO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.LUDO) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char) = if (mark == 'm') "You" else room.others.getOrNull("opq".indexOf(mark))?.name ?: "Someone"
     val turnName = turns.turnName ?: room.opponent?.name
@@ -507,7 +507,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.LUDO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.LUDO) { showRules = false }
     val view = state.view
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (view == null) { BackToHome(onHome); return }

@@ -71,10 +71,10 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] Solo starts from the sheet, with the last setup remembered, for every game with solo play (sheet-solo)
   - [x] No level stage left in any solo screen; `LevelDialog` gone; no screen with several main buttons (fix-primary)
   - [x] No "your best" line and no "you two" strip on the sheet
-- [ ] **Step 12. Rules you can find your place in** (rules-points)
-  - [ ] All twenty games' rules are four to six titled points, within the limits, tested
-  - [ ] `RulesSheet` replaces `RulesDialog`; "Show me how" opens the walk-through
-  - [ ] The stock-part exceptions of step 6 are removed
+- [x] **Step 12. Rules you can find your place in** (rules-points)
+  - [x] All twenty games' rules are four to six titled points, within the limits, tested
+  - [x] `RulesSheet` replaces `RulesDialog`; "Show me how" opens the walk-through
+  - [x] The stock-part exceptions of step 6 are removed
 
 ## Phase E: the lobby
 

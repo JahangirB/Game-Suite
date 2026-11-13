@@ -302,7 +302,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val opponent = room.opponent
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
+    if (showRules) RulesSheet(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     val name = opponent?.name ?: "The other player"
     var clearKey by remember { mutableIntStateOf(0) }
     val marks = letterMarksOn()
@@ -393,7 +393,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
+    if (showRules) RulesSheet(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (!state.started) { BackToHome(onHome); return }
     var changing by remember { mutableStateOf(false) }

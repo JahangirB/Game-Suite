@@ -424,7 +424,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     var sortHand by remember { mutableStateOf(false) }
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CLASH) { showRules = false }
+    if (showRules) RulesSheet(GameKind.CLASH) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char) = if (mark == 'm') "You" else room.others.getOrNull("opq".indexOf(mark))?.name ?: "Someone"
     val turnName = turns.turnName ?: room.opponent?.name
@@ -485,7 +485,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CLASH) { showRules = false }
+    if (showRules) RulesSheet(GameKind.CLASH) { showRules = false }
     val view = state.view
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (view == null) { BackToHome(onHome); return }

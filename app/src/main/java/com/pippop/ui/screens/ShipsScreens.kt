@@ -371,7 +371,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
     val skins = skinsTool { showSkins = true }
@@ -502,7 +502,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
     // Whenever the game changes, make sure the computer plays if it's its turn.
     LaunchedEffect(game) { vm.keepPlaying() }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
     GameFrame(

@@ -315,7 +315,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val localNow = rememberTicker()
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.WORDS) { showRules = false }
     var showLetters by remember { mutableStateOf(false) }
     if (showLetters) InfoSheet("Your letters", onDismiss = { showLetters = false }) { WordLetters(words.mine) }
 
@@ -423,7 +423,7 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
 fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.WORDS) { showRules = false }
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     val daily = state.daily
     if (daily == null) { BackToHome(onHome); return }

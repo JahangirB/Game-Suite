@@ -878,7 +878,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val canMove = myTurn && !finished && !state.firing
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(game) { showRules = false }
+    if (showRules) RulesSheet(game) { showRules = false }
     // The dock's Last move / Last line plays the last move again; Pairs lists who found what.
     var replay by remember { mutableIntStateOf(0) }
     var showPairs by remember { mutableStateOf(false) }
@@ -1050,7 +1050,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
     val level = state.level
     if (level == null) { BackToHome(onHome); return }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CONNECT4) { showRules = false }
+    if (showRules) RulesSheet(GameKind.CONNECT4) { showRules = false }
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.CONNECT4, "New game", vm::startWith) { changing = false }
     val result = state.result
@@ -1094,7 +1094,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
 fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DOTS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DOTS) { showRules = false }
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.DOTS, "New game", vm::startWith) { changing = false }
     val result = state.result
@@ -1135,7 +1135,7 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
 @Composable
 fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Unit) {
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.TTT) { showRules = false }
+    if (showRules) RulesSheet(GameKind.TTT) { showRules = false }
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.TTT, "New game", vm::startWith) { changing = false }
     val result = state.result
@@ -1193,7 +1193,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
 fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.MEMORY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.MEMORY) { showRules = false }
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.MEMORY, "New game", vm::startWith) { changing = false }
     val finished = state.finishedMs

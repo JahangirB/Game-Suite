@@ -7,6 +7,7 @@ import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.LineHeight
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.Radius
 import com.pippop.ui.theme.SeatColors
 import androidx.compose.foundation.BorderStroke
@@ -35,11 +36,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -68,6 +67,8 @@ import com.pippop.ui.BattleUiState
 import com.pippop.ui.theme.OpponentColor
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.GameIcon
+import com.pippop.ui.art.color
 import com.pippop.ui.art.rules
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
@@ -331,24 +332,54 @@ private fun GameDock(actions: List<DockAction>) {
     }
 }
 
-/** How to play [kind], from the dock's Rules button. */
+/**
+ * How to play [kind]: a handful of short points, each with a title to find your place by, from the dock's
+ * Rules button and the game's sheet. "Show me how" plays the game's walk-through (where it has one).
+ */
 @Composable
-fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
+fun RulesSheet(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     // "Show me how" plays the game's tutorial again, then comes back to the rules.
     var showing by remember { mutableStateOf(false) }
     if (showing) return TutorialDialog(kind) { showing = false }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = p.card,
-        title = { Text(kind.label, color = p.text, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true) {
+        RulesSheetBody(kind, extra, onShowHow = { showing = true }, onDismiss = onDismiss)
+    }
+}
+
+/** What the rules sheet holds (also drawn by screenshots, where the sheet's own window is not in the root). */
+@Composable
+internal fun RulesSheetBody(kind: GameKind, extra: (@Composable () -> Unit)?, onShowHow: () -> Unit, onDismiss: () -> Unit) {
+    val p = AppTheme.palette
+    run {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Space.XL).padding(bottom = Space.L),
+            verticalArrangement = Arrangement.spacedBy(Space.M),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M)) {
+                Box(
+                    Modifier.size(36.dp).clip(Shapes.S).background(kind.color).border(2.dp, p.ink, Shapes.S),
+                    contentAlignment = Alignment.Center,
+                ) { GameIcon(kind, Modifier.size(22.dp)) }
+                Text(
+                    "How to play ${kind.label}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM, modifier = Modifier.weight(1f),
+                )
+            }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.S)) {
+                kind.rules.forEachIndexed { i, point ->
+                    Row {
+                        Text(point.title, color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.width(108.dp))
+                        Text(point.body, color = p.text, fontSize = TextSize.Body, modifier = Modifier.weight(1f))
+                    }
+                    if (i < kind.rules.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+                }
                 extra?.invoke()
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primaryText, fontWeight = FontWeight.Bold) } },
-        dismissButton = if (hasTutorial(kind)) ({ TextButton(onClick = { showing = true }) { Text("Show me how", color = p.primaryText) } }) else null,
-    )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.M)) {
+                if (hasTutorial(kind)) SecondaryButton("Show me how", onShowHow, Modifier.weight(1f))
+                PrimaryButton("Got it", onDismiss, Modifier.weight(1f))
+            }
+        }
+    }
 }

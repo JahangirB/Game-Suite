@@ -262,7 +262,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SLIDE) { showRules = false }
     // The dock's Peek shows the finished board for a moment.
     var peeking by remember { mutableStateOf(false) }
     LaunchedEffect(peeking) {
@@ -349,7 +349,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SLIDE) { showRules = false }
     val level = state.level
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (level == null) { BackToHome(onHome); return }

@@ -82,7 +82,7 @@ fun SoloScreen(
     val playing = game.status == SoloStatus.PLAYING
 
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SUDOKU) { showRules = false }
     var menuPaused by remember { mutableStateOf(false) }
     GameFrame(
         title = "Sudoku",

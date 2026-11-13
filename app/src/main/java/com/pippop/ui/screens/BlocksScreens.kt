@@ -457,7 +457,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
     var flipTaps by remember { mutableIntStateOf(0) }
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BLOCKS) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     val turnName = turns.turnName ?: room.opponent?.name
     val names = listOf('m' to "You") + room.others.mapIndexed { i, o -> letterOf(i) to o.name }
@@ -517,7 +517,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
 fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BLOCKS) { showRules = false }
     val view = state.view
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (view == null) { BackToHome(onHome); return }

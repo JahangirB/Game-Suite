@@ -348,7 +348,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BALLOON) { showRules = false }
     var showUsed by remember { mutableStateOf(false) }
     if (showUsed) InfoSheet("Used letters", onDismiss = { showUsed = false }) {
         val inWord = view.guessed.filter { it in view.pattern }.sorted()
@@ -426,7 +426,7 @@ private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, line:
 fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BALLOON) { showRules = false }
     val result = state.result
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.BALLOON, "New game", vm::startWith) { changing = false }

@@ -379,7 +379,7 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GOLF) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GOLF) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     val turnName = turns.turnName ?: room.opponent?.name
     val current = if (myTurn) 'm' else room.others.indexOfFirst { it.name == turnName }.takeIf { it >= 0 }?.let(::letterOf)
@@ -463,7 +463,7 @@ fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
 fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GOLF) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GOLF) { showRules = false }
     val view = state.view
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (view == null) { BackToHome(onHome); return }

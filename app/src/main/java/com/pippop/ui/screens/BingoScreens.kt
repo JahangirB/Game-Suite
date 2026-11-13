@@ -349,7 +349,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BINGO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BINGO) { showRules = false }
     val startAt = room.startAt ?: 0L
     val card = bingo.card
     val calls = bingo.calls
@@ -439,7 +439,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BINGO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BINGO) { showRules = false }
     if (state.computers == 0) { BackToHome(onHome); return }
     var changing by remember { mutableStateOf(false) }
     if (changing) SoloSetupSheet(GameKind.BINGO, "New game", vm::startWith) { changing = false }

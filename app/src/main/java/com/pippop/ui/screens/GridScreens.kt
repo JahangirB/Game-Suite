@@ -336,7 +336,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GRID) { showRules = false }
     var showWords by remember { mutableStateOf(false) }
     if (showWords) InfoSheet("Your words: ${grid.mine.size}", onDismiss = { showWords = false }) {
         Text(
@@ -398,7 +398,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GRID) { showRules = false }
     val now = rememberTicker()
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (!state.started) { BackToHome(onHome); return }

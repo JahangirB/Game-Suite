@@ -20,16 +20,8 @@ code=$(grep -rn --include='*.kt' '' "$src" | grep -vE '^[^:]+:[0-9]+:[[:space:]]
 stock=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])(OutlinedTextField|FilterChip|CircularProgressIndicator|SnackbarHost|Switch)\(' || true)
 # ModalBottomSheet may appear only in ToySheet.
 sheets=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])ModalBottomSheet\(' | grep -v "^$src/ui/screens/Toy.kt" || true)
-# AlertDialog is allowed only inside RulesDialog (GameFrame.kt).
-# TODO: step 12 replaces it with the rules sheet; delete this exception then.
-dialogs=$(find "$src" -name '*.kt' -print0 | xargs -0 awk '
-  FNR == 1 { fn = "" }
-  /^[[:space:]]*(\/\/|\*|\/\*)/ { next }
-  /^[[:space:]]*([A-Za-z@]+[[:space:]]+)*fun[[:space:]]/ { fn = $0; sub(/\(.*/, "", fn); sub(/.*fun[[:space:]]+/, "", fn) }
-  /(^|[^A-Za-z0-9_])AlertDialog\(/ {
-    n = split(FILENAME, parts, "/"); file = parts[n]
-    if (!(file == "GameFrame.kt" && fn == "RulesDialog")) print FILENAME ":" FNR ":" $0
-  }' || true)
+# AlertDialog may not appear at all (ToyDialog is the app's own).
+dialogs=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])AlertDialog\(' || true)
 bad="$stock
 $sheets
 $dialogs"

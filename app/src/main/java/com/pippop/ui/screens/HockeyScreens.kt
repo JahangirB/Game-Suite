@@ -247,7 +247,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.HOCKEY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.HOCKEY) { showRules = false }
     val opponent = room.opponent
     // While playing, the live table has the latest score; at the end, the server's.
     val mine = if (finished) room.hockey?.mine ?: shown.bottomScore else shown.bottomScore
@@ -326,7 +326,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
 fun SoloHockeyScreen(state: SoloHockeyUiState, vm: SoloHockeyViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.HOCKEY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.HOCKEY) { showRules = false }
     val level = state.level
     // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     if (level == null) { BackToHome(onHome); return }

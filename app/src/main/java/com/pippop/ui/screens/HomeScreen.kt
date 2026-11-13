@@ -6,7 +6,6 @@ import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.Radius
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.art.tagline
-import com.pippop.ui.art.rules
 import com.pippop.ui.art.color
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.KeyArt
@@ -34,7 +33,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -675,7 +673,7 @@ internal fun GameSheet(
                 Text(kind.tagline, color = p.muted, fontSize = TextSize.Body)
             }
             Text(
-                if (showRules) "Hide rules" else "How to play", color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
+                "How to play", color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(Shapes.Full)
                     .clickable(role = Role.Button) { showRules = !showRules }
@@ -685,7 +683,7 @@ internal fun GameSheet(
                     .padding(horizontal = Space.M, vertical = Space.S),
             )
         }
-        if (showRules) Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
+        if (showRules) RulesSheet(kind) { showRules = false }
         Facts(kind.facts)
 
         // The one main button: the room or the partner when there is one, otherwise continuing a Sudoku.

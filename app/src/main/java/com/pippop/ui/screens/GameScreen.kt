@@ -116,7 +116,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             else -> "${player.progress ?: 0}% solved"
         }
     }, otherColor = if (together) ({ CoopInk[(it + 1).coerceAtMost(CoopInk.lastIndex)] }) else ({ SeatColors[it % SeatColors.size] }))
-    if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SUDOKU) { showRules = false }
 
     GameFrame(
         title = "Sudoku",
