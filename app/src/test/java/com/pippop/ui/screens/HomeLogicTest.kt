@@ -1,11 +1,13 @@
 package com.pippop.ui.screens
 
 import com.pippop.data.GameKind
+import com.pippop.data.PlayerInfo
 import com.pippop.data.RecentGame
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.random.Random
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -82,5 +84,60 @@ class HomeLogicTest {
         assertNull(surprisePick(emptyList(), 1))
         assertNull(surprisePick(listOf(GameKind.TTT, GameKind.HOCKEY), 3))
         assertNull(surprisePick(listOf(GameKind.DRAW), 1))
+    }
+}
+
+class RoomBarLogicTest {
+    @Test fun namesJoinOnOneLine() {
+        assertEquals("", joinNames(emptyList()))
+        assertEquals("Maya", joinNames(listOf("Maya")))
+        assertEquals("Maya & Leo", joinNames(listOf("Maya", "Leo")))
+        assertEquals("Maya, Leo & Kim", joinNames(listOf("Maya", "Leo", "Kim")))
+        assertEquals("Maya, Leo, Kim & Ann", joinNames(listOf("Maya", "Leo", "Kim", "Ann")))
+    }
+
+    @Test fun aLongLineIsCutWithAnEllipsis() {
+        val line = joinNames(listOf("Maya", "Leo", "Kim"), maxChars = 12)
+        assertEquals(12, line.length)
+        assertTrue(line.endsWith("…"))
+        assertEquals("Maya, Leo &…", line)
+        assertEquals("Maya & Leo", joinNames(listOf("Maya", "Leo"), maxChars = 10))
+    }
+
+    @Test fun aGameFitsWhenItTakesEveryoneInTheRoom() {
+        assertTrue(fitsRoom(GameKind.HOCKEY, 2))
+        assertFalse(fitsRoom(GameKind.HOCKEY, 3))
+        assertTrue(fitsRoom(GameKind.LUDO, 4))
+        assertFalse(fitsRoom(GameKind.LUDO, 5))
+        assertTrue(fitsRoom(GameKind.HOCKEY, 1))
+    }
+
+    @Test fun seatsAreSaidOnTheTile() {
+        assertEquals("2", seatsLabel(GameKind.HOCKEY))
+        assertEquals("2–4", seatsLabel(GameKind.LUDO))
+        assertEquals("2 players", fadedLabel(GameKind.SHIPS))
+    }
+
+    private fun who(name: String, at: GameKind?) = PlayerInfo(
+        name = name, avatar = null, deviceId = null, emoji = null, ready = false, difficulty = null, progress = null,
+        finishMs = null, left = false, idleMs = 0, online = true, at = at,
+    )
+
+    @Test fun onlyThePeopleAtTheOpenGameCount() {
+        val others = listOf(who("Maya", GameKind.LUDO), who("Leo", GameKind.SHIPS), who("Kim", null))
+        assertEquals(listOf("Maya"), inGame(others, GameKind.LUDO, GameKind.LUDO).map { it.name })
+        // Leo's screen is still on Ship Battle's result, but the room has moved to Ludo.
+        assertTrue(inGame(others, GameKind.LUDO, GameKind.SHIPS).isEmpty())
+        assertTrue(inGame(others, GameKind.LUDO, GameKind.WORDS).isEmpty())
+    }
+
+    @Test fun waitingOrPlayingIsSaid() {
+        assertEquals("Ludo, 2 to 4 players, Maya is waiting in it", tileDescription(GameKind.LUDO, 2, listOf("Maya"), playing = false))
+    }
+
+    @Test fun aTileIsDescribedWithSeatsAndWho() {
+        assertEquals("Ludo, 2 to 4 players, Maya is playing", tileDescription(GameKind.LUDO, 2, listOf("Maya")))
+        assertEquals("Ludo, 2 to 4 players, Maya & Leo are playing", tileDescription(GameKind.LUDO, 3, listOf("Maya", "Leo")))
+        assertEquals("${GameKind.HOCKEY.label}, 2 players, too few seats for everyone", tileDescription(GameKind.HOCKEY, 3, emptyList()))
     }
 }

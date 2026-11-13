@@ -1,6 +1,7 @@
 package com.pippop.ui.screens
 
 import com.pippop.data.GameKind
+import com.pippop.data.PlayerInfo
 import com.pippop.data.RecentGame
 import java.time.Instant
 import java.time.LocalDate
@@ -65,3 +66,44 @@ fun surpriseCandidates(shelf: List<GameKind>, players: Int): List<GameKind> = sh
 /** One game for "Surprise us", or null when none fits. */
 fun surprisePick(shelf: List<GameKind>, players: Int, random: Random = Random): GameKind? =
     surpriseCandidates(shelf, players).let { if (it.isEmpty()) null else it[random.nextInt(it.size)] }
+
+/**
+ * Names on one line: "Maya", "Maya & Leo", "Maya, Leo & Kim". When the line would be longer than
+ * [maxChars] it is cut and ends in an ellipsis ("Maya, Leo & K…").
+ */
+fun joinNames(names: List<String>, maxChars: Int = Int.MAX_VALUE): String {
+    val line = when (names.size) {
+        0 -> ""
+        1 -> names[0]
+        else -> names.dropLast(1).joinToString(", ") + " & " + names.last()
+    }
+    return if (line.length <= maxChars) line else line.take((maxChars - 1).coerceAtLeast(0)).trimEnd() + "…"
+}
+
+/** Whether [kind] has a seat for everyone when [people] are in the room (you included). */
+fun fitsRoom(kind: GameKind, people: Int): Boolean = kind.maxPlayers >= people
+
+/** How many a game takes, as its tile says it: "2" or "2–4". */
+fun seatsLabel(kind: GameKind): String = if (kind.maxPlayers > 2) "2–${kind.maxPlayers}" else "2"
+
+/** What a faded tile says: the most it takes ("2 players"). */
+fun fadedLabel(kind: GameKind): String = "${kind.maxPlayers} players"
+
+/**
+ * The people in [kind]: only the room's open game ([open]) has anyone, and only those whose screen is on it.
+ * A player's old game is not counted once the room has moved on.
+ */
+fun inGame(others: List<PlayerInfo>, open: GameKind, kind: GameKind): List<PlayerInfo> =
+    if (kind != open) emptyList() else others.filter { it.at == open }
+
+/**
+ * A tile as a screen reader says it while connected: "Ludo, 2 to 4 players, Maya is playing".
+ * [people] is everyone in the room; [who] the names of those in this game, [playing] whether the game is under way (else they wait in it).
+ */
+fun tileDescription(kind: GameKind, people: Int, who: List<String>, playing: Boolean = true): String {
+    val seats = if (kind.maxPlayers > 2) "2 to ${kind.maxPlayers} players" else "2 players"
+    val parts = mutableListOf(kind.label, seats)
+    if (!fitsRoom(kind, people)) parts += "too few seats for everyone"
+    if (who.isNotEmpty()) parts += joinNames(who) + (if (who.size == 1) " is " else " are ") + (if (playing) "playing" else "waiting in it")
+    return parts.joinToString(", ")
+}

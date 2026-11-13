@@ -58,11 +58,11 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] More games (home-putaway)
   - [x] "Hold a game to move it" leaves after the first arrange (fix-hint)
   - [x] No month strip on the home
-- [ ] **Step 10. The home, connected**
-  - [ ] A room bar that holds four people (home-roombar)
-  - [ ] Seats on every tile; games that don't fit fade and say so (home-fit)
-  - [ ] Their face on the game they are in (home-face)
-  - [ ] No scores on tiles
+- [x] **Step 10. The home, connected**
+  - [x] A room bar that holds four people (home-roombar)
+  - [x] Seats on every tile; games that don't fit fade and say so (home-fit)
+  - [x] Their face on the game they are in (home-face)
+  - [x] No scores on tiles
 
 ## Phase D: a game's sheet, solo, rules
 

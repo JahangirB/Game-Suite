@@ -54,6 +54,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import com.pippop.ui.theme.Board
+import com.pippop.ui.theme.Digits
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.Dp
+import com.pippop.data.PlayerInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -221,7 +226,7 @@ fun HomeScreen(
             NotificationPrimer(profile, onNotificationsAnswered)
 
             if (room != null) {
-                ConnectedCard(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
+                RoomBar(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
             } else {
                 ConnectBar(profile.playMode, profile.partner, connected, onPlayMode, onConnect)
             }
@@ -233,8 +238,8 @@ fun HomeScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     jump.forEach { t ->
                         val continuing = t.game == GameKind.SUDOKU && sudokuPercent != null
-                        ArtTile(
-                            t.game, Modifier.weight(1f), tag = t.tag,
+                        RoomTile(
+                            t.game, room, Modifier.weight(1f), tag = t.tag, jump = true,
                             onClick = { if (flicking) Unit else if (continuing) { tiles.pending = GameKind.SUDOKU; onContinue() } else openGame(t.game) },
                         )
                     }
@@ -260,7 +265,7 @@ fun HomeScreen(
             shelf.chunked(3).forEach { row ->
                 ShelfRow {
                     row.forEach { kind ->
-                        ArtTile(kind, Modifier.weight(1f).reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
+                        RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -271,7 +276,7 @@ fun HomeScreen(
                 if (moreOpen) away.chunked(3).forEach { row ->
                     ShelfRow {
                         row.forEach { kind ->
-                            ArtTile(kind, Modifier.weight(1f).reportTile(tiles, kind), onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
+                            RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -350,48 +355,103 @@ private fun Eyebrow(text: String) {
 
 /**
  * A game on the shelf: its key art with its name under it. A [tag] sits on the picture's corner
- * ("27% done", "Yesterday"); [highlight] rings it while "Surprise us" flicks across. Holding it
- * moves it (arrange), and the tile dips a little while pressed.
+ * ("27% done", "Yesterday"); [highlight] rings it while "Surprise us" flicks across. While connected,
+ * [seats] says how many it takes ("2–4"), [dim] fades it with the reason ("2 players") and [face] is
+ * someone in it, with a green [ring] round the tile. [description] is what a screen reader says
+ * instead of the pieces. Holding it moves it (arrange), and the tile dips a little while pressed.
  */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 internal fun ArtTile(
     kind: GameKind, modifier: Modifier = Modifier, tag: String? = null, highlight: Boolean = false,
+    seats: String? = null, dim: String? = null, face: PlayerInfo? = null, ring: Boolean = false, description: String? = null,
     onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
 ) {
     val p = AppTheme.palette
     val press = remember { MutableInteractionSource() }
     val pressed by press.collectIsPressedAsState()
-    val edge = if (highlight) p.primary else p.ink
-    Surface(
-        color = p.card, shape = Shapes.M, border = BorderStroke(if (highlight) 3.dp else 2.dp, edge),
-        modifier = modifier.pressedEdge(edge, Radius.M)
-            // The dip is drawn only: the tile's place in the layout never moves.
-            .graphicsLayer { translationY = if (pressed) 2.dp.toPx() else 0f }
-            .clip(Shapes.M)
-            .combinedClickable(
-                interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open",
-                onLongClickLabel = if (onLongClick != null) "Arrange games" else null, onLongClick = onLongClick, onClick = onClick,
-            ),
-    ) {
-        Column {
-            Box(Modifier.fillMaxWidth().aspectRatio(ART)) {
-                KeyArt(kind, Modifier.fillMaxSize())
-                if (tag != null) {
-                    Text(
-                        tag, color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, maxLines = 1,
-                        modifier = Modifier.align(Alignment.TopStart).padding(5.dp).clip(Shapes.Full).background(p.primary).padding(horizontal = 7.dp, vertical = 1.dp),
-                    )
+    val edge = if (highlight) p.primary else if (ring) p.good else p.ink
+    // With a description, the pieces are not read one by one.
+    val quiet = if (description != null) Modifier.clearAndSetSemantics { } else Modifier
+    Box(modifier) {
+        Surface(
+            color = p.card, shape = Shapes.M, border = BorderStroke(if (highlight || ring) 3.dp else 2.dp, edge),
+            modifier = Modifier.fillMaxWidth().pressedEdge(edge, Radius.M)
+                // The dip is drawn only: the tile's place in the layout never moves.
+                .graphicsLayer { translationY = if (pressed) 2.dp.toPx() else 0f }
+                .clip(Shapes.M)
+                .combinedClickable(
+                    interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open",
+                    onLongClickLabel = if (onLongClick != null) "Arrange games" else null, onLongClick = onLongClick, onClick = onClick,
+                )
+                .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
+        ) {
+            Column(Modifier.alpha(if (dim != null) 0.42f else 1f)) {
+                Box(Modifier.fillMaxWidth().aspectRatio(ART)) {
+                    KeyArt(kind, Modifier.fillMaxSize())
+                    if (tag != null) {
+                        Text(
+                            tag, color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, maxLines = 1,
+                            modifier = Modifier.align(Alignment.TopStart).padding(5.dp).clip(Shapes.Full).background(p.primary).padding(horizontal = 7.dp, vertical = 1.dp).then(quiet),
+                        )
+                    }
+                    if (face != null) {
+                        Box(Modifier.align(Alignment.BottomStart).padding(4.dp).then(quiet)) {
+                            Box(Modifier.size(32.dp).clip(CircleShape).background(p.good))
+                            Box(Modifier.padding(3.dp).size(26.dp).clip(CircleShape).background(p.accent).border(1.5.dp, Board.Ink, CircleShape)) { PlayerAvatar(face.name, SeatColors[0], size = 26, avatar = face.avatar) }
+                        }
+                    }
+                    if (seats != null) {
+                        Row(
+                            Modifier.align(Alignment.TopEnd).padding(5.dp).clip(Shapes.Full).background(Color.White).border(1.5.dp, Board.Ink, Shapes.Full)
+                                .padding(start = 3.dp, end = 6.dp).then(quiet),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Person, null, tint = Board.Ink, modifier = Modifier.size(12.dp))
+                            Text(seats, style = Digits, color = Board.Ink, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
+                Box(Modifier.fillMaxWidth().height(2.dp).background(edge))
+                Text(
+                    kind.label, color = p.text, fontSize = TextSize.Body, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                    lineHeight = LineHeight.Label, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp).then(quiet),
+                )
             }
-            Box(Modifier.fillMaxWidth().height(2.dp).background(edge))
+        }
+        if (dim != null) {
             Text(
-                kind.label, color = p.text, fontSize = TextSize.Body, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
-                lineHeight = LineHeight.Label, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+                dim, color = p.text, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 22.dp).clip(Shapes.Full).background(p.card).border(1.5.dp, p.ink, Shapes.Full)
+                    .padding(horizontal = 8.dp, vertical = 2.dp).then(quiet),
             )
         }
     }
+}
+
+/**
+ * A tile on the home. Connected, it also says how many the game takes, fades when it can't take
+ * everyone in the [room], and shows who is in it (the room's open game only) with a green outline. The "Jump back in"
+ * row ([jump]) shows the faces but not the seats.
+ */
+@Composable
+private fun RoomTile(
+    kind: GameKind, room: RoomState?, modifier: Modifier = Modifier,
+    tag: String? = null, highlight: Boolean = false, jump: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
+) {
+    if (room == null) return ArtTile(kind, modifier, tag, highlight, onLongClick = onLongClick, onClick = onClick)
+    val people = room.present.size + 1
+    val here = inGame(room.present, room.game, kind)
+    val playing = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
+    val fits = fitsRoom(kind, people)
+    ArtTile(
+        kind, modifier, tag, highlight,
+        seats = seatsLabel(kind).takeIf { !jump }, dim = fadedLabel(kind).takeIf { !jump && !fits },
+        face = here.firstOrNull(), ring = here.isNotEmpty(),
+        description = tileDescription(kind, people, here.map { it.name }, playing) + (tag?.let { ", $it" } ?: ""),
+        onLongClick = onLongClick, onClick = onClick,
+    )
 }
 
 /** A round button with a drawn icon, for the Games row. 48 dp, named for screen readers. */
@@ -448,65 +508,104 @@ private fun ConnectBar(mode: PlayMode, partner: SavedPartner?, connected: Boolea
 }
 
 /**
- * While connected: who you're with, the room, and where everyone is. Someone at a game shows
- * with a Join button; picking any game opens it for everyone. Leave is the only way out.
+ * While connected, one bar: everyone's faces, the names on one line, the room under them and "Leave".
+ * Tapping the room line sends the invite (online). Under it, where everyone is: someone waiting in a
+ * game with a Join button, or the hint to pick one. Picking any game opens it for everyone.
  */
 @Composable
-private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, shareText: String, onOpenGame: (GameKind) -> Unit, onLeave: () -> Unit) {
+private fun RoomBar(room: RoomState, nearby: Boolean, busy: Boolean, shareText: String, onOpenGame: (GameKind) -> Unit, onLeave: () -> Unit) {
     val p = AppTheme.palette
     val context = LocalContext.current
     val others = room.present
-    AppCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PlayerAvatar(room.me.name, p.primary, avatar = room.me.avatar, mark = seatMark(0))
-            others.forEachIndexed { i, o ->
-                Spacer(Modifier.width(Space.XS))
-                PlayerAvatar(o.name, SeatColors[i % SeatColors.size], avatar = o.avatar, mark = seatMark(i + 1))
+    fun share() {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareText)
+        context.startActivity(Intent.createChooser(send, "Send the code"))
+    }
+    Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(start = 12.dp, top = 6.dp, end = 4.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Faces(listOf(room.me) + others)
+                Spacer(Modifier.width(10.dp))
+                // Online, tapping the names and the room line sends the invite (one 48 dp target).
+                Column(
+                    Modifier.weight(1f).heightIn(min = 48.dp).then(if (nearby) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = "Send the invite") { share() }),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        if (others.isEmpty()) "Waiting for someone to join" else joinNames(others.map { it.name }, NAMES_MAX),
+                        color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    val roomLine = "${if (nearby) "Nearby" else "Online"} · room ${room.code}"
+                    Text(
+                        "● $roomLine",
+                        color = if (others.any { it.online == false }) p.warning else p.good,
+                        fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    )
+                }
+                TextButton(onClick = onLeave, modifier = Modifier.heightIn(min = 48.dp)) { Text("Leave", color = p.bad, fontSize = TextSize.Body, fontWeight = FontWeight.Bold) }
             }
-            Spacer(Modifier.width(Space.M))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (others.isEmpty()) "Waiting for someone to join" else "Connected with ${others.joinToString(" & ") { it.name }}",
-                    color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "● ${if (nearby) "Nearby" else "Online"} · room ${room.code}",
-                    color = if (others.any { it.online == false }) p.warning else p.good,
-                    fontSize = TextSize.Body,
-                )
+            Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RoomStatusLines(room, nearby, busy, onOpenGame, onShare = ::share)
             }
-            TextButton(onClick = onLeave) { Text("Leave", color = p.bad, fontWeight = FontWeight.Bold) }
-        }
-        val here = room.othersAtGame
-        val playing = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
-        when {
-            others.isEmpty() && !nearby -> {
-                Text("Send the code. The game list stays here; you pick one together once they're in.", color = p.muted, fontSize = TextSize.Body)
-                SecondaryButton("Send the code", {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, shareText)
-                    context.startActivity(Intent.createChooser(send, "Send the code"))
-                })
-            }
-            others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join with this code.", color = p.muted, fontSize = TextSize.Body)
-            // You paused a match: it waits for you a while.
-            room.pausedByMe && playing -> {
-                val left = ((room.me.pausedMs ?: 0) / 60_000).coerceAtLeast(0) + 1
-                StatusLine("Your ${room.game.label} game is paused. It waits about $left more min.", Tone.Good)
-                PrimaryButton("Resume ${room.game.label}", { onOpenGame(room.game) }, loading = busy)
-            }
-            here.isNotEmpty() && playing -> {
-                StatusLine("${here.joinToString(" & ") { it.name }} ${if (here.size == 1) "is" else "are"} playing ${room.game.label}.", Tone.Neutral)
-            }
-            here.isNotEmpty() -> {
-                val names = here.joinToString(" & ") { it.name }
-                StatusLine("$names ${if (here.size == 1) "is" else "are"} waiting in ${room.game.label}.", Tone.Good)
-                PrimaryButton("Join $names in ${room.game.label}", { onOpenGame(room.game) }, loading = busy)
-            }
-            else -> Text("Pick a game together: whoever picks it sets its options.", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }
+
+/** Where everyone is: what the room bar says under the names. */
+@Composable
+private fun RoomStatusLines(room: RoomState, nearby: Boolean, busy: Boolean, onOpenGame: (GameKind) -> Unit, onShare: () -> Unit) {
+    val p = AppTheme.palette
+    val others = room.present
+    val here = room.othersAtGame
+    val playing = room.status == RoomStatus.COUNTDOWN || room.status == RoomStatus.PLAYING
+    when {
+        others.isEmpty() && !nearby -> {
+            Text("Send the code. The game list stays here; you pick one together once they're in.", color = p.muted, fontSize = TextSize.Body)
+            SecondaryButton("Send the code", onShare)
+        }
+        others.isEmpty() -> Text("Read the code to the other phone: they type it and tap Join with this code.", color = p.muted, fontSize = TextSize.Body)
+        // You paused a match: it waits for you a while.
+        room.pausedByMe && playing -> {
+            val left = ((room.me.pausedMs ?: 0) / 60_000).coerceAtLeast(0) + 1
+            StatusLine("Your ${room.game.label} game is paused. It waits about $left more min.", Tone.Good)
+            PrimaryButton("Resume ${room.game.label}", { onOpenGame(room.game) }, loading = busy)
+        }
+        here.isNotEmpty() && playing -> {
+            StatusLine("${joinNames(here.map { it.name })} ${if (here.size == 1) "is" else "are"} playing ${room.game.label}.", Tone.Neutral)
+        }
+        here.isNotEmpty() -> {
+            val names = joinNames(here.map { it.name })
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "$names ${if (here.size == 1) "is" else "are"} waiting in ${room.game.label}", color = p.good, fontSize = TextSize.Body,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                )
+                PrimaryButton(
+                    "Join", { onOpenGame(room.game) }, Modifier.width(96.dp).semantics { contentDescription = "Join $names in ${room.game.label}" },
+                    loading = busy,
+                )
+            }
+        }
+        else -> Text("Pick a game: whoever picks it sets it up.", color = p.muted, fontSize = TextSize.Body)
+    }
+}
+
+/** Everyone's pictures, overlapping, each with an outline so they read apart. You come first. */
+@Composable
+private fun Faces(people: List<PlayerInfo>, size: Dp = 36.dp, step: Dp = 25.dp) {
+    val p = AppTheme.palette
+    Box(Modifier.width(size + step * (people.size - 1)).height(size)) {
+        people.forEachIndexed { i, who ->
+            Box(Modifier.offset(x = step * i).size(size).clip(CircleShape).border(2.dp, p.ink, CircleShape)) {
+                PlayerAvatar(who.name, if (i == 0) p.primary else SeatColors[(i - 1) % SeatColors.size], size = size.value.toInt(), avatar = who.avatar, mark = seatMark(i))
+            }
+        }
+    }
+}
+
+/** How much of the names line fits before it is cut with an ellipsis. */
+private const val NAMES_MAX = 26
 
 /** What tapping a game offers: play with your partner, alone or against the computer, or online with a code. */
 @Composable
