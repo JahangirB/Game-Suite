@@ -8,6 +8,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import com.pippop.data.Profile
+import com.pippop.data.SavedPartner
+import com.pippop.ui.theme.OpponentColor
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,7 +39,11 @@ import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.TextSize
 
 /** What the home's connect sheet is for: a nearby room, starting an online room, or joining one with its code. */
-enum class ConnectKind { NEARBY, HOST_ONLINE, JOIN_ONLINE }
+enum class ConnectKind {
+    NEARBY, JOIN_ONLINE,
+    /** The home's Connect button in Online mode: start a room or join one, whichever the link and the person need. */
+    ONLINE,
+}
 
 /** What Android asks for before two phones may find each other directly. */
 internal fun nearbyPermissions(): Array<String> = buildList {
@@ -51,16 +63,54 @@ internal fun nearbyPermissions(): Array<String> = buildList {
  * connected the sheet closes and the home shows who you're with.
  */
 @Composable
-fun ConnectSheet(kind: ConnectKind, state: BattleUiState, vm: BattleViewModel) {
+fun ConnectSheet(kind: ConnectKind, state: BattleUiState, vm: BattleViewModel, profile: Profile = Profile(), onOpenProfile: () -> Unit = {}) {
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Space.XL, end = Space.XL, bottom = Space.XXXL),
         verticalArrangement = Arrangement.spacedBy(Space.M),
     ) {
+        profile.partner?.let { PartnerLine(it) }
         when (kind) {
             ConnectKind.NEARBY -> NearbyConnect(state, vm)
-            ConnectKind.HOST_ONLINE -> OnlineHost(state, vm)
+            ConnectKind.ONLINE -> OnlineConnect(state, vm, profile, onOpenProfile)
             ConnectKind.JOIN_ONLINE -> OnlineJoin(state, vm)
         }
+    }
+}
+
+/** Your saved partner: who the Connect button is for. */
+@Composable
+private fun PartnerLine(partner: SavedPartner) {
+    val p = AppTheme.palette
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        PlayerAvatar(partner.name, OpponentColor, size = 46, avatar = partner.avatar)
+        Spacer(Modifier.width(Space.M))
+        Column(Modifier.weight(1f)) {
+            Text("You & ${partner.name}", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            Text("Connect, then pick a game together", color = p.muted, fontSize = TextSize.Body)
+        }
+    }
+}
+
+private enum class OnlineWay { START, JOIN }
+
+/**
+ * Online, from the home's one Connect button: with a server link, start a room and send its code or
+ * join theirs; without one, join with the message you were sent, or add the link in your profile.
+ */
+@Composable
+private fun OnlineConnect(state: BattleUiState, vm: BattleViewModel, profile: Profile, onOpenProfile: () -> Unit) {
+    val p = AppTheme.palette
+    if (profile.scriptUrl.startsWith("https://")) {
+        var way by rememberSaveable { mutableStateOf(OnlineWay.START) }
+        Text("Play online", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        Text("Start a room and send the code, or join theirs.", color = p.muted, fontSize = TextSize.Body)
+        Choices(listOf(OnlineWay.START to "Start a room", OnlineWay.JOIN to "Join with code"), way, { way = it })
+        if (way == OnlineWay.START) OnlineHost(state, vm) else OnlineJoin(state, vm)
+    } else {
+        Text("Play online", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        Text("To play online, join with the message you were sent: it has the link. Or add the link in your profile.", color = p.muted, fontSize = TextSize.Body)
+        OnlineJoin(state, vm)
+        SecondaryButton("Open profile", onOpenProfile)
     }
 }
 
@@ -89,6 +139,7 @@ private fun NearbyConnect(state: BattleUiState, vm: BattleViewModel) {
     }
 
     Text("Connect nearby", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+    Text("Phones in the same room connect over Bluetooth and Wi‑Fi.", color = p.muted, fontSize = TextSize.Body)
     Text(
         "Both phones use the same room code. One starts the room and reads the code out; the other types it and " +
             "joins. Only a phone with the code can join. The code is kept, so next time you just tap.",

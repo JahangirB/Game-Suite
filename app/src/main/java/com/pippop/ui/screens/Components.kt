@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.style.TextOverflow
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
 import androidx.compose.runtime.DisposableEffect
@@ -110,6 +112,7 @@ private fun ToyButton(
                 disabledContentColor = content.copy(alpha = 0.8f),
             ),
             elevation = null,
+            contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxSize().offset(y = if (pressed) 3.dp else 0.dp),
         ) { body() }
     }
@@ -124,10 +127,18 @@ fun PrimaryButton(
     loading: Boolean = false,
     container: Color = AppTheme.palette.primary,
     content: Color = AppTheme.palette.onPrimary,
+    /** A small picture before the text (a partner's face). */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     ToyButton(onClick, modifier, enabled && !loading, container, content) {
         if (loading) {
             PipPopLoader(Modifier.size(width = 40.dp, height = 24.dp), color = content, color2 = content.copy(alpha = 0.7f))
+        } else if (leading != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                leading()
+                Spacer(Modifier.width(8.dp))
+                Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
         } else {
             Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         }

@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
 import com.pippop.ui.screens.ToastHost
+import com.pippop.ui.screens.Tone
 import com.pippop.ui.screens.ToastVisuals
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
@@ -385,15 +386,14 @@ fun PipPopApp(
                             onInvitePartner = battle::invitePartner,
                             onPlayMode = app::setPlayMode,
                             connected = room != null,
-                            onConnectNearby = { connectSheet = ConnectKind.NEARBY },
-                            onStartRoom = { connectSheet = ConnectKind.HOST_ONLINE },
-                            onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
+                            onConnect = { connectSheet = if (profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.ONLINE },
                             room = room,
                             nearby = battleState.mode == BattleMode.NEARBY,
                             onOpenGame = battle::openGame,
                             onLeaveRoom = { confirmDisconnect = true },
                             onNotificationsAnswered = app::notificationsAnswered,
                             onTutorialSeen = app::tutorialSeen,
+                            onMessage = { m -> scope.launch { snackbar.showSnackbar(ToastVisuals(m, Tone.Neutral)) } },
                             tiles = tiles,
                         )
                     }
@@ -438,7 +438,7 @@ fun PipPopApp(
 
     connectSheet?.let { kind ->
         ToySheet(onDismiss = { connectSheet = null }) {
-            ConnectSheet(kind, battleState, battle)
+            ConnectSheet(kind, battleState, battle, profile, onOpenProfile = { connectSheet = null; dest = Dest.PROFILE })
         }
     }
 

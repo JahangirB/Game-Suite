@@ -105,6 +105,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import com.pippop.game.Sudoku
 import androidx.compose.ui.text.drawText
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import com.pippop.ui.art.TrophyCup
+import com.pippop.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.rememberTextMeasurer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,9 +137,8 @@ fun HomeScreen(
     /** The Online/Offline switch; it can't change while connected. */
     onPlayMode: (PlayMode) -> Unit,
     connected: Boolean,
-    onConnectNearby: () -> Unit,
-    onStartRoom: () -> Unit,
-    onJoinRoom: () -> Unit,
+    /** Opens the connect sheet for the chosen way (nearby, or online). */
+    onConnect: () -> Unit,
     /** The room you're connected to, if any; you stay in it while picking games. */
     room: RoomState? = null,
     nearby: Boolean = false,
@@ -137,6 +146,10 @@ fun HomeScreen(
     onLeaveRoom: () -> Unit = {},
     onNotificationsAnswered: () -> Unit = {},
     onTutorialSeen: (GameKind) -> Unit = {},
+    /** A short message in the app's toast. */
+    onMessage: (String) -> Unit = {},
+    /** The time "Jump back in" counts from; the real time unless a test fixes it. */
+    now: Long = remember { System.currentTimeMillis() },
     /** Where each tile is, and which one a game is being opened from (for the grow-out animation). */
     tiles: TileBounds = remember { TileBounds() },
 ) {
@@ -153,10 +166,43 @@ fun HomeScreen(
         }
     }
 
+    // Surprise us is flicking: taps wait, so its sheet can't open over another.
+    var flicking by remember { mutableStateOf(false) }
+    fun openGame(kind: GameKind) {
+        if (flicking) return
+        if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind
+    }
+    val shelf = profile.gameOrder.filter { it !in profile.putAway }
+    val away = profile.gameOrder.filter { it in profile.putAway }
+    var moreOpen by rememberSaveable { mutableStateOf(false) }
+
+    // Surprise us: a highlight flicks across the tiles for about half a second, stops on a game and opens its sheet.
+    var surprise by remember { mutableIntStateOf(0) }
+    var lit by remember { mutableStateOf<GameKind?>(null) }
+    val reduceMotion = LocalReduceMotion.current
+    val players = (room?.present?.size ?: 0) + 1
+    LaunchedEffect(surprise) {
+        if (surprise == 0) return@LaunchedEffect
+        flicking = true
+        val pick = surprisePick(shelf, players)
+        if (pick == null) { flicking = false; onMessage("No game fits everyone here"); return@LaunchedEffect }
+        if (!reduceMotion) {
+            repeat(SURPRISE_STEPS) {
+                lit = shelf.random()
+                delay(SURPRISE_STEP_MS)
+            }
+        }
+        lit = pick
+        if (!reduceMotion) delay(SURPRISE_HOLD_MS)
+        lit = null
+        flicking = false
+        openGame(pick)
+    }
+
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -177,31 +223,58 @@ fun HomeScreen(
             if (room != null) {
                 ConnectedCard(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
             } else {
-                ConnectionCard(profile, connected, onPlayMode, onConnectNearby, onStartRoom, onJoinRoom, onProfile)
-                profile.partner?.let { PartnerCard(it) }
+                ConnectBar(profile.playMode, profile.partner, connected, onPlayMode, onConnect)
             }
 
-            solo.game?.takeIf { solo.canContinue }?.let { ContinueCard(it, onContinue) }
+            val sudokuPercent = solo.game?.takeIf { solo.canContinue }?.let { Sudoku.filledPercent(it.board.cells, it.board.givens) }
+            val jump = jumpBackIn(sudokuPercent, profile.recentGames, now)
+            if (jump.isNotEmpty()) {
+                Eyebrow("Jump back in")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    jump.forEach { t ->
+                        val continuing = t.game == GameKind.SUDOKU && sudokuPercent != null
+                        ArtTile(
+                            t.game, Modifier.weight(1f), tag = t.tag,
+                            onClick = { if (flicking) Unit else if (continuing) { tiles.pending = GameKind.SUDOKU; onContinue() } else openGame(t.game) },
+                        )
+                    }
+                    repeat(JUMP_TILES - jump.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
                     Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                    Text("Hold a game to move it", color = p.muted, fontSize = TextSize.Label)
+                    if (!profile.arrangedOnce) Text("Hold a game to move it", color = p.muted, fontSize = TextSize.Label)
                 }
-                TextButton(onClick = onScores) { Text("🏆 Scores", color = p.primaryText, fontWeight = FontWeight.Bold) }
-                TextButton(onClick = onArrange) { Text("Arrange", color = p.primaryText, fontWeight = FontWeight.Bold) }
+                RoundButton("Scores", { if (!flicking) onScores() }) { TrophyCup(Modifier.size(26.dp)) }
+                RoundButton("Surprise us", { if (!flicking) surprise++ }) { GameIcon(GameKind.LUDO, Modifier.size(24.dp), tint = p.text) }
+                RoundButton("Arrange games", { if (!flicking) onArrange() }) {
+                    Canvas(Modifier.size(18.dp)) {
+                        for (i in 0..1) for (j in 0..2) drawCircle(p.text, 1.8.dp.toPx(), Offset(size.width * (0.3f + 0.4f * i), size.height * (0.18f + 0.32f * j)))
+                    }
+                }
             }
 
-            // Two tiles per row, in your order; each row stands on a thin shelf.
-            profile.gameOrder.chunked(2).forEach { pair ->
+            // Three tiles per row, in your order; each row stands on a thin shelf.
+            shelf.chunked(3).forEach { row ->
                 ShelfRow {
-                    pair.forEach { kind ->
-                        GameTile(
-                            kind, Modifier.weight(1f).reportTile(tiles, kind), badge = if (kind == GameKind.SUDOKU && solo.canContinue) "Continue" else null,
-                            onLongClick = onArrange,
-                        ) { if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind }
+                    row.forEach { kind ->
+                        ArtTile(kind, Modifier.weight(1f).reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+
+            if (away.isNotEmpty()) {
+                MoreGamesBar(away, moreOpen) { moreOpen = !moreOpen }
+                if (moreOpen) away.chunked(3).forEach { row ->
+                    ShelfRow {
+                        row.forEach { kind ->
+                            ArtTile(kind, Modifier.weight(1f).reportTile(tiles, kind), onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
@@ -256,163 +329,120 @@ fun HomeScreen(
 internal fun ShelfRow(content: @Composable RowScope.() -> Unit) {
     val p = AppTheme.palette
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth(), content = content)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth(), content = content)
         Box(Modifier.fillMaxWidth().height(6.dp).clip(Shapes.Full).background(p.ink.copy(alpha = 0.18f)))
     }
 }
 
+/** The art's shape: 280 to 170, as the key art is drawn. */
+private const val ART = 280f / 170f
+
+/** How many tiles the "Surprise us" highlight touches before it stops, and how long it stays on each: about half a second. */
+private const val SURPRISE_STEPS = 4
+private const val SURPRISE_STEP_MS = Motion.STAGGER_MS.toLong()
+private const val SURPRISE_HOLD_MS = TileTransition.FADE_MS.toLong()
+
+/** A small heading over a group ("JUMP BACK IN"). */
+@Composable
+private fun Eyebrow(text: String) {
+    Text(text.uppercase(), color = AppTheme.palette.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
+}
+
 /**
- * A game on the shelf: its coloured icon (shaded top to bottom, with a darker edge under it),
- * name and one line about it. The tile dips a little while pressed.
+ * A game on the shelf: its key art with its name under it. A [tag] sits on the picture's corner
+ * ("27% done", "Yesterday"); [highlight] rings it while "Surprise us" flicks across. Holding it
+ * moves it (arrange), and the tile dips a little while pressed.
  */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-internal fun GameTile(kind: GameKind, modifier: Modifier, badge: String?, onLongClick: () -> Unit, onClick: () -> Unit) {
+internal fun ArtTile(
+    kind: GameKind, modifier: Modifier = Modifier, tag: String? = null, highlight: Boolean = false,
+    onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
+) {
     val p = AppTheme.palette
     val press = remember { MutableInteractionSource() }
     val pressed by press.collectIsPressedAsState()
+    val edge = if (highlight) p.primary else p.ink
     Surface(
-        color = p.card,
-        shape = Shapes.L,
-        border = BorderStroke(2.dp, p.ink),
-        modifier = modifier.pressedEdge(p.ink, Radius.L)
+        color = p.card, shape = Shapes.M, border = BorderStroke(if (highlight) 3.dp else 2.dp, edge),
+        modifier = modifier.pressedEdge(edge, Radius.M)
             // The dip is drawn only: the tile's place in the layout never moves.
             .graphicsLayer { translationY = if (pressed) 2.dp.toPx() else 0f }
-            .clip(Shapes.L)
-            .combinedClickable(interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open", onLongClickLabel = "Arrange games", onLongClick = onLongClick, onClick = onClick),
+            .clip(Shapes.M)
+            .combinedClickable(
+                interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open",
+                onLongClickLabel = if (onLongClick != null) "Arrange games" else null, onLongClick = onLongClick, onClick = onClick,
+            ),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(46.dp)
-                        .drawBehind {
-                            drawRoundRect(kind.color.darker(0.3f), topLeft = Offset(0f, 3.dp.toPx()), size = size, cornerRadius = CornerRadius(Radius.M.toPx()))
-                        }
-                        .clip(Shapes.M)
-                        .background(Brush.verticalGradient(listOf(kind.color.lighter(0.18f), kind.color.darker(0.12f))))
-                        .border(2.dp, p.ink, Shapes.M),
-                ) { GameIcon(kind, Modifier.size(28.dp)) }
-                Spacer(Modifier.weight(1f))
-                if (badge != null) {
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(ART)) {
+                KeyArt(kind, Modifier.fillMaxSize())
+                if (tag != null) {
                     Text(
-                        badge, color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(Shapes.Full).background(p.primary).padding(horizontal = 8.dp, vertical = 3.dp),
+                        tag, color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, maxLines = 1,
+                        modifier = Modifier.align(Alignment.TopStart).padding(5.dp).clip(Shapes.Full).background(p.primary).padding(horizontal = 7.dp, vertical = 1.dp),
                     )
                 }
             }
-            Text(kind.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.Body)
-            Text(kind.tagline, color = p.muted, fontSize = TextSize.Body, lineHeight = LineHeight.Label, minLines = 2)
+            Box(Modifier.fillMaxWidth().height(2.dp).background(edge))
+            Text(
+                kind.label, color = p.text, fontSize = TextSize.Body, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                lineHeight = LineHeight.Label, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+            )
         }
     }
 }
 
-/**
- * The saved Sudoku at the top of the shelf, one compact strip: a small picture of the real
- * position, the title, "Medium · 38:12 · 27% done" with a progress bar, and Play to carry on.
- */
+/** A round button with a drawn icon, for the Games row. 48 dp, named for screen readers. */
 @Composable
-internal fun ContinueCard(game: com.pippop.game.SoloGame, onPlay: () -> Unit) {
+private fun RoundButton(description: String, onClick: () -> Unit, content: @Composable BoxScope.() -> Unit) {
     val p = AppTheme.palette
-    val percent = Sudoku.filledPercent(game.board.cells, game.board.givens)
-    Surface(color = p.card, shape = Shapes.L, border = BorderStroke(2.dp, p.ink), modifier = Modifier.fillMaxWidth().pressedEdge(p.ink, Radius.L)) {
-        Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            MiniBoard(game, percent, Modifier.size(60.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Sudoku · ${game.shape.label}", color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "${game.difficulty.label} · ${formatDuration(game.elapsedMs)} · $percent% done",
-                    color = p.muted, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                // The bar is a picture of the words above it.
-                Box(Modifier.fillMaxWidth().height(8.dp).clip(Shapes.Full).background(p.ink.copy(alpha = 0.15f)).clearAndSetSemantics {}) {
-                    Box(Modifier.fillMaxWidth(percent / 100f).height(8.dp).background(p.primary))
-                }
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.heightIn(min = 48.dp).clip(Shapes.Full).background(p.primary).border(2.dp, p.ink, Shapes.Full)
-                    .clickable(role = Role.Button, onClick = onPlay).padding(horizontal = 16.dp),
-            ) { Text("Play", color = p.onPrimary, fontSize = TextSize.Body, fontWeight = FontWeight.Bold) }
-        }
-    }
+    Box(
+        Modifier.size(48.dp).pressedEdge(p.ink, 24.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape)
+            .semantics { contentDescription = description }
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center, content = content,
+    )
 }
 
-/**
- * A small, non-interactive picture of the saved board, scaled into the square. A single grid
- * shows its digits (clues in ink, yours in colour); a joined board shows one mark per square,
- * with squares off the board left blank.
- */
+/** The end of the shelf: "More games · N", the put-away games as small badges; tapping it opens them out. */
 @Composable
-private fun MiniBoard(game: com.pippop.game.SoloGame, percent: Int, modifier: Modifier) {
+private fun MoreGamesBar(games: List<GameKind>, open: Boolean, onToggle: () -> Unit) {
     val p = AppTheme.palette
-    val measurer = rememberTextMeasurer()
-    val shape = game.shape
-    val n = shape.size
-    Canvas(
-        modifier.clip(Shapes.S).background(p.boardBackground).border(2.dp, p.lineThick, Shapes.S)
-            .semantics { contentDescription = "Saved board, $percent% done" },
+    Surface(
+        color = p.accent, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline),
+        modifier = Modifier.fillMaxWidth().clip(Shapes.L)
+            .semantics { stateDescription = if (open) "Open" else "Closed" }
+            .clickable(role = Role.Button, onClick = onToggle),
     ) {
-        val cell = size.width / n
-        if (!shape.big) {
-            for (i in 1 until 9) {
-                val box = i % 3 == 0
-                val w = if (box) 1.5.dp.toPx() else 0.5.dp.toPx()
-                val c = if (box) p.lineThick else p.lineThin
-                drawLine(c, Offset(i * cell, 0f), Offset(i * cell, size.height), w)
-                drawLine(c, Offset(0f, i * cell), Offset(size.width, i * cell), w)
+        Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("More games · ${games.size}", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (!open) games.take(4).forEach { kind ->
+                Box(
+                    Modifier.size(26.dp).clip(Shapes.S).background(Brush.verticalGradient(listOf(kind.color.lighter(0.18f), kind.color.darker(0.12f)))).border(2.dp, p.ink, Shapes.S),
+                    contentAlignment = Alignment.Center,
+                ) { GameIcon(kind, Modifier.size(16.dp)) }
             }
-        }
-        val style = TextStyle(fontSize = (cell * 0.72f).toSp(), fontWeight = FontWeight.Bold)
-        for (i in 0 until n * n) {
-            if (!shape.onBoard(i)) continue
-            val d = game.board.cells[i]
-            val given = game.board.givens[i]
-            val topLeft = Offset((i % n) * cell, (i / n) * cell)
-            if (shape.big) {
-                drawRect(if (d == 0) p.lineThin.copy(alpha = 0.35f) else if (given) p.given else p.entry, topLeft, Size(cell * 0.8f, cell * 0.8f))
-            } else if (d != 0) {
-                val text = measurer.measure(d.toString(), style.copy(color = if (given) p.given else p.entry))
-                drawText(text, topLeft = topLeft + Offset((cell - text.size.width) / 2f, (cell - text.size.height) / 2f))
-            }
+            Icon(if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = p.muted)
         }
     }
 }
 
 /**
- * The Online/Offline switch and how to connect in that mode: nearby over Bluetooth and Wi‑Fi,
- * or online by starting a room or joining one with its code. The switch is saved, and locked
- * while connected.
+ * Not connected: the Nearby/Online choice and one button, on one line. The button opens the connect
+ * sheet, which says what each way needs. The choice is saved, and locked while connected.
  */
 @Composable
-private fun ConnectionCard(
-    profile: Profile,
-    connected: Boolean,
-    onPlayMode: (PlayMode) -> Unit,
-    onConnectNearby: () -> Unit,
-    onStartRoom: () -> Unit,
-    onJoinRoom: () -> Unit,
-    onProfile: () -> Unit,
-) {
+private fun ConnectBar(mode: PlayMode, partner: SavedPartner?, connected: Boolean, onPlayMode: (PlayMode) -> Unit, onConnect: () -> Unit) {
     val p = AppTheme.palette
-    AppCard {
-        ModeSwitch(profile.playMode, enabled = !connected, onPick = onPlayMode)
-        Text("Not connected", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-        when {
-            profile.playMode == PlayMode.OFFLINE -> {
-                Text("Phones in the same room connect over Bluetooth and Wi‑Fi. No internet needed.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Connect nearby", onConnectNearby)
-            }
-            profile.scriptUrl.startsWith("https://") -> {
-                Text("Start a room and send the code, or join theirs.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Start a room", onStartRoom)
-                SecondaryButton("Join with code", onJoinRoom)
-            }
-            else -> {
-                Text("To play online, join with the message you were sent: it has the link. Or add the link in your profile.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Join with code", onJoinRoom)
-                SecondaryButton("Open profile", onProfile)
-            }
+    Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choices(listOf(PlayMode.OFFLINE to "Nearby", PlayMode.ONLINE to "Online"), mode, onPlayMode, Modifier.width(150.dp), enabled = !connected)
+            PrimaryButton(
+                if (partner != null) "Connect with ${partner.name}" else "Connect", onConnect, Modifier.weight(1f),
+                leading = partner?.let { { PlayerAvatar(it.name, OpponentColor, size = 26, avatar = it.avatar) } },
+            )
         }
     }
 }
@@ -476,12 +506,6 @@ private fun ConnectedCard(room: RoomState, nearby: Boolean, busy: Boolean, share
             else -> Text("Pick a game together: whoever picks it sets its options.", color = p.muted, fontSize = TextSize.Body)
         }
     }
-}
-
-/** Two segments, Offline and Online; the chosen one is filled. */
-@Composable
-private fun ModeSwitch(mode: PlayMode, enabled: Boolean, onPick: (PlayMode) -> Unit) {
-    Choices(listOf(PlayMode.OFFLINE to "Offline · nearby", PlayMode.ONLINE to "Online"), mode, onPick, enabled = enabled)
 }
 
 /** What tapping a game offers: play with your partner, alone or against the computer, or online with a code. */
@@ -585,22 +609,6 @@ private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficult
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.primaryText) } },
     )
-}
-
-/** Your saved partner, at the top of the shelf. */
-@Composable
-private fun PartnerCard(partner: SavedPartner) {
-    val p = AppTheme.palette
-    AppCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PlayerAvatar(partner.name, OpponentColor, size = 46, avatar = partner.avatar)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("You & ${partner.name}", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                Text("Tap a game to play together", color = p.muted, fontSize = TextSize.Body)
-            }
-        }
-    }
 }
 
 /**

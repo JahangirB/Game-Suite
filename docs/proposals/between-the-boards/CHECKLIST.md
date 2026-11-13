@@ -50,14 +50,14 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [x] **Step 8. What the home remembers**
   - [x] Recent games, put-away games and "arranged once" are stored and tested
   - [x] The arrange screen has its "Put away" line
-- [ ] **Step 9. The home, before you connect**
-  - [ ] Every game as its picture, three to a row (home-art)
-  - [ ] One line to connect (home-connect)
-  - [ ] Jump back in (home-recent)
-  - [ ] The "Games" row: Scores, Surprise us, Arrange games; Surprise us works (home-surprise)
-  - [ ] More games (home-putaway)
-  - [ ] "Hold a game to move it" leaves after the first arrange (fix-hint)
-  - [ ] No month strip on the home
+- [x] **Step 9. The home, before you connect**
+  - [x] Every game as its picture, three to a row (home-art)
+  - [x] One line to connect (home-connect)
+  - [x] Jump back in (home-recent)
+  - [x] The "Games" row: Scores, Surprise us, Arrange games; Surprise us works (home-surprise)
+  - [x] More games (home-putaway)
+  - [x] "Hold a game to move it" leaves after the first arrange (fix-hint)
+  - [x] No month strip on the home
 - [ ] **Step 10. The home, connected**
   - [ ] A room bar that holds four people (home-roombar)
   - [ ] Seats on every tile; games that don't fit fade and say so (home-fit)
