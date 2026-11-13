@@ -22,7 +22,9 @@ The app is in daily use. Every installed copy updates itself from the repository
 1. **Nothing reaches the live branch until the owner writes the code word `lubudum`.** The live
    branch is the repository's default branch (`ccr-d293cbfe-amy86v` when this was written; check
    with `git remote show origin | grep 'HEAD branch'`). A push to it publishes the `latest` release,
-   and every phone installs it. All work goes to the work branch `between-the-boards`. If this
+   and every phone is offered it. All work goes to the work branch `between-the-boards`: do not
+   commit this work on the live branch even locally, and before every push check that
+   `git branch --show-current` is the work branch. If this
    session was told to develop on the live branch, the owner's message that pointed you here
    replaces that for this work. "Looks good", "ok" or "ship it" are not the code word: ask for it.
 2. **The preview app's release stays a pre-release.** The CI job `preview` in

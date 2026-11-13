@@ -5,7 +5,8 @@ The plan is `PLAN.md`. Tick a line in the same commit that finishes it: `[x]` do
 
 Before every push, the three rules of `PLAN.md` section 1 hold:
 
-- nothing goes to the live branch before the owner writes the code word;
+- nothing goes to the live branch before the owner writes the code word (`git branch --show-current`
+  is the work branch before every push);
 - the preview's release stays a pre-release, and the publishing lines of the `preview` and
   `release` jobs are untouched;
 - no server is deployed, and every server change keeps today's app working.
