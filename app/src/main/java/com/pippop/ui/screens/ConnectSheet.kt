@@ -11,16 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,12 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
@@ -42,7 +29,6 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.TextSize
-import com.pippop.ui.theme.Tracking
 
 /** What the home's connect sheet is for: a nearby room, starting an online room, or joining one with its code. */
 enum class ConnectKind { NEARBY, HOST_ONLINE, JOIN_ONLINE }
@@ -109,7 +95,7 @@ private fun NearbyConnect(state: BattleUiState, vm: BattleViewModel) {
         color = p.muted,
         fontSize = TextSize.Body,
     )
-    CodeField(state.nearbyCode, vm::setNearbyCode, label = "Room code", onNew = vm::newNearbyCode)
+    CodeField(state.nearbyCode, vm::setNearbyCode, onNew = vm::newNearbyCode)
     PrimaryButton("Start a nearby room", { withPermissions(vm::hostNearby) }, loading = state.busy)
     SecondaryButton("Join with this code", { withPermissions(vm::joinNearby) }, enabled = !state.busy)
     Text("Keep Bluetooth and Wi‑Fi on and the phones close together. No internet needed.", color = p.muted, fontSize = TextSize.Body)
@@ -126,7 +112,7 @@ private fun OnlineHost(state: BattleUiState, vm: BattleViewModel) {
         color = p.muted,
         fontSize = TextSize.Body,
     )
-    CodeField(state.hostCode, vm::setHostCode, label = "Room code", onNew = vm::newHostCode, onGo = vm::host)
+    CodeField(state.hostCode, vm::setHostCode, onNew = vm::newHostCode, onGo = vm::host)
     PrimaryButton("Start the room", vm::host, loading = state.busy)
 }
 
@@ -136,37 +122,7 @@ private fun OnlineJoin(state: BattleUiState, vm: BattleViewModel) {
     val clipboard = LocalClipboardManager.current
     Text("Join a room", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
     Text("Type the code you were sent, or paste the whole message.", color = p.muted, fontSize = TextSize.Body)
-    CodeField(state.joinCode, vm::setJoinCode, label = "Room code", onGo = vm::join)
+    CodeField(state.joinCode, vm::setJoinCode, onGo = vm::join)
     PrimaryButton("Join", vm::join, loading = state.busy)
-    TextButton(onClick = { vm.pasteInvite(clipboard.getText()?.text) }) {
-        Text("Paste the message instead", color = p.primaryText)
-    }
+    SecondaryButton("Paste the message instead", { vm.pasteInvite(clipboard.getText()?.text) })
 }
-
-@Composable
-private fun CodeField(value: String, onChange: (String) -> Unit, label: String, onNew: (() -> Unit)? = null, onGo: (() -> Unit)? = null) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        singleLine = true,
-        textStyle = codeStyle(),
-        keyboardOptions = KeyboardOptions(
-            capitalization = KeyboardCapitalization.Characters,
-            keyboardType = KeyboardType.Ascii,
-            imeAction = if (onGo != null) ImeAction.Go else ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(onGo = { onGo?.invoke() }),
-        trailingIcon = onNew?.let { new -> { IconButton(onClick = new) { Icon(Icons.Filled.Refresh, "New code") } } },
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-@Composable
-internal fun codeStyle() = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontWeight = FontWeight.Bold,
-    fontSize = TextSize.Title,
-    letterSpacing = Tracking.CodeSmall,
-    color = AppTheme.palette.text,
-)

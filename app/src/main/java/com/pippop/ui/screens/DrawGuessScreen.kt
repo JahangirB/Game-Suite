@@ -47,7 +47,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -433,10 +432,10 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
     }
     BoardArea(1f) { size -> PadWithStamp(draw, strokes, 0, 1, null, size) }
     if (!draw.gotIt) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        ToyField(
             value = guess,
             onValueChange = { guess = it.take(30) },
-            placeholder = { Text("What is it?") },
+            placeholder = "What is it?",
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { send() }),

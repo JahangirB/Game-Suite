@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,10 +99,10 @@ fun ProfileScreen(
             AppCard("Player") {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlayerAvatar(profile.name.ifBlank { "?" }, p.primary, size = 52, avatar = profile.avatar)
-                    OutlinedTextField(
+                    ToyField(
                         value = profile.name,
                         onValueChange = app::setName,
-                        label = { Text("Your name") },
+                        label = "Your name",
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
@@ -119,18 +118,19 @@ fun ProfileScreen(
                     color = p.muted,
                     fontSize = TextSize.Body,
                 )
-                OutlinedTextField(
+                ToyField(
                     value = profile.scriptUrl,
                     onValueChange = app::setScriptUrl,
-                    label = { Text("Online link") },
-                    placeholder = { Text("https://…workers.dev or https://script.google.com/…") },
+                    label = "Online link",
+                    placeholder = "https://…workers.dev or https://script.google.com/…",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                ToyField(
                     value = profile.serverPassword,
                     onValueChange = app::setServerPassword,
-                    label = { Text("Password (only if the link has one; ask whoever set it up)") },
+                    label = "Password",
+                    help = "Only if the link has one. Ask whoever set it up.",
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(),

@@ -63,7 +63,8 @@ object LineHeight {
 /** Letter spacing for game codes, so each character stands apart. */
 object Tracking {
     val Code = 6.sp
-    val CodeSmall = 4.sp
+    /** The room code in its big box. */
+    val CodeLarge = 10.sp
 }
 
 /**

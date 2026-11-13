@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -321,11 +320,11 @@ private fun PickWord(prompt: String, onPick: (String) -> Unit) {
     val p = AppTheme.palette
     var word by rememberSaveable { mutableStateOf("") }
     AppCard(prompt) {
-        OutlinedTextField(
+        ToyField(
             value = word,
             onValueChange = { v -> word = v.filter { it.isLetter() }.take(12) },
             singleLine = true,
-            label = { Text("Secret word (3 to 12 letters)") },
+            label = "Secret word (3 to 12 letters)",
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
             modifier = Modifier.fillMaxWidth(),
