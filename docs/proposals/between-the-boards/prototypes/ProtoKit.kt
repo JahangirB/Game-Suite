@@ -185,13 +185,13 @@ fun Faces(avatars: List<Avatar?>, size: Dp = 32.dp, step: Dp = 22.dp, lights: Li
 
 /**
  * A game on the shelf as its picture: the key art with the name under it. [tag] sits on the
- * picture's corner ("Yesterday"), [seats] says how many can play, [score] is this month's wins
- * (yours, theirs), [dim] greys it out with a reason, and [face] is someone waiting there.
+ * picture's corner ("Yesterday"), [seats] says how many can play, [dim] greys it out with a
+ * reason, and [face] is someone waiting there.
  */
 @Composable
 fun ArtTile(
     kind: GameKind, modifier: Modifier = Modifier, tag: String? = null, seats: String? = null,
-    score: Pair<Int, Int>? = null, dim: String? = null, face: Avatar? = null, label: String = kind.label, ring: Color? = null,
+    dim: String? = null, face: Avatar? = null, label: String = kind.label, ring: Color? = null,
 ) {
     val p = AppTheme.palette
     val edge = ring ?: p.ink
@@ -231,7 +231,6 @@ fun ArtTile(
                         label, color = p.text, fontSize = TextSize.Body, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
                         lineHeight = LineHeight.Label, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    if (score != null) ScoreDots(score.first, score.second)
                 }
             }
         }
@@ -241,17 +240,6 @@ fun ArtTile(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 22.dp).clip(Shapes.Full).background(p.card).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
-    }
-}
-
-/** This month's wins in one game: yours in the app's coral, theirs in the other player's orange. */
-@Composable
-fun ScoreDots(mine: Int, theirs: Int, modifier: Modifier = Modifier) {
-    val p = AppTheme.palette
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(p.primary))
-        Text("$mine – $theirs", style = Digits, color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
-        Box(Modifier.size(7.dp).clip(CircleShape).background(OpponentColor))
     }
 }
 
@@ -374,7 +362,7 @@ fun WinnerFace(avatar: Avatar?, size: Dp, color: Color, crowned: Boolean = true,
     }
 }
 
-/** A cup for a month or a night: gold, with handles, on a wooden foot, the winner's picture on its front. */
+/** A cup for a month: gold, with handles, on a wooden foot, the winner's picture on its front. */
 @Composable
 fun TrophyCup(modifier: Modifier = Modifier, face: Avatar? = null, tie: Boolean = false) {
     val p = AppTheme.palette
@@ -419,7 +407,7 @@ fun TrophyCup(modifier: Modifier = Modifier, face: Avatar? = null, tie: Boolean 
     }
 }
 
-/** A game's icon on its colour, small: for lists and the row of a night's games. */
+/** A game's icon on its colour, small: for lists. */
 @Composable
 fun GameBadge(kind: GameKind, size: Dp = 32.dp, color: Color) {
     val p = AppTheme.palette

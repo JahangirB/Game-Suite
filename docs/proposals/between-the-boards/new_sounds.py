@@ -1,4 +1,4 @@
-"""First takes of the sounds proposed in the "Between the Boards" catalogue, made with the app's own sound kit.
+"""First takes of the sounds kept from the "Between the Boards" catalogue, made with the app's own sound kit.
 
 Usage: python3 docs/proposals/between-the-boards/new_sounds.py OUT_DIR
 Writes one MP3 per sound into OUT_DIR. Needs numpy and ffmpeg, as scripts/make-sounds.py does.
@@ -87,17 +87,10 @@ def record():
     return seq(*[at(i * 60, 0.7 * boop(hz(n), 240, 10)) for i, n in enumerate(['G4', 'B4', 'D5', 'G5'])], at(270, 0.5 * boop(hz('D5'), 520, 5, vibrato=6)))
 
 
+# On hold together with the decider itself (PLAN.md, section 6): not to be shipped yet.
 @sound
 def decider():
     return seq(*[at(i * 55, (0.4 + 0.07 * i) * tap_(300 + 12 * i, 60, 55)) for i in range(9)], at(520, boop(hz('D4'), 520, 5)))
-
-
-@sound
-def night_won():
-    return seq(
-        *[at(i * 150, 0.8 * boop(hz(n), 650, 5)) for i, n in enumerate(['C4', 'E4', 'G4', 'C5', 'E5'])],
-        at(900, 0.9 * boop(hz('G4'), 950, 3)), at(900, 0.9 * boop(hz('C5'), 950, 3)), at(900, 0.7 * boop(hz('E5'), 950, 3)),
-    )
 
 
 @sound

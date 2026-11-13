@@ -109,7 +109,7 @@ private fun SmallFace(avatar: Avatar, size: Dp = 26.dp, dim: Boolean = false) {
 
 // ---- The sheet a game opens with ------------------------------------------------------------
 
-/** Tapping a game: what it is at a glance, how the two of you stand in it, and solo with its level right here. */
+/** Tapping a game: what it is at a glance, and solo with its level right here. */
 @Composable
 fun BoxScope.GameSheetNew(kind: GameKind = GameKind.CONNECT4) {
     val p = AppTheme.palette
@@ -130,27 +130,12 @@ fun BoxScope.GameSheetNew(kind: GameKind = GameKind.CONNECT4) {
             Fact("About 5 min")
             Fact("Take turns")
         }
-        Surface(color = p.accent, shape = Shapes.M, modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Faces(listOf(Avatar.FOX, Avatar.PANDA), size = 30.dp, step = 20.dp)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Eyebrow("You two this month")
-                    Text("You 2 – 1 Maya", style = Digits, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Eyebrow("Last five")
-                    FormDots(listOf(false, true, false, true, true))
-                }
-            }
-        }
         PrimaryButton("Play with Maya", {})
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Solo", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.width(52.dp))
             Segmented(listOf("Easy", "Medium", "Hard"), 1, Modifier.weight(1f))
         }
         SecondaryButton("Play solo · Medium", {})
-        Note("Your best against Medium: four in a row in 9 discs.", Modifier.fillMaxWidth(), TextAlign.Center)
     }
 }
 
@@ -216,15 +201,9 @@ fun ReadyButton(label: String, sub: String?, othersReady: Boolean, mineReady: Bo
 
 /** The bar that stays at the bottom of a lobby: Ready within reach whatever is on screen, and React beside it. */
 @Composable
-fun ReadyBar(decider: Boolean = false) {
+fun ReadyBar() {
     val p = AppTheme.palette
     Column {
-        if (decider) {
-            Column(Modifier.fillMaxWidth().background(Board.GlowSoft).padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Decider", color = Board.Ink, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                Text("2 – 2 tonight: whoever wins this one takes the night.", color = Board.Ink, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold)
-            }
-        }
         Box(Modifier.fillMaxWidth().height(2.dp).background(p.ink))
         Row(Modifier.fillMaxWidth().background(p.card).padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ReadyButton("Ready", "Maya is ready: tap to start", othersReady = true, modifier = Modifier.weight(1f))
@@ -235,7 +214,7 @@ fun ReadyBar(decider: Boolean = false) {
 
 /** The proposed lobby: the game's whole picture, who is here (the code tucked into a corner), the setup as rows of choices, Ready pinned below. */
 @Composable
-fun LobbyNew(sudoku: Boolean = false, decider: Boolean = false) {
+fun LobbyNew(sudoku: Boolean = false) {
     val p = AppTheme.palette
     val kind = if (sudoku) GameKind.SUDOKU else GameKind.DOMINOES
     Column(Modifier.fillMaxSize()) {
@@ -293,7 +272,7 @@ fun LobbyNew(sudoku: Boolean = false, decider: Boolean = false) {
                 }
             }
         }
-        ReadyBar(decider)
+        ReadyBar()
     }
 }
 
@@ -305,10 +284,10 @@ private val C4Lost = listOf(".......", ".......", "...m...", "..om...", ".ommo..
 
 /** Tonight's score, small, in a game's title row. */
 @Composable
-fun TonightPill(mine: Int, theirs: Int, target: Int? = null) {
+fun TonightPill(mine: Int, theirs: Int) {
     val p = AppTheme.palette
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Eyebrow(if (target != null) "Tonight · first to $target" else "Tonight")
+        Eyebrow("Tonight")
         Row(
             Modifier.clip(Shapes.Full).background(p.card).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 6.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -404,7 +383,7 @@ fun ResultCard(win: Boolean) {
  * one line, and at the end the result under the board, which steps up to make room.
  */
 @Composable
-fun GameNew(hint: String? = "Slide to a column and let go", finished: String? = null, target: Int? = null, tray: Boolean = false, bubble: String? = null) {
+fun GameNew(hint: String? = "Slide to a column and let go", finished: String? = null, tray: Boolean = false, bubble: String? = null) {
     val over = finished != null
     val win = finished == "me"
     GameFrame(
@@ -418,7 +397,7 @@ fun GameNew(hint: String? = "Slide to a column and let go", finished: String? = 
         menu = GameMenu(GameKind.CONNECT4, onRules = {}, onLeave = {}),
         tools = listOf(DockTool("Last move", GameIcons.Eye, enabled = over) {}),
         onReact = {},
-        trailing = { TonightPill(if (over && win) 3 else 2, if (over && !win) 3 else 2, target) },
+        trailing = { TonightPill(if (over && win) 3 else 2, if (over && !win) 3 else 2) },
         trayVisible = tray,
         tray = { ReactTrayNew() },
     ) {
@@ -449,7 +428,7 @@ fun BoxScope.AnotherGameSheet() {
         }
         listOf(listOf(GameKind.LUDO, GameKind.WORDS, GameKind.SHIPS), listOf(GameKind.DOMINOES, GameKind.CLASH, GameKind.GOLF)).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { ArtTile(it, Modifier.weight(1f), seats = seatsOf(it), score = MonthScores[it]) }
+                row.forEach { ArtTile(it, Modifier.weight(1f), seats = seatsOf(it)) }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -459,7 +438,7 @@ fun BoxScope.AnotherGameSheet() {
     }
 }
 
-// ---- The night ------------------------------------------------------------------------------
+// ---- Confetti, for the month's cup ------------------------------------------------------------
 
 /** Scraps of coloured paper falling, for a finale. */
 @Composable
@@ -476,50 +455,6 @@ fun Confetti(modifier: Modifier = Modifier, count: Int = 46) {
             val y = next() * size.height
             val w = 5.dp.toPx() + next() * 5.dp.toPx()
             rotate(next() * 180f, Offset(x, y)) { drawRect(colors[i % colors.size], Offset(x - w / 2, y - w / 4), Size(w, w / 2)) }
-        }
-    }
-}
-
-/** The night's last game is over: who took it, the score, each game with its winner, and it goes on the scoreboard. */
-@Composable
-fun NightFinale() {
-    val p = AppTheme.palette
-    Box(Modifier.fillMaxSize()) {
-        Confetti(Modifier.fillMaxWidth().height(330.dp))
-        Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Gap(26.dp)
-            Eyebrow("Tonight · first to 3")
-            WinnerFace(Avatar.PANDA, 104.dp, OpponentColor)
-            Text("Maya takes the night", color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SmallFace(Avatar.FOX, 40.dp, dim = true)
-                Text("2 – 3", style = Digits, color = p.text, fontSize = TextSize.Score, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                SmallFace(Avatar.PANDA, 40.dp)
-            }
-            Gap(2.dp)
-            Eyebrow("The night's games")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(GameKind.LUDO to Avatar.PANDA, GameKind.WORDS to Avatar.FOX, GameKind.CONNECT4 to Avatar.FOX, GameKind.DOMINOES to Avatar.PANDA, GameKind.SHIPS to Avatar.PANDA).forEach { (g, w) ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        GameBadge(g, 46.dp, g.color)
-                        SmallFace(w, 24.dp)
-                    }
-                }
-            }
-            Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TrophyCup(Modifier.size(46.dp, 52.dp), face = Avatar.PANDA)
-                    Column(Modifier.weight(1f)) {
-                        Eyebrow("Nights this month")
-                        Text("You 4 – 6 Maya", style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SecondaryButton("Play on", {}, Modifier.weight(1f))
-                PrimaryButton("Good night", {}, Modifier.weight(1f))
-            }
         }
     }
 }

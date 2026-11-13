@@ -371,10 +371,6 @@ class CatalogueShots : ScreenshotBase() {
     @Test fun resultNew() = shots("result-new") { GameNew(finished = "me") }
     @Test fun resultLoseNew() = shots("result-lose-new", dark = false) { GameNew(finished = "them") }
     @Test fun resultSwitch() = shots("result-switch", dark = false) { Over({ GameNew(finished = "me") }) { AnotherGameSheet() } }
-    @Test fun nightHome() = shots("night-home", dark = false) { HomeNew(HomeMode.NIGHT) }
-    @Test fun nightGame() = shots("night-game", dark = false) { GameNew(target = 3) }
-    @Test fun nightDecider() = shots("night-decider", dark = false) { LobbyNew(decider = true) }
-    @Test fun nightFinale() = shots("night-finale") { NightFinale() }
     @Test fun scoresNew() = shots("scores-new") { ScoresNew() }
     @Test fun scoresGame() = shots("scores-game", dark = false) { Over({ ScoresNew() }) { GameStorySheet() } }
     @Test fun scoresSolo() = shots("scores-solo", dark = false) { ScoresNew(tab = 2) }
