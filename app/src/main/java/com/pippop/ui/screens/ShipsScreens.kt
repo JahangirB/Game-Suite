@@ -332,21 +332,17 @@ fun FleetCard(
     opponent: PlayerInfo?,
     busy: Boolean,
     onShuffle: () -> Unit,
-    onReady: () -> Unit,
     onMove: (List<Ship>) -> Unit = {},
 ) {
     val p = AppTheme.palette
     AppCard("Your fleet") {
         FleetEditor(fleet, if (ready || busy) null else onMove)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SecondaryButton("Shuffle", onShuffle, Modifier.weight(1f), enabled = !ready && !busy)
-            PrimaryButton(if (ready) "Cancel" else "Ready", onReady, Modifier.weight(1f), enabled = opponent != null, loading = busy)
-        }
+        SecondaryButton("Shuffle", onShuffle, Modifier.fillMaxWidth(), enabled = !ready && !busy)
         Text(
             when {
                 opponent == null -> "Waiting for someone to join."
                 ready && opponent.ready -> "Both fleets are in. Starting…"
-                ready -> "Waiting for ${opponent.name}…"
+                ready -> "Your fleet is in."
                 opponent.ready -> "${opponent.name} is ready. Place your fleet and tap Ready."
                 else -> "Tap a ship, then where it goes. Turn rotates it. Tap Ready when you're happy."
             },

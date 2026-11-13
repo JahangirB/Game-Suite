@@ -378,7 +378,7 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
 
 /** Your face and everyone else's, overlapping, each with a light: green when ready. */
 @Composable
-private fun ReadyFaces(room: RoomState) {
+internal fun ReadyFaces(room: RoomState) {
     val faces: List<Pair<PlayerInfo, Boolean>> = listOf(room.me to true) + room.present.map { it to false }
     Box(Modifier.width((26 + 18 * (faces.size - 1)).dp).height(30.dp)) {
         faces.forEachIndexed { i, (player, mine) ->

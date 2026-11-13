@@ -78,10 +78,10 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase E: the lobby
 
-- [ ] **Step 13. The lobby's frame**
-  - [ ] The game's whole picture (lobby-art)
-  - [ ] The code steps aside once someone has joined (lobby-code)
-  - [ ] Ready stays under your thumb, in every lobby (lobby-ready)
+- [x] **Step 13. The lobby's frame**
+  - [x] The game's whole picture (lobby-art)
+  - [x] The code steps aside once someone has joined (lobby-code)
+  - [x] Ready stays under your thumb, in every lobby (lobby-ready)
 - [ ] **Step 14. The setup as rows of choices** (lobby-rows)
   - [ ] All eleven option cards and the "Change" sheet use `OptionRow`
 - [ ] **Step 15. Sudoku: whoever opens it picks the level** (lobby-sudoku)

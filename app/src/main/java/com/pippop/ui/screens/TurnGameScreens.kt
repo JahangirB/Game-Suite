@@ -822,42 +822,6 @@ internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.
     }
 }
 
-/** Get ready for a turn game: in the lobby and for a rematch. */
-@Composable
-fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
-    val p = AppTheme.palette
-    val others = room.present
-    val waiting = others.filter { !it.ready }
-    AppCard(if (room.round == 0) "Ready to play?" else "Rematch") {
-        PrimaryButton(if (room.me.ready) "Cancel" else "Ready", onReady, enabled = others.isNotEmpty(), loading = busy)
-        Text(
-            when {
-                others.isEmpty() && room.others.isNotEmpty() -> "${room.others[0].name} has left. Leave to start a new game."
-                others.isEmpty() -> "Waiting for someone to join."
-                room.me.ready && waiting.isEmpty() -> "Starting…"
-                room.me.ready -> "Waiting for " + waiting.joinToString(" and ") { it.name } + "…"
-                waiting.size < others.size -> others.filter { it.ready }.joinToString(" and ") { it.name } +
-                    (if (others.size - waiting.size == 1) " is" else " are") + " ready. Tap Ready to start."
-                room.game == GameKind.WORDS -> "The race starts when everyone is ready: same word, same moment."
-                room.game == GameKind.DRAW -> "It starts when everyone is ready. You take turns drawing."
-                room.game == GameKind.NUMBERS -> "Everyone gets the same new puzzle. The first to solve it wins."
-                room.game == GameKind.SLIDE -> "Same shuffle for everyone; the first to put it in order wins."
-                room.game == GameKind.BINGO -> "A card each; the first full line of called numbers wins."
-                room.game == GameKind.GOLF -> "Nine holes, taking turns; the fewest strokes wins."
-                room.game == GameKind.BLOCKS -> "Lay your pieces corner to corner; the most squares wins."
-                room.game == GameKind.CODE -> "Each of you hides a code for the other; fewest guesses wins."
-                room.game == GameKind.GRID -> "Same letters for everyone, two minutes on the clock."
-                room.game == GameKind.HOCKEY -> "Live air hockey, first to 7. Best nearby, where the phones talk directly."
-                else -> "It starts when you are both ready. Who goes first swaps every game."
-            },
-            color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,
-            fontSize = TextSize.Body,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
 /** The menu of a game on your own: a fresh game, the rules, sound, and back home. */
 internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?, onChange: (() -> Unit)? = null) =
     GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, onChangeMode = onChange, leaveLabel = "Home", changeLabel = "Change setup")
