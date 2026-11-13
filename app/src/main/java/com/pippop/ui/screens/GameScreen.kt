@@ -267,16 +267,11 @@ fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit, on
             color = p.muted, fontSize = TextSize.Label,
         )
     }
-    AppCard("Mode") {
-        if (room.setsOptions) {
-            OptionGroup(listOf(false to "Race", true to "Together"), room.sudokuTogether, enabled = !busy, onPick = onPick)
-        } else {
-            Text(if (room.sudokuTogether) "Together, picked by whoever opened the game." else "Race, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text(
-            if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
+    OptionsCard(room, "Mode", busy) { enabled ->
+        OptionRow(
+            "Mode", listOf(false to "Race", true to "Together"), room.sudokuTogether, onPick, enabled = enabled,
+            note = if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
             else "The same puzzle on every phone: the first to solve it wins.",
-            color = p.muted, fontSize = TextSize.Label,
         )
     }
 }

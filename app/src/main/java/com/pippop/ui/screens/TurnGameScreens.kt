@@ -420,14 +420,11 @@ private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, o
 /** Tic-Tac-Toe's mode: the host picks normal 3 × 3 or Ultimate; everyone else sees which. */
 @Composable
 fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Which game?") {
-        val modes = listOf(false to "Ultimate: nine boards in one", true to "Normal: one 3 × 3 board")
-        if (room.setsOptions) {
-            OptionGroup(modes, room.tttClassic, enabled = !busy, onPick = onPick)
-        } else {
-            Text(modes.first { it.first == room.tttClassic }.second + ", picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Which game?", busy) { enabled ->
+        OptionRow(
+            "Game", listOf(false to "Ultimate", true to "Normal"), room.tttClassic, onPick, enabled = enabled,
+            note = if (room.tttClassic) "One 3 × 3 board." else "Nine boards in one.",
+        )
     }
 }
 
@@ -1206,27 +1203,18 @@ private fun Sfx.tttSound(mark: Char?) {
 /** Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. */
 @Composable
 fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Deck") {
-        if (room.setsOptions) {
-            OptionGroup(MemoryMatch.DECKS.map { it to "$it cards" }, room.memoryCards, enabled = !busy, onPick = onPick)
-            Text("Bigger decks bring in more pictures and a longer game.", color = p.muted, fontSize = TextSize.Label)
-        } else {
-            Text("${room.memoryCards} cards, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Deck", busy) { enabled ->
+        OptionRow("Cards", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled, note = "Bigger decks bring in more pictures and a longer game.")
     }
 }
 
 /** Dots & Boxes' board, picked by whoever opened the game. */
 @Composable
 fun DotsBoardCard(room: RoomState, busy: Boolean, onPick: (String) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Board") {
-        if (room.setsOptions) {
-            OptionGroup(DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, room.dotsBoard, enabled = !busy, onPick = onPick)
-            Text("Bigger boards make longer chains. The heart has gaps where there are no dots.", color = p.muted, fontSize = TextSize.Label)
-        } else {
-            Text("${DotsShape.label(room.dotsBoard)}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Board", busy) { enabled ->
+        OptionRow(
+            "Board", DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, room.dotsBoard, onPick, enabled = enabled, perRow = 2,
+            note = "Bigger boards make longer chains. The heart has gaps where there are no dots.",
+        )
     }
 }

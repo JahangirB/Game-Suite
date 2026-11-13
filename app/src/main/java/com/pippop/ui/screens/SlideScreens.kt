@@ -238,15 +238,10 @@ private const val SWIPE_DP = 24
 /** The host's level for the next puzzle; everyone else sees it. */
 @Composable
 fun SlideLevelCard(room: RoomState, busy: Boolean, onPick: (SlideLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.slide?.level ?: SlideLevel.EASY
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(SlideLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-            LocalSlidePhoto.current?.let { (has, set) -> SlidePhotoPicker(has, enabled = !busy, onPhoto = set) }
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow("Level", SlideLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled, perRow = 2, note = "A ${level.label.levelNote()} board.")
+        if (room.setsOptions) LocalSlidePhoto.current?.let { (has, set) -> SlidePhotoPicker(has, enabled = !busy, onPhoto = set) }
     }
 }
 

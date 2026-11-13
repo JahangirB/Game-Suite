@@ -428,25 +428,15 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
 /** Code Breaker's settings: code length, colours, and whether colours can repeat. */
 @Composable
 fun CodeRulesPicker(rules: CodeRules, enabled: Boolean, onChange: (CodeRules) -> Unit) {
-    val p = AppTheme.palette
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Pegs", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
-        OptionGroup(listOf(4 to "4 pegs", 5 to "5 pegs"), rules.pegs, enabled = enabled) { onChange(rules.copy(pegs = it)) }
-        Text("Colours", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
-        OptionGroup(listOf(6 to "6 colours", 7 to "7 colours"), rules.colours, enabled = enabled) { onChange(rules.copy(colours = it)) }
-        Text("Repeats", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
-        OptionGroup(listOf(true to "Allowed", false to "None"), rules.repeats, enabled = enabled) { onChange(rules.copy(repeats = it)) }
-    }
+    OptionRow("Pegs", listOf(4 to "4", 5 to "5"), rules.pegs, { onChange(rules.copy(pegs = it)) }, enabled = enabled)
+    OptionRow("Colours", listOf(6 to "6", 7 to "7"), rules.colours, { onChange(rules.copy(colours = it)) }, enabled = enabled)
+    OptionRow("Repeats", listOf(true to "Allowed", false to "None"), rules.repeats, { onChange(rules.copy(repeats = it)) }, enabled = enabled)
 }
 
 /** The settings card in the lobby and the Change sheet: picked by whoever opened the game. */
 @Composable
 fun CodeRulesCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (CodeRules) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Code") {
-        if (room.setsOptions) CodeRulesPicker(room.codeRules, enabled = !busy, onChange = onPick)
-        else Text("${room.codeRules.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-    }
+    OptionsCard(room, "Code", busy) { enabled -> CodeRulesPicker(room.codeRules, enabled = enabled, onChange = onPick) }
 }
 
 /**

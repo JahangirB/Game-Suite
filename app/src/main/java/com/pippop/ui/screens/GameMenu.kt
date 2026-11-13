@@ -295,25 +295,32 @@ fun GameShelf(games: List<GameKind>, perRow: Int = 4, onPick: (GameKind) -> Unit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupSheet(game: GameKind, controls: RoomControls, onDismiss: () -> Unit) {
+    if (controls.setup == null) return
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true, containerColor = AppTheme.palette.background) {
+        SetupSheetContent(game, controls, onDismiss)
+    }
+}
+
+/** What the Change sheet holds: the game's [OptionRow] cards and the button under them. */
+@Composable
+internal fun SetupSheetContent(game: GameKind, controls: RoomControls, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     val setup = controls.setup ?: return
-    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true, containerColor = p.background) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
-            verticalArrangement = Arrangement.spacedBy(Space.M),
-        ) {
-            Text("${game.label} setup", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-            setup()
-            val room = controls.room
-            val partner = room.present.singleOrNull()?.name ?: "everyone"
-            if (room.status == RoomStatus.FINISHED && !room.me.ready && room.present.isNotEmpty()) {
-                PrimaryButton("Ask $partner to play this", {
-                    onDismiss()
-                    controls.rematch()
-                }, loading = controls.busy)
-            } else {
-                SecondaryButton("Done", onDismiss)
-            }
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
+        verticalArrangement = Arrangement.spacedBy(Space.M),
+    ) {
+        Text("${game.label} setup", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        setup()
+        val room = controls.room
+        val partner = room.present.singleOrNull()?.name ?: "everyone"
+        if (room.status == RoomStatus.FINISHED && !room.me.ready && room.present.isNotEmpty()) {
+            PrimaryButton("Ask $partner to play this", {
+                onDismiss()
+                controls.rematch()
+            }, loading = controls.busy)
+        } else {
+            SecondaryButton("Done", onDismiss)
         }
     }
 }
@@ -428,7 +435,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.SLIDE -> SlideLevelCard(room, busy, vm::setSlideLevel)
         GameKind.TTT -> TttModeCard(room, busy, vm::setTttClassic)
         GameKind.GOLF -> if (room.golfLevel != null) GolfLevelCard(room, busy, vm::setGolfLevel)
-        GameKind.BLOCKS -> AppCard("Help") { BlocksHintsSwitch() }
+        GameKind.BLOCKS -> BlocksHelpCard()
         GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards)
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)

@@ -373,7 +373,7 @@ fun <T> Choices(
                             Modifier.weight(1f).fillMaxHeight().heightIn(min = 48.dp)
                                 .background(if (on) fill else Color.Transparent)
                                 .selectable(selected = on, enabled = usable, role = Role.RadioButton) { if (!on) onPick(value) }
-                                .padding(horizontal = Space.M),
+                                .padding(horizontal = Space.XS),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -412,18 +412,19 @@ fun <T> OptionRow(
     note: String? = null,
     enabled: Boolean = true,
     off: Set<T> = emptySet(),
+    perRow: Int? = null,
 ) {
     val p = AppTheme.palette
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.XS)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.width(OptionLabelWidth))
-            Choices(options, selected, onPick, Modifier.weight(1f), enabled = enabled, off = off)
+            Choices(options, selected, onPick, Modifier.weight(1f), enabled = enabled, off = off, perRow = perRow)
         }
         if (note != null) Text(note, color = p.muted, fontSize = TextSize.Label, lineHeight = LineHeight.Label, modifier = Modifier.padding(start = OptionLabelWidth))
     }
 }
 
-private val OptionLabelWidth = 92.dp
+private val OptionLabelWidth = 84.dp
 
 /**
  * The chunky switch: the knob sits left when off and right when on, so the state shows in more

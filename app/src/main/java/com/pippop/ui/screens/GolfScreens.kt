@@ -444,15 +444,12 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 /** Mini Golf's level: whoever opened the game picks how many islands every hole has; everyone else sees it. */
 @Composable
 fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.golfLevel ?: return
-    AppCard("Which holes?") {
-        if (room.setsOptions) {
-            OptionGroup(GolfLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text("All nine holes are this kind, new from the 1,000 each game.", color = p.muted, fontSize = TextSize.Body)
+    OptionsCard(room, "Which holes?", busy) { enabled ->
+        OptionRow(
+            "Holes", GolfLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled,
+            note = "${level.label.levelNote()}. All nine holes are this kind, new from the 1,000 each game.",
+        )
         GolfTimePicker()
     }
 }
@@ -503,10 +500,10 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
 /** Mini Golf's look, on this phone: day, sunset, night, or mixed (each hole picks one). Only the look changes. */
 @Composable
 fun GolfTimePicker() {
-    val p = AppTheme.palette
     val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
     val time = store.profile.collectAsState().value.golfTime
-    Text("Time of day", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
-    OptionGroup(listOf("day" to "Day", "sunset" to "Sunset", "night" to "Night", "mixed" to "Mixed"), time, enabled = true, onPick = store::setGolfTime)
-    Text("At night the balls glow and leave a streak; the cup's rim shines gold. Nothing about the rules changes.", color = p.muted, fontSize = TextSize.Label)
+    OptionRow(
+        "Time of day", listOf("day" to "Day", "sunset" to "Sunset", "night" to "Night", "mixed" to "Mixed"), time, store::setGolfTime, perRow = 2,
+        note = "At night the balls glow and leave a streak; the cup's rim shines gold. Nothing about the rules changes.",
+    )
 }

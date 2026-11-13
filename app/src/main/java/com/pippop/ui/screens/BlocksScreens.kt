@@ -553,6 +553,19 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
     }
 }
 
+/** The lobby's and the Change sheet's "Help" card: [BlocksHintsSwitch] as an [OptionRow]. It is each player's own, so it is never greyed. */
+@Composable
+fun BlocksHelpCard() {
+    val store = ProfileStore.get(LocalContext.current)
+    val on = store.profile.collectAsState().value.blocksHints
+    AppCard("Help") {
+        OptionRow(
+            "Hints", listOf(true to "On", false to "Off"), on, store::setBlocksHints,
+            note = "Where can I go? Light the corners your pieces can build from; grey the pieces that fit nowhere.",
+        )
+    }
+}
+
 /** "Where can I go?" on or off, on this phone (for players who want it hard). */
 @Composable
 fun BlocksHintsSwitch() {

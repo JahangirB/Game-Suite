@@ -465,14 +465,12 @@ private fun ColumnScope.SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsVie
 /** The host's level for Word Race (the length of the word); everyone else sees it. */
 @Composable
 fun WordLevelCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (WordLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.words?.level ?: WordLevel.MEDIUM
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(WordLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-        } else {
-            Text("${level.label}: the length of the word, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow(
+            "Level", WordLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled, perRow = 2,
+            note = "${level.label.levelNote()}: the length of the word.",
+        )
         // Each player's own choice.
         WordsHardSwitch()
     }

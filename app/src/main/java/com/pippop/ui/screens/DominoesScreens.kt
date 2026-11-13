@@ -416,20 +416,11 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
 /** The host's rules for the next match; everyone else sees what they are. */
 @Composable
 fun DominoOptionsCard(room: RoomState, busy: Boolean, onChange: (DominoOptions) -> Unit) {
-    val p = AppTheme.palette
     val o = room.options ?: DominoOptions()
-    AppCard("Rules") {
-        if (room.setsOptions) {
-            DominoOptionChips(o, fourPlayers = room.present.size == 3, enabled = !busy, onChange = onChange)
-        } else {
-            Text(dominoRulesLine(o), color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Rules", busy) { enabled ->
+        DominoOptionChips(o, fourPlayers = room.present.size == 3, enabled = enabled, onChange = onChange)
     }
 }
-
-private fun dominoRulesLine(o: DominoOptions) =
-    (if (o.draw) "Draw from the boneyard" else "Block game: pass when stuck") + " · first to ${o.target}" +
-        (if (o.teams) " · two against two" else "")
 
 /** [OptionRow]s for drawing or blocking, the points target and (four players) teams. */
 @Composable
@@ -437,7 +428,7 @@ private fun DominoOptionChips(o: DominoOptions, fourPlayers: Boolean, enabled: B
     val p = AppTheme.palette
     OptionRow(
         "When stuck", listOf(true to "Draw", false to "Block"), o.draw, { onChange(o.copy(draw = it)) }, enabled = enabled,
-        note = if (o.draw) "Stuck? Take tiles from the boneyard until one fits." else "Stuck? Pass. Nobody can play: the lightest hand wins the round.",
+        note = if (o.draw) "Take tiles from the boneyard until one fits." else "Pass. If nobody can play, the lightest hand wins the round.",
     )
     OptionRow("Play to", DominoOptions.TARGETS.map { it to "$it" }, o.target, { onChange(o.copy(target = it)) }, enabled = enabled)
     OptionRow("Sides", listOf(false to "Each alone", true to "2 v 2"), o.teams, { onChange(o.copy(teams = it)) }, enabled = enabled)

@@ -82,8 +82,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] The game's whole picture (lobby-art)
   - [x] The code steps aside once someone has joined (lobby-code)
   - [x] Ready stays under your thumb, in every lobby (lobby-ready)
-- [ ] **Step 14. The setup as rows of choices** (lobby-rows)
-  - [ ] All eleven option cards and the "Change" sheet use `OptionRow`
+- [x] **Step 14. The setup as rows of choices** (lobby-rows)
+  - [x] All eleven option cards and the "Change" sheet use `OptionRow`
 - [ ] **Step 15. Sudoku: whoever opens it picks the level** (lobby-sudoku)
   - [ ] Apps Script, Cloudflare and Nearby: the new path and today's path both tested
   - [ ] Today's `LevelPicker` still shows in a room where it must

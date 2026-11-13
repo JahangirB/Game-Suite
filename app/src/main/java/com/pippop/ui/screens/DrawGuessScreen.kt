@@ -545,17 +545,11 @@ private fun SketchbookSheet(book: Sketchbook, last: com.pippop.data.DrawTurnResu
 /** Draw & Guess: the team game or the guess race, picked by whoever opened the game. */
 @Composable
 fun DrawModeCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Mode") {
-        if (room.setsOptions) {
-            OptionGroup(listOf(false to "Team", true to "Race for 4"), room.drawRace, enabled = !busy, onPick = onPick)
-        } else {
-            Text(if (room.drawRace) "Guess race, picked by whoever opened the game." else "Team game, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text(
-            if (room.drawRace) "One draws, everyone else guesses at once: 80, 60, 40 for the first right guesses, and the drawer 20 for each."
+    OptionsCard(room, "Mode", busy) { enabled ->
+        OptionRow(
+            "Mode", listOf(false to "Team", true to "Race for 4"), room.drawRace, onPick, enabled = enabled,
+            note = if (room.drawRace) "One draws, everyone else guesses at once: 80, 60, 40 for the first right guesses, and the drawer 20 for each."
             else "Take turns drawing; every right guess adds the seconds left to your team score.",
-            color = p.muted, fontSize = TextSize.Label,
         )
     }
 }

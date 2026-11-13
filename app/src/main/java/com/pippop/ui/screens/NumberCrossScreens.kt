@@ -382,15 +382,9 @@ internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<Strin
 /** The host's level for the next puzzle; everyone else sees it. */
 @Composable
 fun NumbersLevelCard(room: RoomState, busy: Boolean, onPick: (NumberLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.numbers?.level ?: NumberLevel.EASY
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(NumberLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-            Text("A new puzzle each round, the same for everyone.", color = p.muted, fontSize = TextSize.Body)
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow("Level", NumberLevel.entries.map { it to it.label }, level, onPick, enabled = enabled, note = "A new puzzle each round, the same for everyone.")
     }
 }
 

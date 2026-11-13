@@ -134,7 +134,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             if (room.game == GameKind.CODE) CodeRulesCard(room, state.busy, vm::setCodeRules)
             if (room.game == GameKind.DOTS) DotsBoardCard(room, state.busy, vm::setDotsBoard)
             if (room.game == GameKind.DRAW) DrawModeCard(room, state.busy, vm::setDrawRace)
-            if (room.game == GameKind.BLOCKS) AppCard("Help") { BlocksHintsSwitch() }
+            if (room.game == GameKind.BLOCKS) BlocksHelpCard()
             // Only servers that know the levels send one.
             if (room.game == GameKind.GOLF && room.golfLevel != null) GolfLevelCard(room, state.busy, vm::setGolfLevel)
         } else {
@@ -258,6 +258,28 @@ internal fun LobbyFrame(
         ReadyBar(room, state.busy, onReady, if (opponent != null) onReact else null)
     }
 }
+
+/** What greyed rows say: who is setting up when that is certain (one other player), otherwise nothing is guessed. */
+internal fun setupName(room: RoomState): String =
+    room.present.singleOrNull()?.let { "${it.name} is setting up" } ?: "Waiting for the setup"
+
+/**
+ * One card of options for the next game, as [OptionRow]s. Whoever opened the game ([RoomState.setsOptions])
+ * changes them while nothing is being sent; everyone else sees the same rows greyed under
+ * "<Name> is setting up". [content] gets whether the rows can be changed now.
+ */
+@Composable
+internal fun OptionsCard(room: RoomState, title: String, busy: Boolean, content: @Composable (enabled: Boolean) -> Unit) {
+    AppCard(title) {
+        if (!room.setsOptions) Text(setupName(room), color = AppTheme.palette.muted, fontSize = TextSize.Body)
+        content(room.setsOptions && !busy)
+    }
+}
+
+/** A level's label split at its " · " ("Medium · 5 letters"): the short part for the choice, the rest (capitalised) for the note under it. */
+internal fun String.levelShort() = substringBefore(" · ")
+
+internal fun String.levelNote() = substringAfter(" · ", "").replaceFirstChar { it.uppercase() }
 
 /** "Room K7Q2NB" with a share mark: tapping it sends the code, where the player may. */
 @Composable
