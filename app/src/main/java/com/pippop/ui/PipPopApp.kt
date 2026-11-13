@@ -51,7 +51,6 @@ import android.provider.Settings
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import com.pippop.ui.screens.SoloConnectFourScreen
 import com.pippop.ui.screens.SoloDotsScreen
 import com.pippop.ui.screens.SoloMemoryScreen
@@ -103,6 +102,7 @@ import com.pippop.data.SkinStore
 import com.pippop.ui.screens.PrimaryButton
 import com.pippop.ui.screens.SecondaryButton
 import com.pippop.ui.screens.ToyDialog
+import com.pippop.ui.screens.ToySheet
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.LocalReduceMotion
@@ -432,7 +432,7 @@ fun PipPopApp(
     }
 
     connectSheet?.let { kind ->
-        ModalBottomSheet(onDismissRequest = { connectSheet = null }, containerColor = p.card) {
+        ToySheet(onDismiss = { connectSheet = null }) {
             ConnectSheet(kind, battleState, battle)
         }
     }

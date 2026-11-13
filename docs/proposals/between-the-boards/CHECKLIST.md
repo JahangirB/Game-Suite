@@ -32,8 +32,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 - [x] **Step 2. Questions in the app's look** (toy-dialog)
   - [x] `ToyDialog` in `ui/screens/Toy.kt`; four `AlertDialog`s replaced
-- [ ] **Step 3. One sheet** (toy-sheet)
-  - [ ] `ToySheet`; all eight sheets use it
+- [x] **Step 3. One sheet** (toy-sheet)
+  - [x] `ToySheet`; all eight sheets use it
 - [ ] **Step 4. Fields and the code** (toy-fields, fix-password)
   - [ ] `ToyField`, `CodeField`; all seven `OutlinedTextField`s replaced
   - [ ] "Paste the message instead" is a button

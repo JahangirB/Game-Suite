@@ -11,7 +11,6 @@ import com.pippop.ui.art.color
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.KeyArt
 import androidx.compose.material3.Surface
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
@@ -223,7 +222,7 @@ fun HomeScreen(
     }
 
     sheetGame?.let { kind ->
-        ModalBottomSheet(onDismissRequest = { sheetGame = null }, containerColor = p.card) {
+        ToySheet(onDismiss = { sheetGame = null }) {
             val close = { sheetGame = null }
             GameSheet(
                 kind = kind,

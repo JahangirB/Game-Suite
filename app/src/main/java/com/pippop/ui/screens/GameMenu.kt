@@ -26,12 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -113,9 +111,6 @@ class GameMenu(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
-    val p = AppTheme.palette
-    val store = ProfileStore.get(LocalContext.current)
-    val profile by store.profile.collectAsState()
     LaunchedEffect(Unit) { menu.onOpen(true) }
     val close = {
         menu.onOpen(false)
@@ -126,28 +121,35 @@ fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
         close()
         action()
     }
-    ModalBottomSheet(onDismissRequest = close, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L).verticalScroll(rememberScrollState())) {
-            Text(menu.game.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Space.S))
-            MenuRow("Resume", onClick = close)
-            menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
-            menu.onChangeMode?.let { MenuRow("Change mode", detail = menu.mode, onClick = then(it)) }
-            MenuRow("Rules", onClick = then(menu.onRules))
-            MenuRow("Sound", onClick = { store.setSound(!profile.sound) }) {
-                Switch(
-                    checked = profile.sound, onCheckedChange = store::setSound,
-                    colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-                )
-            }
-            if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
-                Switch(
-                    checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
-                    colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-                )
-            }
-            menu.onSwitchGame?.let { MenuRow("Switch game", onClick = then(it)) }
-            MenuRow(menu.leaveLabel, color = p.bad, last = true, onClick = then(menu.onLeave))
+    ToySheet(onDismiss = close, skipPartiallyExpanded = true) { GameMenuRows(menu, close, ::then) }
+}
+
+/** The rows of the menu sheet; each row closes the menu first (through [then]), then acts. */
+@Composable
+internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) -> () -> Unit) {
+    val p = AppTheme.palette
+    val store = ProfileStore.get(LocalContext.current)
+    val profile by store.profile.collectAsState()
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L).verticalScroll(rememberScrollState())) {
+        Text(menu.game.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Space.S))
+        MenuRow("Resume", onClick = close)
+        menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
+        menu.onChangeMode?.let { MenuRow("Change mode", detail = menu.mode, onClick = then(it)) }
+        MenuRow("Rules", onClick = then(menu.onRules))
+        MenuRow("Sound", onClick = { store.setSound(!profile.sound) }) {
+            Switch(
+                checked = profile.sound, onCheckedChange = store::setSound,
+                colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
+            )
         }
+        if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
+            Switch(
+                checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
+                colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
+            )
+        }
+        menu.onSwitchGame?.let { MenuRow("Switch game", onClick = then(it)) }
+        MenuRow(menu.leaveLabel, color = p.bad, last = true, onClick = then(menu.onLeave))
     }
 }
 
@@ -240,7 +242,7 @@ fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLet
 @Composable
 fun SwitchGameSheet(controls: RoomControls, onDismiss: () -> Unit) {
     val p = AppTheme.palette
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             Text("Switch game", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             val partner = controls.room.present.singleOrNull()?.name ?: "Everyone else"
@@ -291,7 +293,7 @@ fun GameShelf(games: List<GameKind>, perRow: Int = 4, onPick: (GameKind) -> Unit
 fun SetupSheet(game: GameKind, controls: RoomControls, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     val setup = controls.setup ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.background, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true, containerColor = p.background) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
             verticalArrangement = Arrangement.spacedBy(Space.M),
@@ -465,7 +467,7 @@ fun LeaveSheet(room: RoomState, onStay: () -> Unit, onPause: () -> Unit, onLeave
     val p = AppTheme.palette
     val partner = room.present.singleOrNull()?.name ?: "Everyone else"
     val canPause = room.inSession && room.inMatch && room.present.isNotEmpty()
-    ModalBottomSheet(onDismissRequest = onStay, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ToySheet(onDismiss = onStay, skipPartiallyExpanded = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             Text(if (room.inMatch) "Leave the game?" else "Leave?", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             PrimaryButton("Keep playing", onStay)
@@ -492,7 +494,7 @@ fun LeaveSheet(room: RoomState, onStay: () -> Unit, onPause: () -> Unit, onLeave
 @Composable
 fun InfoSheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val p = AppTheme.palette
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.card) {
+    ToySheet(onDismiss = onDismiss) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
             verticalArrangement = Arrangement.spacedBy(Space.M),

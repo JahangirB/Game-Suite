@@ -18,10 +18,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -88,7 +86,7 @@ fun SkinStoreSheet(builtIn: ShipStyle, onBuiltIn: (ShipStyle) -> Unit, onDone: (
     LaunchedEffect(tab, available.size) { if (tab == 1) SkinStore.markSeen(available.map { it.id }) }
     val using = installed.firstOrNull { it.id == selected }
 
-    ModalBottomSheet(onDismissRequest = onDone, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = p.card) {
+    ToySheet(onDismiss = onDone, skipPartiallyExpanded = true) {
         Column(Modifier.padding(horizontal = Space.L).padding(bottom = Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Ship skins", color = p.text, fontSize = TextSize.Title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
