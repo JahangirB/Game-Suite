@@ -60,6 +60,7 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.Space
+import com.pippop.ui.theme.SudokuPalette
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.textFill
@@ -348,6 +349,9 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
         othersReady -> "Rematch: " + (if (present.size == 1) "${present[0].name} is ready" else "they're ready")
         else -> "Rematch"
     }
+    // Green once the others are ready; its words take white or ink, whichever reads (4.5:1 or more).
+    val fill = if (counting || othersReady) p.good else p.primary
+    val ink = rematchInk(p, counting || othersReady)
     Surface(
         onClick = {
             when {
@@ -357,7 +361,7 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
             }
         },
         enabled = enabled,
-        color = if (counting || othersReady) p.good else p.primary,
+        color = fill,
         shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
         modifier = Modifier.fillMaxWidth().pressedEdge(p.ink, 16.dp),
@@ -365,7 +369,7 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
         Row(Modifier.padding(horizontal = Space.M, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             ReadyFaces(room)
             Spacer(Modifier.width(Space.M))
-            Text(label, color = p.onPrimary, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(label, color = ink, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -528,3 +532,7 @@ fun LetterTiles(title: String, letters: List<Char>, fill: Color, ink: Color = Ap
         }
     }
 }
+
+/** The Rematch button's text colour: on green (the others ready) white or ink, whichever reads better. */
+internal fun rematchInk(p: SudokuPalette, othersReady: Boolean): Color =
+    if (othersReady) readableOn(p.good) else p.onPrimary

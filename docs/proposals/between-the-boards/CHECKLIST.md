@@ -43,7 +43,7 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [x] **Step 6. Pip and Pop while you wait, and messages with a mark** (toy-loader, toy-toast)
   - [x] `PipPopLoader` in all five places; `Toast` in place of the snackbar
   - [x] `scripts/check-tokens.sh` fails on stock parts
-- [ ] **Step 7. A Rematch you can read** (fix-rematch)
+- [x] **Step 7. A Rematch you can read** (fix-rematch)
 
 ## Phase C: the home
 
