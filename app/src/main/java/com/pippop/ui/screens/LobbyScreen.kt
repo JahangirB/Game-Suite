@@ -104,8 +104,8 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
     val opponent = room.opponent?.takeIf { !it.left }
     LobbyFrame(
         state, profile, onLeave,
-        // Sudoku's levels are the ready taps (until step 15), so it has no Ready button.
-        onReady = if (room.game == GameKind.SHIPS) vm::readyShips else if (room.game.readyOnly) {
+        // Sudoku's levels are the ready taps, so it has no Ready button, unless the opener picks the level.
+        onReady = if (room.game == GameKind.SHIPS) vm::readyShips else if (room.picksByOpener) vm::readySudoku else if (room.game.readyOnly) {
             when (room.game) {
                 GameKind.NUMBERS -> vm::readyNumbers
                 GameKind.GRID -> vm::readyGrid
@@ -138,9 +138,13 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             // Only servers that know the levels send one.
             if (room.game == GameKind.GOLF && room.golfLevel != null) GolfLevelCard(room, state.busy, vm::setGolfLevel)
         } else {
-            if (room.game == GameKind.SUDOKU && room.sudokuModes) SudokuModeCard(room, state.busy, vm::setSudokuTogether, vm::setSudokuShape)
-            AppCard("Choose the level") {
-                LevelPicker(room, state.busy, onPick = vm::chooseLevel)
+            if (room.picksByOpener) {
+                SudokuOpenerCard(room, state.busy, vm::setSudokuLevel, vm::setSudokuTogether, vm::setSudokuShape)
+            } else {
+                if (room.game == GameKind.SUDOKU && room.sudokuModes) SudokuModeCard(room, state.busy, vm::setSudokuTogether, vm::setSudokuShape)
+                AppCard("Choose the level") {
+                    LevelPicker(room, state.busy, onPick = vm::chooseLevel)
+                }
             }
         }
     }
@@ -185,7 +189,7 @@ internal fun LobbyFrame(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             LobbyBanner(room.game)
@@ -227,13 +231,13 @@ internal fun LobbyFrame(
                     // Someone has joined: the code folds into a small label here.
                     if (!alone) RoomChip(room.code, if (room.isHost && state.mode != BattleMode.NEARBY) share else null)
                 }
-                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game)
+                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game, showLevel = !room.picksByOpener)
                 room.others.forEachIndexed { i, other ->
                     if (!other.left) key(other.name) {
                         val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
                         PlayerRow(
                             other, isMe = false, color = SeatColors[i % SeatColors.size], reaction = visibleReaction(reaction, now),
-                            seat = i + 1, game = room.game, arrived = other.name !in knownNames,
+                            seat = i + 1, game = room.game, arrived = other.name !in knownNames, showLevel = !room.picksByOpener,
                         )
                     }
                 }
@@ -407,7 +411,7 @@ internal fun LobbyBanner(game: GameKind) {
 
 /** One player's row; an [arrived] player's avatar bounces in with a burst of rays in their colour. */
 @Composable
-internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int, game: GameKind, arrived: Boolean = false) {
+internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction: ShownReaction?, seat: Int, game: GameKind, arrived: Boolean = false, showLevel: Boolean = true) {
     val p = AppTheme.palette
     val pops = arrived && !LocalReduceMotion.current
     val pop = remember { Animatable(if (pops) 0f else 1f) }
@@ -441,7 +445,7 @@ internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction
             // Connected, but not in this game yet: in the menu or still on another game's screen.
             player.at == null -> Pill("In the menu", p.muted)
             player.at != game -> Pill("In ${player.at.label}", p.muted)
-            player.ready && player.difficulty != null -> Pill("Ready · ${player.difficulty.label}", p.good)
+            player.ready && player.difficulty != null && showLevel -> Pill("Ready · ${player.difficulty.label}", p.good)
             player.ready -> Pill("Ready", p.good)
             else -> Pill("Choosing…", p.muted)
         }

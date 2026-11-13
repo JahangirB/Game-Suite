@@ -558,7 +558,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             GameKind.NUMBERS -> readyNumbers()
             GameKind.GRID -> readyGrid()
             GameKind.SLIDE -> readySlide()
-            GameKind.SUDOKU -> chooseLevel(room.me.difficulty ?: room.difficulty ?: Difficulty.MEDIUM)
+            GameKind.SUDOKU -> if (room.picksByOpener) readySudoku() else chooseLevel(room.me.difficulty ?: room.difficulty ?: Difficulty.MEDIUM)
             else -> readyTurns()
         }
     }
@@ -628,6 +628,40 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
         sendReady(room.copy(me = me)) { b, id -> b.ready(room.code, id, !cancel, level) }
     }
+
+    /**
+     * Sudoku where whoever opened the game picks ([RoomState.sudokuOpener]): the Ready button. Whoever
+     * opened it is ready for the level they chose (on a board of joined grids their phone makes the
+     * puzzle and sends it); everyone else is just ready.
+     */
+    fun readySudoku() {
+        val room = _state.value.room ?: return
+        val ready = !room.me.ready
+        val level = room.sudokuLevel ?: Difficulty.MEDIUM
+        val shape = room.sudokuShape
+        val shown = room.copy(me = room.me.copy(ready = ready, difficulty = if (ready && room.setsOptions) level else room.me.difficulty))
+        if (ready && room.setsOptions && shape.big) {
+            sendReady(shown) { b, id ->
+                val made = withContext(Dispatchers.Default) { com.pippop.game.BigGenerator.generate(shape, level.holes) }
+                b.readyBig(room.code, id, true, level, made.puzzle to made.solution)
+            }
+        } else {
+            sendReady(shown) { b, id -> b.ready(room.code, id, ready, if (room.setsOptions) level else null) }
+        }
+    }
+
+    /** Sudoku, where the opener picks: the level for the next round; everyone gets ready again. */
+    fun setSudokuLevel(level: Difficulty) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.sudokuLevel == level) return
+        sendReady(room.copy(sudokuLevel = level, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, sudokuOptions(room, level = level))
+        }
+    }
+
+    /** Sudoku's options as sent: Race or Together, the board and, where the opener picks, the level. */
+    private fun sudokuOptions(room: RoomState, together: Boolean = room.sudokuTogether, shape: com.pippop.game.SudokuShape = room.sudokuShape, level: Difficulty? = room.sudokuLevel) =
+        JSONObject().put("mode", if (together) "together" else "race").put("shape", shape.key).apply { if (room.sudokuOpener && level != null) put("level", level.key) }
 
     /** Sends a quick reaction; it shows next to your name on both phones. */
     fun react(reaction: Reaction) {
@@ -1152,7 +1186,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.sudokuTogether == together) return
         sendReady(room.copy(sudokuTogether = together, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("mode", if (together) "together" else "race").put("shape", room.sudokuShape.key))
+            b.setOptions(room.code, id, sudokuOptions(room, together = together))
         }
     }
 
@@ -1161,7 +1195,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.sudokuShape == shape) return
         sendReady(room.copy(sudokuShape = shape, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("mode", if (room.sudokuTogether) "together" else "race").put("shape", shape.key))
+            b.setOptions(room.code, id, sudokuOptions(room, shape = shape))
         }
     }
 

@@ -41,10 +41,10 @@ class BattleApi(scriptUrl: String) : BattleBackend {
     override suspend fun ping() = call("ping")
 
     override suspend fun create(code: String, me: Hello, game: GameKind) =
-        call("create", "code" to code, "name" to me.name, "avatar" to me.avatar?.key, "game" to game.key)
+        call("create", "code" to code, "name" to me.name, "avatar" to me.avatar?.key, "game" to game.key, "games" to BattleBackend.SUPPORTED_GAMES)
 
     override suspend fun join(code: String, me: Hello, playerId: String?) =
-        call("join", "code" to code, "name" to me.name, "avatar" to me.avatar?.key, "playerId" to playerId)
+        call("join", "code" to code, "name" to me.name, "avatar" to me.avatar?.key, "playerId" to playerId, "games" to BattleBackend.SUPPORTED_GAMES)
 
     /** Marks the player ready for [difficulty], or not ready (difficulty is then ignored). */
     override suspend fun ready(code: String, playerId: String, ready: Boolean, difficulty: Difficulty?) =
@@ -80,8 +80,9 @@ class BattleApi(scriptUrl: String) : BattleBackend {
     override suspend fun hockeyScore(code: String, playerId: String, score: List<Int>): JSONObject =
         throw ApiException(SHIPS_UNSUPPORTED)
 
+    /** Sudoku's level, where the host picks it; a server without the "sudoku-opener" cap answers that it has no such action. */
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject): JSONObject =
-        throw ApiException(SHIPS_UNSUPPORTED)
+        call("options", "code" to code, "playerId" to playerId, "options" to options.toString())
 
     override suspend fun guess(code: String, playerId: String, word: String, hard: Boolean): JSONObject =
         throw ApiException(SHIPS_UNSUPPORTED)

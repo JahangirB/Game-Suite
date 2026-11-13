@@ -103,6 +103,7 @@ function dispatch_(action, p, now) {
     case 'create': return createRoom_(p, now);
     case 'join': return joinRoom_(p, now);
     case 'ready': return setReady_(p, now);
+    case 'options': return setOptions_(p, now);
     case 'leave': return leave_(p, now);
     case 'emoji': return emoji_(p, now);
     default: throw new Error('Unknown action: ' + action);
@@ -137,7 +138,7 @@ function createRoom_(p, now) {
     winner: null,
     endReason: null,
     emojiSeq: 0,
-    players: { host: newPlayer_(p.name, p.avatar, p.deviceId), guest: null }
+    players: { host: newPlayer_(p.name, p.avatar, p.deviceId, p.games), guest: null }
   };
   saveRoom_(room, now);
   var view = view_(room, 'host', now);
@@ -151,6 +152,7 @@ function joinRoom_(p, now) {
   if (role) {
     // Reconnecting with a known player id.
     room.players[role].lastSeen = now;
+    room.players[role].sudokuOpener = knowsOpener_(p.games);
     saveRoom_(room, now);
     var rejoin = view_(room, role, now);
     rejoin.playerId = room.players[role].id;
@@ -160,7 +162,7 @@ function joinRoom_(p, now) {
     throw fatal_('This battle already has two players.', 'full');
   }
 
-  room.players.guest = newPlayer_(p.name, p.avatar, p.deviceId);
+  room.players.guest = newPlayer_(p.name, p.avatar, p.deviceId, p.games);
   room.players.host.ready = false;
   room.players.host.difficulty = null;
   room.status = 'lobby';
@@ -186,6 +188,16 @@ function setReady_(p, now) {
     me.difficulty = null;
   } else {
     var difficulty = String(p.difficulty || '').toLowerCase();
+    if (openerMode_(room)) {
+      // The host opened the game, so their level is the room's. Their Ready may carry a new one;
+      // the guest's Ready carries none (or any), and takes the host's.
+      if (role === 'host' && DIFFICULTY_HOLES[difficulty] && difficulty !== openerLevel_(room)) {
+        room.options = { level: difficulty };
+        room.players.guest.ready = false;
+        room.players.guest.difficulty = null;
+      }
+      difficulty = openerLevel_(room);
+    }
     if (!DIFFICULTY_HOLES[difficulty]) throw new Error('Choose a difficulty level.');
     me.ready = true;
     me.difficulty = difficulty;
@@ -196,6 +208,33 @@ function setReady_(p, now) {
   if (host.ready && guest.ready && host.difficulty === guest.difficulty) {
     startRound_(room, now);
   }
+  saveRoom_(room, now);
+  return view_(room, role, now);
+}
+
+/**
+ * Sets the level for the next game, where the host picks it (everyone has the 'sudoku-opener'
+ * token). Both players get ready again. This is the only option Apps Script has.
+ */
+function setOptions_(p, now) {
+  var room = requireRoom_(p.code);
+  var role = requireRole_(room, p.playerId);
+  room.players[role].lastSeen = now;
+  if (role !== 'host') throw new Error('Only the host can change the rules.');
+  if (!openerMode_(room)) throw new Error('This game has no options.');
+  if (room.status !== 'waiting' && room.status !== 'lobby' && room.status !== 'finished') {
+    throw new Error('The rules can only change between games.');
+  }
+  var options = {};
+  try {
+    options = JSON.parse(String(p.options || '{}')) || {};
+  } catch (err) {
+    options = {};
+  }
+  var level = String(options.level || '').toLowerCase();
+  if (!DIFFICULTY_HOLES[level]) throw new Error('Choose a difficulty level.');
+  room.options = { level: level };
+  resetReady_(room);
   saveRoom_(room, now);
   return view_(room, role, now);
 }
@@ -323,8 +362,28 @@ function leave_(p, now) {
 // Room helpers
 // ---------------------------------------------------------------------------
 
-function newPlayer_(name, avatar, deviceId) {
+/** Whether an app that sent [games] (a comma list of what it knows) plays Sudoku where the host picks the level. */
+function knowsOpener_(games) {
+  return String(games || '').split(',').indexOf('sudoku-opener') >= 0;
+}
+
+/**
+ * Sudoku where the host (who opened the game) picks the level and the guest taps Ready: while both
+ * apps know it. With one on an older app, both tap a level and it starts when they match.
+ */
+function openerMode_(room) {
+  var guest = room.players.guest;
+  return !!room.players.host.sudokuOpener && (!guest || guest.left || !!guest.sudokuOpener);
+}
+
+function openerLevel_(room) {
+  var level = room.options && room.options.level;
+  return DIFFICULTY_HOLES[level] ? level : 'medium';
+}
+
+function newPlayer_(name, avatar, deviceId, games) {
   return {
+    sudokuOpener: knowsOpener_(games),
     id: Utilities.getUuid(),
     name: cleanName_(name),
     deviceId: /^[A-Za-z0-9-]{8,64}$/.test(String(deviceId || '')) ? String(deviceId) : null,
@@ -350,7 +409,7 @@ function endMatch_(room, winnerRole, reason) {
 }
 
 function startRound_(room, now) {
-  room.difficulty = room.players.host.difficulty;
+  room.difficulty = openerMode_(room) ? openerLevel_(room) : room.players.host.difficulty;
   var generated = generatePuzzle_(DIFFICULTY_HOLES[room.difficulty]);
   room.puzzle = generated.puzzle;
   room.solution = generated.solution;
@@ -389,6 +448,11 @@ function view_(room, role, now) {
     code: room.code,
     // The Google Script server only hosts Sudoku battles.
     game: 'sudoku',
+    // What this server can do; an app shows a control only when its cap is here.
+    caps: ['sudoku-opener'],
+    // The host picks the level while both apps understand it.
+    sudokuOpener: openerMode_(room),
+    options: openerMode_(room) ? { level: openerLevel_(room) } : undefined,
     version: room.version || 0,
     role: role,
     status: status,

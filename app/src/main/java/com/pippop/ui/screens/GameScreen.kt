@@ -5,6 +5,8 @@ import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.alpha
+import com.pippop.data.Difficulty
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -247,8 +249,10 @@ fun ShapePicker(selected: SudokuShape, enabled: Boolean, onPick: (SudokuShape) -
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                ShapePreview(shape, Modifier.size(48.dp))
-                Text(shape.label, color = p.text, fontSize = TextSize.Label, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)
+                // Greyed as the choices of an OptionRow are: the chosen one stays as it is, the others fade.
+                val fade = if (enabled || on) 1f else 0.4f
+                ShapePreview(shape, Modifier.size(48.dp).alpha(fade))
+                Text(shape.label, modifier = Modifier.alpha(fade), color = p.text, fontSize = TextSize.Label, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)
             }
         }
     }
@@ -273,6 +277,41 @@ fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit, on
             note = if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
             else "The same puzzle on every phone: the first to solve it wins.",
         )
+    }
+}
+
+/**
+ * Sudoku where whoever opened the game picks ([RoomState.picksByOpener]): Race or Together, the level and
+ * the board as rows of choices (the others see them greyed), and the others tap Ready.
+ */
+@Composable
+fun SudokuOpenerCard(
+    room: RoomState,
+    busy: Boolean,
+    onLevel: (Difficulty) -> Unit,
+    onTogether: (Boolean) -> Unit,
+    onShape: (SudokuShape) -> Unit,
+) {
+    val p = AppTheme.palette
+    OptionsCard(room, "Setup", busy) { enabled ->
+        if (room.sudokuModes) OptionRow(
+            "Play", listOf(false to "Race", true to "Together"), room.sudokuTogether, onTogether, enabled = enabled,
+            note = if (room.sudokuTogether) "One board for the team: anyone fills any square. A wrong digit costs one of the team's lives."
+            else null,
+        )
+        OptionRow("Level", Difficulty.entries.map { it to it.label }, room.sudokuLevel ?: Difficulty.MEDIUM, onLevel, enabled = enabled, perRow = 3)
+        if (room.sudokuShapes) {
+            ShapePicker(room.sudokuShape, enabled = enabled, onPick = onShape)
+        }
+        if (room.setsOptions) {
+            val others = room.present.map { it.name }
+            val text = when (others.size) {
+                0 -> "You opened Sudoku, so you set it up. Whoever joins sees your choices and taps Ready."
+                1 -> "You opened Sudoku, so you set it up. ${others[0]} sees your choices and taps Ready."
+                else -> "You opened Sudoku, so you set it up. The others see your choices and tap Ready."
+            }
+            Text(text, color = p.muted, fontSize = TextSize.Body)
+        }
     }
 }
 
@@ -329,7 +368,7 @@ private fun BoxScope.SudokuPopup(
         }
         // Partner picked another level: theirs is one tap away (Change has them all).
         val theirs = opponent?.takeIf { it.ready && !it.left }?.difficulty
-        if (theirs != null && theirs != room.difficulty && !room.me.ready) {
+        if (!room.picksByOpener && theirs != null && theirs != room.difficulty && !room.me.ready) {
             TextButton(onClick = { vm.chooseLevel(theirs) }) { Text("$opponentName wants ${theirs.label}: play that", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
     }

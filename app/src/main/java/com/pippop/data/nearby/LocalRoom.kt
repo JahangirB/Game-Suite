@@ -88,6 +88,8 @@ class LocalRoom(
         var placed = 0
         /** Their app plays Sudoku boards of joined grids. */
         var bigSudoku = false
+        /** Their app plays Sudoku where whoever opened the game picks the level. */
+        var sudokuOpener = false
     }
 
     var status = "waiting"
@@ -156,6 +158,9 @@ class LocalRoom(
     /** Sudoku: how the next round's grids are joined, and how this round's are. */
     var sudokuShape = com.pippop.game.SudokuShape.CLASSIC
         private set
+    /** Sudoku: the level the opener picked for the next round (used while [openerMode]). */
+    var sudokuLevel = Difficulty.MEDIUM
+        private set
     private var roundShape = com.pippop.game.SudokuShape.CLASSIC
     /** A big board's puzzle from the opener's phone: shape, level, puzzle, solution. */
     private var nextBig: NextBig? = null
@@ -174,7 +179,7 @@ class LocalRoom(
 
     /** The players a match started with, in seat order. */
     private var inMatch: List<String> = listOf(HOST, GUEST)
-    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar).also { it.bigSudoku = true }, GUEST to null, P3 to null, P4 to null)
+    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar).also { it.bigSudoku = true; it.sudokuOpener = true }, GUEST to null, P3 to null, P4 to null)
 
     fun playerId(role: String) = players.getValue(role)!!.id
 
@@ -212,15 +217,16 @@ class LocalRoom(
             throw ApiException("This game needs the latest Pip & Pop. Update the app to join.", fatal = true, reason = "update_needed")
         }
         val big = games?.contains(BIG_SUDOKU) == true
-        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { it.value?.bigSudoku = big; return it.key }
+        val opener = games?.contains(SUDOKU_OPENER) == true
+        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { it.value?.bigSudoku = big; it.value?.sudokuOpener = opener; return it.key }
         // The same phone coming back without its player id gets its own seat back, not a second one beside it.
-        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { it.value?.bigSudoku = big; return it.key }
+        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { it.value?.bigSudoku = big; it.value?.sudokuOpener = opener; return it.key }
         if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")
         val max = game.maxPlayers
         val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
             ?: throw ApiException(if (max == 2) "This game already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
         if (status == "started") throw ApiException("A game is being played. Join when it ends.", fatal = true, reason = "busy")
-        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId; it.bigSudoku = big }
+        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId; it.bigSudoku = big; it.sudokuOpener = opener }
         // Everyone gets ready again, so the newcomer is part of the next round.
         for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
         if (status == "waiting") status = "lobby"
@@ -266,11 +272,19 @@ class LocalRoom(
     fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long, big: Pair<String, String>? = null) {
         checkCanReady()
         val me = player(role)
+        val opener = openerMode()
         if (!ready) {
             me.ready = false
             me.difficulty = null
         } else {
-            val chosen = level ?: throw ApiException("Choose a difficulty level.")
+            if (opener && role == openedBy && level != null && level != sudokuLevel) {
+                // The opener's Ready may carry a new level (the result's level buttons): it is the room's, and the others get ready again.
+                sudokuLevel = level
+                nextBig = null
+                for (r in seated()) player(r).ready = false
+            }
+            // Where the opener picks, everyone's Ready is for the opener's level, whatever they tapped.
+            val chosen = (if (opener) sudokuLevel else level) ?: throw ApiException("Choose a difficulty level.")
             if (sudokuShape.big) {
                 present().firstOrNull { !player(it).bigSudoku }?.let { throw ApiException("${player(it).name} needs the latest Pip & Pop for big boards.") }
                 if (role == openedBy) {
@@ -282,14 +296,20 @@ class LocalRoom(
             me.ready = true
             me.difficulty = chosen
         }
-        val levels = present().map { player(it).difficulty }.toSet()
+        val levels = if (opener) setOf(sudokuLevel) else present().map { player(it).difficulty }.toSet()
         val puzzleIn = !sudokuShape.big || nextBig?.let { it.shape == sudokuShape && it.level == levels.firstOrNull() } == true
         if (allReady() && levels.size == 1 && puzzleIn) startRound(now)
         version++
     }
 
+    /**
+     * Sudoku where whoever opened the game picks the level and the others only tap Ready: while every
+     * player in the room has the "sudoku-opener" token. With any app lacking it, taps must match.
+     */
+    internal fun openerMode() = game == GameKind.SUDOKU && inRoom().all { player(it).sudokuOpener }
+
     private fun startRound(now: Long) {
-        val level = host.difficulty!!
+        val level = if (openerMode()) sudokuLevel else host.difficulty!!
         val made = nextBig
         val generated = if (sudokuShape.big && made != null) Generator.Result(made.puzzle, made.solution) else generate(level.holes)
         roundShape = if (made != null && sudokuShape.big) made.shape else com.pippop.game.SudokuShape.CLASSIC
@@ -487,6 +507,8 @@ class LocalRoom(
             GameKind.SUDOKU -> {
                 sudokuTogether = options.optString("mode") == "together"
                 sudokuShape = com.pippop.game.SudokuShape.from(options.optString("shape"))
+                // The level is the opener's to keep when a call (an older app's) leaves it out.
+                Difficulty.entries.firstOrNull { it.key == options.optString("level") }?.let { sudokuLevel = it }
                 nextBig = null
             }
             GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
@@ -1256,6 +1278,8 @@ class LocalRoom(
                 it.awaySince = p.awaySince
                 it.emoji = p.emoji
                 it.emojiAt = p.emojiAt
+                it.bigSudoku = p.bigSudoku
+                it.sudokuOpener = p.sudokuOpener
                 it.at = if (r == role) next else p.at
             }
         }
@@ -1398,6 +1422,10 @@ class LocalRoom(
             .put("version", version)
             .put("role", role)
             .put("game", game.key)
+            // What this phone's room can do; an app shows a control only when its cap is here.
+            .put("caps", org.json.JSONArray(listOf(SUDOKU_OPENER)))
+            // Sudoku: the opener picks the level while everyone in the room understands it.
+            .put("sudokuOpener", openerMode())
             .put("status", shown)
             .put("difficulty", difficulty?.key ?: JSONObject.NULL)
             // Sudoku: how the round's grids are joined (its puzzle is size x size).
@@ -1430,6 +1458,7 @@ class LocalRoom(
                     GameKind.DOTS -> JSONObject().put("board", dotsBoard)
                     GameKind.DRAW -> JSONObject().put("mode", drawMode)
                     GameKind.SUDOKU -> JSONObject().put("mode", if (sudokuTogether) "together" else "race").put("shape", sudokuShape.key)
+                        .apply { if (openerMode()) put("level", sudokuLevel.key) }
                     else -> JSONObject.NULL
                 },
             )
@@ -1529,6 +1558,8 @@ class LocalRoom(
         const val COOP_LIVES_BIG = 5
         /** What an app that plays big Sudoku boards adds to the games it says it knows. */
         const val BIG_SUDOKU = "sudoku-big"
+        /** What an app that plays Sudoku where the opener picks the level adds to the games it says it knows. */
+        const val SUDOKU_OPENER = "sudoku-opener"
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L

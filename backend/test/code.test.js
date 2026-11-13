@@ -367,3 +367,77 @@ test('avatars and reactions reach the opponent', () => {
   assert.equal(b.call({ action: 'emoji', code: 'EMO123', playerId: host.playerId, emoji: 'clap' }).me.emoji.seq, 2);
   assert.equal(b.call({ action: 'emoji', code: 'EMO123', playerId: guest.playerId, emoji: 'bomb' }).ok, false, 'unknown');
 });
+
+const TOKENS = 'sudoku,ships,sudoku-big,sudoku-opener';
+
+test('the server lists what it can do', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'CAP123', name: 'A' });
+  assert.deepEqual(host.caps, ['sudoku-opener']);
+});
+
+test('where both apps have the token, the host picks the level and the guest only taps Ready', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'OPN123', name: 'A', games: TOKENS });
+  const guest = b.call({ action: 'join', code: 'OPN123', name: 'B', games: TOKENS });
+  assert.equal(guest.sudokuOpener, true);
+  assert.deepEqual(guest.options, { level: 'medium' });
+  const set = b.call({ action: 'options', code: 'OPN123', playerId: host.playerId, options: JSON.stringify({ level: 'hard' }) });
+  assert.deepEqual(set.options, { level: 'hard' });
+  assert.equal(b.call({ action: 'options', code: 'OPN123', playerId: guest.playerId, options: '{"level":"easy"}' }).ok, false, 'only the host');
+  // The guest taps Ready without a level; the host's Ready starts the round at the host's level.
+  const g = b.call({ action: 'ready', code: 'OPN123', playerId: guest.playerId });
+  assert.equal(g.ok, true);
+  assert.equal(g.status, 'lobby');
+  const h = b.call({ action: 'ready', code: 'OPN123', playerId: host.playerId, difficulty: 'hard' });
+  assert.equal(h.status, 'countdown');
+  assert.equal(h.difficulty, 'hard');
+});
+
+test('a new level takes the guest’s Ready back', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'OPN456', name: 'A', games: TOKENS });
+  const guest = b.call({ action: 'join', code: 'OPN456', name: 'B', games: TOKENS });
+  b.call({ action: 'ready', code: 'OPN456', playerId: guest.playerId });
+  const set = b.call({ action: 'options', code: 'OPN456', playerId: host.playerId, options: '{"level":"medium"}' });
+  assert.equal(set.opponent.ready, false);
+});
+
+test('with one app lacking the token, both tap a level and it starts when they match', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'OLD123', name: 'A', games: TOKENS });
+  const guest = b.call({ action: 'join', code: 'OLD123', name: 'B' });
+  assert.equal(guest.sudokuOpener, false);
+  assert.equal(guest.options, undefined);
+  assert.equal(b.call({ action: 'options', code: 'OLD123', playerId: host.playerId, options: '{"level":"hard"}' }).ok, false);
+  assert.equal(b.call({ action: 'ready', code: 'OLD123', playerId: guest.playerId }).ok, false, 'a level is needed');
+  b.call({ action: 'ready', code: 'OLD123', playerId: host.playerId, difficulty: 'easy' });
+  assert.equal(b.call({ action: 'ready', code: 'OLD123', playerId: guest.playerId, difficulty: 'hard' }).status, 'lobby');
+  const go = b.call({ action: 'ready', code: 'OLD123', playerId: guest.playerId, difficulty: 'easy' });
+  assert.equal(go.status, 'countdown');
+  assert.equal(go.difficulty, 'easy');
+});
+
+test('a guest without the token joining clears Ready and the room goes back to taps; leaving brings opener mode back with the level', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'MID123', name: 'A', games: TOKENS });
+  const first = b.call({ action: 'join', code: 'MID123', name: 'B', games: TOKENS });
+  b.call({ action: 'options', code: 'MID123', playerId: host.playerId, options: '{"level":"expert"}' });
+  b.call({ action: 'leave', code: 'MID123', playerId: first.playerId });
+  const old = b.call({ action: 'join', code: 'MID123', name: 'C' });
+  assert.equal(old.sudokuOpener, false);
+  assert.equal(old.opponent.ready, false);
+  b.call({ action: 'leave', code: 'MID123', playerId: old.playerId });
+  const sync = b.call({ action: 'sync', code: 'MID123', playerId: host.playerId });
+  assert.equal(sync.sudokuOpener, true);
+  assert.equal(sync.options.level, 'expert');
+});
+
+test('a rejoin from an app without the token drops opener mode', () => {
+  const b = loadBackend();
+  b.call({ action: 'create', code: 'RJ1234', name: 'A', games: TOKENS });
+  const guest = b.call({ action: 'join', code: 'RJ1234', name: 'B', games: TOKENS });
+  assert.equal(guest.sudokuOpener, true);
+  const again = b.call({ action: 'join', code: 'RJ1234', name: 'B', playerId: guest.playerId });
+  assert.equal(again.sudokuOpener, false);
+});

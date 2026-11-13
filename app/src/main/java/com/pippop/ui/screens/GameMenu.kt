@@ -440,11 +440,11 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)
-        GameKind.SUDOKU -> if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
+        GameKind.SUDOKU -> if (room.picksByOpener) SudokuOpenerCard(room, busy, vm::setSudokuLevel, vm::setSudokuTogether, vm::setSudokuShape) else if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
         else -> Unit
     }
     when (room.game) {
-        GameKind.SUDOKU -> AppCard("Level") {
+        GameKind.SUDOKU -> if (!room.picksByOpener) AppCard("Level") {
             Text("Tap a level: the next round starts when you both pick the same one.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)
         }

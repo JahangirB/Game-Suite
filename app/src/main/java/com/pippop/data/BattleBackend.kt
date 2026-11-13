@@ -116,8 +116,8 @@ interface BattleBackend {
 
     companion object {
         /** The games this app can play, sent when joining so a server can ask older apps to update. */
-        /** The games this app knows, and "sudoku-big": it plays Sudoku boards of joined grids. */
-        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU
+        /** The games this app knows, "sudoku-big" (it plays Sudoku boards of joined grids) and "sudoku-opener" (whoever opens Sudoku picks the level). */
+        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU + "," + com.pippop.data.nearby.LocalRoom.SUDOKU_OPENER
 
         /** Apps Script links poll; anything else is a Cloudflare server with a live connection. */
         fun forUrl(url: String, password: String): BattleBackend =

@@ -102,6 +102,7 @@ export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = 
   const open = GAMES.includes(game) ? game : 'sudoku';
   const host = newPlayer(hostName, avatar, now, uuid, deviceId, open);
   host.bigSudoku = knowsBigSudoku(games);
+  host.sudokuOpener = knowsSudokuOpener(games);
   return {
     code, game: open, createdAt: now, version: 0, emojiSeq: 0, difficulty: null, status: 'waiting', round: 0,
     puzzle: null, solution: null, startAt: null, winner: null, endReason: null,
@@ -111,6 +112,10 @@ export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = 
 
 /** Whether an app that sent [games] (what it knows) can play Sudoku boards of joined grids. */
 const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku-big');
+/** Whether an app that sent [games] understands a Sudoku room where the opener picks the level. */
+const knowsSudokuOpener = (games) => Array.isArray(games) && games.includes('sudoku-opener');
+/** What this server can do, sent in every room state; an app shows a control only when its cap is here. */
+export const CAPS = ['sudoku-opener'];
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -173,6 +178,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     if (id) room.players[known].deviceId = id;
     // The same player on an updated app.
     room.players[known].bigSudoku = knowsBigSudoku(games);
+    room.players[known].sudokuOpener = knowsSudokuOpener(games);
     return known;
   }
   // The same phone coming back without its player id (a join retried after its answer was
@@ -180,6 +186,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   const mine = findDevice(room, deviceId);
   if (mine) {
     room.players[mine].bigSudoku = knowsBigSudoku(games);
+    room.players[mine].sudokuOpener = knowsSudokuOpener(games);
     return mine;
   }
   if (playerId) throw new GameError("You're not in this game.", true, 'not_member');
@@ -191,6 +198,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   if (room.status === 'started') throw new GameError('A game is being played. Join when it ends.', true, 'busy');
   room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId, room.game);
   room.players[seat].bigSudoku = knowsBigSudoku(games);
+  room.players[seat].sudokuOpener = knowsSudokuOpener(games);
   // Everyone gets ready again, so the newcomer is part of the next round.
   for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   if (room.status === 'waiting') room.status = 'lobby';
@@ -232,11 +240,23 @@ export function setReady(room, role, ready, difficulty, now, generate = generate
   checkCanReady(room);
   const me = room.players[role];
   const { shape } = cleanSudokuOptions(room.options);
+  const opener = openerMode(room);
+  const opened = role === (room.openedBy || 'host');
   if (ready === false) {
     me.ready = false;
     me.difficulty = null;
   } else {
-    const level = String(difficulty || '').toLowerCase();
+    let level = String(difficulty || '').toLowerCase();
+    if (opener) {
+      // The opener's level is the room's. Their Ready may carry a new one (the result's level buttons); the others'
+      // Ready carries none, or whatever they tapped, and takes the opener's.
+      if (opened && DIFFICULTY_HOLES[level] && level !== openerLevel(room)) {
+        room.options = { ...cleanSudokuOptions(room.options), level };
+        room.nextBig = null;
+        for (const r of seated(room)) room.players[r].ready = false;
+      }
+      level = openerLevel(room);
+    }
     if (!DIFFICULTY_HOLES[level]) throw new GameError('Choose a difficulty level.');
     if (shape !== 'classic') {
       const behind = present(room).find((r) => !room.players[r].bigSudoku);
@@ -251,7 +271,7 @@ export function setReady(room, role, ready, difficulty, now, generate = generate
     me.ready = true;
     me.difficulty = level;
   }
-  const levels = new Set(present(room).map((r) => room.players[r].difficulty));
+  const levels = new Set(opener ? [openerLevel(room)] : present(room).map((r) => room.players[r].difficulty));
   const level = [...levels][0];
   const puzzleIn = shape === 'classic' || (room.nextBig?.shape === shape && room.nextBig?.level === level);
   if (allReady(room) && levels.size === 1 && puzzleIn) startRound(room, now, generate);
@@ -259,8 +279,8 @@ export function setReady(room, role, ready, difficulty, now, generate = generate
 }
 
 function startRound(room, now, generate) {
-  // Everyone chose the same level; the host's choice stands for all.
-  const difficulty = room.players.host.difficulty;
+  // Everyone chose the same level; the host's choice stands for all (the opener's, where they pick).
+  const difficulty = openerMode(room) ? openerLevel(room) : room.players.host.difficulty;
   const { shape, mode } = cleanSudokuOptions(room.options);
   const { puzzle, solution } = shape === 'classic' ? generate(DIFFICULTY_HOLES[difficulty]) : room.nextBig;
   room.nextBig = null;
@@ -277,7 +297,18 @@ function startRound(room, now, generate) {
 // win; lose the last life and you all lose.
 
 export const COOP_LIVES = 3;
-const cleanSudokuOptions = (o) => ({ mode: o?.mode === 'together' ? 'together' : 'race', shape: SHAPES[o?.shape] ? o.shape : 'classic' });
+const cleanSudokuOptions = (o) => ({
+  mode: o?.mode === 'together' ? 'together' : 'race', shape: SHAPES[o?.shape] ? o.shape : 'classic',
+  ...(DIFFICULTY_HOLES[o?.level] ? { level: o.level } : {}),
+});
+/**
+ * Sudoku where the opener picks: every player in the room understands it ('sudoku-opener'), so the
+ * opener sets the level, Race or Together and the board, and the others only tap Ready. With anyone
+ * on an older app the room works as before: everyone taps a level and it starts when they match.
+ */
+export const openerMode = (room) => room.game === 'sudoku' && inRoom(room).every((r) => room.players[r].sudokuOpener === true);
+/** The level the opener chose for the next round. */
+const openerLevel = (room) => cleanSudokuOptions(room.options).level || 'medium';
 /** Lives a team shares in Sudoku together: more on a board of joined grids. */
 export const COOP_LIVES_BIG = 5;
 
@@ -513,7 +544,8 @@ export function setOptions(room, role, options) {
   else if (room.game === 'dots') room.options = dots.cleanOptions(options);
   else if (room.game === 'draw') room.options = draw.cleanOptions(options);
   else if (room.game === 'sudoku') {
-    room.options = cleanSudokuOptions(options);
+    // The level is the opener's to keep when a call (an older app's) leaves it out.
+    room.options = cleanSudokuOptions({ ...options, level: DIFFICULTY_HOLES[options?.level] ? options.level : room.options?.level });
     room.nextBig = null;
   }
   else throw new GameError('This game has no options.');
@@ -1282,6 +1314,8 @@ export function openGame(room, role, game, now) {
     players[r] = {
       ...newPlayer(p.name, p.avatar, now, () => p.id, p.deviceId, at),
       emoji: p.emoji, emojiAt: p.emojiAt, connected: p.connected, awaySince: p.awaySince,
+      // What their app understands goes with them to the new game.
+      bigSudoku: p.bigSudoku, sudokuOpener: p.sudokuOpener,
     };
   }
   const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, round: room.round, startPushedRound: room.startPushedRound };
@@ -1508,6 +1542,12 @@ function bump(room) {
   room.version = (room.version || 0) + 1;
 }
 
+/** Sudoku's options as sent: the level only where the opener picks it (it is no option in an old room). */
+function sudokuOptionsView(room) {
+  const { mode, shape } = cleanSudokuOptions(room.options);
+  return openerMode(room) ? { mode, shape, level: openerLevel(room) } : { mode, shape };
+}
+
 /** What one player is allowed to see; the same shape the Apps Script backend sends. */
 export function view(room, role, now) {
   let status = room.status;
@@ -1519,6 +1559,9 @@ export function view(room, role, now) {
   return {
     code: room.code,
     game: room.game || 'sudoku',
+    caps: CAPS,
+    // Sudoku: the opener picks the level while everyone in the room understands it.
+    sudokuOpener: openerMode(room),
     version: room.version,
     role,
     status,
@@ -1535,7 +1578,7 @@ export function view(room, role, now) {
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? cleanSudokuOptions(room.options) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? sudokuOptionsView(room) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

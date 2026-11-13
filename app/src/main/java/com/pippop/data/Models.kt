@@ -405,10 +405,23 @@ data class RoomState(
     val codeRules: com.pippop.game.code.CodeRules = com.pippop.game.code.CodeRules(),
     /** Whether this player sets the open game's options: whoever opened it (the host at first). */
     val setsOptions: Boolean = role == "host",
+    /** What the server can do ("sudoku-opener" and so on); empty from a server that sends none. */
+    val caps: List<String> = emptyList(),
+    /** Sudoku: the server says whoever opened the game picks the level and the others tap Ready. */
+    val sudokuOpener: Boolean = false,
+    /** Sudoku: the level the opener picked for the next round (only sent while [sudokuOpener]). */
+    val sudokuLevel: Difficulty? = null,
     /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
     val inSession: Boolean = false,
 ) {
     val isHost get() = role == "host"
+
+    /**
+     * Sudoku where whoever opened the game picks the level, Race or Together and the board, and the others
+     * only tap Ready: the server says so ([sudokuOpener]) and has the "sudoku-opener" cap. Otherwise
+     * everyone taps a level and it starts when the taps match.
+     */
+    val picksByOpener get() = game == GameKind.SUDOKU && sudokuOpener && "sudoku-opener" in caps
 
     /** Sudoku together: one grid for everyone. */
     val together get() = game == GameKind.SUDOKU && sudokuTogether
@@ -486,6 +499,10 @@ fun parseRoom(json: JSONObject) = RoomState(
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
     golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
+    caps = json.optJSONArray("caps")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s.isNotEmpty() } } }.orEmpty(),
+    sudokuOpener = json.optBoolean("sudokuOpener"),
+    sudokuLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU }
+        ?.stringOrNull("level")?.let { key -> Difficulty.entries.firstOrNull { it.key == key } },
     inSession = json.getJSONObject("me").has("at"),
 )
 
