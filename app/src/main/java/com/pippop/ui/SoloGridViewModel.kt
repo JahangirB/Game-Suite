@@ -18,6 +18,8 @@ import kotlinx.coroutines.withContext
 data class SoloGridUiState(
     /** Two minutes on the clock, or (false) no time limit: finish when you like. */
     val timed: Boolean = true,
+    /** True from the moment a game is asked for; its letters follow a moment later. */
+    val started: Boolean = false,
     /** Null before the first round. */
     val letters: String? = null,
     val found: List<String> = emptyList(),
@@ -41,11 +43,12 @@ class SoloGridViewModel : ViewModel() {
 
     fun start() {
         clock?.cancel()
+        _state.update { SoloGridUiState(timed = it.timed, started = true, best = it.best) }
         viewModelScope.launch {
             val letters = withContext(Dispatchers.Default) { LetterGridGenerator().generate() }
             val timed = _state.value.timed
             val endsAt = if (timed) System.currentTimeMillis() + LetterGrid.ROUND_MS else 0L
-            _state.update { SoloGridUiState(timed = timed, letters = letters, endsAt = endsAt, best = it.best) }
+            _state.update { SoloGridUiState(timed = timed, started = true, letters = letters, endsAt = endsAt, best = it.best) }
             if (timed) {
                 clock = launch {
                     delay(LetterGrid.ROUND_MS)

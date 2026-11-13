@@ -37,12 +37,6 @@ class SoloBlocksViewModel : ViewModel() {
 
     fun setSkill(n: Int) = _state.update { it.copy(skill = n.coerceIn(0, 2)) }
 
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val m = BlocksMatch("mopq".take(_state.value.opponents + 1).toList())

@@ -36,19 +36,17 @@ class SoloWordsViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<SoloWordsUiState> = _state.asStateFlow()
 
     /** Today's word, with any guesses already made today. */
-    fun playDaily() {
+    fun playDaily(level: WordLevel = _state.value.level) {
         val today = LocalDate.now().toString()
         val answer = WordList.daily()
         val saved = if (prefs.getString(KEY_DATE, null) == today) prefs.getString(KEY_GUESSES, "").orEmpty() else ""
         val guesses = saved.split(',').filter { it.length == answer.length }.map { WordGuess(it, Words.score(it, answer)) }
-        _state.value = SoloWordsUiState(daily = true, answer = answer, guesses = guesses)
+        _state.value = SoloWordsUiState(daily = true, answer = answer, guesses = guesses, level = level)
     }
 
     fun playPractice(level: WordLevel = _state.value.level) {
         _state.value = SoloWordsUiState(daily = false, answer = WordList.random(level), level = level)
     }
-
-    fun chooseMode() = _state.update { SoloWordsUiState(level = it.level) }
 
     fun type(letter: Char) = _state.update {
         if (it.done || it.input.length >= it.length) it else it.copy(input = it.input + letter.lowercaseChar(), message = null)

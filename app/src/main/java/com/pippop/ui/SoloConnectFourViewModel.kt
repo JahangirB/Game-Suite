@@ -42,8 +42,6 @@ class SoloConnectFourViewModel : ViewModel() {
 
     fun rematch() = _state.value.level?.let(::start)
 
-    fun changeLevel() = _state.update { SoloC4UiState() }
-
     fun drop(col: Int) {
         val s = _state.value
         if (!s.myTurn || s.result != null || s.level == null) return

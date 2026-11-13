@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
@@ -518,54 +519,37 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.BLOCKS, "New game", vm::startWith) { changing = false }
     val names = listOf('m' to "You") + (1..state.opponents).map { "opq"[it - 1] to "CPU $it" }
     GameFrame(
         title = "Corner Blocks",
         subtitle = "Against ${state.opponents} computer${if (state.opponents > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.BLOCKS.color,
-        menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, if (view != null) vm::start else null),
-        scrollable = view == null,
-        popup = if (view == null || state.result == null) null else popupContent {
+        menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, vm::start, { changing = true }),
+        popup = if (state.result == null) null else popupContent {
             SoloPopup(
                 GameKind.BLOCKS, state.result, blocksScores(view, names).joinToString(" · "),
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Corner Blocks") {
-                Text("Lay your 21 pieces. Your first covers your start square; after that each piece must touch yours only corner to corner. Most squares placed wins.", color = p.muted, fontSize = TextSize.Body)
-                BlocksHintsSwitch()
-                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (n in 1..3) {
-                        if (state.opponents == n) PrimaryButton("$n", {}, Modifier.weight(1f)) else SecondaryButton("$n", { vm.setOpponents(n) }, Modifier.weight(1f))
-                    }
-                }
-                Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
-                        if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))
-                    }
-                }
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            val myTurn = state.turn == 'm' && state.result == null
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TurnLine(
-                    when {
-                        state.result != null -> "Game over"
-                        myTurn -> "Your turn"
-                        else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is placing…"
-                    },
-                    myTurn, GameKind.BLOCKS.color,
-                )
-            }
-            Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
-            BlocksPlay(view, myTurn, vm::place)
+        val myTurn = state.turn == 'm' && state.result == null
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            TurnLine(
+                when {
+                    state.result != null -> "Game over"
+                    myTurn -> "Your turn"
+                    else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is placing…"
+                },
+                myTurn, GameKind.BLOCKS.color,
+            )
         }
+        Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
+        BlocksPlay(view, myTurn, vm::place)
     }
 }
 

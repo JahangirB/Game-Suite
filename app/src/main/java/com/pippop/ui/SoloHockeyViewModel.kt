@@ -58,10 +58,5 @@ class SoloHockeyViewModel : ViewModel() {
 
     fun again() = _state.value.level?.let { start(it) } ?: Unit
 
-    fun changeLevel() {
-        loop?.cancel()
-        _state.value = SoloHockeyUiState()
-    }
-
     fun move(x: Float, y: Float) = table.moveBottom(x, y)
 }

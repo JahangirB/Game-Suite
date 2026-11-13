@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -464,60 +465,38 @@ fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.GOLF) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.GOLF, "New game", vm::startWith) { changing = false }
     val names = listOf('m' to "You") + (1..state.computers).map { "opq"[it - 1] to "CPU $it" }
     GameFrame(
         title = "Mini Golf",
         subtitle = if (state.computers == 0) "On your own" + (state.best?.let { " · best $it" } ?: "") else "Against ${state.computers} computer${if (state.computers > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.GOLF.color,
-        menu = soloMenu(GameKind.GOLF, onHome, { showRules = true }, if (view != null) vm::start else null),
-        scrollable = view == null,
-        popup = if (view == null || state.result == null) null else popupContent {
+        menu = soloMenu(GameKind.GOLF, onHome, { showRules = true }, vm::start, { changing = true }),
+        popup = if (state.result == null) null else popupContent {
             SoloPopup(
                 GameKind.GOLF, state.result,
                 golfScores(view, names).joinToString(" · "),
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change setup", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Nine holes") {
-                Text("Swipe to turn, pinch to zoom, and slide up the bar on the right to shoot: low rolls, high jumps over gaps and walls. Fewest strokes over nine holes wins.", color = p.muted, fontSize = TextSize.Body)
-                Text("Holes", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                OptionGroup(GolfLevel.entries.map { it to it.label }, state.level, enabled = true, onPick = vm::setLevel)
-                GolfTimePicker()
-                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (n in 0..3) {
-                        val label = if (n == 0) "None" else "$n"
-                        if (state.computers == n) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setComputers(n) }, Modifier.weight(1f))
-                    }
-                }
-                if (state.computers > 0) {
-                    Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
-                            if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))
-                        }
-                    }
-                }
-                PrimaryButton("Tee off", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            GolfHeader(view, names)
-            GolfScoreStrip(view, names)
-            GolfCountdown(view, names)
-            val myTurn = state.turn == 'm' && state.result == null
-            TurnLine(
-                when {
-                    state.result != null -> "Round over"
-                    myTurn -> yourShot(view)
-                    else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is shooting…"
-                },
-                myTurn, GameKind.GOLF.color,
-            )
-            GolfPlay(view, state.turn, myTurn, state.game, vm::shoot, Modifier.weight(1f).fillMaxWidth())
-        }
+        GolfHeader(view, names)
+        GolfScoreStrip(view, names)
+        GolfCountdown(view, names)
+        val myTurn = state.turn == 'm' && state.result == null
+        TurnLine(
+            when {
+                state.result != null -> "Round over"
+                myTurn -> yourShot(view)
+                else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is shooting…"
+            },
+            myTurn, GameKind.GOLF.color,
+        )
+        GolfPlay(view, state.turn, myTurn, state.game, vm::shoot, Modifier.weight(1f).fillMaxWidth())
     }
 }
 

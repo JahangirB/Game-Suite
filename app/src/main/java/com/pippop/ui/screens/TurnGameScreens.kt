@@ -108,6 +108,7 @@ import com.pippop.game.dots.Dots
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
 import com.pippop.ui.SoloC4UiState
+import com.pippop.ui.startWith
 import com.pippop.ui.SoloConnectFourViewModel
 import com.pippop.ui.SoloDotsUiState
 import com.pippop.ui.SoloDotsViewModel
@@ -858,8 +859,8 @@ fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
 }
 
 /** The menu of a game on your own: a fresh game, the rules, sound, and back home. */
-internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) =
-    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, leaveLabel = "Home")
+internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?, onChange: (() -> Unit)? = null) =
+    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, onChangeMode = onChange, leaveLabel = "Home", changeLabel = "Change setup")
 
 // ---- Against your partner -----------------------------------------------------------------
 
@@ -1045,22 +1046,24 @@ internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, 
 /** Connect Four against the computer. */
 @Composable
 fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, onHome: () -> Unit) {
-    val p = AppTheme.palette
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    val level = state.level
+    if (level == null) { BackToHome(onHome); return }
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CONNECT4) { showRules = false }
-    val level = state.level
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.CONNECT4, "New game", vm::startWith) { changing = false }
     val result = state.result
     GameFrame(
         title = "Connect Four",
-        subtitle = level?.let { "Against the computer · ${it.label}" } ?: "Against the computer",
-        players = if (level == null) emptyList() else listOf(
+        subtitle = "Against the computer · ${level.label}",
+        players = listOf(
             ChipPlayer("You", null, MyDisc, "Red", active = state.myTurn && result == null),
             ChipPlayer("Computer", null, TheirDisc, level.label, active = !state.myTurn && result == null),
         ),
         glow = GameKind.CONNECT4.color,
-        menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, if (level != null) ({ vm.changeLevel() }) else null),
-        scrollable = level == null,
-        popup = if (level == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, vm::rematch, { changing = true }),
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.CONNECT4, result,
                 when (result) {
@@ -1068,27 +1071,20 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
                     "computer" -> "The computer got four in a row."
                     else -> "The board is full and nobody got four."
                 },
-                onAgain = vm::rematch, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::rematch, onHome = onHome, finishLabel = "Change level", onFinish = { changing = true },
             )
         },
     ) {
-        if (level == null) {
-            AppCard("Choose the computer's level") {
-                Text("Line up four of your discs across, down or diagonally before the computer does.", color = p.muted, fontSize = TextSize.Body)
-                C4Level.entries.forEach { PrimaryButton(it.label, { vm.start(it) }) }
-            }
-        } else {
-            TurnLine(
-                when {
-                    result != null -> "Game over"
-                    state.myTurn -> "Your turn: slide to a column and let go"
-                    else -> "The computer is thinking…"
-                },
-                state.myTurn && result == null, GameKind.CONNECT4.color,
-            )
-            BoardArea(1f) { size ->
-                ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && result == null) vm::drop else null, modifier = size)
-            }
+        TurnLine(
+            when {
+                result != null -> "Game over"
+                state.myTurn -> "Your turn: slide to a column and let go"
+                else -> "The computer is thinking…"
+            },
+            state.myTurn && result == null, GameKind.CONNECT4.color,
+        )
+        BoardArea(1f) { size ->
+            ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && result == null) vm::drop else null, modifier = size)
         }
     }
 }
@@ -1099,6 +1095,8 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.DOTS) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.DOTS, "New game", vm::startWith) { changing = false }
     val result = state.result
     val playing = result == null
     val mine = state.boxes.count { it == 'm' }
@@ -1111,9 +1109,9 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             ChipPlayer("Computer", null, TheirDisc, "$theirs boxes", active = !state.myTurn && playing),
         ),
         glow = GameKind.DOTS.color,
-        menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
         popup = if (result == null) null else popupContent {
-            SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = vm::newGame, onHome = onHome)
+            SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = { vm.newGame() }, onHome = onHome)
         },
     ) {
         val again = state.myTurn && state.lastLine != null && state.lines[state.lastLine] == 'm'
@@ -1127,10 +1125,6 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             state.myTurn && playing,
             if (again && playing) p.good else GameKind.DOTS.color,
         )
-        // Before the first line: the board to play on.
-        if (state.lines.none { it != '.' && it != ' ' }) {
-            Choices(DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, state.board, vm::newGame, Modifier.fillMaxWidth())
-        }
         BoardArea(dotsAspect(DotsShape.from(state.board))) { size ->
             DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size, shape = DotsShape.from(state.board))
         }
@@ -1142,6 +1136,8 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
 fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Unit) {
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.TTT) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.TTT, "New game", vm::startWith) { changing = false }
     val result = state.result
     val playing = result == null
     val pos = state.position
@@ -1153,7 +1149,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             ChipPlayer("Computer", null, TheirDisc, if (pos.classic) "O" else "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
         ),
         glow = GameKind.TTT.color,
-        menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }),
+        menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.TTT, result,
@@ -1177,13 +1173,6 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             state.myTurn && playing,
             GameKind.TTT.color,
         )
-        // Normal or Ultimate: switching starts a new game.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(true to "Normal 3 × 3", false to "Ultimate").forEach { (classic, label) ->
-                if (pos.classic == classic) PrimaryButton(label, {}, Modifier.weight(1f))
-                else SecondaryButton(label, { vm.newGame(classic) }, Modifier.weight(1f))
-            }
-        }
         BoardArea(1f) { size ->
             TttBoard(
                 board = pos.cells,
@@ -1205,13 +1194,15 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.MEMORY) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.MEMORY, "New game", vm::startWith) { changing = false }
     val finished = state.finishedMs
     GameFrame(
         title = "Memory Pairs",
         subtitle = "On your own",
         players = emptyList(),
         glow = GameKind.MEMORY.color,
-        menu = soloMenu(GameKind.MEMORY, onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.MEMORY, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text("${state.flips} flips", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -1226,7 +1217,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
                 detail = "${state.flips} flips in ${formatDuration(finished)}",
                 scores = listOfNotNull(state.bestFlips?.let { "Best: $it flips" }),
                 finish = PopupAction("Home", onHome),
-                again = PopupAction("Play again", vm::newGame),
+                again = PopupAction("Play again", { vm.newGame() }),
             )
         },
     ) {
@@ -1234,10 +1225,6 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
             Text("Found", color = p.muted, fontSize = TextSize.Body, modifier = Modifier.width(52.dp))
             val found = state.faces.indices.filter { state.found[it] != '.' }.mapNotNull { state.faces[it] }.distinct()
             if (found.isEmpty() && state.flips > 0) Text("Find all ${state.cards / 2} pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
-            // Before the first flip: the deck size.
-            if (state.flips == 0) {
-                Choices(MemoryMatch.DECKS.map { it to "$it cards" }, state.cards, vm::newGame, Modifier.weight(1f))
-            }
             found.forEach { CardPicture(it, 24.dp) }
             Spacer(Modifier.width(4.dp))
         }

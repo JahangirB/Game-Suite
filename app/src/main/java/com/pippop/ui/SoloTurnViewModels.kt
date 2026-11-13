@@ -107,12 +107,15 @@ class SoloTttViewModel : ViewModel() {
     private var match = TttMatch()
     private val computer = TttComputer()
     private var playerStarts = true
+    private var started = false
     private val _state = MutableStateFlow(SoloTttUiState())
     val state: StateFlow<SoloTttUiState> = _state.asStateFlow()
 
     /** A new game, normal ([classic]) or Ultimate; the same kind as before unless told. */
     fun newGame(classic: Boolean = match.classic) {
-        playerStarts = !playerStarts
+        // The very first game is yours to open; after that the openers alternate.
+        if (started) playerStarts = !playerStarts
+        started = true
         match = TttMatch(classic)
         _state.value = SoloTttUiState(position = match.position, myTurn = playerStarts)
         if (!playerStarts) computerMoves()
@@ -230,13 +233,6 @@ class SoloDominoesViewModel : ViewModel() {
 
     fun setOptions(options: DominoOptions) = _state.update { it.copy(options = options) }
 
-    /** Back to choosing the rules. */
-    fun changeRules() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val s = _state.value
@@ -318,12 +314,6 @@ class SoloClashViewModel : ViewModel() {
 
     fun setOpponents(n: Int) = _state.update { it.copy(opponents = n.coerceIn(1, 3)) }
 
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val marks = "mopq".take(_state.value.opponents + 1).toList()
@@ -395,12 +385,6 @@ class SoloLudoViewModel : ViewModel() {
     val state: StateFlow<SoloLudoUiState> = _state.asStateFlow()
 
     fun setOpponents(n: Int) = _state.update { it.copy(opponents = n.coerceIn(1, 3)) }
-
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
 
     fun start() {
         thinking?.cancel()

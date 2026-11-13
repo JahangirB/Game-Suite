@@ -40,8 +40,6 @@ class SoloNumbersViewModel : ViewModel() {
 
     fun again() = start(_state.value.level)
 
-    fun changeLevel() = _state.update { it.copy(puzzle = null, finishedMs = null) }
-
     fun select(k: Int) = _state.update { it.copy(selected = if (it.selected == k) null else k) }
 
     /** Puts [value] in the picked blank ("" empties it), then picks the next empty one. */

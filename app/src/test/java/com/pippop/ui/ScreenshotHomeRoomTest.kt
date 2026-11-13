@@ -56,7 +56,7 @@ class ScreenshotHomeRoomTest : ScreenshotBase() {
             partner = SavedPartner("https://example.com/x", "", "K7Q2NB", "Maya", Avatar.PANDA, "device", "me"),
         )
         HomeScreen(
-            solo = SoloUiState(game = saved()), profile = profile, onContinue = {}, onNewGame = { _, _ -> }, onProfile = {}, onSolo = {},
+            solo = SoloUiState(game = saved()), profile = profile, onContinue = {}, onProfile = {}, onSolo = { _, _ -> },
             onArrange = {}, onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
             connected = true, onConnect = {}, room = room, now = NOW,
         )

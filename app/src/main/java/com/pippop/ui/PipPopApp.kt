@@ -114,6 +114,31 @@ import kotlinx.coroutines.launch
 
 private enum class Dest { HOME, PROFILE, ARRANGE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
+/** The screen of a game's solo play (Draw & Guess has none). */
+private fun soloDest(game: GameKind) = when (game) {
+    GameKind.SHIPS -> Dest.SHIPS
+    GameKind.CONNECT4 -> Dest.CONNECT4
+    GameKind.DOTS -> Dest.DOTS
+    GameKind.MEMORY -> Dest.MEMORY
+    GameKind.WORDS -> Dest.WORDS
+    GameKind.TTT -> Dest.TTT
+    GameKind.DOMINOES -> Dest.DOMINOES
+    GameKind.NUMBERS -> Dest.NUMBERS
+    GameKind.HOCKEY -> Dest.HOCKEY
+    GameKind.CLASH -> Dest.CLASH
+    GameKind.LUDO -> Dest.LUDO
+    GameKind.GRID -> Dest.GRID
+    GameKind.BALLOON -> Dest.BALLOON
+    GameKind.CODE -> Dest.CODE
+    GameKind.SLIDE -> Dest.SLIDE
+    GameKind.BINGO -> Dest.BINGO
+    GameKind.GOLF -> Dest.GOLF
+    GameKind.BLOCKS -> Dest.BLOCKS
+    // Draw & Guess needs two players; its sheet offers no solo game.
+    GameKind.DRAW -> Dest.HOME
+    GameKind.SUDOKU -> Dest.SOLO
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PipPopApp(
@@ -163,6 +188,26 @@ fun PipPopApp(
     val bingoState by bingo.state.collectAsStateWithLifecycle()
     val golfState by golf.state.collectAsStateWithLifecycle()
     val blocksState by blocks.state.collectAsStateWithLifecycle()
+    // The games alone that were started and not finished: their sheet offers to carry on.
+    val unfinished = buildSet {
+        if (connectFourState.level != null && connectFourState.result == null) add(GameKind.CONNECT4)
+        if (dotsState.result == null && dotsState.lines.any { it != '.' && it != ' ' }) add(GameKind.DOTS)
+        if (memoryState.flips > 0 && memoryState.finishedMs == null) add(GameKind.MEMORY)
+        if (wordsState.daily != null && !wordsState.done) add(GameKind.WORDS)
+        if (tttState.result == null && tttState.lastCell != null) add(GameKind.TTT)
+        if (dominoesState.view != null && dominoesState.result == null) add(GameKind.DOMINOES)
+        if (numbersState.puzzle != null && numbersState.finishedMs == null) add(GameKind.NUMBERS)
+        if (hockeyState.level != null && hockeyState.result == null) add(GameKind.HOCKEY)
+        if (clashState.view != null && clashState.result == null) add(GameKind.CLASH)
+        if (ludoState.view != null && ludoState.result == null) add(GameKind.LUDO)
+        if (gridState.started && !gridState.over) add(GameKind.GRID)
+        if (balloonState.started && balloonState.result == null) add(GameKind.BALLOON)
+        if (codeState.started && !codeState.done) add(GameKind.CODE)
+        if (slideState.level != null && slideState.finishedMs == null) add(GameKind.SLIDE)
+        if (bingoState.computers > 0 && bingoState.winner == null) add(GameKind.BINGO)
+        if (golfState.view != null && golfState.result == null) add(GameKind.GOLF)
+        if (blocksState.view != null && blocksState.result == null) add(GameKind.BLOCKS)
+    }
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
     // The home's connect sheet: a nearby room, or joining an online one.
@@ -346,38 +391,38 @@ fun PipPopApp(
                                 solo.resume()
                                 go(Dest.SOLO)
                             },
-                            onNewGame = { level, shape ->
-                                app.noteGamePlayed(GameKind.SUDOKU)
-                                solo.startNew(level, shape)
-                                go(Dest.SOLO)
-                            },
                             onProfile = { dest = Dest.PROFILE },
-                            onSolo = { game ->
+                            onSoloSetup = app::setSoloSetup,
+                            soloUnfinished = unfinished,
+                            // Back to a game that was left unfinished: nothing starts.
+                            onContinueSolo = { game -> go(soloDest(game)) },
+                            onSolo = { game, setup ->
                                 // Draw & Guess has no solo game, so it never starts here.
                                 if (game != GameKind.DRAW) app.noteGamePlayed(game)
-                                go(when (game) {
-                                    GameKind.SHIPS -> Dest.SHIPS
-                                    GameKind.CONNECT4 -> Dest.CONNECT4
-                                    GameKind.DOTS -> Dest.DOTS
-                                    GameKind.MEMORY -> Dest.MEMORY
-                                    GameKind.WORDS -> Dest.WORDS
-                                    GameKind.TTT -> Dest.TTT
-                                    GameKind.DOMINOES -> Dest.DOMINOES
-                                    GameKind.NUMBERS -> Dest.NUMBERS
-                                    GameKind.HOCKEY -> Dest.HOCKEY
-                                    GameKind.CLASH -> Dest.CLASH
-                                    GameKind.LUDO -> Dest.LUDO
-                                    GameKind.GRID -> Dest.GRID
-                                    GameKind.BALLOON -> Dest.BALLOON
-                                    GameKind.CODE -> Dest.CODE
-                                    GameKind.SLIDE -> Dest.SLIDE
-                                    GameKind.BINGO -> Dest.BINGO
-                                    GameKind.GOLF -> Dest.GOLF
-                                    GameKind.BLOCKS -> Dest.BLOCKS
-                                    // Draw & Guess needs two players; its sheet offers no solo game.
-                                    GameKind.DRAW -> Dest.HOME
-                                    GameKind.SUDOKU -> Dest.SOLO
-                                })
+                                // The game starts with the setup the sheet stated: no screen asks again.
+                                when (game) {
+                                    GameKind.SUDOKU -> solo.startWith(setup)
+                                    GameKind.SHIPS -> Unit
+                                    GameKind.CONNECT4 -> connectFour.startWith(setup)
+                                    GameKind.DOTS -> dots.startWith(setup)
+                                    GameKind.MEMORY -> memory.startWith(setup)
+                                    GameKind.WORDS -> words.startWith(setup)
+                                    GameKind.TTT -> ttt.startWith(setup)
+                                    GameKind.DOMINOES -> dominoes.startWith(setup)
+                                    GameKind.NUMBERS -> numbers.startWith(setup)
+                                    GameKind.HOCKEY -> hockey.startWith(setup)
+                                    GameKind.CLASH -> clash.startWith(setup)
+                                    GameKind.LUDO -> ludo.startWith(setup)
+                                    GameKind.GRID -> grid.startWith(setup)
+                                    GameKind.BALLOON -> balloon.startWith(setup)
+                                    GameKind.CODE -> codeBreaker.startWith(setup)
+                                    GameKind.SLIDE -> slide.startWith(setup)
+                                    GameKind.BINGO -> bingo.startWith(setup)
+                                    GameKind.GOLF -> golf.startWith(setup)
+                                    GameKind.BLOCKS -> blocks.startWith(setup)
+                                    GameKind.DRAW -> Unit
+                                }
+                                go(soloDest(game))
                             },
                             onArrange = { dest = Dest.ARRANGE },
                             onScores = { dest = Dest.SCORES },

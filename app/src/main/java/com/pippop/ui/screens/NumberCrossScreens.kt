@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.Digits
@@ -480,36 +481,30 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
     val hint = remember { FlightHint() }
     if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
     val puzzle = state.puzzle
-    val board = remember(puzzle) { puzzle?.toBoard() }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (puzzle == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.NUMBERS, "New game", vm::startWith) { changing = false }
+    val board = remember(puzzle) { puzzle.toBoard() }
     val now = rememberTicker()
     val done = state.finishedMs
     GameFrame(
         title = "Number Cross",
-        subtitle = if (puzzle == null) "On your own" else "On your own · ${state.level.label}",
+        subtitle = "On your own · ${state.level.label}",
         players = emptyList(),
         glow = GameKind.NUMBERS.color,
-        menu = soloMenu(GameKind.NUMBERS, onHome, { showRules = true }, if (puzzle != null) vm::again else null),
+        menu = soloMenu(GameKind.NUMBERS, onHome, { showRules = true }, vm::again, { changing = true }),
         trailing = {
-            if (puzzle != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
-        scrollable = puzzle == null,
-        popup = if (puzzle == null || done == null) null else popupContent {
+        popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.NUMBERS, "me",
                 "Solved in ${formatDuration(done)}" + (state.best[state.level]?.let { " · best ${formatDuration(it)}" } ?: ""),
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = { changing = true },
             )
         },
     ) {
-        if (board == null) {
-            AppCard("Choose the level") {
-                Text("Fill the blanks from the bank so every sum works, across and down. Every puzzle is new.", color = p.muted, fontSize = TextSize.Body)
-                NumberLevel.entries.forEach { level ->
-                    PrimaryButton(level.label + (state.best[level]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(level) })
-                }
-            }
-        } else {
-            NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint)
-        }
+        NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint)
     }
 }

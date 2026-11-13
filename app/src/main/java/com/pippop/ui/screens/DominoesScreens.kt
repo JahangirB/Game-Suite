@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.pippop.ui.Sound
@@ -452,40 +453,33 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.DOMINOES) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.DOMINOES, "New game", vm::startWith) { changing = false }
     val result = state.result
     fun name(mark: Char) = if (mark == 'm') "You" else "Computer " + ("opq".indexOf(mark) + 1)
     GameFrame(
         title = "Dominoes",
-        subtitle = view?.let(::dominoSubtitle) ?: "Against the computer",
-        players = if (view == null) emptyList() else view.counts.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
+        subtitle = dominoSubtitle(view),
+        players = view.counts.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
             ChipPlayer(name(mark), null, markColor(mark), dominoDetail(view, mark), active = result == null && state.turn == mark)
         },
         glow = GameKind.DOMINOES.color,
-        menu = soloMenu(GameKind.DOMINOES, onHome, { showRules = true }, if (view != null) vm::changeRules else null),
-        scrollable = view == null,
-        popup = if (view == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.DOMINOES, onHome, { showRules = true }, vm::start, { changing = true }),
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.DOMINOES, result,
                 if (result == "me") "You reached ${view.target} points!" else "The computer reached ${view.target} points.",
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change rules", onFinish = vm::changeRules,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change rules", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Set up the table") {
-                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Choices((1..3).map { it to "$it" }, state.opponents, vm::setOpponents)
-                DominoOptionChips(state.options, fourPlayers = state.opponents == 3, enabled = true, onChange = vm::setOptions)
-                if (state.options.teams && state.opponents == 3) Text("Your partner is Computer 2, sitting opposite.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Deal", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            DominoTable(
-                view, myTurn = state.turn == 'm' && result == null, enabled = true,
-                waitingText = "${name(state.turn)} is thinking…",
-                name = ::name,
-                onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
-            )
-        }
+        DominoTable(
+            view, myTurn = state.turn == 'm' && result == null, enabled = true,
+            waitingText = "${name(state.turn)} is thinking…",
+            name = ::name,
+            onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
+        )
     }
 }

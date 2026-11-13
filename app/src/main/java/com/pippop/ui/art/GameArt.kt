@@ -59,6 +59,33 @@ val GameKind.tagline: String
         GameKind.BLOCKS -> "Corner to corner, fill the board"
     }
 
+/** How many play, as the sheet says it: "2 players" or "2–4 players". */
+val GameKind.playersFact: String
+    get() = if (maxPlayers > 2) "2–$maxPlayers players" else "$maxPlayers players"
+
+/** About how many minutes a game takes, from its own rules (a Bingo game is under five minutes of calls). */
+val GameKind.minutes: Int
+    get() = when (this) {
+        GameKind.CONNECT4, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT, GameKind.NUMBERS, GameKind.HOCKEY,
+        GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE -> 5
+        GameKind.GRID, GameKind.BINGO -> 3
+        GameKind.SUDOKU, GameKind.SHIPS, GameKind.DOTS, GameKind.CLASH, GameKind.DRAW -> 10
+        GameKind.DOMINOES, GameKind.GOLF, GameKind.BLOCKS -> 15
+        GameKind.LUDO -> 20
+    }
+
+/** How a game is played together: you "Take turns", "Race" the same puzzle, or play "Live". */
+val GameKind.how: String
+    get() = when {
+        this == GameKind.HOCKEY || this == GameKind.DRAW || this == GameKind.BINGO -> "Live"
+        turnBased || this == GameKind.SHIPS -> "Take turns"
+        else -> "Race"
+    }
+
+/** The three facts under a game's name on its sheet. */
+val GameKind.facts: List<String>
+    get() = listOf(playersFact, "About $minutes min", how)
+
 /** How to play, shown from the play sheet and the in-game Rules button. */
 val GameKind.rules: String
     get() = when (this) {

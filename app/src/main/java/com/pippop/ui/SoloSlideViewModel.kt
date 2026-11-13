@@ -28,8 +28,6 @@ class SoloSlideViewModel : ViewModel() {
 
     fun again() = _state.value.level?.let { start(it) } ?: Unit
 
-    fun changeLevel() = _state.update { it.copy(level = null, finishedMs = null) }
-
     /** A swipe anywhere: slides the tile next to the gap that way. */
     fun swipe(dx: Int, dy: Int) {
         val s = _state.value

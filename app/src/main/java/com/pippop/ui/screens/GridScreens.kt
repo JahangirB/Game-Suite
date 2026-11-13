@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.rememberSfx
@@ -63,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.pippop.ui.theme.Space
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -398,17 +400,20 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
     val now = rememberTicker()
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (!state.started) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.GRID, "New game", vm::startWith) { changing = false }
     val letters = state.letters
     GameFrame(
         title = "Letter Grid",
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.GRID.color,
-        menu = soloMenu(GameKind.GRID, onHome, { showRules = true }, if (letters != null) vm::start else null),
+        menu = soloMenu(GameKind.GRID, onHome, { showRules = true }, vm::start, { changing = true }),
         trailing = {
             if (letters != null && !state.over && state.timed) Text(timeLeft(state.endsAt, now), style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
-        scrollable = letters == null,
         popup = if (!state.over) null else popupContent {
             ResultPopup(
                 game = GameKind.GRID,
@@ -422,10 +427,10 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         },
     ) {
         if (letters == null) {
-            AppCard("One grid, as many words as you can") {
-                Text("Spell words by dragging through touching letters, sideways or corner to corner. Longer words score more.", color = p.muted, fontSize = TextSize.Body)
-                OptionGroup(listOf(false to "No time limit", true to "2 minutes"), state.timed, enabled = true, onPick = vm::setTimed)
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
+            // The grid is made a moment after the game is asked for.
+            Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                PipPopLoader(Modifier.size(width = 96.dp, height = 60.dp))
+                Text("Making your grid…", color = p.text, modifier = Modifier.padding(top = Space.L))
             }
         } else {
             TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)

@@ -49,12 +49,6 @@ class SoloGolfViewModel : ViewModel() {
 
     fun setLevel(level: GolfLevel) = _state.update { it.copy(level = level) }
 
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val m = GolfMatch("mopq".take(_state.value.computers + 1).toList(), Courses.pick(_state.value.level))

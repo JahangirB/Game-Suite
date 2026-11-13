@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.height
@@ -350,38 +351,32 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
     val level = state.level
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (level == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.SLIDE, "New game", vm::startWith) { changing = false }
     val now = rememberTicker()
     val done = state.finishedMs
     GameFrame(
         title = "Slide Race",
-        subtitle = level?.let { "On your own · ${it.label}" } ?: "On your own",
+        subtitle = "On your own · ${level.label}",
         players = emptyList(),
         glow = GameKind.SLIDE.color,
-        menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, if (level != null) vm::again else null),
-        trailing = { if (level != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
-        scrollable = level == null,
-        popup = if (level == null || done == null) null else popupContent {
+        menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, vm::again, { changing = true }),
+        trailing = { Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.SLIDE, "me",
                 "Solved in ${formatDuration(done)} with ${state.moves} slides" + (state.best[level]?.let { " · best ${formatDuration(it)}" } ?: ""),
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change size", onFinish = { changing = true },
             )
         },
     ) {
-        if (level == null) {
-            AppCard("Choose the size") {
-                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap, or swipe anywhere.", color = p.muted, fontSize = TextSize.Body)
-                SlideLevel.entries.forEach { l ->
-                    PrimaryButton(l.label + (state.best[l]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(l) }, Modifier.fillMaxWidth())
-                }
-            }
-        } else {
-            Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
-                BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
-                // On your own there is only your bar: your tiles are all the screen knows.
-                SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))
-            }
+        Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
+            BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
+            // On your own there is only your bar: your tiles are all the screen knows.
+            SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
@@ -393,17 +394,20 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CODE, extra = { CodeExamples() }) { showRules = false }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (!state.started) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.CODE, "New game", vm::startWith) { changing = false }
     GameFrame(
         title = "Code Breaker",
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.CODE.color,
         menu = GameMenu(
-            GameKind.CODE, onRules = { showRules = true }, onLeave = onHome, onNewGame = if (state.started) vm::start else null,
+            GameKind.CODE, onRules = { showRules = true }, onLeave = onHome, onNewGame = vm::start, onChangeMode = { changing = true }, changeLabel = "Change setup",
             leaveLabel = "Home", showLetterMarks = true,
         ),
-        scrollable = !state.started,
-        popup = if (!state.started || !state.done) null else popupContent {
+        popup = if (!state.done) null else popupContent {
             ResultPopup(
                 game = GameKind.CODE,
                 outcome = if (state.solved) Outcome.WIN else Outcome.LOSE,
@@ -414,22 +418,10 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
             )
         },
     ) {
-        if (!state.started) {
-            AppCard("Crack the code") {
-                Text(
-                    "The computer hides four coloured pegs (colours can repeat). After each guess: a red pin for each right colour in the right place, a white pin for a right colour in the wrong place. Ten guesses.",
-                    color = p.muted, fontSize = TextSize.Body,
-                )
-                CodeExamples()
-                CodeRulesPicker(state.rules, enabled = true, onChange = vm::setRules)
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
-            CodeSafe(state.guesses, state.rules.pegs, Modifier.fillMaxWidth().height(108.dp))
-            GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth(), pegs = state.rules.pegs)
-            CodeEntry(!state.done, "Guess", vm::guess, rules = state.rules)
-        }
+        TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
+        CodeSafe(state.guesses, state.rules.pegs, Modifier.fillMaxWidth().height(108.dp))
+        GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth(), pegs = state.rules.pegs)
+        CodeEntry(!state.done, "Guess", vm::guess, rules = state.rules)
     }
 }
 

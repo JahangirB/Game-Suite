@@ -66,11 +66,11 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase D: a game's sheet, solo, rules
 
-- [ ] **Step 11. A game's sheet**
-  - [ ] Three facts (sheet-facts)
-  - [ ] Solo starts from the sheet, with the last setup remembered, for every game with solo play (sheet-solo)
-  - [ ] No level stage left in any solo screen; `LevelDialog` gone; no screen with several main buttons (fix-primary)
-  - [ ] No "your best" line and no "you two" strip on the sheet
+- [x] **Step 11. A game's sheet**
+  - [x] Three facts (sheet-facts)
+  - [x] Solo starts from the sheet, with the last setup remembered, for every game with solo play (sheet-solo)
+  - [x] No level stage left in any solo screen; `LevelDialog` gone; no screen with several main buttons (fix-primary)
+  - [x] No "your best" line and no "you two" strip on the sheet
 - [ ] **Step 12. Rules you can find your place in** (rules-points)
   - [ ] All twenty games' rules are four to six titled points, within the limits, tested
   - [ ] `RulesSheet` replaces `RulesDialog`; "Show me how" opens the walk-through

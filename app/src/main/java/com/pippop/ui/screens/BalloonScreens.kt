@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sfx
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.Sound
@@ -427,12 +428,14 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
     val result = state.result
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.BALLOON, "New game", vm::startWith) { changing = false }
     GameFrame(
         title = "Balloon Words",
         subtitle = "On your own" + if (state.streak > 0) " · streak ${state.streak}" else "",
         players = emptyList(),
         glow = GameKind.BALLOON.color,
-        menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) vm::setup else null),
+        menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) (if (state.youGuess) vm::guessTheirs else vm::setup) else null, if (state.started) ({ changing = true }) else null),
         scrollable = !state.started,
         popup = if (result == null) null else popupContent {
             val won = (result == "found") == state.youGuess
@@ -446,17 +449,14 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
                     else -> "The computer found it"
                 },
                 detail = "The word was ${state.word}.",
-                finish = PopupAction("Change", vm::setup),
-                again = PopupAction("Next word", vm::guessTheirs),
+                finish = PopupAction("Change", { changing = true }),
+                again = PopupAction("Next word", if (state.youGuess) vm::guessTheirs else vm::setup),
             )
         },
     ) {
         if (!state.started) {
-            AppCard("Guess the computer's word") {
-                Text("Pick letters before the seven balloons pop.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Play", vm::guessTheirs, Modifier.fillMaxWidth())
-            }
-            PickWord("Or give the computer one of yours", vm::giveYours)
+            // "Computer guesses" was chosen in the sheet: the word is the one thing left to give.
+            PickWord("Give the computer a word to guess", vm::giveYours)
             state.message?.let { Text(it, color = p.bad, fontSize = TextSize.Body) }
         } else {
             TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)

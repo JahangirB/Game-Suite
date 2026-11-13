@@ -91,7 +91,12 @@ data class Profile(
     val putAway: Set<GameKind> = emptySet(),
     /** True once the order has been changed, so the home can stop saying how. */
     val arrangedOnce: Boolean = false,
-)
+    /** The last solo setup of each game that has one, as picked (see [soloSetup] for what it plays with). */
+    val soloSetups: Map<GameKind, Map<String, String>> = emptyMap(),
+) {
+    /** What [game] starts with alone: the last setup, with the default for anything not picked yet or no longer known. */
+    fun soloSetup(game: GameKind): Map<String, String> = SoloSetups.resolve(game, soloSetups[game])
+}
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
 class ProfileStore private constructor(private val prefs: SharedPreferences) {
@@ -189,6 +194,14 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val seen = _profile.value.tutorialsSeen + kind
         prefs.edit { putString(KEY_TUTORIALS, seen.joinToString(",") { it.key }) }
         _profile.update { it.copy(tutorialsSeen = seen) }
+    }
+
+    /** Remembers how [game] was last set up to play alone. */
+    fun setSoloSetup(game: GameKind, values: Map<String, String>) {
+        if (SoloSetups.spec(game) == null) return
+        val setup = SoloSetups.resolve(game, values)
+        prefs.edit { putString(KEY_SOLO_PREFIX + game.key, SoloSetups.encode(setup)) }
+        _profile.update { it.copy(soloSetups = it.soloSetups + (game to setup)) }
     }
 
     fun setGolfTime(time: String) {
@@ -310,6 +323,9 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             putAway = gamesOf(prefs.getString(KEY_PUT_AWAY, null)),
             // Someone who arranged the games before this was kept has already learned how.
             arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, prefs.contains(KEY_GAME_ORDER)),
+            soloSetups = GameKind.entries.mapNotNull { game ->
+                prefs.getString(KEY_SOLO_PREFIX + game.key, null)?.let { game to SoloSetups.resolve(game, SoloSetups.decode(it)) }
+            }.filter { it.second.isNotEmpty() }.toMap(),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -352,6 +368,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_RECENT = "recent_games"
         private const val KEY_PUT_AWAY = "put_away"
         private const val KEY_ARRANGED_ONCE = "arranged_once"
+        /** A game's last solo setup is kept under this and the game's key. */
+        private const val KEY_SOLO_PREFIX = "solo_setup_"
 
         /** Games from a comma list of keys; unknown keys and repeats are left out. */
         fun gamesOf(saved: String?): Set<GameKind> =

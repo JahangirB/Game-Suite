@@ -39,6 +39,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         store.setGameOrder(order)
     }
     fun noteGamePlayed(game: GameKind) = store.noteGamePlayed(game)
+    /** Remembers how a game was last set up to play alone. */
+    fun setSoloSetup(game: GameKind, values: Map<String, String>) = store.setSoloSetup(game, values)
     fun finishFirstRun() = store.finishFirstRun()
     fun setVibration(on: Boolean) = store.setVibration(on)
     fun setSound(on: Boolean) = store.setSound(on)

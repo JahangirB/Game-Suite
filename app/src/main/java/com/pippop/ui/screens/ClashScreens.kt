@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -486,39 +487,33 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.CLASH) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.CLASH, "New game", vm::startWith) { changing = false }
     val result = state.result
     fun name(mark: Char) = if (mark == 'm') "You" else "Computer " + ("opq".indexOf(mark) + 1)
     GameFrame(
         title = "Colour Clash",
         subtitle = "Against the computer",
-        players = if (view == null) emptyList() else view.order.map { mark ->
+        players = view.order.map { mark ->
             ChipPlayer(name(mark), null, markColor(mark), "${view.counts[mark] ?: 0} cards", active = result == null && state.turn == mark)
         },
         glow = GameKind.CLASH.color,
-        menu = soloMenu(GameKind.CLASH, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
-        scrollable = view == null,
-        popup = if (view == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.CLASH, onHome, { showRules = true }, vm::start, { changing = true }),
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.CLASH, result,
                 if (result == "me") "You played your last card!" else "A computer played its last card first.",
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Set up the table") {
-                Text("Match the colour or the number; first to empty their hand wins.", color = p.muted, fontSize = TextSize.Body)
-                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Choices((1..3).map { it to "$it" }, state.opponents, vm::setOpponents)
-                PrimaryButton("Deal", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            ClashTable(
-                view, myTurn = state.turn == 'm' && result == null, enabled = true,
-                waitingText = "${name(state.turn)} is thinking…",
-                name = ::name,
-                onPlay = vm::playCard, onDraw = vm::drawCard, onPass = vm::passCard,
-            )
-        }
+        ClashTable(
+            view, myTurn = state.turn == 'm' && result == null, enabled = true,
+            waitingText = "${name(state.turn)} is thinking…",
+            name = ::name,
+            onPlay = vm::playCard, onDraw = vm::drawCard, onPass = vm::passCard,
+        )
     }
 }

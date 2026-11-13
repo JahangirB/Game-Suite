@@ -75,6 +75,8 @@ import com.pippop.push.Push
 import com.pippop.push.PushApi
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
+import com.pippop.data.SoloSetups
+import com.pippop.ui.art.facts
 import com.pippop.data.SavedPartner
 import com.pippop.ui.art.AvatarImage
 import com.pippop.ui.theme.OpponentColor
@@ -128,10 +130,15 @@ fun HomeScreen(
     solo: SoloUiState,
     profile: Profile,
     onContinue: () -> Unit,
-    onNewGame: (Difficulty, com.pippop.game.SudokuShape) -> Unit,
     onProfile: () -> Unit,
-    /** Against the computer or alone, for every game but Sudoku. */
-    onSolo: (GameKind) -> Unit,
+    /** Starts a game alone or against the computer, with the setup the sheet states (every game but Draw & Guess). */
+    onSolo: (GameKind, Map<String, String>) -> Unit,
+    /** The solo setup of a game was changed in its sheet: remember it. */
+    onSoloSetup: (GameKind, Map<String, String>) -> Unit = { _, _ -> },
+    /** Games alone that were started and not finished (Sudoku's is [SoloUiState.canContinue]). */
+    soloUnfinished: Set<GameKind> = emptySet(),
+    /** Back to an unfinished game alone: nothing new starts. */
+    onContinueSolo: (GameKind) -> Unit = {},
     /** The Arrange games screen (also a long press on a game). */
     onArrange: () -> Unit,
     /** Our scoreboard: this month against your partner, every game, the trophies. */
@@ -159,7 +166,6 @@ fun HomeScreen(
     tiles: TileBounds = remember { TileBounds() },
 ) {
     val p = AppTheme.palette
-    var pickingLevel by rememberSaveable { mutableStateOf(false) }
     var sheetGame by rememberSaveable { mutableStateOf<GameKind?>(null) }
     // The first time a game is opened, its tutorial plays before its sheet.
     var tutorial by rememberSaveable { mutableStateOf<GameKind?>(null) }
@@ -297,35 +303,59 @@ fun HomeScreen(
         }
     }
 
-    sheetGame?.let { kind ->
-        ToySheet(onDismiss = { sheetGame = null }) {
-            val close = { sheetGame = null }
-            GameSheet(
-                kind = kind,
-                solo = solo,
-                room = room,
-                onOpenGame = { close(); onOpenGame(kind) },
-                partner = profile.partner,
-                busy = partnerBusy,
-                onContinue = { close(); tiles.pending = kind; onContinue() },
-                onNewSudoku = { close(); pickingLevel = true },
-                onSolo = { close(); tiles.pending = kind; onSolo(kind) },
-                onPartner = { close(); onPlayWithPartner(kind) },
-                onInvite = { close(); onInvitePartner(kind) },
-            )
+    // Starting over a game that is not finished asks first.
+    var confirmNew by rememberSaveable { mutableStateOf<GameKind?>(null) }
+    confirmNew?.let { kind ->
+        ToyDialog(
+            title = "Start a new game?",
+            body = "Your ${kind.label} game in progress will end.",
+            onDismiss = { confirmNew = null },
+        ) {
+            SecondaryButton("Cancel", { confirmNew = null }, Modifier.weight(1f))
+            PrimaryButton("New game", {
+                confirmNew = null
+                tiles.pending = kind
+                onSolo(kind, profile.soloSetup(kind))
+            }, Modifier.weight(1f))
         }
     }
 
-    if (pickingLevel) {
-        LevelDialog(
-            title = "New game",
-            onDismiss = { pickingLevel = false },
-            onPick = { level, shape ->
-                pickingLevel = false
-                tiles.pending = GameKind.SUDOKU
-                onNewGame(level, shape)
-            },
-        )
+    sheetGame?.let { kind ->
+        ToySheet(onDismiss = { sheetGame = null }) {
+            val close = { sheetGame = null }
+            // "Change" swaps the sheet's content for the game's setup; Back swaps it back.
+            var changing by rememberSaveable(kind) { mutableStateOf(false) }
+            val setup = profile.soloSetup(kind)
+            val unfinished = if (kind == GameKind.SUDOKU) solo.canContinue else kind in soloUnfinished
+            val start = {
+                close()
+                if (unfinished) confirmNew = kind else { tiles.pending = kind; onSolo(kind, profile.soloSetup(kind)) }
+            }
+            if (changing) {
+                SoloSetupContent(
+                    kind, setup,
+                    onPick = { key, value -> onSoloSetup(kind, setup + (key to value)) },
+                    startLabel = soloLabel(kind, setup), onStart = start, onBack = { changing = false },
+                )
+            } else {
+                GameSheet(
+                    kind = kind,
+                    solo = solo,
+                    room = room,
+                    onOpenGame = { close(); onOpenGame(kind) },
+                    partner = profile.partner,
+                    busy = partnerBusy,
+                    setup = setup,
+                    unfinished = unfinished,
+                    onContinue = { close(); tiles.pending = kind; if (kind == GameKind.SUDOKU) onContinue() else onContinueSolo(kind) },
+                    onSolo = start,
+                    onSetup = { key, value -> onSoloSetup(kind, setup + (key to value)) },
+                    onChange = { changing = true },
+                    onPartner = { close(); onPlayWithPartner(kind) },
+                    onInvite = { close(); onInvitePartner(kind) },
+                )
+            }
+        }
     }
 }
 
@@ -607,18 +637,28 @@ private fun Faces(people: List<PlayerInfo>, size: Dp = 36.dp, step: Dp = 25.dp) 
 /** How much of the names line fits before it is cut with an ellipsis. */
 private const val NAMES_MAX = 26
 
-/** What tapping a game offers: play with your partner, alone or against the computer, or online with a code. */
+/** "Play solo · Medium": the button that starts a game alone, saying the main choice of its setup. */
+private fun soloLabel(kind: GameKind, setup: Map<String, String>) =
+    SoloSetups.spec(kind)?.let { "Play solo · ${it.buttonText(setup)}" } ?: "Play solo"
+
+/**
+ * What tapping a game offers: what it is at a glance (its name, what to expect), play with your
+ * partner or the room, and play alone with the setup right here. Only one button is the main one.
+ */
 @Composable
-private fun GameSheet(
+internal fun GameSheet(
     kind: GameKind,
     solo: SoloUiState,
     room: RoomState?,
     onOpenGame: () -> Unit,
     partner: SavedPartner?,
     busy: Boolean,
+    setup: Map<String, String>,
+    unfinished: Boolean,
     onContinue: () -> Unit,
-    onNewSudoku: () -> Unit,
     onSolo: () -> Unit,
+    onSetup: (String, String) -> Unit,
+    onChange: () -> Unit,
     onPartner: () -> Unit,
     onInvite: () -> Unit,
 ) {
@@ -628,26 +668,39 @@ private fun GameSheet(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        KeyArt(kind, Modifier.fillMaxWidth().height(150.dp).clip(Shapes.L).border(2.dp, p.ink, Shapes.L))
+        KeyArt(kind, Modifier.fillMaxWidth().height(128.dp).clip(Shapes.L).border(2.dp, p.ink, Shapes.L))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
                 Text(kind.tagline, color = p.muted, fontSize = TextSize.Body)
             }
-            TextButton(onClick = { showRules = !showRules }) { Text(if (showRules) "Hide rules" else "How to play", color = p.primaryText, fontWeight = FontWeight.Bold) }
+            Text(
+                if (showRules) "Hide rules" else "How to play", color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(Shapes.Full)
+                    .clickable(role = Role.Button) { showRules = !showRules }
+                    .padding(vertical = Space.S)
+                    .background(p.card, Shapes.Full)
+                    .border(2.dp, p.ink, Shapes.Full)
+                    .padding(horizontal = Space.M, vertical = Space.S),
+            )
         }
         if (showRules) Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
+        Facts(kind.facts)
 
+        // The one main button: the room or the partner when there is one, otherwise continuing a Sudoku.
+        var main = false
         val names = room?.present?.joinToString(" & ") { it.name }
         if (room != null) {
             // Connected: open it for everyone in the room; they see where you went.
             when {
-                names.isNullOrEmpty() -> PrimaryButton("Open ${kind.label}", onOpenGame, loading = busy)
+                names.isNullOrEmpty() -> { PrimaryButton("Open ${kind.label}", onOpenGame, loading = busy); main = true }
                 kind.maxPlayers < room.present.size + 1 -> Text("${kind.label} is for ${kind.maxPlayers}.", color = p.muted, fontSize = TextSize.Body)
-                else -> PrimaryButton("Play with $names", onOpenGame, loading = busy)
+                else -> { PrimaryButton("Play with $names", onOpenGame, loading = busy); main = true }
             }
         } else if (partner != null) {
             val canInvite = Push.available && partner.deviceId != null && PushApi.supports(partner.serverUrl)
+            main = true
             if (canInvite) {
                 PrimaryButton("Invite ${partner.name}", onInvite, loading = busy)
                 SecondaryButton("Join ${partner.name}'s game", onPartner, enabled = !busy)
@@ -656,58 +709,21 @@ private fun GameSheet(
             }
         }
         val game = solo.game
-        when {
-            kind == GameKind.SUDOKU && solo.canContinue && game != null -> {
-                PrimaryButton("Continue  ·  ${game.difficulty.label}  ·  ${formatDuration(game.elapsedMs)}", onContinue)
-                SecondaryButton("New solo game", onNewSudoku)
-            }
-            kind == GameKind.SUDOKU -> SecondaryButton("Play solo", onNewSudoku)
-            kind == GameKind.DRAW -> {
-                SecondaryButton("Play solo", {}, enabled = false)
-                Text("Needs 2 or more players.", color = p.muted, fontSize = TextSize.Body)
-            }
-            else -> SecondaryButton("Play solo", onSolo)
+        if (unfinished && kind != GameKind.DRAW) {
+            val label = if (kind == GameKind.SUDOKU && game != null) "Continue  ·  ${game.difficulty.label}  ·  ${formatDuration(game.elapsedMs)}" else "Continue"
+            if (main) SecondaryButton(label, onContinue) else PrimaryButton(label, onContinue)
+        }
+        if (kind == GameKind.DRAW) {
+            SecondaryButton("Play solo", {}, enabled = false)
+            Text("Needs 2 or more players.", color = p.muted, fontSize = TextSize.Body)
+        } else {
+            SoloSetupRow(kind, setup, onSetup, onChange)
+            SecondaryButton(if (unfinished) "New solo game · ${SoloSetups.spec(kind)?.buttonText(setup).orEmpty()}" else soloLabel(kind, setup), onSolo)
         }
         if (room == null && kind != GameKind.DRAW) {
             Text("To play together, connect first, at the top of the home.", color = p.muted, fontSize = TextSize.Body)
         }
     }
-}
-
-@Composable
-private fun LevelDialog(title: String, onDismiss: () -> Unit, onPick: (Difficulty, com.pippop.game.SudokuShape) -> Unit) {
-    val p = AppTheme.palette
-    // One grid, or several joined into one long puzzle.
-    var shape by remember { mutableStateOf(com.pippop.game.SudokuShape.CLASSIC) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = p.card,
-        title = { Text(title, color = p.text, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                ShapePicker(shape, enabled = true) { shape = it }
-                if (shape.big) Text("${shape.grids.size} grids joined: saves as you go, ${com.pippop.game.SoloGame.BIG_MISTAKES} mistakes allowed.", color = p.muted, fontSize = TextSize.Label, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
-                Difficulty.entries.forEach { level ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(Shapes.M)
-                            .clickable { onPick(level, shape) }
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(level.label, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
-                            Text(level.tagline(), color = p.muted, fontSize = TextSize.Body)
-                        }
-                        Text("${level.ordinal + 1}", color = p.primaryText, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.primaryText) } },
-    )
 }
 
 /**

@@ -101,11 +101,6 @@ class SoloBingoViewModel : ViewModel() {
 
     fun again() = start(_state.value.computers.coerceAtLeast(1))
 
-    fun changePlayers() {
-        caller?.cancel()
-        _state.update { SoloBingoUiState(wins = it.wins, pace = it.pace) }
-    }
-
     /** Dab (or un-dab) a called number on your card. */
     fun dab(index: Int) {
         val s = _state.value

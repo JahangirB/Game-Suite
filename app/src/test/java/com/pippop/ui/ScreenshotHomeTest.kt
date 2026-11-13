@@ -48,7 +48,7 @@ class ScreenshotHomeTest : ScreenshotBase() {
             recentGames = listOf(RecentGame(GameKind.LUDO, now - day), RecentGame(GameKind.WORDS, now - 4 * day)),
         )
         HomeScreen(
-            solo = SoloUiState(game = saved()), profile = profile, onContinue = {}, onNewGame = { _, _ -> }, onProfile = {}, onSolo = {},
+            solo = SoloUiState(game = saved()), profile = profile, onContinue = {}, onProfile = {}, onSolo = { _, _ -> },
             onArrange = {}, onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
             connected = false, onConnect = {}, now = NOW,
         )

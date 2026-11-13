@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.foundation.layout.Column
@@ -508,43 +509,37 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.LUDO) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.LUDO, "New game", vm::startWith) { changing = false }
     val result = state.result
     fun name(mark: Char) = if (mark == 'm') "You" else "Computer " + ("opq".indexOf(mark) + 1)
     var showDice by remember { mutableStateOf(false) }
-    if (showDice && view != null) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
+    if (showDice) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
     GameFrame(
         title = "Ludo",
         subtitle = "Against the computer",
-        players = if (view == null) emptyList() else view.colours.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
+        players = view.colours.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
             ChipPlayer(name(mark), null, ludoColor(view.colours[mark] ?: 0), "${homeCount(view, mark)}/4 home", active = result == null && state.turn == mark)
         },
         glow = GameKind.LUDO.color,
-        menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
-        tools = if (view == null) emptyList() else listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
-        scrollable = view == null,
-        popup = if (view == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, vm::start, { changing = true }),
+        tools = listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.LUDO, result,
                 if (result == "me") "All four of your tokens are home!" else "A computer got all four tokens home first.",
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Set up the board") {
-                Text("Roll, bring your tokens out with a 6, race them round and home. Land on others to send them back.", color = p.muted, fontSize = TextSize.Body)
-                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Choices((1..3).map { it to "$it" }, state.opponents, vm::setOpponents)
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            LudoTable(
-                view, myTurn = state.turn == 'm' && result == null, enabled = true,
-                waitingText = "${name(state.turn)} is playing…",
-                name = ::name,
-                onRoll = vm::roll, onToken = vm::moveToken,
-            )
-        }
+        LudoTable(
+            view, myTurn = state.turn == 'm' && result == null, enabled = true,
+            waitingText = "${name(state.turn)} is playing…",
+            name = ::name,
+            onRoll = vm::roll, onToken = vm::moveToken,
+        )
     }
 }
 

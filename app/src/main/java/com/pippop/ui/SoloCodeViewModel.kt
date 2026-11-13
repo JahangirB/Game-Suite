@@ -28,8 +28,8 @@ class SoloCodeViewModel : ViewModel() {
 
     fun start() = _state.update { SoloCodeUiState(started = true, secret = it.rules.random(), best = it.best, rules = it.rules) }
 
-    /** The settings for the next code; the best score is kept per setting only while they stay. */
-    fun setRules(rules: CodeRules) = _state.update { if (it.started) it else it.copy(rules = rules, best = it.best.takeIf { _ -> rules == it.rules }) }
+    /** A fresh code under [rules]; the best score is kept per setting only while they stay. */
+    fun start(rules: CodeRules) = _state.update { SoloCodeUiState(started = true, secret = rules.random(), best = it.best.takeIf { _ -> rules == it.rules }, rules = rules) }
 
     fun guess(code: String) {
         val s = _state.value

@@ -106,6 +106,8 @@ class GameMenu(
     val onOpen: (Boolean) -> Unit = {},
     /** Show the "Marks on tiles and pegs" switch (Word Race, Code Breaker). */
     val showLetterMarks: Boolean = false,
+    /** What the row that changes the mode says ("Change setup" for a game on your own). */
+    val changeLabel: String = "Change mode",
 )
 
 /** The menu as a sheet over the game: everything in one list. */
@@ -135,7 +137,7 @@ internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) 
         Text(menu.game.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Space.S))
         MenuRow("Resume", onClick = close)
         menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
-        menu.onChangeMode?.let { MenuRow("Change mode", detail = menu.mode, onClick = then(it)) }
+        menu.onChangeMode?.let { MenuRow(menu.changeLabel, detail = menu.mode, onClick = then(it)) }
         MenuRow("Rules", onClick = then(menu.onRules))
         MenuRow("Sound", checked = profile.sound, onClick = { store.setSound(!profile.sound) }) {
             ToySwitch(profile.sound, null)

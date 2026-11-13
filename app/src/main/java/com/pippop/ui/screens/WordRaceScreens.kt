@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.collectAsState
@@ -423,22 +424,21 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     val daily = state.daily
+    if (daily == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.WORDS, "New game", vm::startWith) { changing = false }
     GameFrame(
         title = "Word Race",
-        subtitle = when (daily) {
-            true -> "Today's word"
-            false -> "Practice"
-            null -> "On your own"
-        },
+        subtitle = if (daily) "Today's word" else "Practice",
         players = emptyList(),
         glow = GameKind.WORDS.color,
         menu = GameMenu(
             GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home", showLetterMarks = true,
-            mode = daily?.let { "Daily or practice" }, onChangeMode = if (daily != null) vm::chooseMode else null,
+            mode = "Daily or practice", onChangeMode = { changing = true }, changeLabel = "Change setup",
         ),
-        scrollable = daily == null,
-        popup = if (daily == null || !state.done) null else popupContent {
+        popup = if (!state.done) null else popupContent {
             ResultPopup(
                 game = GameKind.WORDS,
                 outcome = if (state.solved) Outcome.WIN else Outcome.LOSE,
@@ -449,17 +449,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
             )
         },
     ) {
-        if (daily == null) {
-            AppCard("Pick a word") {
-                Text("Today's word is the same for everyone and changes every day. Practice gives you as many words as you like.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Today's word", vm::playDaily)
-                Text("Practice: pick the length of the word.", color = p.muted, fontSize = TextSize.Body)
-                WordLevel.entries.forEach { level -> SecondaryButton(level.label, { vm.playPractice(level) }) }
-                WordsHardSwitch()
-            }
-        } else {
-            SoloWordsRound(state, vm)
-        }
+        SoloWordsRound(state, vm)
     }
 }
 
