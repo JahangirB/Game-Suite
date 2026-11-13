@@ -23,11 +23,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,7 +46,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -224,23 +225,20 @@ private fun ClashStack(width: Dp, edges: Int) {
 @Composable
 private fun ColourPicker(onPick: (Char) -> Unit, onCancel: () -> Unit) {
     val p = AppTheme.palette
-    AlertDialog(
-        onDismissRequest = onCancel,
-        containerColor = p.card,
-        title = { Text("Choose the colour", color = p.text, fontWeight = FontWeight.Bold) },
-        text = {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Clash.COLOURS.forEach { c ->
-                    Surface(
-                        color = clashColor(c), shape = CircleShape, border = BorderStroke(2.dp, p.ink),
-                        modifier = Modifier.size(52.dp).clickable { onPick(c) },
-                    ) {}
-                }
+    ToyDialog(title = "Choose the colour", onDismiss = onCancel, content = {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Clash.COLOURS.forEach { c ->
+                Surface(
+                    color = clashColor(c), shape = CircleShape, border = BorderStroke(2.dp, p.ink),
+                    modifier = Modifier.size(52.dp)
+                        .semantics { contentDescription = colourName(c).replaceFirstChar { it.uppercase() } }
+                        .clickable(role = Role.Button) { onPick(c) },
+                ) {}
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
-    )
+        }
+    }) {
+        SecondaryButton("Cancel", onCancel, Modifier.weight(1f))
+    }
 }
 
 /** What just happened, in a line. */

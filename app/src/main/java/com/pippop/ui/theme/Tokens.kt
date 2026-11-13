@@ -83,6 +83,12 @@ object Space {
     val XXXL = 32.dp
 }
 
+/** Widths that cap a piece of content, so it doesn't stretch on a tablet or in landscape. */
+object Size {
+    /** The widest a dialog card gets. */
+    val DialogMax = 480.dp
+}
+
 /**
  * The colours of playing pieces, shared by the games that colour pieces by player or suit
  * (Ludo, Colour Clash, Code Breaker, Balloon Words, Bingo, Connect Four, Dots & Boxes).

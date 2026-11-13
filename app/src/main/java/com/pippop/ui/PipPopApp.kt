@@ -6,12 +6,10 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -102,7 +100,11 @@ import com.pippop.ui.screens.LocalBuiltInShips
 import com.pippop.ui.screens.BuiltInShips
 import com.pippop.ui.art.ShipLook
 import com.pippop.data.SkinStore
+import com.pippop.ui.screens.PrimaryButton
+import com.pippop.ui.screens.SecondaryButton
+import com.pippop.ui.screens.ToyDialog
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.LocalReduceMotion
 import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
@@ -407,32 +409,26 @@ fun PipPopApp(
 
     battleState.problem?.let { problem ->
         val context = LocalContext.current
-        AlertDialog(
-            onDismissRequest = battle::dismissProblem,
-            containerColor = p.card,
-            title = { Text(problem.title, color = p.text) },
-            text = { Text(problem.why, color = p.muted) },
-            confirmButton = {
-                val fix = problem.fix
-                if (fix != null) {
-                    TextButton(onClick = {
-                        battle.dismissProblem()
-                        when (fix) {
-                            Fix.BLUETOOTH -> context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                            Fix.PERMISSION -> context.startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
-                            )
-                            Fix.GO_OFFLINE -> {
-                                app.setPlayMode(PlayMode.OFFLINE)
-                                connectSheet = ConnectKind.NEARBY
-                            }
-                            Fix.EDIT_CODE -> connectSheet = if (battleState.mode == BattleMode.NEARBY || profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.JOIN_ONLINE
+        ToyDialog(title = problem.title, body = problem.why, onDismiss = battle::dismissProblem) {
+            SecondaryButton(if (problem.fix == null) "OK" else "Not now", battle::dismissProblem, Modifier.weight(1f))
+            val fix = problem.fix
+            if (fix != null) {
+                PrimaryButton(fix.label, {
+                    battle.dismissProblem()
+                    when (fix) {
+                        Fix.BLUETOOTH -> context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                        Fix.PERMISSION -> context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                        )
+                        Fix.GO_OFFLINE -> {
+                            app.setPlayMode(PlayMode.OFFLINE)
+                            connectSheet = ConnectKind.NEARBY
                         }
-                    }) { Text(fix.label, color = p.primary) }
-                }
-            },
-            dismissButton = { TextButton(onClick = battle::dismissProblem) { Text(if (problem.fix == null) "OK" else "Not now", color = p.muted) } },
-        )
+                        Fix.EDIT_CODE -> connectSheet = if (battleState.mode == BattleMode.NEARBY || profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.JOIN_ONLINE
+                    }
+                }, Modifier.weight(1f))
+            }
+        }
     }
 
     connectSheet?.let { kind ->
@@ -447,19 +443,17 @@ fun PipPopApp(
     }
 
     if (confirmDisconnect && room != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDisconnect = false },
-            containerColor = p.card,
-            title = { Text("Leave the room?", color = p.text) },
-            text = { Text("You'll disconnect. A game you're in ends for everyone in it.", color = p.muted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDisconnect = false
-                    battle.leave()
-                }) { Text("Leave", color = p.bad) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Stay", color = p.primary) } },
-        )
+        ToyDialog(
+            title = "Leave the room?",
+            body = "You'll disconnect. A game you're in ends for everyone in it.",
+            onDismiss = { confirmDisconnect = false },
+        ) {
+            SecondaryButton("Stay", { confirmDisconnect = false }, Modifier.weight(1f))
+            PrimaryButton("Leave", {
+                confirmDisconnect = false
+                battle.leave()
+            }, Modifier.weight(1f), container = p.bad, content = readableOn(p.bad))
+        }
     }
 
     if (confirmLeave && room != null) {
