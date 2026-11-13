@@ -40,9 +40,9 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] The password field's label is "Password", its explanation is under it
 - [x] **Step 5. The app's own switch and choices** (toy-controls)
   - [x] `Choices`, `OptionRow`, `ToySwitch`; no `FilterChip` and no Material `Switch` left
-- [ ] **Step 6. Pip and Pop while you wait, and messages with a mark** (toy-loader, toy-toast)
-  - [ ] `PipPopLoader` in all five places; `Toast` in place of the snackbar
-  - [ ] `scripts/check-tokens.sh` fails on stock parts
+- [x] **Step 6. Pip and Pop while you wait, and messages with a mark** (toy-loader, toy-toast)
+  - [x] `PipPopLoader` in all five places; `Toast` in place of the snackbar
+  - [x] `scripts/check-tokens.sh` fails on stock parts
 - [ ] **Step 7. A Rematch you can read** (fix-rematch)
 
 ## Phase C: the home

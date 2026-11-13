@@ -37,7 +37,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -128,7 +127,7 @@ fun PrimaryButton(
 ) {
     ToyButton(onClick, modifier, enabled && !loading, container, content) {
         if (loading) {
-            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = content)
+            PipPopLoader(Modifier.size(width = 40.dp, height = 24.dp), color = content, color2 = content.copy(alpha = 0.7f))
         } else {
             Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         }

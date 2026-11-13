@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.size
 import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
@@ -15,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -70,7 +70,7 @@ fun SoloScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                CircularProgressIndicator(color = p.primary)
+                PipPopLoader(Modifier.size(width = 96.dp, height = 60.dp))
                 Text("Creating your puzzle…", color = p.text, modifier = Modifier.padding(top = 16.dp))
             }
         }

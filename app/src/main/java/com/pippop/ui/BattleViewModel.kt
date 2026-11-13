@@ -1,5 +1,6 @@
 package com.pippop.ui
 
+import com.pippop.ui.screens.Tone
 import com.pippop.ui.screens.TALLY_ME
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -113,6 +114,8 @@ data class BattleUiState(
     val joinCode: String = "",
     val busy: Boolean = false,
     val message: String? = null,
+    /** What kind of news [message] is, for its mark. */
+    val messageTone: Tone = Tone.Neutral,
     val mode: BattleMode = BattleMode.ONLINE,
     /** The game to open when hosting. */
     val hostGame: GameKind = GameKind.SUDOKU,
@@ -270,7 +273,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             // Timed on a second call, once the connection is set up: about what each move waits.
             val start = System.currentTimeMillis()
             server.ping()
-            showMessage("Connected to the $kind server. Round trip: ${System.currentTimeMillis() - start} ms.")
+            showMessage("Connected to the $kind server. Round trip: ${System.currentTimeMillis() - start} ms.", Tone.Good)
         } finally {
             server.close()
         }
@@ -361,11 +364,11 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             val json = openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
             try {
                 PushApi(partner.serverUrl, partner.password).invite(me.deviceId, to, partner.code, game)
-                showMessage("Invitation sent to ${partner.name}.")
+                showMessage("Invitation sent to ${partner.name}.", Tone.Good)
                 store.notificationsNeeded()
             } catch (e: Exception) {
                 // The room is open either way; the partner can still tap Play.
-                showMessage(e.message ?: "Could not send the invitation.")
+                showMessage(e.message ?: "Could not send the invitation.", Tone.Bad)
             }
             json
         }
@@ -510,9 +513,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             }
         }
     }
@@ -583,9 +586,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             }
         }
     }
@@ -681,10 +684,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(shown, before)
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(shown, before)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 readying = false
             }
@@ -913,10 +916,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(guess, room)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false, pendingCard = null) }
             }
@@ -966,9 +969,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false) }
             }
@@ -1041,7 +1044,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 strokesClears = room.draw?.clears ?: 0
-                showMessage("Could not clear the drawing, try again.")
+                showMessage("Could not clear the drawing, try again.", Tone.Bad)
             }
         }
     }
@@ -1067,7 +1070,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 strokesClears = room.draw?.clears ?: 0
-                showMessage("Could not undo, try again.")
+                showMessage("Could not undo, try again.", Tone.Bad)
             }
         }
     }
@@ -1092,9 +1095,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             }
         }
     }
@@ -1120,9 +1123,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false, pendingShot = null) }
             }
@@ -1272,7 +1275,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        showMessage("Couldn't send the score; it goes with the next goal.")
+                        showMessage("Couldn't send the score; it goes with the next goal.", Tone.Bad)
                         reported = -1 to -1
                     }
                 }
@@ -1369,10 +1372,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(shown, room)
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(shown, room)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             }
         }
     }
@@ -1391,9 +1394,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false) }
             }
@@ -1590,7 +1593,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             launch {
                 b.pushes?.collect { json ->
                     if (json.optString("type") == "error") {
-                        if (json.optBoolean("fatal")) endSession(json.optString("error")) else showMessage(json.optString("error"))
+                        if (json.optBoolean("fatal")) endSession(json.optString("error")) else showMessage(json.optString("error"), Tone.Bad)
                     } else if (json.optString("type") == "live") {
                         onLive(json.optJSONObject("data") ?: return@collect)
                     } else if (json.optString("type") == "stroke") {
@@ -1660,7 +1663,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: ApiException) {
-            if (e.fatal) endSession(e.message) else showMessage(e.message)
+            if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
         } catch (e: IOException) {
             _state.update { it.copy(reconnecting = true) }
             delay(1000)
@@ -1846,18 +1849,18 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal && _state.value.room != null) endSession(e.message) else showMessage(e.message)
+                if (e.fatal && _state.value.room != null) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             } catch (e: Exception) {
-                showMessage(e.message ?: "That didn't work. Try again in a moment.")
+                showMessage(e.message ?: "That didn't work. Try again in a moment.", Tone.Bad)
             } finally {
                 _state.update { it.copy(busy = false) }
             }
         }
     }
 
-    private fun showMessage(message: String?) = _state.update { it.copy(message = message) }
+    private fun showMessage(message: String?, tone: Tone = Tone.Neutral) = _state.update { it.copy(message = message, messageTone = tone) }
 
     override fun onCleared() {
         // The app is closing: tell the server so the opponent is not left waiting.

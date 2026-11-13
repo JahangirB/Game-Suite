@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -159,7 +158,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
                 val joined = room.present.size
                 if (joined == 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = p.primary)
+                        PipPopLoader(Modifier.size(width = 36.dp, height = 22.dp))
                         Spacer(Modifier.width(12.dp))
                         Text(if (room.maxPlayers > 2) "Waiting for others to join…" else "Waiting for someone to join…", color = p.muted)
                     }

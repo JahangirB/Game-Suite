@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +24,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
+import com.pippop.ui.screens.ToastHost
+import com.pippop.ui.screens.ToastVisuals
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
 import com.pippop.ui.screens.LocalSlidePhoto
@@ -171,7 +172,7 @@ fun PipPopApp(
 
     LaunchedEffect(battleState.message) {
         battleState.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(ToastVisuals(it, battleState.messageTone))
             battle.dismissMessage()
         }
     }
@@ -183,7 +184,7 @@ fun PipPopApp(
 
     LaunchedEffect(updateState.message) {
         updateState.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(ToastVisuals(it, updateState.messageTone))
             updates.dismissMessage()
         }
     }
@@ -251,7 +252,7 @@ fun PipPopApp(
     CompositionLocalProvider(LocalTutorialHost provides tutorials) {
         Scaffold(
             containerColor = p.background,
-            snackbarHost = { SnackbarHost(snackbar) },
+            snackbarHost = { ToastHost(snackbar) },
         ) { padding ->
             // The IME insets shrink every screen above the keyboard, so a focused field stays visible.
             Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {

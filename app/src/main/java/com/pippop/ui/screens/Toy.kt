@@ -1,6 +1,33 @@
 package com.pippop.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.material3.SnackbarData
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarVisuals
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size as DrawSize
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import com.pippop.ui.theme.Board
+import com.pippop.ui.theme.LocalReduceMotion
+import com.pippop.ui.theme.readableOn
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -420,6 +447,110 @@ fun ToySwitch(
             contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
         ) {
             Box(Modifier.padding(horizontal = Space.XS).size(22.dp).pressedEdge(p.ink, 11.dp, 2.dp).clip(CircleShape).background(p.card).border(2.dp, p.ink, CircleShape))
+        }
+    }
+}
+
+/**
+ * Pip and Pop, two beads taking turns to hop: the app's own "one moment". One loop takes twice
+ * [Motion.MOVE_MS]. With reduced motion (or [still]) both beads rest. [t] (0 to 1) fixes where the
+ * loop is, for a screenshot. Say what is loading in the words beside it; this says "Loading".
+ */
+@Composable
+fun PipPopLoader(
+    modifier: Modifier = Modifier,
+    color: Color = AppTheme.palette.primary,
+    color2: Color = Board.Glow,
+    still: Boolean = false,
+    t: Float? = null,
+) {
+    val rest = still || LocalReduceMotion.current
+    val phase = if (t != null || rest) null else rememberInfiniteTransition(label = "pippop").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(Motion.MOVE_MS * 2, easing = LinearEasing), RepeatMode.Restart), label = "hop",
+    )
+    Canvas(
+        modifier.size(width = 64.dp, height = 40.dp).semantics {
+            contentDescription = "Loading"
+            progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+        },
+    ) {
+        val x = if (rest) 0f else (t ?: phase!!.value)
+        val r = size.height * 0.26f
+        val ground = size.height - r
+        val hop = size.height * 0.5f
+        val a = if (rest) 0f else kotlin.math.sin(x * Math.PI).toFloat().coerceAtLeast(0f)
+        val b = if (rest) 0f else kotlin.math.sin(((x + 0.5f) % 1f) * Math.PI).toFloat().coerceAtLeast(0f)
+        for ((cx, k, c) in listOf(Triple(size.width * 0.2f, a, color), Triple(size.width * 0.8f, b, color2))) {
+            drawOval(Color.Black.copy(alpha = 0.14f * (1f - k * 0.6f)), Offset(cx - r * (1f - k * 0.3f), size.height - r * 0.28f), DrawSize(2 * r * (1f - k * 0.3f), r * 0.4f))
+            val centre = Offset(cx, ground - hop * k)
+            glossyDisc(c, r, centre)
+            drawCircle(Board.Ink, r, centre, style = Stroke(1.6.dp.toPx()))
+        }
+    }
+}
+
+/** What a toast says and how it is marked; the words carry the meaning, the mark and its colour back them up. */
+class ToastVisuals(override val message: String, val tone: Tone = Tone.Neutral) : SnackbarVisuals {
+    override val actionLabel: String? = null
+    override val withDismissAction: Boolean = false
+    override val duration: SnackbarDuration = SnackbarDuration.Short
+}
+
+/**
+ * A short message in a pill with a mark for its [tone]: a tick, an exclamation mark, a cross or an
+ * i. A screen reader announces it when it appears.
+ */
+@Composable
+fun Toast(text: String, tone: Tone, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    val (color, mark) = when (tone) {
+        Tone.Good -> p.good to "✓"
+        Tone.Warning -> p.warning to "!"
+        Tone.Bad -> p.bad to "✕"
+        Tone.Neutral -> p.muted to "i"
+    }
+    Surface(
+        color = p.card, shape = Shapes.Full, border = BorderStroke(2.dp, p.ink),
+        modifier = modifier.pressedEdge(p.ink, 28.dp).semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        Row(
+            Modifier.padding(start = Space.S, end = Space.L, top = Space.S, bottom = Space.S),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M),
+        ) {
+            Box(Modifier.size(28.dp).clip(CircleShape).background(color).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+                Text(mark, color = readableOn(color), fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+            }
+            Text(text, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/**
+ * Shows what [state] is showing as a [Toast], at the bottom, fading in and out. It leaves after
+ * the usual time, longer where the phone's accessibility setting asks for more.
+ */
+@Composable
+fun ToastHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
+    val data: SnackbarData? = state.currentSnackbarData
+    val accessibility = LocalAccessibilityManager.current
+    LaunchedEffect(data) {
+        if (data != null) {
+            val base = if (data.visuals.duration == SnackbarDuration.Long) 10_000L else 4_000L
+            delay(accessibility?.calculateRecommendedTimeoutMillis(base, containsIcons = true, containsText = true) ?: base)
+            data.dismiss()
+        }
+    }
+    // Keep the last toast while it fades out.
+    var shown by remember { mutableStateOf<SnackbarData?>(null) }
+    if (data != null) shown = data
+    val ms = if (LocalReduceMotion.current) 0 else Motion.DROP_MS
+    AnimatedVisibility(data != null, modifier, enter = fadeIn(tween(ms)), exit = fadeOut(tween(ms))) {
+        val current = shown
+        if (current != null) {
+            val tone = (current.visuals as? ToastVisuals)?.tone ?: Tone.Neutral
+            Box(Modifier.fillMaxWidth().padding(Space.L), contentAlignment = Alignment.Center) {
+                Toast(current.visuals.message, tone)
+            }
         }
     }
 }
