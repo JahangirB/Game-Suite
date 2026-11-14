@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -124,12 +125,29 @@ fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
         close()
         action()
     }
-    ToySheet(onDismiss = close, skipPartiallyExpanded = true) { GameMenuRows(menu, close, ::then) }
+    // Looks takes the menu's place in the same sheet, so a game on your own stays paused while you choose.
+    var choosingLooks by remember { mutableStateOf(false) }
+    // Back returns from Looks to the menu before it closes anything.
+    BackHandler(choosingLooks) { choosingLooks = false }
+    ToySheet(onDismiss = close, skipPartiallyExpanded = true) {
+        if (choosingLooks) LooksSheetBody(menu.game) else GameMenuRows(menu, close, ::then, onLooks = { choosingLooks = true })
+    }
+}
+
+/** The Looks sheet's content for [game], reading and keeping the choice on this phone; it shows at once. */
+@Composable
+internal fun LooksSheetBody(game: GameKind) {
+    val store = ProfileStore.get(LocalContext.current)
+    val profile by store.profile.collectAsState()
+    LooksSheetContent(
+        game, Looks(profile.cardBack, profile.frame, profile.tile),
+        onCardBack = store::setCardBack, onFrame = store::setFrame, onTile = store::setTile,
+    )
 }
 
 /** The rows of the menu sheet; each row closes the menu first (through [then]), then acts. */
 @Composable
-internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) -> () -> Unit) {
+internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) -> () -> Unit, onLooks: (() -> Unit)? = null) {
     val p = AppTheme.palette
     val store = ProfileStore.get(LocalContext.current)
     val profile by store.profile.collectAsState()
@@ -139,6 +157,7 @@ internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) 
         menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
         menu.onChangeMode?.let { MenuRow(menu.changeLabel, detail = menu.mode, onClick = then(it)) }
         MenuRow("Rules", onClick = then(menu.onRules))
+        if (onLooks != null && menu.game.hasLooks()) MenuRow("Looks", onClick = onLooks)
         MenuRow("Sound", checked = profile.sound, onClick = { store.setSound(!profile.sound) }) {
             ToySwitch(profile.sound, null)
         }

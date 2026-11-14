@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
@@ -19,6 +20,8 @@ import com.pippop.data.GameKind
 import com.pippop.push.Push
 import com.pippop.ui.PipPopApp
 import com.pippop.ui.BattleViewModel
+import com.pippop.ui.screens.Looks
+import com.pippop.ui.screens.LocalLooks
 import com.pippop.ui.theme.PipPopTheme
 import com.pippop.ui.theme.isDark
 
@@ -50,7 +53,10 @@ class MainActivity : ComponentActivity() {
             }
 
             PipPopTheme(darkTheme = dark, colourTheme = profile.colourTheme) {
-                PipPopApp(app = app, battle = battle)
+                // The looks this player chose for cards, frames and tiles: only drawn on this phone.
+                CompositionLocalProvider(LocalLooks provides Looks(profile.cardBack, profile.frame, profile.tile)) {
+                    PipPopApp(app = app, battle = battle)
+                }
             }
         }
     }

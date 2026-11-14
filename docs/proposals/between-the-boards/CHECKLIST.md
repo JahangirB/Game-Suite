@@ -124,7 +124,7 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] Off, Quiet, Normal, Loud, and "Their moves"; the old setting migrated (profile-volume)
 - [x] **Step 24. Colour themes** (looks-themes)
   - [x] Lavender, Mint, Peach, Sky, each light and dark; contrast tested for all eight
-- [ ] **Step 25. Card backs, frames and tiles** (looks-table)
+- [x] **Step 25. Card backs, frames and tiles** (looks-table)
 
 ## Phase I: reactions
 

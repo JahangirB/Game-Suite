@@ -204,4 +204,32 @@ class ProfileStoreTest {
         s.setOthersMoves(false)
         assertFalse(store().profile.value.othersMoves)
     }
+
+    @Test fun looksStartAsToday() {
+        val p = fresh().profile.value
+        assertEquals(CardBackLook.STRIPES, p.cardBack)
+        assertEquals(FrameLook.BLUE, p.frame)
+        assertEquals(TileLook.IVORY, p.tile)
+    }
+
+    @Test fun looksAreKeptAndReadBack() {
+        val s = fresh()
+        s.setCardBack(CardBackLook.WAVES)
+        s.setFrame(FrameLook.PLUM)
+        s.setTile(TileLook.MAPLE)
+        assertEquals(CardBackLook.WAVES, s.profile.value.cardBack)
+        val back = store().profile.value
+        assertEquals(CardBackLook.WAVES, back.cardBack)
+        assertEquals(FrameLook.PLUM, back.frame)
+        assertEquals(TileLook.MAPLE, back.tile)
+    }
+
+    @Test fun anUnknownLookFallsBackToTheFirstOne() {
+        fresh()
+        prefs().edit().putString("look_card_back", "HOLOGRAM").putString("look_frame", "").putString("look_tile", "stone").commit()
+        val p = store().profile.value
+        assertEquals(CardBackLook.STRIPES, p.cardBack)
+        assertEquals(FrameLook.BLUE, p.frame)
+        assertEquals(TileLook.IVORY, p.tile)
+    }
 }

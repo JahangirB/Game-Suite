@@ -137,7 +137,6 @@ fun markColor(mark: Char): Color = when (mark) {
     'q' -> Pieces.Blue
     else -> Color.Gray
 }
-private val BoardBlue = Board.ConnectBlue
 private val TheirLine = GameColors.TheirLine
 
 // ---- Connect Four -------------------------------------------------------------------------
@@ -150,6 +149,7 @@ private val TheirLine = GameColors.TheirLine
 @Composable
 fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: ((Int) -> Unit)?, modifier: Modifier = Modifier, replay: Int = 0) {
     val p = AppTheme.palette
+    val BoardBlue = LocalLooks.current.frame.color
     // [replay] going up drops the last disc again: the dock's "Last move".
     val fall = remember(lastCell, board, replay) { Animatable(if (lastCell == null) 1f else 0f) }
     // It speeds up as it falls, then bounces once in its hole.
@@ -741,30 +741,9 @@ private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modi
                     .clip(Shapes.M),
             ) {
                 if (turn < 90f) {
-                    // The back: stripes, a frame and a star on Memory amber.
-                    Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
-                        val w = size.width
-                        val h = size.height
-                        val step = w * 0.22f
-                        var x = -h
-                        while (x < w) {
-                            drawLine(Color.White.copy(alpha = 0.18f), Offset(x, h), Offset(x + h, 0f), step * 0.45f)
-                            x += step
-                        }
-                        val m = w * 0.1f
-                        drawRoundRect(Color.White.copy(alpha = 0.6f), Offset(m, m), Size(w - 2 * m, h - 2 * m), CornerRadius(w * 0.1f), style = Stroke(w * 0.025f))
-                        val c = Offset(w / 2, h / 2)
-                        drawCircle(GameKind.MEMORY.color.darker(0.18f), w * 0.27f, c)
-                        val star = Path()
-                        for (k in 0 until 10) {
-                            val r = if (k % 2 == 0) w * 0.2f else w * 0.09f
-                            val a = (-PI / 2 + k * PI / 5).toFloat()
-                            val pt = Offset(c.x + r * cos(a), c.y + r * sin(a))
-                            if (k == 0) star.moveTo(pt.x, pt.y) else star.lineTo(pt.x, pt.y)
-                        }
-                        star.close()
-                        drawPath(star, Color.White)
-                    }
+                    // The back: the pattern this player chose (stripes on Memory amber to start), a frame and a star.
+                    val back = LocalLooks.current.cardBack
+                    Canvas(Modifier.fillMaxSize().border(2.dp, p.ink, Shapes.M)) { drawMemoryBack(back) }
                 } else {
                     face(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f })
                 }

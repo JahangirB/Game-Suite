@@ -128,6 +128,8 @@ object Board {
     /** Dominoes: the table and the tiles. */
     val Felt = Color(0xFF2E7D5B)
     val Bone = Color(0xFFFFFBF2)
+    /** Dominoes: the maple tile. */
+    val Maple = Color(0xFFE2B77E)
     /** Dominoes: the small brass pin in the middle of a tile, and the wooden rim round the table. */
     val Brass = Color(0xFFC9A24B)
     val Wood = Color(0xFF8A5A33)

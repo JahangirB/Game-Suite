@@ -19,6 +19,15 @@ enum class PlayMode { OFFLINE, ONLINE }
 /** How the ships look in Ship Battle; each player picks their own. */
 enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood") }
 
+/** The back of Memory Pairs' and Colour Clash's cards; each player picks their own. [STRIPES] is the look from before this could be chosen. */
+enum class CardBackLook(val label: String) { STRIPES("Stripes"), DOTS("Dots"), DIAMONDS("Diamonds"), WAVES("Waves") }
+
+/** Connect Four's frame; each player picks their own. [BLUE] is the look from before this could be chosen. */
+enum class FrameLook(val label: String) { BLUE("Blue"), MINT("Mint"), PLUM("Plum"), SLATE("Slate") }
+
+/** The Dominoes tiles; each player picks their own. [IVORY] is the look from before this could be chosen. */
+enum class TileLook(val label: String) { IVORY("Ivory"), EBONY("Ebony"), MAPLE("Maple") }
+
 /** A game that was played, and when (epoch milliseconds), for the home's "jump back in" row. */
 data class RecentGame(val game: GameKind, val at: Long)
 
@@ -80,6 +89,10 @@ data class Profile(
     val wordsHard: Boolean = false,
     /** Letter games (Word Race, later Code Breaker): a small mark on each result tile besides its colour. */
     val letterMarks: Boolean = true,
+    /** The looks chosen on a game's menu (Looks); kept on this phone only. */
+    val cardBack: CardBackLook = CardBackLook.STRIPES,
+    val frame: FrameLook = FrameLook.BLUE,
+    val tile: TileLook = TileLook.IVORY,
     /** Mini Golf's look: "day", "sunset", "night" or "mixed" (each hole picks one). */
     val golfTime: String = "day",
     /**
@@ -242,6 +255,21 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(soloSetups = it.soloSetups + (game to setup)) }
     }
 
+    fun setCardBack(look: CardBackLook) {
+        prefs.edit { putString(KEY_LOOK_CARD_BACK, look.name) }
+        _profile.update { it.copy(cardBack = look) }
+    }
+
+    fun setFrame(look: FrameLook) {
+        prefs.edit { putString(KEY_LOOK_FRAME, look.name) }
+        _profile.update { it.copy(frame = look) }
+    }
+
+    fun setTile(look: TileLook) {
+        prefs.edit { putString(KEY_LOOK_TILE, look.name) }
+        _profile.update { it.copy(tile = look) }
+    }
+
     fun setGolfTime(time: String) {
         prefs.edit { putString(KEY_GOLF_TIME, time) }
         _profile.update { it.copy(golfTime = time) }
@@ -347,6 +375,10 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             wordsHard = prefs.getBoolean(KEY_WORDS_HARD, false),
             letterMarks = prefs.getBoolean(KEY_LETTER_MARKS, true),
+            // An unknown value (a newer app's, or damage) is the look from before the choice existed.
+            cardBack = runCatching { CardBackLook.valueOf(prefs.getString(KEY_LOOK_CARD_BACK, "").orEmpty()) }.getOrDefault(CardBackLook.STRIPES),
+            frame = runCatching { FrameLook.valueOf(prefs.getString(KEY_LOOK_FRAME, "").orEmpty()) }.getOrDefault(FrameLook.BLUE),
+            tile = runCatching { TileLook.valueOf(prefs.getString(KEY_LOOK_TILE, "").orEmpty()) }.getOrDefault(TileLook.IVORY),
             golfTime = prefs.getString(KEY_GOLF_TIME, "day") ?: "day",
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
@@ -399,6 +431,9 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_WORDS_HARD = "words_hard"
         private const val KEY_LETTER_MARKS = "letter_marks"
         private const val KEY_GOLF_TIME = "golf_time"
+        private const val KEY_LOOK_CARD_BACK = "look_card_back"
+        private const val KEY_LOOK_FRAME = "look_frame"
+        private const val KEY_LOOK_TILE = "look_tile"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"

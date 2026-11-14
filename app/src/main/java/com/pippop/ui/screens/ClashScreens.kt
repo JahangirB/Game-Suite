@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pippop.data.CardBackLook
 import com.pippop.data.GameKind
 import com.pippop.data.Reaction
 import com.pippop.data.RoomStatus
@@ -202,7 +203,11 @@ fun ClashCard(card: String, width: Dp, modifier: Modifier = Modifier, named: Cha
 @Composable
 internal fun ClashBack(width: Dp, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    val back = LocalLooks.current.cardBack
     Box(modifier.size(width, width * 1.45f).cardBody(Board.Ink, width, p.ink).clip(RoundedCornerShape(width * 0.18f)), contentAlignment = Alignment.Center) {
+        // The deck stays dark so it is never mistaken for a coloured card; the chosen pattern shows on it in white.
+        // Stripes, the first choice, adds nothing: it is the deck as it was.
+        if (back != CardBackLook.STRIPES) Canvas(Modifier.fillMaxSize()) { backPattern(back, size.width, size.height, Color.White.copy(alpha = 0.2f)) }
         Canvas(Modifier.size(width * 0.62f)) {
             val r = size.minDimension / 2
             Clash.COLOURS.forEachIndexed { i, c ->
