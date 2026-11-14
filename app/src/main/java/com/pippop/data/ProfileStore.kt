@@ -66,8 +66,10 @@ data class Profile(
     val firstRunDone: Boolean = false,
     /** Buzz for game moments (your turn, a move, a win). */
     val vibration: Boolean = true,
-    /** Sound effects, on or off in the app only (the phone's silent mode doesn't change them). */
-    val sound: Boolean = true,
+    /** How loud the sound effects are, or off; in the app only (the phone's silent mode doesn't change them). */
+    val loudness: Loudness = Loudness.NORMAL,
+    /** Whether other players' moves make their sounds too (a little quieter than your own). */
+    val othersMoves: Boolean = true,
     /** Corner Blocks: show where your pieces can go ("Where can I go?"). */
     val blocksHints: Boolean = true,
     /** Word Race: hard mode (letters found must be used again). */
@@ -97,10 +99,14 @@ data class Profile(
 ) {
     /** What [game] starts with alone: the last setup, with the default for anything not picked yet or no longer known. */
     fun soloSetup(game: GameKind): Map<String, String> = SoloSetups.resolve(game, soloSetups[game])
+
+    /** Whether any sound plays at all. */
+    val sound: Boolean get() = loudness != Loudness.OFF
 }
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
 class ProfileStore private constructor(private val prefs: SharedPreferences) {
+    private var lastAudible = Loudness.NORMAL
     private val _profile = MutableStateFlow(load())
     val profile: StateFlow<Profile> = _profile.asStateFlow()
 
@@ -247,9 +253,18 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(blocksHints = on) }
     }
 
-    fun setSound(on: Boolean) {
-        prefs.edit { putBoolean(KEY_SOUND, on) }
-        _profile.update { it.copy(sound = on) }
+    fun setLoudness(value: Loudness) {
+        if (value != Loudness.OFF) lastAudible = value
+        prefs.edit { putString(KEY_LOUDNESS, value.name) }
+        _profile.update { it.copy(loudness = value) }
+    }
+
+    /** The game menu's on/off: off, or back to the last level that was on (Normal if none). */
+    fun setSound(on: Boolean) = setLoudness(if (on) lastAudible else Loudness.OFF)
+
+    fun setOthersMoves(on: Boolean) {
+        prefs.edit { putBoolean(KEY_OTHERS_MOVES, on) }
+        _profile.update { it.copy(othersMoves = on) }
     }
 
     fun setVibration(on: Boolean) {
@@ -316,7 +331,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             // Someone who set a name before the first-run screens existed has nothing to learn there.
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
-            sound = prefs.getBoolean(KEY_SOUND, true),
+            loudness = loudnessOf(prefs).also { if (it != Loudness.OFF) lastAudible = it },
+            othersMoves = prefs.getBoolean(KEY_OTHERS_MOVES, true),
             blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             wordsHard = prefs.getBoolean(KEY_WORDS_HARD, false),
             letterMarks = prefs.getBoolean(KEY_LETTER_MARKS, true),
@@ -363,7 +379,10 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_GAME_ORDER = "game_order"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
+        /** The old on/off sound setting: read once to make [KEY_LOUDNESS], never written or removed. */
         private const val KEY_SOUND = "sound"
+        private const val KEY_LOUDNESS = "sound_loudness"
+        private const val KEY_OTHERS_MOVES = "sound_others_moves"
         private const val KEY_BLOCKS_HINTS = "blocks_hints"
         private const val KEY_WORDS_HARD = "words_hard"
         private const val KEY_LETTER_MARKS = "letter_marks"
@@ -380,6 +399,19 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_ARRANGED_ONCE = "arranged_once"
         /** A game's last solo setup is kept under this and the game's key. */
         private const val KEY_SOLO_PREFIX = "solo_setup_"
+
+        /**
+         * The saved loudness. Before it existed, sound was on or off (`sound`): on becomes Normal,
+         * off becomes Off, written to the new key the first time. The old key stays as it was, and
+         * once the new one is there it alone decides, so running this again changes nothing.
+         */
+        internal fun loudnessOf(prefs: SharedPreferences): Loudness {
+            val saved = prefs.getString(KEY_LOUDNESS, null)?.let { s -> Loudness.entries.firstOrNull { it.name == s } }
+            if (saved != null) return saved
+            val migrated = if (prefs.getBoolean(KEY_SOUND, true)) Loudness.NORMAL else Loudness.OFF
+            prefs.edit { putString(KEY_LOUDNESS, migrated.name) }
+            return migrated
+        }
 
         /** Games from a comma list of keys; unknown keys and repeats are left out. */
         fun gamesOf(saved: String?): Set<GameKind> =

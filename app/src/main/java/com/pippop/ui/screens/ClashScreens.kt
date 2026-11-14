@@ -304,7 +304,7 @@ internal fun ColumnScope.ClashTable(
                 val played = view.lastMove?.takeIf { it.card != null }
                 val mine = played?.who == 'm'
                 SoundOnChange(played) {
-                    play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS)
+                    play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS, others = !mine)
                     // Kylian Dictador takes over every phone, the player's own too: his sticker and song.
                     if (played?.card?.let(Clash::isKylian) == true) {
                         Takeover.show(Reaction.KYLIAN)

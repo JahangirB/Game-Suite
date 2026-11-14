@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.pippop.R
+import com.pippop.data.Profile
 import com.pippop.data.ProfileStore
 import com.pippop.data.Reaction
 import kotlin.random.Random
@@ -86,26 +87,31 @@ val Reaction.sound: Sound?
         else -> null
     }
 
-/**
- * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound switch (in
- * the profile) turns them off: the phone's silent or vibrate mode doesn't, and the media volume
- * sets how loud they are. Every sound goes with something on screen (and most with a buzz), so
- * with Sound off nothing is missed.
- */
-class Sfx private constructor(context: Context) {
-    private val store = ProfileStore.get(context)
-    private val attributes =
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-    private val pool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributes).build()
-    private val loaded = Sound.entries.associateWith { pool.load(context, it.res, 1) }
+/** Where a finished level and pitch go: the SoundPool in the app, a fake in tests. */
+internal fun interface SoundOut {
+    fun play(sound: Sound, level: Float, rate: Float)
+}
 
-    /** Plays [sound]; [volume] below 1 for other players' events, which sound a little quieter. */
-    fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f) {
-        if (!store.profile.value.sound) return
-        val id = loaded[sound] ?: return
-        val level = (sound.volume * volume).coerceIn(0f, 1f)
+/**
+ * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound setting (in
+ * the profile: Off, Quiet, Normal, Loud) changes them: the phone's silent or vibrate mode doesn't,
+ * and the media volume sets the top. Every sound goes with something on screen (and most with a
+ * buzz), so with Sound off nothing is missed.
+ */
+class Sfx internal constructor(private val settings: () -> Profile, private val out: SoundOut) {
+    private constructor(context: Context, store: ProfileStore) : this({ store.profile.value }, SoundPoolOut(context))
+
+    /**
+     * Plays [sound] at the profile's loudness; [volume] below 1 for other players' events, which
+     * sound a little quieter, and [others] true for those: they are silent while Their moves is off.
+     */
+    fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f, others: Boolean = false) {
+        val profile = settings()
+        if (others && !profile.othersMoves) return
+        val level = (profile.loudness.level(sound.volume) * volume).coerceIn(0f, 1f)
+        if (level <= 0f) return
         val rate = (pitch * if (sound.varied) 0.95f + Random.nextFloat() * 0.1f else 1f).coerceIn(0.5f, 2f)
-        pool.play(id, level, level, 1, 0, rate)
+        out.play(sound, level, rate)
     }
 
     companion object {
@@ -116,8 +122,20 @@ class Sfx private constructor(context: Context) {
         private var instance: Sfx? = null
 
         fun get(context: Context): Sfx = instance ?: synchronized(this) {
-            instance ?: Sfx(context.applicationContext).also { instance = it }
+            instance ?: Sfx(context.applicationContext, ProfileStore.get(context)).also { instance = it }
         }
+    }
+}
+
+private class SoundPoolOut(context: Context) : SoundOut {
+    private val attributes =
+        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+    private val pool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributes).build()
+    private val loaded = Sound.entries.associateWith { pool.load(context, it.res, 1) }
+
+    override fun play(sound: Sound, level: Float, rate: Float) {
+        val id = loaded[sound] ?: return
+        pool.play(id, level, level, 1, 0, rate)
     }
 }
 

@@ -163,10 +163,11 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
     }
     // The disc rattles down the slot and clacks into its hole as it lands.
     SoundOnChange(lastCell) {
-        val v = if (board.getOrNull(lastCell ?: -1) == 'm') 1f else Sfx.OTHERS
-        play(Sound.C4_DROP, v)
+        val others = board.getOrNull(lastCell ?: -1) != 'm'
+        val v = if (others) Sfx.OTHERS else 1f
+        play(Sound.C4_DROP, v, others = others)
         delay(320)
-        play(Sound.C4_LAND, v)
+        play(Sound.C4_LAND, v, others = others)
     }
     val glow by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), still = 1f, label = "winGlow")
     // Four in a row: once the last disc has landed, a line is drawn through the four (0 to 1)
@@ -486,7 +487,7 @@ fun DotsBoard(
         }
     }
     val labels = rememberTextMeasurer()
-    SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
+    SoundOnChange(lastLine) { lines.getOrNull(lastLine ?: -1).let { who -> play(Sound.MARK, if (who == 'm') 1f else Sfx.OTHERS, others = who != 'm') } }
     // A box closed: a stamp and a chime, and the same player goes again.
     SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
     // Under the finger now, and the line chosen by the last tap: a tap lights up the nearest free
@@ -1235,7 +1236,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
 
 /** An X (yours) or an O (theirs) chalked on a Tic-Tac-Toe board. */
 private fun Sfx.tttSound(mark: Char?) {
-    if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS)
+    if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS, others = true)
 }
 
 /** Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. */

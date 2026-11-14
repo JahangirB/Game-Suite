@@ -161,7 +161,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         // The shooter's phone said where it stopped; end there whatever this phone worked out.
         val frames = if (worked.hazard == null && !worked.holed) worked.frames.dropLast(1) + Frame(last.to.x, last.to.y, 0.0) else worked.frames
         shot = Golf3DShot("$game-${last.seq}", "$game-${last.hole}", hole, last.who, markColor(last.who), worked.copy(frames = frames), last.hole + 1)
-        sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()))
+        sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()), others = last.who != 'm')
     }
     // Nobody shoots while Kylian has the game.
     val lockedUntil by Takeover.until.collectAsState()
@@ -195,12 +195,13 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
     Golf3D(
         state, shot, onShoot,
         onEvent = { what ->
-            val v = if (shot?.who == 'm') 1f else Sfx.OTHERS
+            val others = shot?.who != 'm'
+            val v = if (others) Sfx.OTHERS else 1f
             when (what) {
-                "wall", "stonks", "portal" -> sfx.play(Sound.GOLF_WALL, v)
-                "land" -> sfx.play(Sound.GOLF_PUTT, v * 0.5f)
-                "drop" -> sfx.play(Sound.GOLF_DROP, v)
-                "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v)
+                "wall", "stonks", "portal" -> sfx.play(Sound.GOLF_WALL, v, others = others)
+                "land" -> sfx.play(Sound.GOLF_PUTT, v * 0.5f, others = others)
+                "drop" -> sfx.play(Sound.GOLF_DROP, v, others = others)
+                "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v, others = others)
                 "holed" -> sfx.play(Sound.GOLF_CUP)
                 "kylian" -> {
                     // Kylian Dictador takes the next turn, and nobody shoots while his song plays;

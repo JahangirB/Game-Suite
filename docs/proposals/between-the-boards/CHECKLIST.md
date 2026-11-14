@@ -119,9 +119,9 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase H: profile and looks
 
-- [ ] **Step 23. The profile**
-  - [ ] What you change, first (profile-order)
-  - [ ] Off, Quiet, Normal, Loud, and "Their moves"; the old setting migrated (profile-volume)
+- [x] **Step 23. The profile**
+  - [x] What you change, first (profile-order)
+  - [x] Off, Quiet, Normal, Loud, and "Their moves"; the old setting migrated (profile-volume)
 - [ ] **Step 24. Colour themes** (looks-themes)
   - [ ] Lavender, Mint, Peach, Sky, each light and dark; contrast tested for all eight
 - [ ] **Step 25. Card backs, frames and tiles** (looks-table)

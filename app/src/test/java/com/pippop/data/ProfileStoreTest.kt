@@ -150,4 +150,58 @@ class ProfileStoreTest {
         assertEquals(listOf(RecentGame(GameKind.GOLF, 900)), store().profile.value.recentGames)
         assertEquals(emptyList<RecentGame>(), s.sampleRecent())
     }
+
+    // Loudness: the old on/off `sound` setting becomes Off or Normal under a new key; the old key stays.
+    @Test fun loudnessDefaultsToNormalAndTheirMovesOn() {
+        val p = fresh().profile.value
+        assertEquals(Loudness.NORMAL, p.loudness)
+        assertTrue(p.othersMoves)
+    }
+
+    @Test fun oldSoundOnBecomesNormal() {
+        prefs().edit().clear().putBoolean("sound", true).commit()
+        assertEquals(Loudness.NORMAL, store().profile.value.loudness)
+    }
+
+    @Test fun oldSoundOffBecomesOff() {
+        prefs().edit().clear().putBoolean("sound", false).commit()
+        val s = store()
+        assertEquals(Loudness.OFF, s.profile.value.loudness)
+        assertFalse(s.profile.value.sound)
+        // The old key is read, never removed or changed.
+        assertTrue(prefs().contains("sound"))
+        assertFalse(prefs().getBoolean("sound", true))
+    }
+
+    @Test fun migrationTwiceChangesNothing() {
+        prefs().edit().clear().putBoolean("sound", false).commit()
+        store()
+        val once = prefs().all.toMap()
+        assertEquals(Loudness.OFF, store().profile.value.loudness)
+        assertEquals(once, prefs().all.toMap().filterKeys { it in once })
+    }
+
+    @Test fun anAlreadyMigratedChoiceWinsOverTheOldKey() {
+        prefs().edit().clear().putBoolean("sound", false).commit()
+        val s = store()
+        s.setLoudness(Loudness.LOUD)
+        assertEquals(Loudness.LOUD, store().profile.value.loudness)
+        prefs().edit().putBoolean("sound", false).commit()
+        assertEquals(Loudness.LOUD, store().profile.value.loudness)
+    }
+
+    @Test fun theMenuSwitchGoesBackToTheLastLevel() {
+        val s = fresh()
+        s.setLoudness(Loudness.QUIET)
+        s.setSound(false)
+        assertEquals(Loudness.OFF, s.profile.value.loudness)
+        s.setSound(true)
+        assertEquals(Loudness.QUIET, s.profile.value.loudness)
+    }
+
+    @Test fun theirMovesIsKept() {
+        val s = fresh()
+        s.setOthersMoves(false)
+        assertFalse(store().profile.value.othersMoves)
+    }
 }

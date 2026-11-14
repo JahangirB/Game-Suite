@@ -552,17 +552,18 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
  * then a bonk and a slide whistle for a token knocked back, or a little fanfare at home.
  */
 private suspend fun ludoSounds(sfx: Sfx, m: LudoMove, count: Int) {
-    val v = if (m.who == 'm') 1f else Sfx.OTHERS
+    val others = m.who != 'm'
+    val v = if (others) Sfx.OTHERS else 1f
     if (m.from!! < 0) {
-        sfx.play(Sound.LUDO_OUT, v)
+        sfx.play(Sound.LUDO_OUT, v, others = others)
         return
     }
     repeat(count) { i ->
-        sfx.play(Sound.PIECE_HOP, v, pitch = 1f + 0.04f * i)
+        sfx.play(Sound.PIECE_HOP, v, pitch = 1f + 0.04f * i, others = others)
         delay(HOP_MS.toLong())
     }
     when {
         m.captured.isNotEmpty() -> sfx.play(Sound.LUDO_CAPTURE)
-        m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v)
+        m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v, others = others)
     }
 }

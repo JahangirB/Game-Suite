@@ -171,7 +171,7 @@ fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier
         slide.snapTo(0f)
         slide.animateTo(1f, tween(Motion.MOVE_MS + 150, easing = FastOutSlowInEasing))
         // The tile clacks onto the table as it arrives.
-        sfx.play(Sound.PIECE_PLACE, if (fromBelow) 1f else Sfx.OTHERS)
+        sfx.play(Sound.PIECE_PLACE, if (fromBelow) 1f else Sfx.OTHERS, others = !fromBelow)
     }
     val placed = remember(line, start) { DominoLayout.layout(line, start) }
     Canvas(modifier.clip(shape).border(6.dp, Brush.verticalGradient(listOf(Wood.lighter(0.2f), Wood.darker(0.2f))), shape)) {
