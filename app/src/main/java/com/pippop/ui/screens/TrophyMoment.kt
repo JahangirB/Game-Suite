@@ -122,7 +122,7 @@ internal fun TrophyMoment(end: MonthEnd, current: YearMonth, myAvatar: Avatar?, 
                 TrophyCup(
                     Modifier.size(170.dp, 190.dp).clearAndSetSemantics { }, face = cupFace, tie = tie,
                     initial = if (tie) null else if (mineWon) "Y" else partnerName.trim().firstOrNull()?.uppercase() ?: "?",
-                    initialFill = if (mineWon) p.primary else OpponentColor,
+                    initialFill = if (mineWon) p.me else OpponentColor,
                 )
                 Text(
                     trophyTitle(end), modifier = Modifier.semantics { heading() }, color = p.text, fontSize = TextSize.DisplayL,
@@ -132,7 +132,7 @@ internal fun TrophyMoment(end: MonthEnd, current: YearMonth, myAvatar: Avatar?, 
                     Modifier.semantics(mergeDescendants = true) { contentDescription = "You ${end.mine}, $partnerName ${end.theirs}" },
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Face("You", myAvatar, p.primary, 40.dp, dim = !tie && !mineWon)
+                    Face("You", myAvatar, p.me, 40.dp, dim = !tie && !mineWon)
                     Text(
                         "${end.mine} – ${end.theirs}", style = Digits, color = p.text, fontSize = TextSize.Score,
                         fontFamily = DisplayFont, fontWeight = FontWeight.Bold,

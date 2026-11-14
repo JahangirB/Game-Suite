@@ -631,7 +631,7 @@ private fun Faces(people: List<PlayerInfo>, size: Dp = 36.dp, step: Dp = 25.dp) 
     Box(Modifier.width(size + step * (people.size - 1)).height(size)) {
         people.forEachIndexed { i, who ->
             Box(Modifier.offset(x = step * i).size(size).clip(CircleShape).border(2.dp, p.ink, CircleShape)) {
-                PlayerAvatar(who.name, if (i == 0) p.primary else SeatColors[(i - 1) % SeatColors.size], size = size.value.toInt(), avatar = who.avatar, mark = seatMark(i))
+                PlayerAvatar(who.name, if (i == 0) p.me else SeatColors[(i - 1) % SeatColors.size], size = size.value.toInt(), avatar = who.avatar, mark = seatMark(i))
             }
         }
     }

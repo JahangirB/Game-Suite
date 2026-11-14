@@ -107,7 +107,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
     }
     SoundOnChange(miss?.seq) { play(Sound.ERROR) }
     // During a match only the filled share is known locally; the server reveals the solved share once it is over.
-    val players = battleChips(room, state, localNow, if (together) CoopInk[0] else p.primary, detail = { player, isMe ->
+    val players = battleChips(room, state, localNow, if (together) CoopInk[0] else p.me, detail = { player, isMe ->
         when {
             playing && !isMe && (player.online == false || player.idleMs > OPPONENT_LAG_WARNING_MS) -> "connection lost?"
             together -> {

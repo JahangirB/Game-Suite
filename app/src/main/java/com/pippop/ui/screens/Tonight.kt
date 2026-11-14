@@ -60,7 +60,7 @@ fun TonightPill(score: TonightScore) {
         Text("TONIGHT", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
         Surface(color = p.card, shape = Shapes.Full, border = BorderStroke(2.dp, p.ink)) {
             Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                PlayerAvatar("You", p.primary, size = 22, avatar = score.myAvatar)
+                PlayerAvatar("You", p.me, size = 22, avatar = score.myAvatar)
                 Text(
                     "${score.mine} – ${score.theirs}", style = Digits, color = p.text, fontSize = TextSize.BodyL,
                     fontFamily = DisplayFont, fontWeight = FontWeight.Bold,

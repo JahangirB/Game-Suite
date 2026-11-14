@@ -324,7 +324,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         done -> "Out of tries"
         else -> "${guesses.size}/${words.tries} tries"
     }
-    val players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+    val players = battleChips(room, state, localNow, p.me, detail = { player, isMe ->
         // Players in hard mode wear a small "Hard" badge.
         (if (player.hard) "Hard · " else "") + if (isMe) {
             status(words.mine, words.meDone)

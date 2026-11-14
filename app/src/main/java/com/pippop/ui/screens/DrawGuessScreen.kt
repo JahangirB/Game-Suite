@@ -192,7 +192,7 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     fun draws(player: com.pippop.data.PlayerInfo, isMe: Boolean) =
         if (isMe) drawing else !drawing && (draw.drawerName == null || draw.drawerName == player.name)
     val players = battleChips(
-        room, state, localNow, p.primary,
+        room, state, localNow, p.me,
         detail = { player, isMe ->
             val pts = draw.scores.firstOrNull { if (isMe) it.me else it.name == player.name }?.points
             listOfNotNull(pts?.let { "$it pts" }, if (!playing) null else if (draws(player, isMe)) "Drawing" else "Guessing").joinToString(" · ").ifEmpty { null }
@@ -320,7 +320,7 @@ internal fun WordClock(fraction: Float?, seconds: Long?, content: @Composable ()
                 track.addRoundRect(RoundRect(Rect(Offset(w / 2, w / 2), Size(size.width - w, size.height - w)), CornerRadius(size.height / 2)))
                 drawPath(track, p.ink.copy(alpha = 0.15f), style = Stroke(w))
                 val f = left()
-                val color = if (f > 0.25f) p.primary else if (f > 0.125f) p.warning else p.bad
+                val color = if (f > 0.25f) p.me else if (f > 0.125f) p.warning else p.bad
                 measure.setPath(track, false)
                 run.rewind()
                 measure.getSegment(0f, measure.length * f, run, true)

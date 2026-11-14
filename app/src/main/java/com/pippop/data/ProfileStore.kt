@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.update
 
 enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
 
+/** The colourway of the Toy Box this phone uses, whether light or dark. Lavender is the original. */
+enum class ColourTheme(val label: String) { LAVENDER("Lavender"), MINT("Mint"), PEACH("Peach"), SKY("Sky") }
+
 /** How this phone meets others: nearby over Bluetooth and Wi‑Fi, or online through a server. */
 enum class PlayMode { OFFLINE, ONLINE }
 
@@ -51,6 +54,7 @@ data class Profile(
     /** Only needed for a Cloudflare server whose host set a password. */
     val serverPassword: String = "",
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    val colourTheme: ColourTheme = ColourTheme.LAVENDER,
     val shipStyle: ShipStyle = ShipStyle.TOY,
     val stats: Stats = Stats(),
     val partner: SavedPartner? = null,
@@ -136,6 +140,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setTheme(mode: ThemeMode) {
         prefs.edit { putString(KEY_THEME, mode.name) }
         _profile.update { it.copy(theme = mode) }
+    }
+
+    fun setColourTheme(theme: ColourTheme) {
+        prefs.edit { putString(KEY_COLOUR_THEME, theme.name) }
+        _profile.update { it.copy(colourTheme = theme) }
     }
 
     fun setShipStyle(style: ShipStyle) {
@@ -323,6 +332,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             serverPassword = prefs.getString(KEY_PASSWORD, "").orEmpty(),
             theme = runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, "").orEmpty()) }
                 .getOrDefault(ThemeMode.SYSTEM),
+            colourTheme = runCatching { ColourTheme.valueOf(prefs.getString(KEY_COLOUR_THEME, "").orEmpty()) }
+                .getOrDefault(ColourTheme.LAVENDER),
             shipStyle = runCatching { ShipStyle.valueOf(prefs.getString(KEY_SHIP_STYLE, "").orEmpty()) }
                 .getOrDefault(ShipStyle.TOY),
             stats = Stats(prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
@@ -362,6 +373,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_URL = "script_url"
         private const val KEY_NAME = "player_name"
         private const val KEY_THEME = "theme"
+        private const val KEY_COLOUR_THEME = "colour_theme"
         private const val KEY_SHIP_STYLE = "ship_style"
         private const val KEY_AVATAR = "avatar"
         private const val KEY_DEVICE = "device_id"

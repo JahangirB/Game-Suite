@@ -160,7 +160,7 @@ fun SudokuGrid(
                                 .size(cellSize)
                                 .background(background)
                                 // The selected square also gets a coral ring, so it never hangs on its fill alone.
-                                .then(if (!hidden && index == selected) Modifier.border(2.dp, p.primary) else Modifier)
+                                .then(if (!hidden && index == selected) Modifier.border(2.dp, p.me) else Modifier)
                                 // Where a partner is: a ring in their colour, inside your own.
                                 .then(if (ring != null) Modifier.padding(if (index == selected) 2.dp else 0.dp).border(2.5.dp, ring, Shapes.S) else Modifier)
                                 .combinedClickable(

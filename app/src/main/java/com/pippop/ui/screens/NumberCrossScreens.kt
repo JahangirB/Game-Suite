@@ -197,7 +197,7 @@ internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int
                                 val tint = when (verdict[i]) {
                                     true -> Right
                                     false -> Wrong
-                                    null -> if (pick) p.primary else p.accent
+                                    null -> if (pick) p.me else p.accent
                                 }
                                 Box(
                                     Modifier.fillMaxWidth().height(cell).clip(Shapes.S).sunken(tint, if (p.dark) 0.2f else 0f)
@@ -425,7 +425,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     GameFrame(
         title = "Number Cross",
         subtitle = "Game ${room.round} · ${numbers.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, localNow, p.me, detail = { player, isMe ->
             if (isMe) "$mine% right" else "${player.progress ?: 0}% right"
         }),
         glow = GameKind.NUMBERS.color,

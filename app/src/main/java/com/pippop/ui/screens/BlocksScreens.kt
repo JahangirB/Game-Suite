@@ -157,7 +157,7 @@ internal fun BlocksBoard(
             // Falling from above, a little bigger, its shadow growing as it nears the board.
             val k = 1f - land.value
             val grow = 1f + 0.25f * k
-            val color = view.lastWho?.let { markColor(it) } ?: p.primary
+            val color = view.lastWho?.let { markColor(it) } ?: p.me
             val cx = view.lastCells.map { it.first + 0.5f }.average().toFloat() * c
             val cy = view.lastCells.map { it.second + 0.5f }.average().toFloat() * c
             for ((x, y) in view.lastCells) {

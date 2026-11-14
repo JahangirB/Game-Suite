@@ -390,7 +390,7 @@ internal fun ReadyFaces(room: RoomState) {
     Box(Modifier.width((26 + 18 * (faces.size - 1)).dp).height(30.dp)) {
         faces.forEachIndexed { i, (player, mine) ->
             Box(Modifier.padding(start = (18 * i).dp)) {
-                PlayerAvatar(if (mine) "You" else player.name, if (mine) AppTheme.palette.primary else AppTheme.palette.accent, size = 26, avatar = player.avatar)
+                PlayerAvatar(if (mine) "You" else player.name, if (mine) AppTheme.palette.me else AppTheme.palette.accent, size = 26, avatar = player.avatar)
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(top = 18.dp, start = 18.dp).size(10.dp).clip(CircleShape)
                         .background(if (player.ready) AppTheme.palette.good else AppTheme.palette.hairline).border(1.5.dp, AppTheme.palette.ink, CircleShape),

@@ -231,7 +231,7 @@ internal fun LobbyFrame(
                     // Someone has joined: the code folds into a small label here.
                     if (!alone) RoomChip(room.code, if (room.isHost && state.mode != BattleMode.NEARBY) share else null)
                 }
-                PlayerRow(room.me, isMe = true, color = p.primary, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game, showLevel = !room.picksByOpener)
+                PlayerRow(room.me, isMe = true, color = p.me, reaction = visibleReaction(state.myReaction, now), seat = 0, game = room.game, showLevel = !room.picksByOpener)
                 room.others.forEachIndexed { i, other ->
                     if (!other.left) key(other.name) {
                         val reaction = state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }
@@ -475,7 +475,7 @@ fun LevelPicker(room: RoomState, busy: Boolean, onPick: (Difficulty) -> Unit) {
                             onClick = { onPick(level) },
                             enabled = canPick,
                             shape = Shapes.M,
-                            color = if (mine) p.primary else p.accent,
+                            color = if (mine) p.me else p.accent,
                             border = if (theirs && !mine) BorderStroke(2.dp, OpponentColor) else null,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                         ) {

@@ -121,7 +121,7 @@ internal fun AnotherGameContent(another: AnotherGame, allOpen: Boolean = false, 
             Modifier.fillMaxWidth().clip(Shapes.M).background(p.accent).padding(Space.M),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M),
         ) {
-            another.who.picker?.let { PlayerAvatar(it.name, if (another.who.mine) p.primary else OpponentColor, size = 30, avatar = it.avatar) }
+            another.who.picker?.let { PlayerAvatar(it.name, if (another.who.mine) p.me else OpponentColor, size = 30, avatar = it.avatar) }
             Text(another.who.line, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         }
         (if (all) everything else tiles).chunked(3).forEach { row ->

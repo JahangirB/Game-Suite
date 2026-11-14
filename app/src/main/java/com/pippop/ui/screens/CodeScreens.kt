@@ -310,7 +310,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         title = "Code Breaker",
         // Harder settings show as a badge for both players.
         subtitle = "Game ${room.round}" + (if (code.rules.harder) " · ${code.rules.label}" else "") + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, now, p.primary, detail = { _, isMe ->
+        players = battleChips(room, state, now, p.me, detail = { _, isMe ->
             val n = if (isMe) code.mine.size else code.theirs.size
             if (code.phase == "set") (if (isMe) (if (code.myCode != null) "Code set" else "Setting…") else if (code.theySet) "Code set" else "Setting…")
             else "$n of ${code.tries} guesses"

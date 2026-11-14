@@ -196,7 +196,7 @@ internal fun Face(name: String, avatar: Avatar?, color: Color, size: Dp, dim: Bo
 internal fun SplitBar(mine: Int, theirs: Int, modifier: Modifier = Modifier, height: Dp = 12.dp) {
     val p = AppTheme.palette
     Row(modifier.height(height).clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full)) {
-        if (mine > 0) Box(Modifier.weight(mine.toFloat()).fillMaxHeight().background(p.primary))
+        if (mine > 0) Box(Modifier.weight(mine.toFloat()).fillMaxHeight().background(p.me))
         if (mine > 0 && theirs > 0) Box(Modifier.width(1.5.dp).fillMaxHeight().background(p.ink))
         if (theirs > 0) Box(Modifier.weight(theirs.toFloat()).fillMaxHeight().background(OpponentColor))
     }
@@ -211,7 +211,7 @@ internal fun FormDots(results: List<Boolean?>, initial: String) {
     val p = AppTheme.palette
     Row(horizontalArrangement = Arrangement.spacedBy(Space.XS)) {
         results.forEach { r ->
-            val fill = when (r) { true -> p.primary; false -> OpponentColor; null -> p.card }
+            val fill = when (r) { true -> p.me; false -> OpponentColor; null -> p.card }
             Box(Modifier.size(18.dp).clip(CircleShape).background(fill).border(1.5.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
                 Text(
                     when (r) { true -> "Y"; false -> initial; null -> "=" },
@@ -249,11 +249,11 @@ private fun StandingCard(eyebrow: String, name: String, s: Standing, partner: St
             Text(eyebrow.uppercase(), color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
-                    Face("You", myAvatar, p.primary, 52.dp)
+                    Face("You", myAvatar, p.me, 52.dp)
                     Text("You", color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                 }
                 Text(
-                    "${s.mine}", style = Digits, color = p.primaryText, fontSize = TextSize.Score, fontFamily = DisplayFont,
+                    "${s.mine}", style = Digits, color = p.meText, fontSize = TextSize.Score, fontFamily = DisplayFont,
                     fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1f),
                 )
                 Text(" – ", color = p.muted, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
@@ -316,7 +316,7 @@ private fun GameLine(g: GameScore, partner: String, tag: String?, onClick: () ->
                 Text(g.game.label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (tag != null) Text(tag, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 2)
             }
-            Text("${g.mine}", style = Digits, color = p.primaryText, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 24.dp))
+            Text("${g.mine}", style = Digits, color = p.meText, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 24.dp))
             SplitBar(g.mine, g.theirs, Modifier.weight(1f).padding(horizontal = Space.S))
             Text("${g.theirs}", style = Digits, color = p.opponentText, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 20.dp))
         }
@@ -360,7 +360,7 @@ private fun TrophyShelf(slots: List<ShelfSlot>, partner: String, board: Scoreboa
                         TrophyCup(
                             Modifier.size(54.dp, 60.dp), face = if (mineWon) myAvatar else partnerAvatar.takeIf { t.winner != null }, tie = t.winner == null,
                             initial = if (t.winner == null) null else if (mineWon) "Y" else partner.trim().firstOrNull()?.uppercase() ?: "?",
-                            initialFill = if (mineWon) p.primary else OpponentColor,
+                            initialFill = if (mineWon) p.me else OpponentColor,
                         )
                     } else {
                         Box(Modifier.size(54.dp, 60.dp).clip(Shapes.M).border(1.5.dp, p.hairline, Shapes.M), contentAlignment = Alignment.Center) {
@@ -450,7 +450,7 @@ internal fun GameStoryContent(story: GameStory, g: GameScore, windowName: String
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clearAndSetSemantics {}) {
-            Face("You", myAvatar, p.primary, 34.dp)
+            Face("You", myAvatar, p.me, 34.dp)
             Text("  You", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text("$partner  ", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Face(partner, partnerAvatar, OpponentColor, 34.dp)
@@ -471,7 +471,7 @@ internal fun GameStoryContent(story: GameStory, g: GameScore, windowName: String
         ) {
             winners.forEach { w ->
                 when (w) {
-                    true -> Face("You", myAvatar, p.primary, 29.dp)
+                    true -> Face("You", myAvatar, p.me, 29.dp)
                     false -> Face(partner, partnerAvatar, OpponentColor, 29.dp)
                     null -> Box(Modifier.size(29.dp).clip(CircleShape).background(p.card).border(2.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
                         Text("=", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)

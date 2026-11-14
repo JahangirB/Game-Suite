@@ -212,7 +212,7 @@ fun LetterGridBoard(
                 val now = shown
                 val cells = if (live.isNotEmpty()) live else now?.path.orEmpty()
                 if (cells.isEmpty()) return@Canvas
-                val color = if (live.isNotEmpty()) p.primary else when (now?.verdict) {
+                val color = if (live.isNotEmpty()) p.me else when (now?.verdict) {
                     Verdict.GOOD -> p.good
                     Verdict.REPEAT -> Pieces.Yellow
                     else -> p.bad
@@ -351,7 +351,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     GameFrame(
         title = "Letter Grid",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, rememberTicker(), p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, rememberTicker(), p.me, detail = { player, isMe ->
             if (isMe) "${grid.mine.size} words" else "${grid.counts.getOrNull(room.others.indexOf(player)) ?: 0} words"
         }),
         glow = GameKind.GRID.color,

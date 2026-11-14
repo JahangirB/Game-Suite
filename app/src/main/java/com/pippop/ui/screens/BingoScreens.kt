@@ -388,7 +388,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     GameFrame(
         title = "Bingo",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, now, p.primary, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
+        players = battleChips(room, state, now, p.me, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
         glow = GameKind.BINGO.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         tools = listOf(DockTool("Calls", GameIcons.History, badge = called) { showCalls = true }),

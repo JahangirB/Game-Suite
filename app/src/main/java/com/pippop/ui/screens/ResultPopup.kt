@@ -237,7 +237,7 @@ fun BoxScope.ResultPopup(
 private fun soloWinner(): ResultWinner {
     val context = LocalContext.current
     val avatar = remember { runCatching { ProfileStore.get(context).profile.value.avatar }.getOrNull() }
-    return ResultWinner("You", avatar, AppTheme.palette.primary)
+    return ResultWinner("You", avatar, AppTheme.palette.me)
 }
 
 /** Gives an inline popup its type for GameFrame's `popup`, e.g. `if (over) popupContent { … } else null`. */
@@ -336,7 +336,7 @@ fun BoxScope.MatchPopup(
 @Composable
 private fun matchWinner(room: RoomState): ResultWinner? = when {
     room.together -> null
-    room.winner == "me" -> ResultWinner("You", room.me.avatar, AppTheme.palette.primary)
+    room.winner == "me" -> ResultWinner("You", room.me.avatar, AppTheme.palette.me)
     room.winner == "opponent" && !room.together -> {
         val name = room.winnerName?.split(" & ")?.firstOrNull()
         val seat = room.others.indexOfFirst { it.name == name }.takeIf { it >= 0 } ?: 0

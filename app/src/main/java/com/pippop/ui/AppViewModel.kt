@@ -8,6 +8,7 @@ import com.pippop.data.PlayMode
 import com.pippop.data.Profile
 import com.pippop.data.ProfileStore
 import com.pippop.data.ShipStyle
+import com.pippop.data.ColourTheme
 import com.pippop.data.ThemeMode
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -30,6 +31,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setServerPassword(value: String) = store.setServerPassword(value)
     fun setAvatar(value: Avatar?) = store.setAvatar(value)
     fun setTheme(mode: ThemeMode) = store.setTheme(mode)
+    fun setColourTheme(theme: ColourTheme) = store.setColourTheme(theme)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
     fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)

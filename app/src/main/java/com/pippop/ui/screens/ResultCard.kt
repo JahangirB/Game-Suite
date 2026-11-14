@@ -176,16 +176,16 @@ fun TallyRow(score: TonightScore, bump: TallyBump) {
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { Text("TONIGHT", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold) }
-            PlayerAvatar("You", p.primary, size = 28, avatar = score.myAvatar)
+            PlayerAvatar("You", p.me, size = 28, avatar = score.myAvatar)
             Spacer(Modifier.width(8.dp))
-            RollingDigit(if (bumpMine) score.mine - 1 else score.mine, score.mine, if (bumpMine) p.primaryText else p.text)
+            RollingDigit(if (bumpMine) score.mine - 1 else score.mine, score.mine, if (bumpMine) p.meText else p.text)
             Text("  –  ", color = p.muted, fontSize = TextSize.Title, fontWeight = FontWeight.Bold)
             RollingDigit(if (bumpTheirs) score.theirs - 1 else score.theirs, score.theirs, if (bumpTheirs) p.opponentText else p.text)
             Spacer(Modifier.width(8.dp))
             PlayerAvatar(score.otherName, OpponentColor, size = 28, avatar = score.otherAvatar)
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                 if (bumpMine || bumpTheirs) {
-                    val fill = if (bumpMine) p.primary else OpponentColor
+                    val fill = if (bumpMine) p.me else OpponentColor
                     Text(
                         "+1", color = com.pippop.ui.theme.readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clip(Shapes.Full).background(fill).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 8.dp, vertical = 2.dp),

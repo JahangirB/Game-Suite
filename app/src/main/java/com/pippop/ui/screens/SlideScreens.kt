@@ -278,7 +278,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     GameFrame(
         title = "Slide Race",
         subtitle = "Game ${room.round} · ${slide.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, now, p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, now, p.me, detail = { player, isMe ->
             if (isMe) "$mine% in place" else "${player.progress ?: 0}% in place"
         }),
         glow = GameKind.SLIDE.color,
@@ -331,7 +331,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 // Your bar from your own tiles; the others' from the progress the server sends.
                 val total = slide.size * slide.size - 1
                 SlideProgressBars(
-                    listOf(SlideBar("You", p.primary, slideHome(tiles, slide.size), total)) +
+                    listOf(SlideBar("You", p.me, slideHome(tiles, slide.size), total)) +
                         room.others.mapIndexed { i, o -> SlideBar(o.name, SeatColors[i % SeatColors.size], slideHomeFromPercent(o.progress ?: 0, slide.size), total) },
                 )
             }
@@ -373,7 +373,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
             if (done == null) TurnLine("Slides: ${state.moves}", true, GameKind.SLIDE.color)
             BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
             // On your own there is only your bar: your tiles are all the screen knows.
-            SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))
+            SlideProgressBars(listOf(SlideBar("You", p.me, slideHome(state.tiles, level.size), level.size * level.size - 1)))
         }
     }
 }

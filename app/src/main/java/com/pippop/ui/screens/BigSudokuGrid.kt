@@ -238,7 +238,7 @@ fun BigSudokuGrid(
                 val o = at(i / n, i % n)
                 drawRect(color, o + Offset(thick / 2, thick / 2), Size(c - thick, c - thick), style = Stroke(maxOf(2.dp.toPx(), c * 0.1f)))
             }
-            selected?.let { i -> drawRect(p.primary, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
+            selected?.let { i -> drawRect(p.me, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
             // A finished unit's tick, in the corner of its last square.
             for (sweep in sweeps) {
                 val last = sweep.unit.last()

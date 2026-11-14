@@ -222,7 +222,7 @@ fun ShipsSea(
         lastShot?.takeIf { blast.value < 1f }?.let { boom(it, blast.value, cell) }
         lastShot?.let {
             drawCircle(
-                p.primary,
+                p.me,
                 radius = cell * 0.45f,
                 center = Offset((it.x + 0.5f) * cell, (it.y + 0.5f) * cell),
                 style = Stroke(width = cell * 0.08f),
@@ -230,8 +230,8 @@ fun ShipsSea(
         }
         pending?.let { (x, y) ->
             val center = Offset((x + 0.5f) * cell, (y + 0.5f) * cell)
-            drawCircle(p.primary, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
-            drawCircle(p.primary, radius = cell * 0.1f, center = center)
+            drawCircle(p.me, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
+            drawCircle(p.me, radius = cell * 0.1f, center = center)
         }
     }
 }
@@ -375,7 +375,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val skins = skinsTool { showSkins = true }
     var replay by remember { mutableIntStateOf(0) }
     val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, p.primary, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
+        ChipPlayer("You", room.me.avatar, p.me, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
         opponent?.let {
             ChipPlayer(
                 it.name, it.avatar, OpponentColor,
@@ -479,7 +479,7 @@ internal fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = f
         else -> "$opponentName is aiming…"
     }
     val (title, hint) = turnWords(line, myTurn)
-    val fill = if (myTurn) textFill(p.primary) else p.accent
+    val fill = if (myTurn) textFill(p.me) else p.accent
     Surface(
         color = fill,
         shape = Shapes.M,
@@ -515,7 +515,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         swipeToFocus = game != null,
         focusWhen = game?.let { it.myTurn && it.winner == null } == true,
         players = if (game == null) emptyList() else listOf(
-            ChipPlayer("You", null, p.primary, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
+            ChipPlayer("You", null, p.me, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
             ChipPlayer("Computer", null, OpponentColor, "${game.theirProgress}% of fleet hit", active = !game.myTurn && game.winner == null),
         ),
         glow = GameKind.SHIPS.color,
@@ -698,7 +698,7 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
                     holding?.takeIf { drag == null }?.let { ship ->
                         val w = (if (ship.horizontal) ship.len else 1) * cell
                         val h = (if (ship.horizontal) 1 else ship.len) * cell
-                        drawRoundRect(p.primary, Offset(ship.x * cell, ship.y * cell), Size(w, h), CornerRadius(cell * 0.25f), style = Stroke(cell * 0.12f))
+                        drawRoundRect(p.me, Offset(ship.x * cell, ship.y * cell), Size(w, h), CornerRadius(cell * 0.25f), style = Stroke(cell * 0.12f))
                     }
                 }
             }

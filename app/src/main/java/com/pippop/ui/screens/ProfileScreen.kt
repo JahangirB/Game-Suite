@@ -32,6 +32,18 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import com.pippop.data.Avatar
+import com.pippop.data.ColourTheme
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.paletteFor
 import com.pippop.data.Loudness
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -84,6 +96,51 @@ internal fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
     }
 }
 
+/**
+ * The four colourways as swatches: each shows its page colour with its main colour on it, in the
+ * light or dark the app is in now. The chosen one has a thicker ring in the main colour and a tick
+ * before its name, so it is not shown by colour alone; it reads as selected to a screen reader.
+ */
+@Composable
+internal fun ColourThemePicker(selected: ColourTheme, onPick: (ColourTheme) -> Unit) {
+    val p = AppTheme.palette
+    // Larger text: two to a row, so no label is clipped.
+    val perRow = if (LocalDensity.current.fontScale > 1.2f) 2 else ColourTheme.entries.size
+    Column(verticalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth().selectableGroup()) {
+        ColourTheme.entries.chunked(perRow).forEach { rowThemes ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
+                rowThemes.forEach { theme ->
+                    val look = paletteFor(theme, p.dark)
+                    val on = theme == selected
+                    Column(
+                        Modifier.weight(1f).heightIn(min = 48.dp)
+                            .selectable(selected = on, role = Role.RadioButton, onClick = { onPick(theme) })
+                            .semantics { contentDescription = theme.label },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Space.XS),
+                    ) {
+                        Box(
+                            Modifier.fillMaxWidth().height(48.dp).clip(Shapes.M).background(look.background)
+                                .border(if (on) 3.dp else 2.dp, if (on) p.primaryText else p.ink, Shapes.M)
+                                .clearAndSetSemantics { },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(Modifier.size(34.dp, 18.dp).clip(Shapes.Full).background(look.primary).border(2.dp, p.ink, Shapes.Full))
+                        }
+                        Text(
+                            (if (on) "✓ " else "") + theme.label, color = p.text, fontSize = TextSize.Label,
+                            fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
+                            modifier = Modifier.clearAndSetSemantics { },
+                        )
+                    }
+                }
+                // Keep the last short row's swatches the same width.
+                repeat(perRow - rowThemes.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
 /** All setup lives here: name, battle server link, appearance. */
 @Composable
 fun ProfileScreen(
@@ -109,7 +166,7 @@ fun ProfileScreen(
         ) {
             AppCard("You") {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PlayerAvatar(profile.name.ifBlank { "?" }, p.primary, size = 52, avatar = profile.avatar)
+                    PlayerAvatar(profile.name.ifBlank { "?" }, p.me, size = 52, avatar = profile.avatar)
                     ToyField(
                         value = profile.name,
                         onValueChange = app::setName,
@@ -124,7 +181,7 @@ fun ProfileScreen(
 
             AppCard("Look") {
                 OptionRow("Theme", ThemeMode.entries.map { it to it.label }, profile.theme, app::setTheme)
-                // Step 24 (colour themes): the four swatches go here, under Theme.
+                ColourThemePicker(profile.colourTheme, app::setColourTheme)
                 Text("Ship Battle style", color = p.muted, fontSize = TextSize.Body)
                 // The two built in, then any skins downloaded in Ship Battle (its Skins button).
                 val skinId by SkinStore.selected.collectAsState()

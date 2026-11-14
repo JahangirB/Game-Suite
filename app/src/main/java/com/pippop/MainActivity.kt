@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +34,10 @@ class MainActivity : ComponentActivity() {
             val profile by app.profile.collectAsStateWithLifecycle()
             val dark = isDark(profile.theme)
 
+            // The window's own colour, so a cold start and the edges never flash another colourway.
+            val windowColour = com.pippop.ui.theme.paletteFor(profile.colourTheme, dark).background
+            SideEffect { window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(windowColour.toArgb())) }
+
             // Keep the status and navigation bar icons readable in the chosen theme.
             DisposableEffect(dark) {
                 val style = if (dark) {
@@ -43,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
 
-            PipPopTheme(darkTheme = dark) {
+            PipPopTheme(darkTheme = dark, colourTheme = profile.colourTheme) {
                 PipPopApp(app = app, battle = battle)
             }
         }
