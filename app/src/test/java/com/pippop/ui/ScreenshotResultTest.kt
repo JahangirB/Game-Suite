@@ -626,14 +626,11 @@ class ScreenshotResultTest : ScreenshotBase() {
     @Test fun sudokuTogetherWon() = result("sudoku-together", sudokuTogether(true), state = { it.copy(board = sudokuBoard) }) { s, v -> GameScreen(s, v, onLeave = {}) }
     @Test fun sudokuTogetherLost() = result("sudoku-together", sudokuTogether(false), state = { it.copy(board = sudokuBoard) }) { s, v -> GameScreen(s, v, onLeave = {}) }
 
-    /** "Another game" tapped: the shelf opens inside the card, which stays above the dock with the board still complete. */
-    @Test fun anotherGameOpen() {
-        val r = c4("me")
-        result("c4-shelf-closed", r) { s, v -> TurnGameScreen(s, v, onLeave = {}) }
-        compose.onNodeWithText("Another game").performClick()
-        compose.mainClock.advanceTimeBy(500)
-        compose.onNodeWithText("Back to games").assertExists()
-        assertFits(minBoard = 180)
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/result-c4-shelf-open-light.png")
+    /** The card keeps "Another game" (which opens the sheet, see ScreenshotAnotherGameTest), above the dock with the board complete. */
+    @Test fun anotherGameOnTheCard() {
+        result("c4-another", c4("me")) { s, v -> TurnGameScreen(s, v, onLeave = {}) }
+        compose.onNodeWithText("Another game").assertExists()
+        // "Back to games" is at the bottom of the sheet, not on the card.
+        compose.onNodeWithText("Back to games").assertDoesNotExist()
     }
 }

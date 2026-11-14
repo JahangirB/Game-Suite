@@ -313,6 +313,7 @@ fun PipPopApp(
                         tally = battleState.tally,
                         nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         onOpenGame = battle::openGame,
+                        putAway = profile.putAway,
                     )
                 }
                 // Ships look like the downloaded skin in use, or else the built-in style from the profile.

@@ -195,15 +195,7 @@ fun HomeScreen(
         flicking = true
         val pick = surprisePick(shelf, players)
         if (pick == null) { flicking = false; onMessage("No game fits everyone here"); return@LaunchedEffect }
-        if (!reduceMotion) {
-            repeat(SURPRISE_STEPS) {
-                lit = shelf.random()
-                delay(SURPRISE_STEP_MS)
-            }
-        }
-        lit = pick
-        if (!reduceMotion) delay(SURPRISE_HOLD_MS)
-        lit = null
+        surpriseFlick(shelf, pick, reduceMotion) { lit = it }
         flicking = false
         openGame(pick)
     }
@@ -374,6 +366,19 @@ private const val ART = 280f / 170f
 private const val SURPRISE_STEPS = 4
 private const val SURPRISE_STEP_MS = Motion.STAGGER_MS.toLong()
 private const val SURPRISE_HOLD_MS = TileTransition.FADE_MS.toLong()
+
+/** The "Surprise us" flick: a highlight ([setLit]) runs across [pool] for about half a second, stops on [pick], holds, then lets go. */
+internal suspend fun surpriseFlick(pool: List<GameKind>, pick: GameKind, reduceMotion: Boolean, setLit: (GameKind?) -> Unit) {
+    if (!reduceMotion) {
+        repeat(SURPRISE_STEPS) {
+            setLit(pool.random())
+            delay(SURPRISE_STEP_MS)
+        }
+    }
+    setLit(pick)
+    if (!reduceMotion) delay(SURPRISE_HOLD_MS)
+    setLit(null)
+}
 
 /** A small heading over a group ("JUMP BACK IN"). */
 @Composable

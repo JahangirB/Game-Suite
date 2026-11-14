@@ -79,8 +79,8 @@ class PopupAction(val label: String, val onClick: () -> Unit, val enabled: Boole
  * The end of a match, as a sheet over the lower part of the game so the board stays in view:
  * [game]'s own animation for [outcome] above it, then [title], [tonight]'s score, [detail],
  * optional [scores], a [status] line (in green when [statusGood]), what the [next] round will be,
- * [extra], and the buttons: [rematch] (or [again]), [onChange] and [finish]. [games] are others
- * to play next, one tap each. Dragging the handle down (or "See the board") folds it away,
+ * [extra], and the buttons: [rematch] (or [again]), [onChange] and [finish]. [another] is how to pick others
+ * to play next ([another], in a sheet). Dragging the handle down (or "See the board") folds it away,
  * leaving a tab that brings it back.
  */
 @Composable
@@ -98,8 +98,7 @@ fun BoxScope.ResultPopup(
     next: String? = null,
     rematch: (@Composable () -> Unit)? = null,
     onChange: (() -> Unit)? = null,
-    games: List<GameKind> = emptyList(),
-    onOpenGame: (GameKind) -> Unit = {},
+    another: AnotherGame? = null,
     extra: @Composable ColumnScope.() -> Unit = {},
     /** The card's face: who won ([versus], against other people), else your own face on a win. */
     winner: ResultWinner? = null,
@@ -115,11 +114,15 @@ fun BoxScope.ResultPopup(
         haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
         sfx.play(when (outcome) { Outcome.WIN -> Sound.WIN; Outcome.LOSE -> Sound.LOSE; else -> Sound.TIE })
     }
+    var anotherOpen by remember { mutableStateOf(false) }
+    if (anotherOpen && another != null) {
+        AnotherGameSheet(another, onBack = if (LocalResultUnder.current) finish.onClick else null) { anotherOpen = false }
+    }
     if (LocalResultUnder.current) {
         val face = winner ?: if (!versus && outcome == Outcome.WIN) soloWinner() else null
         ResultCard(
             game, outcome, title, detail, face, tally, bump, finish, again, scores, status, statusGood, next, rematch, onChange,
-            games, onOpenGame, extra,
+            another?.let { { anotherOpen = true } }, extra,
         )
         return
     }
@@ -214,10 +217,7 @@ fun BoxScope.ResultPopup(
                     if (onChange != null) SecondaryButton("Change", onChange, Modifier.weight(1f))
                     SecondaryButton(finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
                 }
-                if (games.isNotEmpty()) {
-                    Text("OR PLAY", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
-                    GameShelf(games.take(4), onPick = onOpenGame)
-                }
+                if (another != null) SecondaryButton("Another game", { anotherOpen = true }, Modifier.fillMaxWidth())
             }
         }
     }
@@ -249,7 +249,7 @@ const val TALLY_ME = "You"
  * connecting ([tally], by name), a couple of other games the players could pick next, and
  * how to open one. Null outside a connection that plays game after game.
  */
-class MatchSession(val tally: Map<String, Int>, val nextGames: List<GameKind>, val onOpenGame: (GameKind) -> Unit)
+class MatchSession(val tally: Map<String, Int>, val nextGames: List<GameKind>, val onOpenGame: (GameKind) -> Unit, val putAway: Set<GameKind> = emptySet())
 
 val LocalMatchSession = compositionLocalOf<MatchSession?> { null }
 
@@ -310,8 +310,9 @@ fun BoxScope.MatchPopup(
         next = controls?.mode,
         rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
         onChange = if (controls?.setup == null || gone || (LocalResultUnder.current && !cardOffersChange(room))) null else ({ controls.setupOpen.value = true }),
-        games = if (session == null || gone) emptyList() else session.nextGames.filter { it != game },
-        onOpenGame = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) },
+        another = if (session == null || gone) null else AnotherGame(
+            game, session.nextGames, session.putAway, present.size + 1, whoPicks(room),
+        ) { g -> controls?.switchTo?.invoke(g) ?: session.onOpenGame.invoke(g) }.takeIf { it.tiles().isNotEmpty() },
         extra = extra,
         winner = if (room.endReason == "restart") null else matchWinner(room),
         versus = true,

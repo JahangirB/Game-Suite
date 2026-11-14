@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -201,7 +200,7 @@ fun TallyRow(score: TonightScore, bump: TallyBump) {
  * The result as a card under the board: the winner's face (crowned, rays in their colour), the
  * [title] and its [detail], the game's scene small at the right; tonight's [tally] (two players);
  * what the sheet also held ([scores], [status], [next], [extra]); then [rematch] (or [again]), Change and the way on.
- * [moreGames] are the games the "Another game" button offers in place when it is tapped.
+ * [onAnother] opens the "Another game" sheet;; "Back to games" ([finish]) is then at the bottom of that sheet.
  */
 @Composable
 internal fun ResultCard(
@@ -220,12 +219,10 @@ internal fun ResultCard(
     next: String?,
     rematch: (@Composable () -> Unit)?,
     onChange: (() -> Unit)?,
-    moreGames: List<GameKind>,
-    onOpenGame: (GameKind) -> Unit,
+    onAnother: (() -> Unit)?,
     extra: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
-    var shelf by remember { mutableStateOf(false) }
     Surface(color = p.card, shape = Shapes.L, border = BorderStroke(3.dp, p.ink), modifier = Modifier.fillMaxWidth().testTag("resultCard").pressedEdge(p.ink, Radius.L, 4.dp)) {
         Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // What is said: read out once when the card arrives.
@@ -272,16 +269,13 @@ internal fun ResultCard(
                 again != null -> PrimaryButton(again.label, again.onClick, Modifier.fillMaxWidth(), enabled = again.enabled)
             }
             val label = cardFinishLabel(finish.label)
+            // With the sheet to open, "Back to games" lives at the bottom of the sheet.
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                val sheet = label == ANOTHER_GAME && onAnother != null
+                // "Another game" is the longer label: with Change beside it, it gets the wider share so it stays on one line.
                 if (onChange != null) SecondaryButton("Change", onChange, Modifier.weight(1f))
-                if (label == ANOTHER_GAME && moreGames.isNotEmpty()) SecondaryButton(label, { shelf = !shelf }, Modifier.weight(1f))
+                if (sheet) SecondaryButton(label, onAnother!!, Modifier.weight(if (onChange != null) 1.6f else 1f))
                 else SecondaryButton(label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
-            }
-            if (shelf && moreGames.isNotEmpty()) {
-                GameShelf(moreGames.take(4), onPick = onOpenGame)
-                TextButton(onClick = finish.onClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Back to games", color = p.primaryText, fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
-                }
             }
         }
     }

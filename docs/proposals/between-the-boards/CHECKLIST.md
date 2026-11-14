@@ -98,7 +98,7 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] The winner's face with a crown (result-faces)
   - [x] Tonight's score ticks up (result-tally)
   - [x] Games that kept the sheet, and why: Ship Battle (the result holds the next-fleet editor, and with the card the two seas get too small), Air Hockey and Mini Golf (the board is the whole screen)
-- [ ] **Step 18. "Another game", and the loser picks** (result-next)
+- [x] **Step 18. "Another game", and the loser picks** (result-next)
 
 ## Phase G: scores and records
 
