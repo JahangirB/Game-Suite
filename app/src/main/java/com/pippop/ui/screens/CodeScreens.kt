@@ -318,9 +318,10 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         glow = GameKind.CODE.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave, showLetterMarks = true),
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
-        tools = listOf(DockTool("Clear row", Icons.Filled.Clear, enabled = !finished) { clearKey++ }),
+        tools = if (finished) emptyList() else listOf(DockTool("Clear row", Icons.Filled.Clear) { clearKey++ }),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.CODE, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
@@ -357,7 +358,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             }
             else -> {
                 val countdown = phase == RoomStatus.COUNTDOWN
-                TurnLine(
+                if (!finished) TurnLine(
                     when {
                         countdown -> "Get ready… " + (((room.startAt ?: 0) - state.serverNow() + 999) / 1000).coerceAtLeast(1)
                         code.meDone -> if (code.mine.lastOrNull()?.black == CodeBreaker.PEGS) "Cracked! Waiting for $name…" else "Out of guesses. Waiting for $name…"
@@ -381,7 +382,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                         code.theirs.forEach { ScorePegs(it.black, it.white) }
                     }
                 }
-                CodeEntry(!countdown && !code.meDone && !state.firing && !finished, "Guess", vm::sendCode, clearKey = clearKey, clearButton = false, rules = code.rules)
+                if (!finished) CodeEntry(!countdown && !code.meDone && !state.firing, "Guess", vm::sendCode, clearKey = clearKey, clearButton = false, rules = code.rules)
             }
         }
     }
@@ -407,6 +408,7 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
             GameKind.CODE, onRules = { showRules = true }, onLeave = onHome, onNewGame = vm::start, onChangeMode = { changing = true }, changeLabel = "Change setup",
             leaveLabel = "Home", showLetterMarks = true,
         ),
+        resultUnder = true,
         popup = if (!state.done) null else popupContent {
             ResultPopup(
                 game = GameKind.CODE,
@@ -418,10 +420,10 @@ fun SoloCodeScreen(state: SoloCodeUiState, vm: SoloCodeViewModel, onHome: () -> 
             )
         },
     ) {
-        TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
+        if (!state.done) TurnLine("Guess ${state.guesses.size + 1} of ${CodeBreaker.TRIES}" + if (state.rules.harder) " · ${state.rules.label}" else "", !state.done, GameKind.CODE.color)
         CodeSafe(state.guesses, state.rules.pegs, Modifier.fillMaxWidth().height(108.dp))
         GuessRows(state.guesses, Modifier.weight(1f).fillMaxWidth(), pegs = state.rules.pegs)
-        CodeEntry(!state.done, "Guess", vm::guess, rules = state.rules)
+        if (!state.done) CodeEntry(true, "Guess", vm::guess, rules = state.rules)
     }
 }
 

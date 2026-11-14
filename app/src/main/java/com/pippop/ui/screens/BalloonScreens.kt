@@ -382,6 +382,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.BALLOON,
@@ -407,17 +408,18 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         when {
             view.phase == "pick" && view.picker == 'm' && !finished -> PickWord("Your turn to pick a word", vm::pickBalloonWord)
             view.phase == "pick" -> TurnLine("${name(view.picker)} is picking a secret word…", false)
-            else -> BalloonRound(view, myTurn && !state.firing, if (view.picker == 'm') "Your word: they're guessing" else if (myTurn) "Your turn: pick a letter" else "$turnName is guessing…", vm::guessBalloonLetter)
+            else -> BalloonRound(view, myTurn && !state.firing, finished, if (view.picker == 'm') "Your word: they're guessing" else if (myTurn) "Your turn: pick a letter" else "$turnName is guessing…", vm::guessBalloonLetter)
         }
     }
 }
 
 @Composable
-private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, line: String, onLetter: (Char) -> Unit) {
-    TurnLine(line, canGuess, GameKind.BALLOON.color)
+private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, over: Boolean, line: String, onLetter: (Char) -> Unit) {
+    // Over: the banner and the keys leave, the balloons and the word stay.
+    if (!over) TurnLine(line, canGuess, GameKind.BALLOON.color)
     BalloonRow(view.balloons, view.misses)
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { WordTiles(view.pattern, view.word) }
-    LetterKeys(view.guessed, view.word ?: view.pattern, canGuess, onLetter)
+    if (!over) LetterKeys(view.guessed, view.word ?: view.pattern, canGuess, onLetter)
 }
 
 // ---- On your own ------------------------------------------------------------------------------
@@ -437,6 +439,7 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
         glow = GameKind.BALLOON.color,
         menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) (if (state.youGuess) vm::guessTheirs else vm::setup) else null, if (state.started) ({ changing = true }) else null),
         scrollable = !state.started,
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             val won = (result == "found") == state.youGuess
             ResultPopup(
@@ -459,12 +462,12 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
             PickWord("Give the computer a word to guess", vm::giveYours)
             state.message?.let { Text(it, color = p.bad, fontSize = TextSize.Body) }
         } else {
-            TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)
+            if (result == null) TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)
             BalloonRow(7, state.misses)
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 WordTiles(state.pattern, if (state.youGuess && result == null) null else state.word)
             }
-            LetterKeys(state.guessed, state.word, state.youGuess && result == null, vm::guess)
+            if (result == null) LetterKeys(state.guessed, state.word, state.youGuess, vm::guess)
         }
     }
 }

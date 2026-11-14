@@ -106,7 +106,7 @@ fun SoloScreen(
                 }
             },
         ),
-        tools = listOf(
+        tools = if (game.status == SoloStatus.WON || game.status == SoloStatus.LOST) emptyList() else listOf(
             DockTool(if (paused) "Resume" else "Pause", if (paused) Icons.Filled.PlayArrow else GameIcons.Pause, enabled = game.isActive) {
                 if (paused) vm.resume() else vm.pause()
             },
@@ -115,6 +115,7 @@ fun SoloScreen(
         trailing = {
             Text(style = Digits, text = formatDuration(game.elapsedMs), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
+        resultUnder = true,
         popup = when (game.status) {
             SoloStatus.WON -> popupContent {
                 ResultPopup(
@@ -162,7 +163,8 @@ fun SoloScreen(
             }
         } }
 
-        ToolRow(
+        val over = game.status == SoloStatus.WON || game.status == SoloStatus.LOST
+        if (!over) ToolRow(
             notesMode = game.notesMode,
             canUndo = game.board.canUndo,
             enabled = playing,
@@ -172,7 +174,7 @@ fun SoloScreen(
             onNotes = vm::toggleNotes,
             onHint = vm::hint,
         )
-        NumberPad(
+        if (!over) NumberPad(
             remaining = remainingDigits(game.board, errors),
             enabled = playing && game.selected != null,
             onDigit = vm::enter,

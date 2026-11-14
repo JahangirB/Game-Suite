@@ -300,7 +300,7 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
  * change that wasn't your tap (the other side, the server, a new game) just appears.
  */
 @Composable
-internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit, hint: FlightHint) {
+internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit, hint: FlightHint, over: Boolean = false) {
     val used = board.cells.indices.filter { board.cells[it] != "" }
     val rows = used.map { it / board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
     val cols = used.map { it % board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
@@ -338,7 +338,8 @@ internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<Strin
     Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { spots.origin = it.boundsInRoot().topLeft }) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             BoardArea(cols.toFloat() / rows) { size -> NumberGrid(board, entries, selected, enabled, onSelect, size, spots, flight?.takeIf { !it.back }?.k) }
-            NumberBank(board.bank, entries, enabled && selected != null, { v ->
+            // Over: the number bank leaves and the grid keeps its last position.
+            if (!over) NumberBank(board.bank, entries, enabled && selected != null, { v ->
                 // Your own pick starts flying now, so the number never shows in the blank first.
                 val k = selected
                 if (!calm && k != null && v != "" && entries.getOrNull(k) != v) flight = Flight(v.toInt(), k, false, ++count)
@@ -429,11 +430,12 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         }),
         glow = GameKind.NUMBERS.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
-        tools = listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = { hint.mark(); vm.undoNumber() })),
+        tools = if (finished) emptyList() else listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = { hint.mark(); vm.undoNumber() })),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
@@ -460,7 +462,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
                 }
             }
         } else {
-            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber, hint)
+            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber, hint, over = finished)
         }
     }
 }
@@ -491,6 +493,7 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
         trailing = {
             Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
+        resultUnder = true,
         popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.NUMBERS, "me",
@@ -499,6 +502,6 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
             )
         },
     ) {
-        NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint)
+        NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint, over = done != null)
     }
 }

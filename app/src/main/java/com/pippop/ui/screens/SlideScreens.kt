@@ -283,11 +283,12 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         }),
         glow = GameKind.SLIDE.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
-        tools = listOf(DockTool("Peek", GameIcons.Eye, enabled = tiles != null && !finished) { peeking = true }),
+        tools = if (finished) emptyList() else listOf(DockTool("Peek", GameIcons.Eye, enabled = tiles != null) { peeking = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
@@ -314,7 +315,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         } else {
             val playing = phase == RoomStatus.PLAYING
             Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(playing, vm::swipeSlide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
+                if (!finished) TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
                 val photo = remember(state.slidePhoto) { slidePicture(state.slidePhoto) }
                 // When someone finishes, the whole photo fades in for everyone.
                 val reveal by androidx.compose.animation.core.animateFloatAsState(if (finished && photo != null) 1f else 0f, androidx.compose.animation.core.tween(1200), label = "photo")
@@ -359,6 +360,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
         glow = GameKind.SLIDE.color,
         menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, vm::again, { changing = true }),
         trailing = { Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        resultUnder = true,
         popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.SLIDE, "me",
@@ -368,7 +370,7 @@ fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () 
         },
     ) {
         Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
+            if (done == null) TurnLine("Slides: ${state.moves}", true, GameKind.SLIDE.color)
             BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
             // On your own there is only your bar: your tiles are all the screen knows.
             SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))

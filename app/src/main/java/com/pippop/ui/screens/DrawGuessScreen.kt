@@ -228,12 +228,13 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         // Undo only while you draw; the sketchbook any time.
         myTurn = drawing && playing,
-        tools = listOf(
-            DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
+        tools = listOfNotNull(
+            if (finished) null else DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
             DockTool("Sketchbook", GameIcons.Book, badge = 0) { showSketchbook = true },
         ),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             // A team game: the score decides the picture, not a winner.

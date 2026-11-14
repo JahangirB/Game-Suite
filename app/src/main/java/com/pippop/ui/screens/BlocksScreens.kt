@@ -318,9 +318,10 @@ fun ColumnScope.BlocksPlay(
     turns: Int = 0,
     flips: Int = 0,
     inlineTools: Boolean = true,
+    over: Boolean = false,
 ) {
     val hintsOn = ProfileStore.get(LocalContext.current).profile.collectAsState().value.blocksHints && canPlay
-    BlocksPlayBody(view, canPlay, hintsOn, onPlace, turns, flips, inlineTools)
+    BlocksPlayBody(view, canPlay, hintsOn, onPlace, turns, flips, inlineTools, over = over)
 }
 
 /** [BlocksPlay] with "Where can I go?" ([hintsOn]) given, and a piece and spot to start from (for pictures). */
@@ -335,6 +336,8 @@ internal fun ColumnScope.BlocksPlayBody(
     inlineTools: Boolean = true,
     startPiece: Int? = null,
     startTarget: Pair<Int, Int>? = null,
+    /** The game is over: only the board stays; the verdict, the tray and Place leave. */
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     val mine = view.left['m'].orEmpty()
@@ -394,6 +397,7 @@ internal fun ColumnScope.BlocksPlayBody(
             onDrop = { if (!okNow()) putBack() }, onDragging = { dragging = it }, spots = if (cells == null) spots else emptySet(),
         )
     }
+    if (over) return
     // The verdict on the piece in hand, always two lines tall so the board doesn't jump.
     val verdict = when {
         cells == null -> if (chosen == null) "Pick a piece" else "Drag the piece onto the board"
@@ -476,13 +480,14 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
         glow = GameKind.BLOCKS.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         myTurn = myTurn,
-        tools = listOf(
+        tools = if (finished) emptyList() else listOf(
             DockTool("Turn", GameIcons.Rotate, anytime = false) { turnTaps++ },
             DockTool("Flip", GameIcons.Flip, anytime = false) { flipTaps++ },
         ),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.BLOCKS,
@@ -499,7 +504,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             )
         },
     ) {
-        TurnLine(
+        if (!finished) TurnLine(
             when {
                 finished -> "Game over"
                 myTurn -> if (view.left['m'].orEmpty().size == Blocks.PIECES.size) "Cover your ringed start square" else "Your turn: touch your colour only at a corner"
@@ -507,7 +512,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             },
             myTurn, GameKind.BLOCKS.color,
         )
-        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock, turns = turnTaps, flips = flipTaps, inlineTools = false)
+        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock, turns = turnTaps, flips = flipTaps, inlineTools = false, over = finished)
     }
 }
 
@@ -530,6 +535,7 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
         players = emptyList(),
         glow = GameKind.BLOCKS.color,
         menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, vm::start, { changing = true }),
+        resultUnder = true,
         popup = if (state.result == null) null else popupContent {
             SoloPopup(
                 GameKind.BLOCKS, state.result, blocksScores(view, names).joinToString(" · "),
@@ -538,7 +544,7 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
         },
     ) {
         val myTurn = state.turn == 'm' && state.result == null
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        if (state.result == null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TurnLine(
                 when {
                     state.result != null -> "Game over"
@@ -548,8 +554,8 @@ fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: 
                 myTurn, GameKind.BLOCKS.color,
             )
         }
-        Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
-        BlocksPlay(view, myTurn, vm::place)
+        if (state.result == null) Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
+        BlocksPlay(view, myTurn, vm::place, over = state.result != null)
     }
 }
 

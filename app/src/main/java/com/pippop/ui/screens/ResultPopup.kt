@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
+import com.pippop.data.ProfileStore
+import androidx.compose.ui.platform.LocalContext
+import com.pippop.ui.theme.SeatColors
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.ResultAnimation
 import com.pippop.ui.art.color
@@ -98,6 +101,11 @@ fun BoxScope.ResultPopup(
     games: List<GameKind> = emptyList(),
     onOpenGame: (GameKind) -> Unit = {},
     extra: @Composable ColumnScope.() -> Unit = {},
+    /** The card's face: who won ([versus], against other people), else your own face on a win. */
+    winner: ResultWinner? = null,
+    versus: Boolean = false,
+    tally: TonightScore? = null,
+    bump: TallyBump = TallyBump.NONE,
 ) {
     val p = AppTheme.palette
     var folded by remember { mutableStateOf(false) }
@@ -106,6 +114,14 @@ fun BoxScope.ResultPopup(
     LaunchedEffect(Unit) {
         haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
         sfx.play(when (outcome) { Outcome.WIN -> Sound.WIN; Outcome.LOSE -> Sound.LOSE; else -> Sound.TIE })
+    }
+    if (LocalResultUnder.current) {
+        val face = winner ?: if (!versus && outcome == Outcome.WIN) soloWinner() else null
+        ResultCard(
+            game, outcome, title, detail, face, tally, bump, finish, again, scores, status, statusGood, next, rematch, onChange,
+            games, onOpenGame, extra,
+        )
+        return
     }
     if (folded) {
         Surface(
@@ -207,6 +223,14 @@ fun BoxScope.ResultPopup(
     }
 }
 
+/** You, for a solo win's card: your face from the profile, in your colour. */
+@Composable
+private fun soloWinner(): ResultWinner {
+    val context = LocalContext.current
+    val avatar = remember { runCatching { ProfileStore.get(context).profile.value.avatar }.getOrNull() }
+    return ResultWinner("You", avatar, AppTheme.palette.primary)
+}
+
 /** Gives an inline popup its type for GameFrame's `popup`, e.g. `if (over) popupContent { … } else null`. */
 fun popupContent(content: @Composable BoxScope.() -> Unit) = content
 
@@ -285,9 +309,26 @@ fun BoxScope.MatchPopup(
         tonight = session?.let { tonightLine(it.tally, present.map { o -> o.name }) }?.removePrefix("Tonight: ")?.let { "Tonight $it" },
         next = controls?.mode,
         rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
-        onChange = if (controls?.setup == null || gone) null else ({ controls.setupOpen.value = true }),
+        onChange = if (controls?.setup == null || gone || (LocalResultUnder.current && !cardOffersChange(room))) null else ({ controls.setupOpen.value = true }),
         games = if (session == null || gone) emptyList() else session.nextGames.filter { it != game },
         onOpenGame = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) },
         extra = extra,
+        winner = if (room.endReason == "restart") null else matchWinner(room),
+        versus = true,
+        tally = if (room.endReason == "restart") null else LocalTonight.current,
+        bump = if (room.endReason == "restart") TallyBump.NONE else tallyBump(room),
     )
+}
+
+/** Who won, for the card's face: you, or the player the server names; nobody on a tie or when nobody beat you together. */
+@Composable
+private fun matchWinner(room: RoomState): ResultWinner? = when {
+    room.together -> null
+    room.winner == "me" -> ResultWinner("You", room.me.avatar, AppTheme.palette.primary)
+    room.winner == "opponent" && !room.together -> {
+        val name = room.winnerName?.split(" & ")?.firstOrNull()
+        val seat = room.others.indexOfFirst { it.name == name }.takeIf { it >= 0 } ?: 0
+        (room.others.getOrNull(seat) ?: room.opponent)?.let { ResultWinner(it.name, it.avatar, SeatColors[seat % SeatColors.size]) }
+    }
+    else -> null
 }

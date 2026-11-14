@@ -344,6 +344,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tools = listOf(DockTool("Letters", GameIcons.Sort) { showLetters = true }),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -406,8 +407,8 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
         }
     }
     when {
-        // The keyboard stays after the round, showing what each letter turned out to be.
-        finished -> WordKeyboard(words.mine, {}, {}, {})
+        // The keyboard leaves with the round; the card takes its room.
+        finished -> {}
         words.meDone -> AppCard {
             Text(
                 if (words.mine.lastOrNull()?.score == "g".repeat(words.length)) "Solved! Waiting for ${opponent?.name ?: "the other player"}…" else "Out of tries. Waiting for ${opponent?.name ?: "the other player"}…",
@@ -438,6 +439,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
             GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home", showLetterMarks = true,
             mode = "Daily or practice", onChangeMode = { changing = true }, changeLabel = "Change setup",
         ),
+        resultUnder = true,
         popup = if (!state.done) null else popupContent {
             ResultPopup(
                 game = GameKind.WORDS,
@@ -458,8 +460,8 @@ private fun ColumnScope.SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsVie
     val p = AppTheme.palette
     BoardArea(0.82f * state.length / 5f) { size -> WordGrid(state.guesses, state.input, Words.TRIES, state.length, size) }
     state.message?.let { Text(it, color = p.bad, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-    // After the last guess the keyboard stays, showing what each letter turned out to be.
-    WordKeyboard(state.guesses, if (state.done) ({}) else vm::type, if (state.done) ({}) else vm::delete, if (state.done) ({}) else vm::submit)
+    // After the last guess the keyboard leaves and the result takes its room.
+    if (!state.done) WordKeyboard(state.guesses, vm::type, vm::delete, vm::submit)
 }
 
 /** The host's level for Word Race (the length of the word); everyone else sees it. */

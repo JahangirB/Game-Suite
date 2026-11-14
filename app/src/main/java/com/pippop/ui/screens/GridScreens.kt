@@ -361,6 +361,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.GRID, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: "The other player"),
@@ -385,9 +386,10 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 }
             }
         } else {
-            TurnLine(if (playing) "Find words: drag through touching letters" else "Time's up!", playing, GameKind.GRID.color)
+            if (!finished) TurnLine(if (playing) "Find words: drag through touching letters" else "Time's up!", playing, GameKind.GRID.color)
             BoardArea(1f) { size -> LetterGridBoard(letters, playing, vm::findGridWord, size, found = grid.mine, fuseLeftMs = { endsAt - state.serverNow() }) }
-            FoundWords(grid.mine)
+            // The result lists everyone's words, so the found-words line leaves with the round.
+            if (!finished) FoundWords(grid.mine)
         }
     }
 }
@@ -414,6 +416,7 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         trailing = {
             if (letters != null && !state.over && state.timed) Text(timeLeft(state.endsAt, now), style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
+        resultUnder = true,
         popup = if (!state.over) null else popupContent {
             ResultPopup(
                 game = GameKind.GRID,
@@ -433,9 +436,9 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
                 Text("Making your grid…", color = p.text, modifier = Modifier.padding(top = Space.L))
             }
         } else {
-            TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
+            if (!state.over) TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
             BoardArea(1f) { size -> LetterGridBoard(letters, !state.over, vm::find, size, found = state.found, fuseLeftMs = if (state.timed) ({ state.endsAt - System.currentTimeMillis() }) else null) }
-            FoundWords(state.found)
+            if (!state.over) FoundWords(state.found)
             if (!state.over) SecondaryButton(if (state.timed) "Finish now" else "I'm done", vm::finish, Modifier.fillMaxWidth())
         }
     }

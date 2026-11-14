@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import com.pippop.ui.theme.Mark
 import com.pippop.ui.theme.seatMark
@@ -50,6 +51,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -96,7 +98,8 @@ class ChipPlayer(
  *
  * The game fits the screen without scrolling: boards take the room left over through
  * [BoardArea]. Only [scrollable] screens (a choice of levels or modes before a game) scroll.
- * [popup] (the result at the end of a match) covers the game but not the dock, which keeps working.
+ * [popup] (the result at the end of a match) covers the game but not the dock, which keeps working;
+ * with [resultUnder] it is a card under the game instead.
  */
 @Composable
 fun GameFrame(
@@ -120,6 +123,12 @@ fun GameFrame(
     tray: @Composable () -> Unit = {},
     scrollable: Boolean = false,
     popup: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * Draws [popup] as a card under the game's content instead of a sheet over it: the screen
+     * drops what only serves play once the game is over, the board moves up and takes what
+     * room is left. Only for games whose board and card fit the screen together.
+     */
+    resultUnder: Boolean = false,
     /**
      * The players can fold into one bar to give the board more room: by a swipe up, the "Hide
      * players" button, or by itself when [focusWhen] turns true (your turn to fire). Tapping
@@ -176,8 +185,11 @@ fun GameFrame(
                     }
                 }
                 content()
+                if (resultUnder && popup != null) {
+                    Box(Modifier.fillMaxWidth()) { CompositionLocalProvider(LocalResultUnder provides true) { popup() } }
+                }
             }
-            popup?.invoke(this)
+            if (!resultUnder) popup?.invoke(this)
         }
         if (trayVisible) {
             Surface(color = p.card, border = BorderStroke(2.dp, p.ink), shape = Shapes.Top) {
@@ -197,7 +209,7 @@ private const val FOLD_SWIPE_DP = 48
  */
 @Composable
 fun ColumnScope.BoardArea(aspect: Float, weight: Float = 1f, content: @Composable (Modifier) -> Unit) {
-    BoxWithConstraints(Modifier.weight(weight).fillMaxWidth(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.weight(weight).fillMaxWidth().testTag("boardArea"), contentAlignment = Alignment.Center) {
         val width = if (maxHeight == Dp.Infinity) maxWidth else minOf(maxWidth, maxHeight * aspect)
         content(Modifier.width(width).height(width / aspect))
     }
@@ -297,7 +309,7 @@ fun battleChips(
 @Composable
 private fun GameDock(actions: List<DockAction>) {
     val p = AppTheme.palette
-    Column {
+    Column(Modifier.testTag("dock")) {
         Box(Modifier.fillMaxWidth().height(2.dp).background(p.ink))
         Row(
             Modifier.fillMaxWidth().background(p.card).padding(top = 8.dp, bottom = 10.dp),

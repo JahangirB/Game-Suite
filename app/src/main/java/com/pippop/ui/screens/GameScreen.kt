@@ -129,7 +129,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         // A race: the tools work all the time. Together, digits once placed stay (no Undo) and
         // Erase clears your notes.
-        tools = listOfNotNull(
+        tools = if (finished) emptyList() else listOfNotNull(
             DockTool(if (state.notesMode) "Notes: on" else "Notes", GameIcons.Pencil, enabled = playing, onClick = vm::toggleNotes),
             if (together) null else DockTool("Undo", GameIcons.Undo, enabled = playing && board.canUndo, onClick = vm::undo),
             DockTool(if (together) "Erase notes" else "Erase", GameIcons.Eraser, enabled = playing, onClick = vm::erase),
@@ -144,6 +144,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         },
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             SudokuPopup(room, state.busy, showSolution, onToggleSolution = { showSolution = !showSolution }, vm = vm, onLeave = onLeave)
         },
@@ -192,7 +193,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             }
         }
 
-        NumberPad(
+        if (!finished) NumberPad(
             remaining = remainingDigits(board, conflicts),
             enabled = playing && state.selected != null,
             onDigit = vm::enterDigit,

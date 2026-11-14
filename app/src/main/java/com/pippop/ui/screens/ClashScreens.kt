@@ -271,12 +271,14 @@ internal fun ColumnScope.ClashTable(
     buttons: Boolean = true,
     /** Your hand in order of colour and number (the dock's Sort), not as dealt. */
     sorted: Boolean = false,
+    /** The game is over: the banner, the news, your hand and the buttons leave; the pile stays. */
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     var wildAt by remember { mutableStateOf<Int?>(null) }
     val canMove = myTurn && enabled
     wildAt?.let { i -> ColourPicker(onPick = { c -> wildAt = null; onPlay(i, c) }, onCancel = { wildAt = null }) }
-    TurnLine(
+    if (!over) TurnLine(
         when {
             !myTurn -> waitingText
             view.drawn -> "You drew a card that fits: play it or keep it"
@@ -286,7 +288,7 @@ internal fun ColumnScope.ClashTable(
         myTurn,
         clashColor(view.colour),
     )
-    clashNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    if (!over) clashNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
 
     // The pile with the colour to match, and the deck.
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -362,7 +364,7 @@ internal fun ColumnScope.ClashTable(
     }
 
     // Your hand: on your turn the cards you can play rise with a gold line inside; the rest are dimmed.
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    if (!over) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             // Keyed by card (and which copy), so a newly dealt or drawn card arrives from the
             // deck face down and turns over, and the others keep their place.
@@ -401,7 +403,7 @@ internal fun ColumnScope.ClashTable(
             }
         }
     }
-    if (buttons && canMove) {
+    if (!over && buttons && canMove) {
         when {
             view.drawn -> SecondaryButton("Keep it and pass", onPass, Modifier.fillMaxWidth())
             view.hand.indices.none { view.canPlay(it) } -> PrimaryButton("Draw a card", onDraw, Modifier.fillMaxWidth())
@@ -441,7 +443,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         glow = GameKind.CLASH.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         myTurn = myTurn,
-        tools = listOf(
+        tools = if (finished) emptyList() else listOf(
             // Draw a card, or once you've drawn one that fits, keep it and pass.
             if (view.drawn) DockTool("Keep it", GameIcons.Cards, anytime = false, enabled = myTurn && !state.firing, onClick = vm::passCard)
             else DockTool("Draw", GameIcons.Cards, anytime = false, enabled = myTurn && !state.firing, onClick = vm::drawCard),
@@ -450,6 +452,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.CLASH,
@@ -473,7 +476,7 @@ fun ClashGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "The other player"} is thinking…",
             name = ::name,
             onPlay = vm::playCard, onDraw = vm::drawCard, onPass = vm::passCard,
-            buttons = false, sorted = sortHand,
+            buttons = false, sorted = sortHand, over = finished,
         )
     }
 }
@@ -501,6 +504,7 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
         },
         glow = GameKind.CLASH.color,
         menu = soloMenu(GameKind.CLASH, onHome, { showRules = true }, vm::start, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.CLASH, result,
@@ -514,6 +518,7 @@ fun SoloClashScreen(state: SoloClashUiState, vm: SoloClashViewModel, onHome: () 
             waitingText = "${name(state.turn)} is thinking…",
             name = ::name,
             onPlay = vm::playCard, onDraw = vm::drawCard, onPass = vm::passCard,
+            over = result != null,
         )
     }
 }

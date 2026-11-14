@@ -93,11 +93,11 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [x] **Step 16. In the game**
   - [x] Tonight's score in the title row (game-tonight)
   - [x] "Your turn" on one line; the how-to leaves from the third turn (game-turn)
-- [ ] **Step 17. The result goes under the board**
-  - [ ] The result is a card under the board wherever it fits (result-under)
-  - [ ] The winner's face with a crown (result-faces)
-  - [ ] Tonight's score ticks up (result-tally)
-  - [ ] Games that kept the sheet, and why: …
+- [x] **Step 17. The result goes under the board**
+  - [x] The result is a card under the board wherever it fits (result-under)
+  - [x] The winner's face with a crown (result-faces)
+  - [x] Tonight's score ticks up (result-tally)
+  - [x] Games that kept the sheet, and why: Ship Battle (the result holds the next-fleet editor, and with the card the two seas get too small), Air Hockey and Mini Golf (the board is the whole screen)
 - [ ] **Step 18. "Another game", and the loser picks** (result-next)
 
 ## Phase G: scores and records

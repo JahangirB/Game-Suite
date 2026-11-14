@@ -392,6 +392,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         glow = GameKind.BINGO.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         tools = listOf(DockTool("Calls", GameIcons.History, badge = called) { showCalls = true }),
+        resultUnder = true,
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
@@ -410,7 +411,8 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             ) {
                 val win = bingo.winCard
                 if (room.winner == "opponent" && win != null) {
-                    BingoCard(win, emptySet(), bingo.line, false, {}, Modifier.size(180.dp))
+                    // Under the board the card is small: it is a glance at their line.
+                    BingoCard(win, emptySet(), bingo.line, false, {}, Modifier.size(if (LocalResultUnder.current) 104.dp else 180.dp))
                 }
             }
         },
@@ -425,10 +427,12 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 }
             }
         } else {
-            CallStrip(calls, called)
+            // The strip and the button leave when the result card arrives (after the ribbon, on your own win).
+            val over = finished && !holdPopup
+            if (!over) CallStrip(calls, called)
             BingoCard(card, dabs, if (finished && room.winner == "me") bingo.line else null, phase == RoomStatus.PLAYING, vm::dabBingo, Modifier.fillMaxWidth().weight(1f))
             val sfx = rememberSfx()
-            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claimBingo() }, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
+            if (!over) PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claimBingo() }, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
         }
     }
 }
@@ -455,6 +459,7 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
         players = emptyList(),
         glow = GameKind.BINGO.color,
         menu = soloMenu(GameKind.BINGO, onHome, { showRules = true }, vm::again, { changing = true }),
+        resultUnder = true,
         popup = if (state.winner == null || hold) null else popupContent {
             SoloPopup(
                 GameKind.BINGO, when (state.winner) { "me" -> "me"; "none" -> "none"; else -> "computer" },
@@ -467,10 +472,11 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
             )
         },
     ) {
-        CallStrip(state.calls, state.called)
+        val over = state.winner != null && !hold
+        if (!over) CallStrip(state.calls, state.called)
         BingoCard(state.card, state.dabs, if (state.winner == "me") state.line else null, state.winner == null && state.called > 0, vm::dab, Modifier.fillMaxWidth().weight(1f))
         val sfx = rememberSfx()
-        if (state.pace == BingoPace.RELAXED) {
+        if (over) Unit else if (state.pace == BingoPace.RELAXED) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
                 SecondaryButton("Next number", vm::next, Modifier.weight(1f), enabled = state.winner == null && state.called > 0 && state.called < Bingo.NUMBERS)
                 PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.weight(1f), enabled = state.winner == null && state.myLine != null)

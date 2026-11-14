@@ -913,6 +913,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         ),
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -1057,6 +1058,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
         ),
         glow = GameKind.CONNECT4.color,
         menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, vm::rematch, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.CONNECT4, result,
@@ -1069,7 +1071,7 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
             )
         },
     ) {
-        TurnLine(
+        if (result == null) TurnLine(
             when {
                 result != null -> "Game over"
                 state.myTurn -> "Your turn: slide to a column and let go"
@@ -1104,12 +1106,13 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
         ),
         glow = GameKind.DOTS.color,
         menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = { vm.newGame() }, onHome = onHome)
         },
     ) {
         val again = state.myTurn && state.lastLine != null && state.lines[state.lastLine] == 'm'
-        TurnLine(
+        if (playing) TurnLine(
             when {
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is drawing…"
@@ -1144,6 +1147,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
         ),
         glow = GameKind.TTT.color,
         menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.TTT, result,
@@ -1156,7 +1160,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             )
         },
     ) {
-        TurnLine(
+        if (playing) TurnLine(
             when {
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is thinking…"
@@ -1203,6 +1207,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
                 state.bestFlips?.let { Text("Best: $it", color = p.muted, fontSize = TextSize.Body) }
             }
         },
+        resultUnder = true,
         popup = if (finished == null) null else popupContent {
             ResultPopup(
                 game = GameKind.MEMORY,

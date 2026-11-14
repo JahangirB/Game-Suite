@@ -288,11 +288,13 @@ internal fun ColumnScope.DominoTable(
     onPass: () -> Unit,
     /** Draw and Pass as buttons under the hand; against your partner they're in the dock. */
     buttons: Boolean = true,
+    /** The game is over: the banner, the news and the hand leave, and the line stays. */
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     var selected by remember(view.hand, view.line) { mutableStateOf<Int?>(null) }
     val canMove = myTurn && enabled
-    TurnLine(
+    if (!over) TurnLine(
         when {
             !myTurn -> waitingText
             view.canPlay -> {
@@ -305,7 +307,7 @@ internal fun ColumnScope.DominoTable(
         myTurn,
         GameKind.DOMINOES.color,
     )
-    dominoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    if (!over) dominoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
 
     val move = view.lastMove
     val lastIndex = move?.tile?.let { if (move.end == "left") 0 else view.line.lastIndex }
@@ -318,13 +320,13 @@ internal fun ColumnScope.DominoTable(
             SecondaryButton("On the ${view.line.last().b} ▶", { onPlay(chosen, "right") }, Modifier.weight(1f))
         }
     }
-    DominoHand(view.hand, view.line, canMove, chosen) { i ->
+    if (!over) DominoHand(view.hand, view.line, canMove, chosen) { i ->
         val ends = Dominoes.fits(view.line, view.hand[i])
         // Both ends showing the same number is no real choice.
         val same = view.line.isNotEmpty() && view.line.first().a == view.line.last().b
         if (ends.size == 1 || same) onPlay(i, ends.last()) else selected = if (selected == i) null else i
     }
-    if (buttons && canMove && !view.canPlay) {
+    if (!over && buttons && canMove && !view.canPlay) {
         if (view.draw && view.boneyard > 0) {
             PrimaryButton("Draw a tile (${view.boneyard} left)", onDraw, Modifier.fillMaxWidth())
         } else {
@@ -373,7 +375,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
         glow = GameKind.DOMINOES.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         myTurn = myTurn,
-        tools = run {
+        tools = if (finished) emptyList() else run {
             // Only when nothing fits: Draw while the boneyard lasts (in the draw game), else Pass.
             val stuck = myTurn && !state.firing && !view.canPlay
             val canDraw = view.draw && view.boneyard > 0
@@ -385,6 +387,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.DOMINOES,
@@ -408,7 +411,7 @@ fun DominoesGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () ->
             waitingText = if (waitingOn?.online == false) "${turnName} is away. They'll get a notification." else "${turnName ?: "The other player"} is thinking…",
             name = ::name,
             onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
-            buttons = false,
+            buttons = false, over = finished,
         )
     }
 }
@@ -458,6 +461,7 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
         },
         glow = GameKind.DOMINOES.color,
         menu = soloMenu(GameKind.DOMINOES, onHome, { showRules = true }, vm::start, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.DOMINOES, result,
@@ -471,6 +475,7 @@ fun SoloDominoesScreen(state: SoloDominoesUiState, vm: SoloDominoesViewModel, on
             waitingText = "${name(state.turn)} is thinking…",
             name = ::name,
             onPlay = vm::playTile, onDraw = vm::drawTile, onPass = vm::passTurn,
+            over = result != null,
         )
     }
 }

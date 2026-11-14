@@ -378,11 +378,13 @@ private fun ColumnScope.LudoTable(
     name: (Char) -> String,
     onRoll: () -> Unit,
     onToken: (Int) -> Unit,
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     val myColour = view.colours['m'] ?: 0
     val canMove = myTurn && enabled
-    TurnLine(
+    // Once the game is over the banner, the news and the die leave; the board stays.
+    if (!over) TurnLine(
         when {
             !myTurn -> waitingText
             view.roll == null -> "Your turn: roll the die"
@@ -392,10 +394,10 @@ private fun ColumnScope.LudoTable(
         myTurn,
         ludoColor(myColour),
     )
-    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    if (!over) ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
     // The die and the Roll button: the roll shows at once, nothing to wait for.
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    if (!over) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
         PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
     }
@@ -474,6 +476,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.LUDO,
@@ -496,7 +499,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             view, myTurn, enabled = !state.firing,
             waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "The other player"} is playing…",
             name = ::name,
-            onRoll = vm::rollDie, onToken = vm::moveToken,
+            onRoll = vm::rollDie, onToken = vm::moveToken, over = finished,
         )
     }
 }
@@ -526,6 +529,7 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
         glow = GameKind.LUDO.color,
         menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, vm::start, { changing = true }),
         tools = listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.LUDO, result,
@@ -538,7 +542,7 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
             view, myTurn = state.turn == 'm' && result == null, enabled = true,
             waitingText = "${name(state.turn)} is playing…",
             name = ::name,
-            onRoll = vm::roll, onToken = vm::moveToken,
+            onRoll = vm::roll, onToken = vm::moveToken, over = result != null,
         )
     }
 }
