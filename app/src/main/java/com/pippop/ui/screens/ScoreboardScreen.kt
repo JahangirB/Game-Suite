@@ -380,7 +380,7 @@ private fun TrophyShelf(slots: List<ShelfSlot>, partner: String, board: Scoreboa
 // ---- A game's story ------------------------------------------------------------------------------
 
 /** What the games' own counts are called in a margin ("9 to 4 boxes"). */
-private fun scoreUnit(game: GameKind) = when (game) {
+internal fun scoreUnit(game: GameKind) = when (game) {
     GameKind.DOTS -> "boxes"
     GameKind.MEMORY -> "pairs"
     GameKind.HOCKEY -> "goals"
@@ -389,7 +389,7 @@ private fun scoreUnit(game: GameKind) = when (game) {
     else -> "points"
 }
 
-private fun countMetric(game: GameKind) = when (game) {
+internal fun countMetric(game: GameKind) = when (game) {
     GameKind.SHIPS -> SoloMetric.SHOTS
     GameKind.CONNECT4 -> SoloMetric.DISCS
     GameKind.WORDS -> SoloMetric.TRIES

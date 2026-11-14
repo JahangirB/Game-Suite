@@ -6,6 +6,8 @@ import com.pippop.ui.screens.inMatch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pippop.data.BrokenRecord
+import com.pippop.data.Records
 import com.pippop.data.ApiException
 import com.pippop.data.BattleBackend
 import com.pippop.data.Difficulty
@@ -172,6 +174,9 @@ data class BattleUiState(
     val problem: Problem? = null,
     /** Wins since connecting, by name ("You" for this phone): the result's "Tonight" line. */
     val tally: Map<String, Int> = emptyMap(),
+    /** A record the latest result broke, with the round it was for (so a later game never shows it): the card's gold line. */
+    val record: BrokenRecord? = null,
+    val recordRound: Int = -1,
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -473,7 +478,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         lastVersion = -1
         lastOpponentEmojiSeq = -1
         talliedRound = -1
-        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap()) }
+        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap(), record = null, recordRound = -1) }
         val room = applyResponse(json, sentAt, record = false)
         // Joining a finished room must not count its old result again.
         if (room.status == RoomStatus.FINISHED) {
@@ -1820,12 +1825,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 else -> null
             }
             val facts = GameFacts.of(room)
-            ScoreStore.get(getApplication()).add(
-                MatchRecord(
-                    System.currentTimeMillis(), room.game, room.others.map { it.name }, winner,
-                    durationMs = facts.durationMs, myScore = facts.mine, theirScore = facts.theirs, winnerCount = facts.count,
-                ),
+            val scores = ScoreStore.get(getApplication())
+            val result = MatchRecord(
+                System.currentTimeMillis(), room.game, room.others.map { it.name }, winner,
+                durationMs = facts.durationMs, myScore = facts.mine, theirScore = facts.theirs, winnerCount = facts.count,
             )
+            // A record is judged against what was kept BEFORE this result: so first, then add.
+            val broke = if (Records.canSet(room)) Records.againstPartner(scores.records.value, result) else null
+            scores.add(result)
+            _state.update { it.copy(record = broke, recordRound = room.round) }
         }
         return room
     }

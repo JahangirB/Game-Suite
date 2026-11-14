@@ -221,6 +221,8 @@ internal fun ResultCard(
     onChange: (() -> Unit)?,
     onAnother: (() -> Unit)?,
     extra: @Composable ColumnScope.() -> Unit,
+    /** What the gold line says when this result is a record ([RecordLines]); null for no line. */
+    record: String? = null,
 ) {
     val p = AppTheme.palette
     Surface(color = p.card, shape = Shapes.L, border = BorderStroke(3.dp, p.ink), modifier = Modifier.fillMaxWidth().testTag("resultCard").pressedEdge(p.ink, Radius.L, 4.dp)) {
@@ -237,7 +239,9 @@ internal fun ResultCard(
                         title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
                         lineHeight = LineHeight.DisplayM, modifier = Modifier.semantics { heading() },
                     )
-                    if (detail.isNotEmpty()) Text(detail, color = p.muted, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, lineHeight = LineHeight.Body)
+                    // A record takes the detail line's own place (it says more, and adds no height): a compact gold pill.
+                    if (record != null) RecordLine(record)
+                    else if (detail.isNotEmpty()) Text(detail, color = p.muted, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, lineHeight = LineHeight.Body)
                 }
                 Spacer(Modifier.width(8.dp))
                 ResultAnimation(game, outcome, Modifier.width(84.dp))

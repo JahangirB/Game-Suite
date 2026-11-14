@@ -12,6 +12,8 @@ data class GameFacts(val durationMs: Long? = null, val mine: Int? = null, val th
 
         /** The facts of the game that has just finished in [room] (see [GameFacts] for what each game gives). */
         fun of(room: RoomState): GameFacts {
+            // A game that ended by someone leaving or running out of time has nothing to measure: it counts as a win only.
+            if (room.endReason == "forfeit" || room.endReason == "timeout") return GameFacts()
             val meWon = room.winner == "me"
             val theyWon = room.winner == "opponent" && !room.together
             val others = room.others

@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.core.app.ApplicationProvider
 import com.pippop.data.Avatar
+import com.pippop.data.BrokenRecord
+import com.pippop.ui.screens.LocalRecord
 import com.pippop.data.GameKind
 import com.pippop.data.PlayerInfo
 import com.pippop.data.RoomState
@@ -138,6 +140,8 @@ class ScreenshotResultTest : ScreenshotBase() {
             LocalRoomControls provides controls,
             LocalTonight provides tonightScore(room, tally),
             LocalTurnHints provides TurnHints(),
+            // A win is shown with its gold line, so the fit checks run with the line in place.
+            LocalRecord provides if (room.winner == "me") BrokenRecord.Biggest(room.game, 5) else null,
         ) { content() }
     }
 

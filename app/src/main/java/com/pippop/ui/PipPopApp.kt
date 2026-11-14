@@ -46,6 +46,7 @@ import com.pippop.ui.screens.ConnectSheet
 import com.pippop.ui.screens.ConnectionBanners
 import com.pippop.ui.screens.LocalMatchSession
 import com.pippop.ui.screens.LocalTonight
+import com.pippop.ui.screens.LocalRecord
 import com.pippop.ui.screens.LocalTurnHints
 import com.pippop.ui.screens.TurnHints
 import com.pippop.ui.screens.tonightScore
@@ -343,6 +344,8 @@ fun PipPopApp(
                     LocalMatchSession provides session, LocalRoomControls provides controls,
                     // Tonight's score in a game against one other player, and the turn count for its "Your turn" hint.
                     LocalTonight provides room?.takeIf { inRoomGame }?.let { tonightScore(it, battleState.tally) },
+                    // The record this round's result broke, for its card's gold line.
+                    LocalRecord provides battleState.record?.takeIf { room?.round == battleState.recordRound },
                     LocalTurnHints provides remember(room?.game, room?.round) { TurnHints() }.takeIf { inRoomGame },
                     LocalSlidePhoto provides room?.takeIf { it.game == GameKind.SLIDE }?.let { r -> (r.slide?.photoId != null) to battle::setSlidePhoto },
                 ) {

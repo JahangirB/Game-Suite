@@ -51,6 +51,7 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
                 else SoloGame.new(difficulty, Generator.generate(difficulty.holes))
             }
             _state.update { it.copy(game = game, generating = false) }
+            SoloRecordStore.current?.clearBroke()
             save(game)
             startTicker()
         }
@@ -73,6 +74,7 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
     fun pause() = update { it.pause() }
 
     fun restart() {
+        SoloRecordStore.current?.clearBroke()
         update { it.restart() }
         startTicker()
     }
@@ -86,6 +88,8 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
         if (current.status == SoloStatus.PLAYING && next.status == SoloStatus.WON && !next.shape.big) {
             SoloRecordStore.current?.record(GameKind.SUDOKU, next.difficulty.key, SoloMetric.TIME, next.elapsedMs)
         }
+        // Any other end (lost, or a big board) sets no record: drop the last game's.
+        else if (next.status == SoloStatus.LOST || next.status == SoloStatus.WON) SoloRecordStore.current?.clearBroke()
         save(next)
     }
 

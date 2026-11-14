@@ -61,6 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pippop.data.BrokenRecord
+import com.pippop.data.SoloRecordStore
+import androidx.compose.runtime.collectAsState
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
 import com.pippop.data.ProfileStore
@@ -105,8 +108,13 @@ fun BoxScope.ResultPopup(
     versus: Boolean = false,
     tally: TonightScore? = null,
     bump: TallyBump = TallyBump.NONE,
+    /** A record this result set against a partner ([MatchPopup] passes it); alone, the solo store's latest is used. */
+    record: BrokenRecord? = null,
 ) {
     val p = AppTheme.palette
+    // The gold line: a record against your partner, or (playing alone) the game's own best just beaten.
+    val soloBroke = remember { SoloRecordStore.current?.broke }?.collectAsState()?.value?.takeIf { !versus && it.game == game }
+    val recordText = (record ?: soloBroke)?.let { RecordLines.text(it) }
     var folded by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val sfx = rememberSfx()
@@ -122,7 +130,7 @@ fun BoxScope.ResultPopup(
         val face = winner ?: if (!versus && outcome == Outcome.WIN) soloWinner() else null
         ResultCard(
             game, outcome, title, detail, face, tally, bump, finish, again, scores, status, statusGood, next, rematch, onChange,
-            another?.let { { anotherOpen = true } }, extra,
+            another?.let { { anotherOpen = true } }, extra, recordText,
         )
         return
     }
@@ -191,6 +199,7 @@ fun BoxScope.ResultPopup(
                     }
                 }
                 if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+                if (recordText != null) RecordLine(recordText)
                 if (scores.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         scores.forEach {
@@ -286,6 +295,7 @@ fun BoxScope.MatchPopup(
     scores: List<String> = emptyList(),
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
+    val record = LocalRecord.current?.takeIf { it.game == game }
     val present = room.present
     val gone = present.isEmpty()
     val status = when {
@@ -318,6 +328,7 @@ fun BoxScope.MatchPopup(
         versus = true,
         tally = if (room.endReason == "restart") null else LocalTonight.current,
         bump = if (room.endReason == "restart") TallyBump.NONE else tallyBump(room),
+        record = record.takeIf { room.endReason != "restart" },
     )
 }
 

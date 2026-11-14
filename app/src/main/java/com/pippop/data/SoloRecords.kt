@@ -98,6 +98,18 @@ class SoloRecordStore internal constructor(private val file: File) {
     private val _records = MutableStateFlow(load())
     val records: StateFlow<Map<SoloKey, SoloRecord>> = _records.asStateFlow()
 
+    private val _broke = MutableStateFlow<BrokenRecord.Solo?>(null)
+
+    /**
+     * The record the game that has just been recorded broke (against the best BEFORE it was stored), or
+     * null when it broke none. Each [record] and [recordRun] replaces it, so it is always about the
+     * latest game: the result card reads it to say "Your best at ...".
+     */
+    val broke: StateFlow<BrokenRecord.Solo?> = _broke.asStateFlow()
+
+    /** A game ended or began without a best to count (a loss, a new board): the last record must not show again. */
+    fun clearBroke() { _broke.value = null }
+
     private fun load(): Map<SoloKey, SoloRecord> {
         if (!file.exists()) return emptyMap()
         return runCatching {
@@ -130,7 +142,10 @@ class SoloRecordStore internal constructor(private val file: File) {
         // A made-up record never survives a real game: the real one starts afresh.
         val old = get(key, real = true)
         val better = value != null && (old?.best == null || if (metric.lowerIsBetter) value < old.best else value > old.best)
+        // Detected against `old`, before it is replaced.
+        val broke = Records.beats(metric.lowerIsBetter, old?.best, value)
         put(key, SoloRecord(if (better) value else old?.best, if (better) at else old?.at ?: 0L, (old?.played ?: 0) + 1))
+        _broke.value = if (broke) BrokenRecord.Solo(key, value!!) else null
     }
 
     /**
@@ -142,7 +157,10 @@ class SoloRecordStore internal constructor(private val file: File) {
         val key = SoloKey(game, level, metric)
         val old = get(key, real = true)
         val better = old?.best == null || if (metric.lowerIsBetter) value < old.best else value > old.best
+        val broke = Records.beats(metric.lowerIsBetter, old?.best, value)
         put(key, SoloRecord(if (better) value else old?.best, if (better) at else old?.at ?: 0L, (old?.played ?: 0) + 1))
+        // The game's main record, set a moment ago, is the one said; this one only when it set none.
+        if (broke && _broke.value == null) _broke.value = BrokenRecord.Solo(key, value)
     }
 
     /** A game ended that [won] or didn't: the run goes up or back to nothing; the best is the longest run. */
@@ -153,7 +171,15 @@ class SoloRecordStore internal constructor(private val file: File) {
         val old = get(key, real = true)
         val run = if (won) (old?.run ?: 0) + 1 else 0
         val better = won && run > (old?.best ?: 0L)
+        val broke = won && Records.beats(false, old?.best, run.toLong())
         put(key, SoloRecord(if (better) run.toLong() else old?.best, if (better) at else old?.at ?: 0L, (old?.played ?: 0) + 1, run))
+        // Word Race records its tries first, then its run: the tries are the game's main record, so a run
+        // only speaks when they set none. Elsewhere the run is the game's record.
+        if (game == GameKind.WORDS && metric == SoloMetric.SOLVED_IN_ROW) {
+            if (broke && _broke.value == null) _broke.value = BrokenRecord.Solo(key, run.toLong())
+        } else {
+            _broke.value = if (broke) BrokenRecord.Solo(key, run.toLong()) else null
+        }
     }
 
     private fun put(key: SoloKey, record: SoloRecord) {
@@ -207,6 +233,9 @@ class SoloRecordStore internal constructor(private val file: File) {
 
         /** The store once the app has started it ([init]); null before, as in a test that doesn't need it. */
         val current: SoloRecordStore? get() = instance
+
+        /** For tests: makes [store] the one [current] returns (null to clear it). */
+        internal fun installForTest(store: SoloRecordStore?) { instance = store }
 
         /** Opens the store and brings in Sudoku's old bests. Called when the app starts. */
         fun init(context: Context): SoloRecordStore = get(context)
