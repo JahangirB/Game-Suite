@@ -677,6 +677,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val now = System.currentTimeMillis()
         if (Takeover.locked(now)) return
         Takeover.takeOver(reaction, now)
+        store.noteReactionSent(reaction)
         _state.update { it.copy(myReaction = ShownReaction(reaction, now)) }
         viewModelScope.launch {
             try {

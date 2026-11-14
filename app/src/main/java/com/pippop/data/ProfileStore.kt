@@ -105,6 +105,8 @@ data class Profile(
     val tutorialsSeen: Set<GameKind> = emptySet(),
     /** The last six different games played, newest first. */
     val recentGames: List<RecentGame> = emptyList(),
+    /** Keys of the reactions sent, the last first; the reactions tray follows this order. */
+    val recentReactions: List<String> = emptyList(),
     /** Games taken off the shelf on the arrange screen; they stay in [gameOrder]. */
     val putAway: Set<GameKind> = emptySet(),
     /** True once the order has been changed, so the home can stop saying how. */
@@ -211,6 +213,13 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val recent = (listOf(RecentGame(game, at)) + _profile.value.recentGames.filter { it.game != game }).take(MAX_RECENT)
         prefs.edit { putString(KEY_RECENT, recent.joinToString(",") { "${it.game.key}:${it.at}" }) }
         _profile.update { it.copy(recentGames = recent) }
+    }
+
+    /** Puts [reaction] first in the tray's order (the ones sent last come first). */
+    fun noteReactionSent(reaction: Reaction) {
+        val keys = (listOf(reaction.key) + _profile.value.recentReactions.filter { it != reaction.key }).take(MAX_RECENT_REACTIONS)
+        prefs.edit { putString(KEY_RECENT_REACTIONS, keys.joinToString(",")) }
+        _profile.update { it.copy(recentReactions = keys) }
     }
 
     /** Drops only the recent games that match [entries] exactly (game and time); a later real play of the same game stays. */
@@ -384,6 +393,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
             recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
+            recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
             putAway = gamesOf(prefs.getString(KEY_PUT_AWAY, null)),
             // Someone who arranged the games before this was kept has already learned how.
             arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, prefs.contains(KEY_GAME_ORDER)),
@@ -401,6 +411,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     companion object {
         const val MAX_NAME = 16
         const val MAX_RECENT = 6
+        /** More than any tray holds, so keys of reactions added later still keep their place. */
+        const val MAX_RECENT_REACTIONS = 40
         // These two keys predate the profile screen; keep them so saved settings carry over.
         private const val KEY_URL = "script_url"
         private const val KEY_NAME = "player_name"
@@ -438,6 +450,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"
         private const val KEY_RECENT = "recent_games"
+        /** Reaction keys, the one sent last first: the order of the reactions tray. */
+        private const val KEY_RECENT_REACTIONS = "recent_reactions"
         /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
         private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
         private const val KEY_PUT_AWAY = "put_away"

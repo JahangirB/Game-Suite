@@ -128,7 +128,7 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase I: reactions
 
-- [ ] **Step 26. The whole tray at once** (react-grid)
+- [x] **Step 26. The whole tray at once** (react-grid)
 - [ ] **Step 27. Lines of your own** (react-lines)
   - [ ] Apps Script, Cloudflare and Nearby accept a line; today's app is unaffected; tested
 - [ ] **Step 28. Stickers without an app update** (react-packs)
