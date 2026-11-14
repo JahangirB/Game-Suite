@@ -35,7 +35,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.pippop.data.MonthEnd
+import com.pippop.data.ProfileStore
 import com.pippop.data.SampleGames
+import com.pippop.data.ScoreStore
 import com.pippop.push.Push
 import com.pippop.push.PushApi
 import com.pippop.ui.theme.OpponentColor
@@ -262,6 +265,16 @@ internal fun PreviewTestTools() {
         said = "Added games with ${SampleGames.PARTNER}, solo records" + if (recent) " and recent games." else "."
     }, Modifier.fillMaxWidth())
     SecondaryButton("Clear sample games", { asking = true }, Modifier.fillMaxWidth())
+    // Last month's cup, as the home shows it once; this does not change which month is remembered.
+    var cup by remember { mutableStateOf<MonthEnd?>(null) }
+    SecondaryButton("Show last month's cup", {
+        val end = MonthEnd.latest(ScoreStore.get(context).records.value, System.currentTimeMillis())
+        if (end == null) said = "No finished month yet." else cup = end
+    }, Modifier.fillMaxWidth())
+    cup?.let { end ->
+        val profile = ProfileStore.get(context).profile.value
+        TrophyMomentDialog(end, java.time.YearMonth.now(), profile.avatar, profile.partner?.takeIf { it.name == end.partner }?.avatar) { cup = null }
+    }
     said?.let { Text(it, color = AppTheme.palette.muted, fontSize = TextSize.Body) }
     if (asking) {
         ToyDialog(

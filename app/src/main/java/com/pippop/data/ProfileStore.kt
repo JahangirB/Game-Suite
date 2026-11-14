@@ -92,6 +92,8 @@ data class Profile(
     val arrangedOnce: Boolean = false,
     /** The last solo setup of each game that has one, as picked (see [soloSetup] for what it plays with). */
     val soloSetups: Map<GameKind, Map<String, String>> = emptyMap(),
+    /** The latest month whose cup has been shown ("a month ends with a moment"), or null before the first. */
+    val cupShown: java.time.YearMonth? = null,
 ) {
     /** What [game] starts with alone: the last setup, with the default for anything not picked yet or no longer known. */
     fun soloSetup(game: GameKind): Map<String, String> = SoloSetups.resolve(game, soloSetups[game])
@@ -168,6 +170,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             putBoolean(KEY_ARRANGED_ONCE, true)
         }
         _profile.update { it.copy(putAway = games, arrangedOnce = true) }
+    }
+
+    /** Remembers that [month]'s cup has been shown, so it is not shown again. */
+    fun setCupShown(month: java.time.YearMonth) {
+        prefs.edit { putString(KEY_CUP_SHOWN, month.toString()) }
+        _profile.update { it.copy(cupShown = month) }
     }
 
     /** A game has started: it goes to the front of [Profile.recentGames], once, and only six are kept. */
@@ -323,6 +331,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             soloSetups = GameKind.entries.mapNotNull { game ->
                 prefs.getString(KEY_SOLO_PREFIX + game.key, null)?.let { game to SoloSetups.resolve(game, SoloSetups.decode(it)) }
             }.filter { it.second.isNotEmpty() }.toMap(),
+            cupShown = runCatching { java.time.YearMonth.parse(prefs.getString(KEY_CUP_SHOWN, null)) }.getOrNull(),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -366,6 +375,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
         private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
         private const val KEY_PUT_AWAY = "put_away"
+        /** The last month whose trophy moment was shown, as "2026-10". */
+        private const val KEY_CUP_SHOWN = "cup_shown_month"
         private const val KEY_ARRANGED_ONCE = "arranged_once"
         /** A game's last solo setup is kept under this and the game's key. */
         private const val KEY_SOLO_PREFIX = "solo_setup_"

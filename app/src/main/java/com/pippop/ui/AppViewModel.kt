@@ -46,4 +46,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setSound(on: Boolean) = store.setSound(on)
     fun notificationsAnswered() = store.notificationsAnswered()
     fun tutorialSeen(kind: GameKind) = store.tutorialSeen(kind)
+    fun setCupShown(month: java.time.YearMonth) = store.setCupShown(month)
 }

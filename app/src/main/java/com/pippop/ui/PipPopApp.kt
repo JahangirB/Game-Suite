@@ -108,6 +108,9 @@ import com.pippop.data.SkinStore
 import com.pippop.ui.screens.PrimaryButton
 import com.pippop.ui.screens.SecondaryButton
 import com.pippop.ui.screens.ToyDialog
+import com.pippop.data.MonthEnd
+import com.pippop.data.ScoreStore
+import com.pippop.ui.screens.TrophyMomentDialog
 import com.pippop.ui.screens.ToySheet
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.readableOn
@@ -498,6 +501,24 @@ fun PipPopApp(
     // Never interrupt a battle with the update offer.
     if (room == null && (updateState.showOffer || updateState.needsPermission)) {
         UpdateDialog(updateState, onUpdate = updates::update, onAllow = updates::allowInstalls, onLater = updates::dismiss)
+    }
+
+    // The month's cup, once, when the app opens on the home after a month with games has ended. It waits for
+    // anything else in the way (the first-run screens, a room or invitation, an error, the update offer, the
+    // connect sheet) and never shows over a game: those are other screens, not the home.
+    val scoreContext = LocalContext.current
+    // The month is read again each time the app comes to the front, so one resumed after the month turned over still shows it.
+    var thisMonth by remember { mutableStateOf(java.time.YearMonth.now()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { thisMonth = java.time.YearMonth.now() }
+    val cup = remember(thisMonth) { MonthEnd.toShow(ScoreStore.get(scoreContext).records.value, System.currentTimeMillis(), profile.cupShown) }
+    var cupDone by remember(thisMonth) { mutableStateOf(false) }
+    if (cup != null && !cupDone && profile.firstRunDone && room == null && !battleState.busy && dest == Dest.HOME && battleState.problem == null &&
+        connectSheet == null && !(updateState.showOffer || updateState.needsPermission)
+    ) {
+        TrophyMomentDialog(cup, thisMonth, profile.avatar, profile.partner?.takeIf { it.name == cup.partner }?.avatar) {
+            cupDone = true
+            app.setCupShown(cup.month)
+        }
     }
 
     if (confirmDisconnect && room != null) {

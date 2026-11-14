@@ -113,8 +113,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] Solo records (scores-solo)
   - [x] Cups worth winning, with readable labels (scores-cups)
   - [x] The Statistics card and "Battles 0 won · 0 lost" are gone (fix-battles)
-- [ ] **Step 21. The month ends with a moment** (scores-monthend)
-  - [ ] "Show last month's cup" in the preview's test tools
+- [x] **Step 21. The month ends with a moment** (scores-monthend)
+  - [x] "Show last month's cup" in the preview's test tools
 - [ ] **Step 22. A record gets a line** (result-record)
 
 ## Phase H: profile and looks
