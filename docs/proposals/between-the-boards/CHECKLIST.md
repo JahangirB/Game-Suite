@@ -106,13 +106,13 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
   - [x] Results keep time, score and count where a game has them; old lines still load
   - [x] Solo records for every game with solo play; Sudoku's bests migrated
   - [x] Test tools in the preview: fill with sample games, clear them
-- [ ] **Step 20. The scoreboard**
-  - [ ] The month as a race you can see (scores-race)
-  - [ ] All time, beside this month (scores-alltime)
-  - [ ] Each game's story (scores-story)
-  - [ ] Solo records (scores-solo)
-  - [ ] Cups worth winning, with readable labels (scores-cups)
-  - [ ] The Statistics card and "Battles 0 won · 0 lost" are gone (fix-battles)
+- [x] **Step 20. The scoreboard**
+  - [x] The month as a race you can see (scores-race)
+  - [x] All time, beside this month (scores-alltime)
+  - [x] Each game's story (scores-story)
+  - [x] Solo records (scores-solo)
+  - [x] Cups worth winning, with readable labels (scores-cups)
+  - [x] The Statistics card and "Battles 0 won · 0 lost" are gone (fix-battles)
 - [ ] **Step 21. The month ends with a moment** (scores-monthend)
   - [ ] "Show last month's cup" in the preview's test tools
 - [ ] **Step 22. A record gets a line** (result-record)

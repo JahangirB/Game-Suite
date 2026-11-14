@@ -12,6 +12,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.io.File
 
 /** What a saved game remembers, and that lines saved before it remembered more still load. */
 @RunWith(AndroidJUnit4::class)
@@ -74,5 +75,31 @@ class MatchRecordTest {
     @Test fun aLineThatCannotBeReadIsSkippedNotFatal() {
         val file = tmp.newFile("scores.jsonl").apply { writeText("not json\n" + oldLines[0] + "\n") }
         assertEquals(1, ScoreStore(file).records.value.size)
+    }
+
+    @Test fun anAppendAfterACutOffLineStartsOnANewLine() {
+        // A write that stopped half-way left a last line with no newline.
+        val file = tmp.newFile("scores.jsonl").apply { writeText(oldLines[0] + "\n" + """{"at":1731686400000,"game":"go""") }
+        val store = ScoreStore(file)
+        val fresh = MatchRecord(1731900000000, GameKind.DOTS, listOf("Maya"), "You")
+        store.add(fresh)
+        val lines = file.readText().split("\n")
+        // The cut-off line stays by itself, and the new record is a whole line of its own.
+        assertEquals("""{"at":1731686400000,"game":"go""", lines[1])
+        assertEquals(fresh, MatchRecord.from(JSONObject(lines[2])))
+        assertEquals(listOf(MatchRecord(1731600000000, GameKind.LUDO, listOf("Alex"), "You"), fresh), ScoreStore(file).records.value)
+    }
+
+    @Test fun anAppendToAWholeFileOrAnEmptyOneAddsNoBlankLine() {
+        val whole = tmp.newFile("a.jsonl").apply { writeText(oldLines[0] + "\n") }
+        ScoreStore(whole).add(MatchRecord(5, GameKind.GOLF, listOf("Maya"), null))
+        assertFalse(whole.readText().contains("\n\n"))
+        assertEquals(2, whole.readLines().size)
+        val empty = File(tmp.root, "b.jsonl")
+        ScoreStore(empty).add(MatchRecord(5, GameKind.GOLF, listOf("Maya"), null))
+        assertEquals(1, empty.readLines().size)
+        val blank = tmp.newFile("c.jsonl")
+        ScoreStore(blank).add(MatchRecord(5, GameKind.GOLF, listOf("Maya"), null))
+        assertEquals(1, blank.readLines().size)
     }
 }

@@ -35,14 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.pippop.data.Difficulty
-import com.pippop.data.GameKind
 import com.pippop.data.SampleGames
-import com.pippop.data.SoloKey
-import com.pippop.data.SoloRecord
-import com.pippop.data.Stats
-import com.pippop.data.SoloMetric
-import com.pippop.data.SoloRecordStore
 import com.pippop.push.Push
 import com.pippop.push.PushApi
 import com.pippop.ui.theme.OpponentColor
@@ -83,7 +76,7 @@ internal fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
     }
 }
 
-/** All setup lives here: name, battle server link, appearance, plus your statistics. */
+/** All setup lives here: name, battle server link, appearance. */
 @Composable
 fun ProfileScreen(
     profile: Profile,
@@ -236,37 +229,10 @@ fun ProfileScreen(
                 }
             }
 
-            val solo by SoloRecordStore.get(LocalContext.current).records.collectAsState()
-            StatisticsCard(solo, profile.stats)
-
             // Only in the preview app, so the owner always knows which of the two apps is open.
             if (BuildConfig.PREVIEW) {
                 PreviewAppCard()
             }
-        }
-    }
-}
-
-/** Sudoku's best time at each level, and games won and lost with others. */
-@Composable
-internal fun StatisticsCard(solo: Map<SoloKey, SoloRecord>, stats: Stats) {
-    val p = AppTheme.palette
-    AppCard("Statistics") {
-        Difficulty.entries.forEach { level ->
-            val record = solo[SoloKey(GameKind.SUDOKU, level.key, SoloMetric.TIME)]
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(level.label, color = p.text, modifier = Modifier.weight(1f))
-                Text(
-                    if (record == null || record.played == 0) "—"
-                    else "${record.played} won · best ${formatDuration(record.best ?: 0L)}",
-                    color = p.muted,
-                    fontSize = TextSize.Body,
-                )
-            }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Battles", color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("${stats.battlesWon} won · ${stats.battlesLost} lost", color = p.muted, fontSize = TextSize.Body)
         }
     }
 }

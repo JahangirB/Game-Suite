@@ -131,6 +131,8 @@ object Board {
     /** Dominoes: the small brass pin in the middle of a tile, and the wooden rim round the table. */
     val Brass = Color(0xFFC9A24B)
     val Wood = Color(0xFF8A5A33)
+    /** A silver cup: a month that ended level. */
+    val Silver = Color(0xFFC9CED6)
     /** A soft gold for "this one" highlights: a playable tile, a target, a winning line. */
     val Glow = Color(0xFFFFD23F)
     val GlowSoft = Color(0xFFFFE08A)
