@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import com.pippop.game.slide.Slide
 import com.pippop.game.slide.SlideLevel
@@ -44,6 +47,7 @@ class SoloSlideViewModel : ViewModel() {
         val tiles = Slide.replay(s.tiles, level.size, slides)
         val done = Slide.isSolved(tiles, level.size)
         val time = System.currentTimeMillis() - s.startedAt
+        if (done) SoloRecordStore.current?.record(GameKind.SLIDE, level.key, SoloMetric.TIME, time)
         _state.update {
             it.copy(
                 tiles = tiles, moves = it.moves + slides.size, finishedMs = if (done) time else null,

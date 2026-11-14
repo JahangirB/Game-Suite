@@ -19,15 +19,14 @@ enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood
 /** A game that was played, and when (epoch milliseconds), for the home's "jump back in" row. */
 data class RecentGame(val game: GameKind, val at: Long)
 
+/** Sudoku's wins and best time at one level, as this file kept them before [SoloRecordStore]; read once to bring them across. */
 data class LevelStats(val wins: Int = 0, val bestMs: Long? = null)
 
+/** Games won and lost with others. (Sudoku's solo bests moved to [SoloRecordStore].) */
 data class Stats(
-    val solo: Map<Difficulty, LevelStats> = emptyMap(),
     val battlesWon: Int = 0,
     val battlesLost: Int = 0,
-) {
-    val soloWins get() = solo.values.sumOf { it.wins }
-}
+)
 
 /**
  * The last person you played online with, so one tap reconnects: same server, same
@@ -178,6 +177,22 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(recentGames = recent) }
     }
 
+    /** Drops only the recent games that match [entries] exactly (game and time); a later real play of the same game stays. */
+    fun removeRecent(entries: Collection<RecentGame>) {
+        if (entries.isEmpty()) return
+        val recent = _profile.value.recentGames.filter { it !in entries }
+        prefs.edit { putString(KEY_RECENT, recent.joinToString(",") { "${it.game.key}:${it.at}" }) }
+        _profile.update { it.copy(recentGames = recent) }
+    }
+
+    /** The preview's sample recent games, as [setSampleRecent] saved them. */
+    fun sampleRecent(): List<RecentGame> = recentOf(prefs.getString(KEY_SAMPLE_RECENT, null))
+
+    /** Remembers which recent games the preview's Fill added (none: forgets). Preview only. */
+    fun setSampleRecent(entries: List<RecentGame>) {
+        prefs.edit { if (entries.isEmpty()) remove(KEY_SAMPLE_RECENT) else putString(KEY_SAMPLE_RECENT, entries.joinToString(",") { "${it.game.key}:${it.at}" }) }
+    }
+
     /** An invitation went out or came in: from now on the home offers to turn on notifications. */
     fun notificationsNeeded() {
         if (_profile.value.notificationsDue) return
@@ -249,18 +264,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(nearbyCode = code) }
     }
 
-    fun recordSoloWin(difficulty: Difficulty, timeMs: Long) {
-        val old = _profile.value.stats.solo[difficulty] ?: LevelStats()
-        val best = old.bestMs?.let { minOf(it, timeMs) } ?: timeMs
-        prefs.edit {
-            putInt("wins_${difficulty.key}", old.wins + 1)
-            putLong("best_${difficulty.key}", best)
-        }
-        _profile.update {
-            it.copy(stats = it.stats.copy(solo = it.stats.solo + (difficulty to LevelStats(old.wins + 1, best))))
-        }
-    }
-
     fun recordBattle(won: Boolean) {
         val stats = _profile.value.stats
         val key = if (won) KEY_BATTLES_WON else KEY_BATTLES_LOST
@@ -274,12 +277,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     }
 
     private fun load(): Profile {
-        val solo = Difficulty.entries.associateWith {
-            LevelStats(
-                wins = prefs.getInt("wins_${it.key}", 0),
-                bestMs = if (prefs.contains("best_${it.key}")) prefs.getLong("best_${it.key}", 0) else null,
-            )
-        }
         val deviceId = prefs.getString(KEY_DEVICE, null) ?: java.util.UUID.randomUUID().toString().also {
             prefs.edit { putString(KEY_DEVICE, it) }
         }
@@ -305,7 +302,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 .getOrDefault(ThemeMode.SYSTEM),
             shipStyle = runCatching { ShipStyle.valueOf(prefs.getString(KEY_SHIP_STYLE, "").orEmpty()) }
                 .getOrDefault(ShipStyle.TOY),
-            stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
+            stats = Stats(prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
             gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
             // Someone who set a name before the first-run screens existed has nothing to learn there.
@@ -366,6 +363,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"
         private const val KEY_RECENT = "recent_games"
+        /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
+        private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
         private const val KEY_PUT_AWAY = "put_away"
         private const val KEY_ARRANGED_ONCE = "arranged_once"
         /** A game's last solo setup is kept under this and the game's key. */
@@ -391,13 +390,30 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
 
+        /**
+         * Sudoku's bests as older versions wrote them here (`wins_<level>`, `best_<level>`). Nothing
+         * writes these keys any more and nothing removes them: [SoloRecordStore] copies them across.
+         */
+        fun oldSudokuBests(context: Context): Map<Difficulty, LevelStats> = oldSudokuBests(
+            context.getSharedPreferences(FILE, Context.MODE_PRIVATE),
+        )
+
+        internal fun oldSudokuBests(prefs: SharedPreferences): Map<Difficulty, LevelStats> = Difficulty.entries.associateWith {
+            LevelStats(
+                wins = prefs.getInt("wins_${it.key}", 0),
+                bestMs = if (prefs.contains("best_${it.key}")) prefs.getLong("best_${it.key}", 0) else null,
+            )
+        }
+
+        // The file keeps the app's first name: renaming it would lose everyone's profile.
+        private const val FILE = "arcade_sudoku"
+
         @Volatile
         private var instance: ProfileStore? = null
 
         fun get(context: Context): ProfileStore = instance ?: synchronized(this) {
             instance ?: ProfileStore(
-                // The file keeps the app's first name: renaming it would lose everyone's profile.
-                context.applicationContext.getSharedPreferences("arcade_sudoku", Context.MODE_PRIVATE),
+                context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE),
             ).also { instance = it }
         }
     }

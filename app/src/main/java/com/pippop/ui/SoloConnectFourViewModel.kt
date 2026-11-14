@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.connect4.C4Computer
@@ -59,6 +62,13 @@ class SoloConnectFourViewModel : ViewModel() {
             else -> null
         }
         _state.update { it.copy(board = board, lastCell = cell, winLine = line.orEmpty(), result = result, myTurn = mark == 'o') }
+        // The quickest win is the one with the fewest of your discs.
+        if (result != null) {
+            SoloRecordStore.current?.record(
+                GameKind.CONNECT4, _state.value.level?.name?.lowercase().orEmpty(), SoloMetric.DISCS,
+                if (result == "me") board.count { it == 'm' }.toLong() else null,
+            )
+        }
         return result == null
     }
 

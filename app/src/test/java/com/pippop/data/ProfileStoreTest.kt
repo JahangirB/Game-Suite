@@ -136,4 +136,18 @@ class ProfileStoreTest {
         assertEquals(listOf(GameKind.GOLF, GameKind.LUDO), p.gameOrder.take(2))
         assertEquals(setOf(GameKind.GOLF), p.tutorialsSeen)
     }
+
+    @Test fun removingRecentGamesDropsOnlyExactMatches() {
+        val s = fresh()
+        val sample = listOf(RecentGame(GameKind.GOLF, 100), RecentGame(GameKind.CODE, 200))
+        sample.forEach { s.noteGamePlayed(it.game, it.at) }
+        s.setSampleRecent(sample)
+        assertEquals(sample.toSet(), s.sampleRecent().toSet())
+        // A real, later play of Golf replaces the sample's Golf entry; clearing must not touch it.
+        s.noteGamePlayed(GameKind.GOLF, 900)
+        s.removeRecent(s.sampleRecent())
+        s.setSampleRecent(emptyList())
+        assertEquals(listOf(RecentGame(GameKind.GOLF, 900)), store().profile.value.recentGames)
+        assertEquals(emptyList<RecentGame>(), s.sampleRecent())
+    }
 }

@@ -102,10 +102,10 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase G: scores and records
 
-- [ ] **Step 19. Remember more about each game**
-  - [ ] Results keep time, score and count where a game has them; old lines still load
-  - [ ] Solo records for every game with solo play; Sudoku's bests migrated
-  - [ ] Test tools in the preview: fill with sample games, clear them
+- [x] **Step 19. Remember more about each game**
+  - [x] Results keep time, score and count where a game has them; old lines still load
+  - [x] Solo records for every game with solo play; Sudoku's bests migrated
+  - [x] Test tools in the preview: fill with sample games, clear them
 - [ ] **Step 20. The scoreboard**
   - [ ] The month as a race you can see (scores-race)
   - [ ] All time, beside this month (scores-alltime)

@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import kotlinx.coroutines.channels.Channel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -88,11 +91,14 @@ class SoloBingoViewModel : ViewModel() {
                 val shouter = (0 until computers).firstOrNull { shoutAfter[it] in 1..s.called }
                 if (shouter != null) {
                     _state.update { it.copy(winner = "${shouter + 1}", line = Bingo.fullLine(it.computerCards[shouter], it.calledSet)) }
+                    SoloRecordStore.current?.record(GameKind.BINGO, computers.toString(), SoloMetric.BALLS, null)
                     return@launch
                 }
                 if (s.called >= Bingo.NUMBERS) {
                     delay(Bingo.LAST_CALL_GRACE_MS)
+                    val ended = _state.value.winner == null
                     _state.update { if (it.winner == null) it.copy(winner = "none") else it }
+                    if (ended) SoloRecordStore.current?.record(GameKind.BINGO, computers.toString(), SoloMetric.BALLS, null)
                     return@launch
                 }
             }
@@ -115,5 +121,7 @@ class SoloBingoViewModel : ViewModel() {
         val line = s.myLine ?: return
         caller?.cancel()
         _state.update { it.copy(winner = "me", line = line, wins = it.wins + 1) }
+        // Numbers called before your bingo: fewer is quicker.
+        SoloRecordStore.current?.record(GameKind.BINGO, s.computers.toString(), SoloMetric.BALLS, s.called.toLong())
     }
 }

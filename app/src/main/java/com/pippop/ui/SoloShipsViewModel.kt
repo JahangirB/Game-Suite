@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.ships.ComputerCaptain
@@ -43,6 +46,7 @@ class SoloShipsViewModel : ViewModel() {
         val next = game.fire(x, y)
         if (next === game) return
         _state.update { it.copy(game = next) }
+        noteEnd(next)
         keepPlaying()
     }
 
@@ -69,9 +73,17 @@ class SoloShipsViewModel : ViewModel() {
                 val game = _state.value.game ?: break
                 if (game.myTurn || game.winner != null) break
                 delay(COMPUTER_DELAY_MS)
-                _state.update { it.copy(game = it.game?.computerFires(captain)) }
+                val next = game.computerFires(captain)
+                _state.update { it.copy(game = next) }
+                noteEnd(next)
             }
         }
+    }
+
+    /** A battle that has just been won or lost is a result: shots to sink the fleet if you won it. */
+    private fun noteEnd(game: SoloShips) {
+        val winner = game.winner ?: return
+        SoloRecordStore.current?.record(GameKind.SHIPS, "", SoloMetric.SHOTS, if (winner == "me") game.myShots.size.toLong() else null)
     }
 
     private companion object {

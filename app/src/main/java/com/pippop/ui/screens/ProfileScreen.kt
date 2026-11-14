@@ -31,7 +31,18 @@ import com.pippop.data.Avatar
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.pippop.data.Difficulty
+import com.pippop.data.GameKind
+import com.pippop.data.SampleGames
+import com.pippop.data.SoloKey
+import com.pippop.data.SoloRecord
+import com.pippop.data.Stats
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import com.pippop.push.Push
 import com.pippop.push.PushApi
 import com.pippop.ui.theme.OpponentColor
@@ -225,36 +236,79 @@ fun ProfileScreen(
                 }
             }
 
-            AppCard("Statistics") {
-                Difficulty.entries.forEach { level ->
-                    val stats = profile.stats.solo[level]
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(level.label, color = p.text, modifier = Modifier.weight(1f))
-                        Text(
-                            if (stats == null || stats.wins == 0) "—"
-                            else "${stats.wins} won · best ${formatDuration(stats.bestMs ?: 0L)}",
-                            color = p.muted,
-                            fontSize = TextSize.Body,
-                        )
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Battles", color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(
-                        "${profile.stats.battlesWon} won · ${profile.stats.battlesLost} lost",
-                        color = p.muted,
-                        fontSize = TextSize.Body,
-                    )
-                }
-            }
+            val solo by SoloRecordStore.get(LocalContext.current).records.collectAsState()
+            StatisticsCard(solo, profile.stats)
 
             // Only in the preview app, so the owner always knows which of the two apps is open.
             if (BuildConfig.PREVIEW) {
-                AppCard("Preview app") {
-                    Text("This is the preview app. It keeps its own games and scores.", color = p.text)
-                    Text("Version ${BuildConfig.VERSION_NAME}", color = p.muted, fontSize = TextSize.Body)
-                }
+                PreviewAppCard()
             }
+        }
+    }
+}
+
+/** Sudoku's best time at each level, and games won and lost with others. */
+@Composable
+internal fun StatisticsCard(solo: Map<SoloKey, SoloRecord>, stats: Stats) {
+    val p = AppTheme.palette
+    AppCard("Statistics") {
+        Difficulty.entries.forEach { level ->
+            val record = solo[SoloKey(GameKind.SUDOKU, level.key, SoloMetric.TIME)]
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(level.label, color = p.text, modifier = Modifier.weight(1f))
+                Text(
+                    if (record == null || record.played == 0) "—"
+                    else "${record.played} won · best ${formatDuration(record.best ?: 0L)}",
+                    color = p.muted,
+                    fontSize = TextSize.Body,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Battles", color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text("${stats.battlesWon} won · ${stats.battlesLost} lost", color = p.muted, fontSize = TextSize.Body)
+        }
+    }
+}
+
+/** The last card of the preview app's profile: which app this is, and the test tools. */
+@Composable
+internal fun PreviewAppCard() {
+    val p = AppTheme.palette
+    AppCard("Preview app") {
+        Text("This is the preview app. It keeps its own games and scores.", color = p.text)
+        Text("Version ${BuildConfig.VERSION_NAME}", color = p.muted, fontSize = TextSize.Body)
+        PreviewTestTools()
+    }
+}
+
+/**
+ * The preview app's test tools: made-up games to look at the scoreboard with, and a way to take
+ * them out again. Real games are never touched. Only called when [BuildConfig.PREVIEW] is true.
+ */
+@Composable
+internal fun PreviewTestTools() {
+    val context = LocalContext.current
+    var asking by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf<String?>(null) }
+    SecondaryButton("Fill with sample games", {
+        val recent = SampleGames.fill(context)
+        said = "Added games with ${SampleGames.PARTNER}, solo records" + if (recent) " and recent games." else "."
+    }, Modifier.fillMaxWidth())
+    SecondaryButton("Clear sample games", { asking = true }, Modifier.fillMaxWidth())
+    said?.let { Text(it, color = AppTheme.palette.muted, fontSize = TextSize.Body) }
+    if (asking) {
+        ToyDialog(
+            title = "Clear sample games?",
+            body = "Only the sample games and records go. Your own games stay.",
+            onDismiss = { asking = false },
+        ) {
+            SecondaryButton("Cancel", { asking = false }, Modifier.weight(1f))
+            PrimaryButton("Clear", {
+                asking = false
+                SampleGames.clear(context)
+                said = "Sample games cleared."
+            }, Modifier.weight(1f))
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.grid.LetterGrid
@@ -38,11 +41,14 @@ class SoloGridViewModel : ViewModel() {
     private val _state = MutableStateFlow(SoloGridUiState())
     val state: StateFlow<SoloGridUiState> = _state.asStateFlow()
     private var clock: Job? = null
+    /** This round has been kept as a result (the clock and the Finish button can both end it). */
+    private var recorded = false
 
     fun setTimed(timed: Boolean) = _state.update { it.copy(timed = timed) }
 
     fun start() {
         clock?.cancel()
+        recorded = false
         _state.update { SoloGridUiState(timed = it.timed, started = true, best = it.best) }
         viewModelScope.launch {
             val letters = withContext(Dispatchers.Default) { LetterGridGenerator().generate() }
@@ -76,6 +82,14 @@ class SoloGridViewModel : ViewModel() {
             val all = withContext(Dispatchers.Default) { LetterGrid.allWords(letters) }
             val missed = (all - s.found.toSet()).sortedWith(compareByDescending<String> { it.length }.thenBy { it }).take(12)
             _state.update { it.copy(over = true, missed = missed, total = all.size, best = maxOf(it.best ?: 0, it.score)) }
+            if (!recorded) {
+                recorded = true
+                val store = SoloRecordStore.current
+                val level = if (s.timed) "timed" else "untimed"
+                store?.record(GameKind.GRID, level, SoloMetric.POINTS, s.score.toLong())
+                // The same round also keeps its longest word, without counting a second game.
+                s.found.maxOfOrNull { it.length }?.let { store?.noteBest(GameKind.GRID, level, SoloMetric.LONGEST_WORD, it.toLong()) }
+            }
         }
     }
 

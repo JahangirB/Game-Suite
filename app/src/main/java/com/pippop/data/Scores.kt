@@ -12,11 +12,33 @@ import java.time.YearMonth
 import java.time.ZoneId
 
 /**
- * One match played with others: when it ended, which game, who else played (by name), and
+ * One game played with others: when it ended, which game, who else played (by name), and
  * who won it ([ME] for this phone, a name, "A & B" for a team, or null for a tie).
+ *
+ * The rest is optional, and left out of the saved line when a game has nothing to say: how long
+ * it took ([durationMs]), each side's own score where the game has one ([myScore], and [theirScore]
+ * for the best of the others: goals, points, boxes, pairs) and the winner's count where quickest
+ * means fewest ([winnerCount]: discs, shots, tries). [sample] marks a made-up game from the
+ * preview app's test tools, so clearing those never touches a real one.
  */
-data class MatchRecord(val at: Long, val game: GameKind, val others: List<String>, val winner: String?) {
-    fun toJson(): JSONObject = JSONObject().put("at", at).put("game", game.key).put("others", JSONArray(others)).put("winner", winner ?: JSONObject.NULL)
+data class MatchRecord(
+    val at: Long,
+    val game: GameKind,
+    val others: List<String>,
+    val winner: String?,
+    val durationMs: Long? = null,
+    val myScore: Int? = null,
+    val theirScore: Int? = null,
+    val winnerCount: Int? = null,
+    val sample: Boolean = false,
+) {
+    fun toJson(): JSONObject = JSONObject().put("at", at).put("game", game.key).put("others", JSONArray(others)).put("winner", winner ?: JSONObject.NULL).apply {
+        durationMs?.let { put("ms", it) }
+        myScore?.let { put("mine", it) }
+        theirScore?.let { put("theirs", it) }
+        winnerCount?.let { put("count", it) }
+        if (sample) put("sample", true)
+    }
 
     /** Whether [name] won it (alone or in a team). */
     fun won(name: String) = winner != null && winner.split(" & ").contains(name)
@@ -27,7 +49,13 @@ data class MatchRecord(val at: Long, val game: GameKind, val others: List<String
         fun from(json: JSONObject): MatchRecord? {
             val game = GameKind.entries.firstOrNull { it.key == json.optString("game") } ?: return null
             val others = json.optJSONArray("others")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
-            return MatchRecord(json.optLong("at"), game, others, if (json.isNull("winner")) null else json.optString("winner"))
+            fun long(key: String) = if (json.has(key) && !json.isNull(key)) json.optLong(key) else null
+            fun int(key: String) = if (json.has(key) && !json.isNull(key)) json.optInt(key) else null
+            return MatchRecord(
+                json.optLong("at"), game, others, if (json.isNull("winner")) null else json.optString("winner"),
+                durationMs = long("ms"), myScore = int("mine"), theirScore = int("theirs"), winnerCount = int("count"),
+                sample = json.optBoolean("sample", false),
+            )
         }
     }
 }
@@ -36,8 +64,7 @@ data class MatchRecord(val at: Long, val game: GameKind, val others: List<String
  * Every match you've finished with others, kept on this phone (no account: your partner's
  * phone keeps its own). The Scoreboard is worked out from it by [Scoreboard].
  */
-class ScoreStore private constructor(context: Context) {
-    private val file = File(context.filesDir, "scores.jsonl")
+class ScoreStore internal constructor(private val file: File) {
     private val _records = MutableStateFlow(load())
     val records: StateFlow<List<MatchRecord>> = _records.asStateFlow()
 
@@ -51,8 +78,33 @@ class ScoreStore private constructor(context: Context) {
         _records.value = all
         runCatching {
             if (all.size < MAX) file.appendText(record.toJson().toString() + "\n")
-            else file.writeText(all.joinToString("") { it.toJson().toString() + "\n" })
+            else writeWhole(file, all.joinToString("") { it.toJson().toString() + "\n" })
         }
+    }
+
+    /** Several at once (the preview's sample games); real games are never dropped to fit the limit. */
+    @Synchronized
+    fun addAll(records: List<MatchRecord>) {
+        if (records.isEmpty()) return
+        var all = (_records.value + records).sortedBy { it.at }
+        // Over the limit, only made-up games make room: a real one is never dropped here.
+        var extra = all.size - MAX
+        if (extra > 0) all = all.filter { !(it.sample && extra-- > 0) }
+        _records.value = all
+        rewrite(all)
+    }
+
+    /** Takes out the made-up games of the preview's test tools; real ones stay as they are. */
+    @Synchronized
+    fun removeSamples() {
+        val all = _records.value.filter { !it.sample }
+        if (all.size == _records.value.size) return
+        _records.value = all
+        rewrite(all)
+    }
+
+    private fun rewrite(all: List<MatchRecord>) {
+        runCatching { writeWhole(file, all.joinToString("") { it.toJson().toString() + "\n" }) }
     }
 
     companion object {
@@ -63,7 +115,7 @@ class ScoreStore private constructor(context: Context) {
         private var instance: ScoreStore? = null
 
         fun get(context: Context): ScoreStore = instance ?: synchronized(this) {
-            instance ?: ScoreStore(context.applicationContext).also { instance = it }
+            instance ?: ScoreStore(File(context.applicationContext.filesDir, "scores.jsonl")).also { instance = it }
         }
     }
 }

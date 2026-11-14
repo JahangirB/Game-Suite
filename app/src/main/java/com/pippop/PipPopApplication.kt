@@ -15,6 +15,8 @@ class PipPopApplication : Application() {
         // Mini Golf's 1,000 holes load in the background.
         Courses.load(this)
         com.pippop.data.SkinStore.init(this)
+        // Opens the solo records and brings Sudoku's old bests across.
+        com.pippop.data.SoloRecordStore.init(this)
         // Letter Grid's longer list loads in the background.
         Thread { GridWords.load(this) }.start()
     }

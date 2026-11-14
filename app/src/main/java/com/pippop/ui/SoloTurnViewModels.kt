@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.data.Avatar
@@ -80,6 +83,11 @@ class SoloDotsViewModel : ViewModel() {
                 else -> "draw"
             },
         )
+        if (result.over) {
+            // Boxes ahead at the end is the number to beat, in a game you won.
+            val ahead = match.boxes.count { it == 'm' } - match.boxes.count { it == 'o' }
+            SoloRecordStore.current?.record(GameKind.DOTS, match.shape.key, SoloMetric.BOXES_AHEAD, ahead.takeIf { result.winner == 'm' }?.toLong())
+        }
         return result.again
     }
 
@@ -141,6 +149,9 @@ class SoloTttViewModel : ViewModel() {
                 else -> "draw"
             },
         )
+        if (result.over) {
+            SoloRecordStore.current?.recordRun(GameKind.TTT, if (match.classic) "classic" else "ultimate", SoloMetric.WINS_IN_ROW, result.winner == 'm')
+        }
     }
 
     private fun computerMoves() {
@@ -192,6 +203,8 @@ class SoloMemoryViewModel : ViewModel() {
             finishedMs = if (done) now - start else null,
             bestFlips = if (done) minOf(s.bestFlips ?: flips, flips) else s.bestFlips,
         )
+        // A cleared deck is a result (a finished one takes no more flips, so this is once).
+        if (done) SoloRecordStore.current?.record(GameKind.MEMORY, match.cards.toString(), SoloMetric.FLIPS, flips.toLong())
         // A missed pair turns face down again after a moment.
         if (match.up.size == 2) {
             hideJob = viewModelScope.launch {
@@ -267,12 +280,19 @@ class SoloDominoesViewModel : ViewModel() {
             result.again -> mark
             else -> m.marks[(m.marks.indexOf(mark) + 1) % m.marks.size]
         }
+        val view = viewOf(m)
+        val won = result.over && result.winner != null && m.sameSide(result.winner, 'm')
         _state.update {
             it.copy(
-                view = viewOf(m),
+                view = view,
                 turn = next,
-                result = if (!result.over) null else if (result.winner != null && m.sameSide(result.winner, 'm')) "me" else "computer",
+                result = if (!result.over) null else if (won) "me" else "computer",
             )
+        }
+        if (result.over) {
+            // Points ahead of the best other side, in a game you won.
+            val ahead = (view.scores['m'] ?: 0) - (view.scores.filterKeys { it != 'm' && it !in view.partners }.values.maxOrNull() ?: 0)
+            SoloRecordStore.current?.record(GameKind.DOMINOES, _state.value.opponents.toString(), SoloMetric.POINTS_AHEAD, ahead.takeIf { won && it > 0 }?.toLong())
         }
     }
 
@@ -352,6 +372,7 @@ class SoloClashViewModel : ViewModel() {
                 result = if (!result.over) null else if (result.winner == 'm') "me" else "computer",
             )
         }
+        if (result.over) SoloRecordStore.current?.recordRun(GameKind.CLASH, _state.value.opponents.toString(), SoloMetric.WINS_IN_ROW, result.winner == 'm')
     }
 
     private fun computersMove() {
@@ -418,6 +439,7 @@ class SoloLudoViewModel : ViewModel() {
                 result = if (!result.over) null else if (result.winner == 'm') "me" else "computer",
             )
         }
+        if (result.over) SoloRecordStore.current?.recordRun(GameKind.LUDO, _state.value.opponents.toString(), SoloMetric.WINS_IN_ROW, result.winner == 'm')
     }
 
     private fun computersMove() {

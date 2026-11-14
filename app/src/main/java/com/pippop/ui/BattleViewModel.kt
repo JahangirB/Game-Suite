@@ -48,6 +48,7 @@ import com.pippop.data.ProfileStore
 import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.MatchRecord
+import com.pippop.data.GameFacts
 import com.pippop.data.ScoreStore
 import com.pippop.data.RoomStatus
 import com.pippop.data.TurnsView
@@ -1818,7 +1819,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 "opponent" -> if (room.together) null else room.winnerName ?: room.opponent?.name
                 else -> null
             }
-            ScoreStore.get(getApplication()).add(MatchRecord(System.currentTimeMillis(), room.game, room.others.map { it.name }, winner))
+            val facts = GameFacts.of(room)
+            ScoreStore.get(getApplication()).add(
+                MatchRecord(
+                    System.currentTimeMillis(), room.game, room.others.map { it.name }, winner,
+                    durationMs = facts.durationMs, myScore = facts.mine, theirScore = facts.theirs, winnerCount = facts.count,
+                ),
+            )
         }
         return room
     }

@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import com.pippop.data.CodeGuess
 import com.pippop.game.code.CodeBreaker
@@ -38,5 +41,9 @@ class SoloCodeViewModel : ViewModel() {
         val guesses = s.guesses + CodeGuess(code, black, white)
         val solved = black == s.rules.pegs
         _state.update { it.copy(guesses = guesses, best = if (solved) minOf(it.best ?: guesses.size, guesses.size) else it.best) }
+        if (solved || guesses.size >= CodeBreaker.TRIES) {
+            val level = "${s.rules.pegs}-${s.rules.colours}-${if (s.rules.repeats) "repeats" else "none"}"
+            SoloRecordStore.current?.record(GameKind.CODE, level, SoloMetric.GUESSES, if (solved) guesses.size.toLong() else null)
+        }
     }
 }

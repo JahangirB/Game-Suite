@@ -1,12 +1,14 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import android.app.Application
 import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.data.Difficulty
-import com.pippop.data.ProfileStore
 import com.pippop.game.Generator
 import com.pippop.game.SoloGame
 import com.pippop.game.SoloSave
@@ -34,7 +36,6 @@ data class SoloUiState(
 class SoloViewModel(app: Application) : AndroidViewModel(app) {
     // The file keeps the app's first name: renaming it would lose the game in progress.
     private val prefs = app.getSharedPreferences("arcade_sudoku_solo", Context.MODE_PRIVATE)
-    private val store = ProfileStore.get(app)
 
     private val _state = MutableStateFlow(SoloUiState(game = SoloSave.decode(prefs.getString(KEY_SAVE, null))))
     val state: StateFlow<SoloUiState> = _state.asStateFlow()
@@ -83,7 +84,7 @@ class SoloViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(game = next) }
         // Best times are for one grid; a big board is a different race.
         if (current.status == SoloStatus.PLAYING && next.status == SoloStatus.WON && !next.shape.big) {
-            store.recordSoloWin(next.difficulty, next.elapsedMs)
+            SoloRecordStore.current?.record(GameKind.SUDOKU, next.difficulty.key, SoloMetric.TIME, next.elapsedMs)
         }
         save(next)
     }
