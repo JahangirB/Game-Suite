@@ -4,7 +4,7 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 
 ## Before building
 
-- [ ] The owner has confirmed the plan and the three questions in PLAN.md section 6
+- [x] The owner has confirmed the plan and the three questions in PLAN.md section 6
 
 ## Steps
 
@@ -27,8 +27,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [ ] Ship Battle styles only in the game's Skins button
 - [ ] **Step 8. Colour Clash: the dictator card just gives +8**
   - [ ] No lock, no animation; +8 to the next player; tested in all servers and on the phone
-- [ ] **Step 9. Mini Golf: the Kylian spot skips only the player who landed there**
-  - [ ] Bug reproduced by a test, then fixed, in Cloudflare, nearby and solo
+- [ ] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
+  - [ ] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
 - [ ] **Step 10. Mini Golf: an unfinished hole costs 5**
   - [ ] Scoring, score strip, result and rules; tested in every place
 - [ ] **Step 11. The last pass**

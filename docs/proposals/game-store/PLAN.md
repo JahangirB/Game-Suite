@@ -35,12 +35,14 @@ changes.
   Dominoes, Colour Clash, Ludo, Mini Golf. **In the Store:** Connect Four, Dots & Boxes, Draw &
   Guess, Number Cross, Air Hockey, Letter Grid, Balloon Words, Code Breaker, Slide Race, Bingo,
   Corner Blocks.
-- **Phones that already have the app** get the same nine on their first open of this version,
-  in the order they had them; a one-time note says "The other games are in the Game Store"
-  (*owner to confirm, see 6*).
+- **Phones that already have the app** also start from the nine on their first open of this
+  version, whatever they played before; the rest go to the Store with scores kept. A one-time note
+  says "The other games are in the Game Store". (Confirmed by the owner.)
 - **The Arrange screen and its button go.** Holding a card starts editing in place.
 - **Mini Golf, an unfinished hole:** a player who has not holed out when the hole ends scores the
-  strokes they took plus 5 (*owner to confirm, see 6*).
+  strokes they took plus 5. (Confirmed by the owner.)
+- **Order:** this round is built on the same work branch; the code word later ships both rounds.
+  (Confirmed by the owner.)
 
 ## 4. Steps
 
@@ -107,12 +109,15 @@ take-over, no animation, nothing blocks the controls. Check all three servers an
 rules for any lock tied to the card; keep the card's rules otherwise as they are. *Done when* tests
 in each server and on the phone show the +8 and that the next move is accepted at once.
 
-### Step 9. Mini Golf: the Kylian spot skips only the player who landed there
+### Step 9. Mini Golf: the Kylian statue blocks only the player who landed there
 
-Today, when a ball stops on the Kylian spot, the other player cannot play either. Find the cause
-(the skip in `golf.js`, `Golf.kt` and the nearby room) and fix it so only the player whose ball
-stopped there loses their next turn. *Done when* a test in each place reproduces today's bug and
-then passes: the other player moves on at once.
+Today, when a ball stops on the Kylian spot, the statue rises and every player has to wait for its
+animation; even after the statue goes down, the other players still cannot play. Only the player
+whose ball stopped there should lose their next turn: the others play on at once, during the
+animation and after it, and the statue's animation never locks anyone's controls. Find the cause
+in every place it can live (`golf.js`, `Golf.kt`, the nearby room, and the golf screen's input and
+animation locks) and fix it. *Done when* a test in each place reproduces today's bug and then
+passes: the next player can shoot while the statue is still up and after it has gone down.
 
 ### Step 10. Mini Golf: an unfinished hole costs 5
 
@@ -132,10 +137,7 @@ owner gets the report and the preview link.
 - Background self-update.
 - New games.
 
-## 6. For the owner to confirm
+## 6. Answered by the owner
 
-1. **Phones that already have the app:** do they also start from the nine (the rest go to the
-   Store, scores kept), or keep every game they have today? The plan assumes **the nine**.
-2. **Mini Golf penalty:** strokes taken **plus 5** (assumed), or the hole's limit plus 5?
-3. **Order:** build this on the same work branch, so the code word later ships both rounds at once
-   (assumed), or ship Between the Boards first?
+Phones that already have the app start from the nine; the golf penalty is strokes taken plus 5;
+this round is built on the same work branch.
