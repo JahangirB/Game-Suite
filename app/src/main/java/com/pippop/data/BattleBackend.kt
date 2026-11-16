@@ -85,6 +85,15 @@ interface BattleBackend {
     /** The photo of the room's player whose room state said [id], or null. Fetched once per id. */
     suspend fun face(code: String, playerId: String, id: Int): String? = null
 
+    /**
+     * Memory Pairs with photos: the opener sets the photo for place [slot] of the deck (base64 JPEG, at most
+     * [MemoryPhotos.MAX_BASE64] characters), or null to empty it. Only to a server with the "memory-photos" cap.
+     */
+    suspend fun setMemoryPic(code: String, playerId: String, slot: Int, photo: String?): JSONObject = throw ApiException("Your photos need the latest Pip & Pop.")
+
+    /** The deck photo whose id the room state carried, or null. Fetched once per id. */
+    suspend fun memoryPic(code: String, playerId: String, id: Int): String? = null
+
     /** Draw & Guess: the drawer takes back the last line. */
     suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
 
@@ -128,8 +137,8 @@ interface BattleBackend {
 
     companion object {
         /** The games this app can play, sent when joining so a server can ask older apps to update. */
-        /** The games this app knows, "sudoku-big" (it plays Sudoku boards of joined grids) and "sudoku-opener" (whoever opens Sudoku picks the level). */
-        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU + "," + com.pippop.data.nearby.LocalRoom.SUDOKU_OPENER
+        /** The games this app knows, "sudoku-big" (it plays Sudoku boards of joined grids) and "sudoku-opener" (whoever opens Sudoku picks the level) and "memory-photos" (it shows Memory Pairs cards with the players' photos). */
+        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU + "," + com.pippop.data.nearby.LocalRoom.SUDOKU_OPENER + "," + com.pippop.data.nearby.LocalRoom.MEMORY_PHOTOS
 
         /** Apps Script links poll; anything else is a Cloudflare server with a live connection. */
         fun forUrl(url: String, password: String): BattleBackend =

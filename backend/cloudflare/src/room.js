@@ -108,6 +108,7 @@ export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = 
   const host = newPlayer(hostName, avatar, now, uuid, deviceId, open);
   host.bigSudoku = knowsBigSudoku(games);
   host.sudokuOpener = knowsSudokuOpener(games);
+  host.memoryPhotos = knowsMemoryPhotos(games);
   return {
     code, game: open, createdAt: now, version: 0, emojiSeq: 0, difficulty: null, status: 'waiting', round: 0,
     puzzle: null, solution: null, startAt: null, winner: null, endReason: null,
@@ -119,8 +120,10 @@ export function createRoom(code, hostName, now, uuid, avatar = null, deviceId = 
 const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku-big');
 /** Whether an app that sent [games] understands a Sudoku room where the opener picks the level. */
 const knowsSudokuOpener = (games) => Array.isArray(games) && games.includes('sudoku-opener');
+/** Whether an app that sent [games] can show Memory Pairs cards with the players' own photos. */
+const knowsMemoryPhotos = (games) => Array.isArray(games) && games.includes('memory-photos');
 /** What this server can do, sent in every room state; an app shows a control only when its cap is here. */
-export const CAPS = ['sudoku-opener', 'lines', 'packs', 'faces'];
+export const CAPS = ['sudoku-opener', 'lines', 'packs', 'faces', 'memory-photos'];
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -184,6 +187,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
     // The same player on an updated app.
     room.players[known].bigSudoku = knowsBigSudoku(games);
     room.players[known].sudokuOpener = knowsSudokuOpener(games);
+    room.players[known].memoryPhotos = knowsMemoryPhotos(games);
     return known;
   }
   // The same phone coming back without its player id (a join retried after its answer was
@@ -192,6 +196,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   if (mine) {
     room.players[mine].bigSudoku = knowsBigSudoku(games);
     room.players[mine].sudokuOpener = knowsSudokuOpener(games);
+    room.players[mine].memoryPhotos = knowsMemoryPhotos(games);
     return mine;
   }
   if (playerId) throw new GameError("You're not in this game.", true, 'not_member');
@@ -204,6 +209,7 @@ export function joinRoom(room, name, playerId, now, uuid, avatar = null, deviceI
   room.players[seat] = newPlayer(name, avatar, now, uuid, deviceId, room.game);
   room.players[seat].bigSudoku = knowsBigSudoku(games);
   room.players[seat].sudokuOpener = knowsSudokuOpener(games);
+  room.players[seat].memoryPhotos = knowsMemoryPhotos(games);
   // Everyone gets ready again, so the newcomer is part of the next round.
   for (const r of seated(room)) Object.assign(room.players[r], { ready: false, difficulty: null });
   if (room.status === 'waiting') room.status = 'lobby';
@@ -312,6 +318,11 @@ const cleanSudokuOptions = (o) => ({
  * on an older app the room works as before: everyone taps a level and it starts when they match.
  */
 export const openerMode = (room) => room.game === 'sudoku' && inRoom(room).every((r) => room.players[r].sudokuOpener === true);
+/**
+ * Memory Pairs with the players' own photos: every player in the room has the 'memory-photos' token. With anyone
+ * lacking it the deck is the animals, whatever was chosen, and no photo is kept or sent.
+ */
+export const memoryPhotosAllowed = (room) => room.game === 'memory' && inRoom(room).every((r) => room.players[r].memoryPhotos === true);
 /** The level the opener chose for the next round. */
 const openerLevel = (room) => cleanSudokuOptions(room.options).level || 'medium';
 /** Lives a team shares in Sudoku together: more on a board of joined grids. */
@@ -517,11 +528,15 @@ export const TURN_GAMES = Object.keys(TURN_RULES);
 /** Ready (or not ready) for the next round of a turn game; it starts when both are ready. */
 export function setTurnReady(room, role, ready, now, random = Math.random) {
   checkCanReady(room);
+  if (ready !== false && room.game === 'memory' && memoryPhotosAllowed(room) && memory.cleanDeck(room.options) === 'photos') {
+    const missing = memory.memoryPics(room).filter((id) => id == null).length;
+    if (missing) throw new GameError(`Choose ${missing} more ${missing === 1 ? 'photo' : 'photos'} to start.`);
+  }
   room.players[role].ready = ready !== false;
   if (allReady(room)) {
     const roles = present(room);
     let first = room.firstTurn ? nextOf(roles, room.firstTurn, roles) : roles[Math.floor(random() * roles.length)];
-    const turnState = TURN_RULES[room.game].start(random, roles.map((r) => MARKS[r]), room.options || {});
+    const turnState = TURN_RULES[room.game].start(random, roles.map((r) => MARKS[r]), startOptions(room));
     // Dominoes picks its own first player (the highest double).
     if (turnState.turn) first = roleOfMark(turnState.turn);
     beginMatch(room, { startAt: now, firstTurn: first, turn: first, turnState });
@@ -544,7 +559,16 @@ export function setOptions(room, role, options) {
   else if (room.game === 'slide') room.options = slideGame.cleanOptions(options);
   else if (room.game === 'ttt') room.options = ttt.cleanOptions(options);
   else if (room.game === 'golf') room.options = golf.cleanOptions(options);
-  else if (room.game === 'memory') room.options = memory.cleanOptions(options);
+  else if (room.game === 'memory') {
+    // The deck's pictures are the opener's to keep when a call (an older app's) leaves them out.
+    const deck = memory.cleanDeck({ deck: options?.deck ?? room.options?.deck });
+    // Only a call that asks for the photos is refused; a deck kept from before (an old phone joined since) stays as it is.
+    if (options?.deck === 'photos' && !memoryPhotosAllowed(room)) throw new GameError('Your photos need the latest Pip & Pop on every phone.');
+    const next = { ...memory.cleanOptions(options), deck };
+    // Another deck or another size takes the photos away; the opener picks again (the server sweeps the stored ones).
+    if (next.cards !== memory.cleanOptions(room.options).cards || next.deck !== memory.cleanDeck(room.options)) delete room.memoryPics;
+    room.options = next;
+  }
   else if (room.game === 'code') room.options = codeGame.cleanOptions(options);
   else if (room.game === 'dots') room.options = dots.cleanOptions(options);
   else if (room.game === 'draw') room.options = draw.cleanOptions(options);
@@ -599,6 +623,8 @@ function turnView(room, role, status) {
     turn: status === 'playing' ? (room.turn === role ? 'me' : 'opponent') : null,
     turnName: status === 'playing' ? room.players[room.turn]?.name || null : null,
     ...(room.turnState ? TURN_RULES[room.game].view(room.turnState, MARKS[role], seats) : {}),
+    // A phone without the 'memory-photos' token never sees a photo card: it gets the plain animal of the pair.
+    ...(room.game === 'memory' && room.turnState && room.players[role]?.memoryPhotos !== true ? { faces: memory.view(room.turnState, MARKS[role], seats).faces.map(memory.animalFor) } : {}),
   };
 }
 
@@ -886,7 +912,7 @@ export function setSlidePhoto(room, role, photo) {
   if (room.game !== 'slide') throw new GameError('Only Slide Race has a photo.');
   const opener = room.openedBy || 'host';
   if (role !== opener) throw new GameError('Only whoever opened the game can pick the photo.');
-  if (room.status === 'started') throw new GameError('The photo can only change between matches.');
+  if (room.status === 'started') throw new GameError('The photo can only change between games.');
   if (photo == null || photo === '') {
     room.slidePhoto = null;
   } else {
@@ -1320,12 +1346,12 @@ export function openGame(room, role, game, now) {
       ...newPlayer(p.name, p.avatar, now, () => p.id, p.deviceId, at),
       emoji: p.emoji, emojiAt: p.emojiAt, connected: p.connected, awaySince: p.awaySince,
       // What their app understands goes with them to the new game.
-      bigSudoku: p.bigSudoku, sudokuOpener: p.sudokuOpener,
+      bigSudoku: p.bigSudoku, sudokuOpener: p.sudokuOpener, memoryPhotos: p.memoryPhotos,
       // Their photo stays in storage under the same id (faces.js).
       photoId: p.photoId ?? null, faceAt: p.faceAt ?? null,
     };
   }
-  const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, faceSeq: room.faceSeq, round: room.round, startPushedRound: room.startPushedRound };
+  const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, faceSeq: room.faceSeq, memSeq: room.memSeq, round: room.round, startPushedRound: room.startPushedRound };
   for (const key of Object.keys(room)) delete room[key];
   Object.assign(room, fresh, kept, { players, openedBy: role, status: inRoom({ players }).length >= 2 ? 'lobby' : 'waiting' });
   bump(room);
@@ -1368,6 +1394,11 @@ export function wantRestart(room, role, want, now) {
 
 export function leave(room, role, now = Date.now()) {
   dropOut(room, role, 'forfeit', now);
+  // The opener's photos go with them: the deck is the animals again (the server sweeps the stored ones).
+  if (room.game === 'memory' && role === (room.openedBy || 'host')) {
+    delete room.memoryPics;
+    if (room.options) room.options = { ...room.options, deck: 'animals' };
+  }
   if (role === 'host') {
     room.status = 'closed';
     room.players.host.left = true;
@@ -1570,6 +1601,19 @@ function sudokuOptionsView(room) {
   return openerMode(room) ? { mode, shape, level: openerLevel(room) } : { mode, shape };
 }
 
+/** Memory Pairs' options as sent: the deck's pictures and the photos' ids only where everyone has the token (an old room's are {cards}). */
+function memoryOptionsView(room) {
+  const base = memory.cleanOptions(room.options);
+  if (!memoryPhotosAllowed(room)) return base;
+  return memory.cleanDeck(room.options) === 'photos' ? { ...base, deck: 'photos', photos: memory.memoryPics(room) } : { ...base, deck: 'animals' };
+}
+
+/** Memory's start options: the photos deck only while it is allowed. */
+function startOptions(room) {
+  const options = room.options || {};
+  return room.game === 'memory' && !memoryPhotosAllowed(room) ? { ...options, deck: 'animals' } : options;
+}
+
 /** What one player is allowed to see; the same shape the Apps Script backend sends. */
 export function view(room, role, now) {
   let status = room.status;
@@ -1584,6 +1628,8 @@ export function view(room, role, now) {
     caps: CAPS,
     // Sudoku: the opener picks the level while everyone in the room understands it.
     sudokuOpener: openerMode(room),
+    // Memory Pairs: every player in the room has the 'memory-photos' token, so the deck may be their photos.
+    memoryPhotos: memoryPhotosAllowed(room),
     version: room.version,
     role,
     status,
@@ -1600,7 +1646,7 @@ export function view(room, role, now) {
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memory.cleanOptions(room.options) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? sudokuOptionsView(room) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'memory' ? memoryOptionsView(room) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? sudokuOptionsView(room) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

@@ -414,6 +414,12 @@ data class RoomState(
     val caps: List<String> = emptyList(),
     /** Sudoku: the server says whoever opened the game picks the level and the others tap Ready. */
     val sudokuOpener: Boolean = false,
+    /** Memory Pairs: the server says every player in the room has the "memory-photos" token, so the deck may be their photos. */
+    val memoryPhotos: Boolean = false,
+    /** Memory Pairs: the opener chose "Your photos" for the deck (only sent while [memoryPhotos]). */
+    val memoryDeckPhotos: Boolean = false,
+    /** Memory Pairs: the id of each pair's photo, or null where none has been sent yet (empty unless [memoryDeckPhotos]). */
+    val memoryPhotoIds: List<Int?> = emptyList(),
     /** Sudoku: the level the opener picked for the next round (only sent while [sudokuOpener]). */
     val sudokuLevel: Difficulty? = null,
     /** Whether the room plays game after game (players have [PlayerInfo.at]); older servers play one. */
@@ -426,6 +432,16 @@ data class RoomState(
      * only tap Ready: the server says so ([sudokuOpener]) and has the "sudoku-opener" cap. Otherwise
      * everyone taps a level and it starts when the taps match.
      */
+    /** Memory Pairs: "Your photos" may be offered: the server has the cap and every player has the token. */
+    val memoryPhotosOffered get() = game == GameKind.MEMORY && MemoryPhotos.offered(caps, memoryPhotos)
+
+    /** Memory Pairs: the deck is the players' photos now. */
+    val memoryPhotosOn get() = memoryPhotosOffered && memoryDeckPhotos
+
+    /** Memory Pairs: how many of the deck's photos have been sent, and how many it needs. */
+    val memoryPhotosSent get() = memoryPhotoIds.count { it != null }
+    val memoryPairs get() = memoryCards / 2
+
     val picksByOpener get() = game == GameKind.SUDOKU && sudokuOpener && "sudoku-opener" in caps
 
     /** Sudoku together: one grid for everyone. */
@@ -506,6 +522,10 @@ fun parseRoom(json: JSONObject) = RoomState(
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
     caps = json.optJSONArray("caps")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s.isNotEmpty() } } }.orEmpty(),
     sudokuOpener = json.optBoolean("sudokuOpener"),
+    memoryPhotos = json.optBoolean("memoryPhotos"),
+    memoryDeckPhotos = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optString("deck") == "photos",
+    memoryPhotoIds = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optJSONArray("photos")
+        ?.let { a -> (0 until a.length()).map { if (a.isNull(it)) null else a.optInt(it).takeIf { id -> id > 0 } } }.orEmpty(),
     sudokuLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.SUDOKU }
         ?.stringOrNull("level")?.let { key -> Difficulty.entries.firstOrNull { it.key == key } },
     inSession = json.getJSONObject("me").has("at"),

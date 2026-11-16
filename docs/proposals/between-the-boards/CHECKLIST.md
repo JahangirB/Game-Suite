@@ -139,8 +139,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 - [x] **Step 29. Your photo as your face** (profile-photo)
   - [x] Cloudflare and Nearby; the animal is still sent; Apps Script unaffected
-- [ ] **Step 30. Memory Pairs with your photos** (looks-photos)
-  - [ ] Offered only when the server and every player can; photos kept out of the room object
+- [x] **Step 30. Memory Pairs with your photos** (looks-photos)
+  - [x] Offered only when the server and every player can; photos kept out of the room object
 
 ## Phase K: sound and touch
 

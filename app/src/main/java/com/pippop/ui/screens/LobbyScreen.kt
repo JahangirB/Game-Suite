@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pippop.data.Difficulty
+import com.pippop.data.MemoryPhotos
 import com.pippop.data.GameKind
 import com.pippop.data.Invite
 import com.pippop.data.PlayerInfo
@@ -134,7 +135,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             if (room.game == GameKind.WORDS) WordLevelCard(room, state.busy, vm::setWordLevel)
             if (room.game == GameKind.SLIDE) SlideLevelCard(room, state.busy, vm::setSlideLevel)
             if (room.game == GameKind.TTT) TttModeCard(room, state.busy, vm::setTttClassic)
-            if (room.game == GameKind.MEMORY) MemoryDeckCard(room, state.busy, vm::setMemoryCards)
+            if (room.game == GameKind.MEMORY) MemoryDeckCard(room, state.busy, vm::setMemoryCards, MemoryPhotosPanel(state.memoryPics, state.memoryPicking, vm::setMemoryPhotosDeck, vm::sendMemoryPhotos))
             if (room.game == GameKind.CODE) CodeRulesCard(room, state.busy, vm::setCodeRules)
             if (room.game == GameKind.DOTS) DotsBoardCard(room, state.busy, vm::setDotsBoard)
             if (room.game == GameKind.DRAW) DrawModeCard(room, state.busy, vm::setDrawRace)
@@ -328,6 +329,9 @@ internal fun readyLook(room: RoomState): ReadyLook {
     val waiting = others.filter { !it.ready }
     val ready = others.filter { it.ready }
     return when {
+        // Memory Pairs with your photos cannot start until every place of the deck has one.
+        room.memoryPhotosOn && room.memoryPhotosSent < room.memoryPairs && others.isNotEmpty() ->
+            ReadyLook("Ready", if (room.setsOptions) MemoryPhotos.readyLine(room.memoryPairs, room.memoryPhotosSent) else "Waiting for the photos.", false, false)
         others.isEmpty() && room.others.isNotEmpty() -> ReadyLook("Ready", "${room.others[0].name} has left. Leave to start a new game.", false, false)
         others.isEmpty() -> ReadyLook("Ready", "Waiting for someone to join.", false, false)
         room.me.ready && waiting.isEmpty() -> ReadyLook("Starting…", null, true, true)

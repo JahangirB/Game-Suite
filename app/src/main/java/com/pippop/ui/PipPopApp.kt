@@ -345,7 +345,7 @@ fun PipPopApp(
                     RoomControls(
                         room = r,
                         mode = modeLabel(r),
-                        setup = if (hasOptions(r)) ({ RoomOptions(r, battleState.busy, battle) }) else null,
+                        setup = if (hasOptions(r)) ({ RoomOptions(r, battleState.busy, battle, battleState) }) else null,
                         rematch = battle::rematch,
                         newGame = { battle.wantRestart(true) },
                         switchTo = battle::switchGame,

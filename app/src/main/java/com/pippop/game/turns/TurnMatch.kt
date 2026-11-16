@@ -54,6 +54,8 @@ interface TurnMatch {
             memoryCards: Int = MemoryMatch.CARDS,
             /** Dots & Boxes: the board ("4x4", "5x5", "6x6" or "heart"). */
             dotsBoard: String = "4x4",
+            /** Memory Pairs: the cards are pairs of the players' photos ("p0", "p1" …), not animals. */
+            memoryPhotos: Boolean = false,
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -63,7 +65,7 @@ interface TurnMatch {
             GameKind.GOLF -> GolfMatch(marks, Courses.pick(golfLevel, random))
             GameKind.BLOCKS -> BlocksMatch(marks)
             GameKind.DOTS -> DotsMatch(com.pippop.game.dots.DotsShape.from(dotsBoard))
-            GameKind.MEMORY -> MemoryMatch(random, memoryCards)
+            GameKind.MEMORY -> MemoryMatch(random, memoryCards, memoryPhotos)
             GameKind.TTT -> TttMatch(tttClassic)
             else -> C4Match()
         }

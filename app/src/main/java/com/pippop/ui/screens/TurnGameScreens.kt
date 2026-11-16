@@ -17,6 +17,10 @@ import kotlinx.coroutines.launch
 
 import com.pippop.game.memory.MemoryMatch
 import com.pippop.game.memory.CardFace
+import com.pippop.data.MemoryPhotos
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
@@ -633,7 +637,7 @@ internal fun dotsAspect(g: DotsShape) = (g.w * 0.84f + 0.16f * g.w) / (g.h * 0.8
  * a flip. With [onFlip] set, tapping a face-down card flips it.
  */
 @Composable
-fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
+fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     // Two face-up cards nobody owns are a missed pair: the rules leave them up until the next
     // flip, but after a look they turn back here, so nobody waits on the next player.
     val missed = faces.indices.filter { faces[it] != null && owners.getOrNull(it) == '.' }.takeIf { it.size == 2 }
@@ -654,11 +658,21 @@ fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (col in 0 until cols) {
                     val i = row * cols + col
-                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending, wobble = missed?.takeIf { i in it })
+                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending, wobble = missed?.takeIf { i in it }, photoOf = photoOf)
                 }
             }
         }
     }
+}
+
+/**
+ * A pair's photo as a picture, for a deck of the players' photos: the photo the room names for the pair, once it has
+ * arrived and been decoded (a lookup, never a decode: that was done off the main thread); null until then, and the card
+ * shows the pair's plain animal.
+ */
+internal fun memoryPhotoOf(room: RoomState, state: com.pippop.ui.BattleUiState): (CardFace) -> ImageBitmap? {
+    if (!room.memoryPhotosOn) return { null }
+    return { face -> face.pair?.let { room.memoryPhotoIds.getOrNull(it) }?.let { state.memoryPics[it] }?.let(MemoryPhotos::peek) }
 }
 
 /** How long a missed pair stays face up for everyone to see. */
@@ -671,7 +685,7 @@ private const val MISSED_LOOK_MS = 1400L
  * matched when the board appeared is simply in its place. [wobble] non-null shakes a missed card.
  */
 @Composable
-private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false, wobble: Any? = null) {
+private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false, wobble: Any? = null, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     val p = AppTheme.palette
     // Remember the last picture so the card still shows it while turning back.
     var shown by remember { mutableStateOf(face) }
@@ -707,7 +721,12 @@ private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modi
     ) {
         // Only the picture and its card fade, never the edge that says whose pair it is.
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = fade }.background(if (shown?.gold == true) Pieces.Gold else p.card), contentAlignment = Alignment.Center) {
-            shown?.let { AvatarImage(it.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) }
+            shown?.let { f ->
+                // A photos deck: the pair's photo once it has arrived, else the plain animal of the pair.
+                val photo = photoOf(f)
+                if (photo != null) Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().padding(3.dp).clip(Shapes.S))
+                else AvatarImage(f.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f))
+            }
         }
     }
     Box(
@@ -761,7 +780,7 @@ private const val MATCH_FLY_MS = 400
 
 /** The pairs each player has found, as small pictures under the chips. */
 @Composable
-private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pair<String, Char>>) {
+private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pair<String, Char>>, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     val p = AppTheme.palette
     @Composable
     fun line(label: String, mark: Char, color: Color) {
@@ -769,7 +788,7 @@ private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pai
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
             if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = TextSize.Label)
-            found.forEach { CardPicture(it, 24.dp) }
+            found.forEach { CardPicture(it, 24.dp, photoOf(it)) }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -857,7 +876,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     var replay by remember { mutableIntStateOf(0) }
     var showPairs by remember { mutableStateOf(false) }
     if (showPairs) InfoSheet("Pairs found", onDismiss = { showPairs = false }) {
-        FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
+        FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] }, photoOf = memoryPhotoOf(room, state))
     }
 
     // Boxes or pairs each player has, for the games that keep score.
@@ -936,7 +955,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     replay = replay,
                     shape = DotsShape.from(turns.dotsBoard),
                 )
-                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
+                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size, photoOf = memoryPhotoOf(room, state))
                 GameKind.TTT -> TttBoard(
                     board = turns.board ?: ".".repeat(81),
                     boards = turns.smallBoards ?: ".".repeat(9),
@@ -991,8 +1010,11 @@ internal fun memoryAspect(cards: Int): Float {
 
 /** A small card picture: the animal, on gold for the gold cards. */
 @Composable
-private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size).clip(Shapes.S).background(if (face.gold) Pieces.Gold else Color.Transparent)) { AvatarImage(face.avatar, Modifier.size(size)) }
+private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp, photo: ImageBitmap? = null) {
+    Box(Modifier.size(size).clip(Shapes.S).background(if (face.gold && photo == null) Pieces.Gold else Color.Transparent)) {
+        if (photo != null) Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size))
+        else AvatarImage(face.avatar, Modifier.size(size))
+    }
 }
 
 // ---- On your own --------------------------------------------------------------------------
@@ -1218,11 +1240,26 @@ private fun Sfx.tttSound(mark: Char?) {
     if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS, others = true)
 }
 
-/** Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. */
+/**
+ * Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. Where the server has the cap and every player has
+ * the token ([RoomState.memoryPhotosOffered], and [photos] is given), the card also says "Setup" and holds a Pictures row,
+ * Animals or Your photos, with the photos picker under it. Otherwise it is as it always was.
+ */
 @Composable
-fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit) {
-    OptionsCard(room, "Deck", busy) { enabled ->
-        OptionRow("Cards", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled, note = "Bigger decks bring in more pictures and a longer game.")
+fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit, photos: MemoryPhotosPanel? = null) {
+    if (photos == null || !room.memoryPhotosOffered) {
+        OptionsCard(room, "Deck", busy) { enabled ->
+            OptionRow("Cards", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled, note = "Bigger decks bring in more pictures and a longer game.")
+        }
+        return
+    }
+    OptionsCard(room, "Setup", busy) { enabled ->
+        OptionRow("Deck", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled && photos.picking == null)
+        OptionRow(
+            "Pictures", listOf(false to "Animals", true to "Your photos"), room.memoryDeckPhotos, photos.onDeck, enabled = enabled && photos.picking == null,
+            note = if (room.memoryDeckPhotos) null else "The animals bring in more pictures as the deck grows.",
+        )
+        if (room.memoryDeckPhotos) MemoryPhotoPicker(room, photos, enabled)
     }
 }
 

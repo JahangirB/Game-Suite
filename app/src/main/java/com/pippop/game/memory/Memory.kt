@@ -7,12 +7,25 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.random.Random
 
-/** A Memory card's picture: an animal, on a plain card or (in the 36-card deck) a gold one. */
-data class CardFace(val avatar: Avatar, val gold: Boolean = false) {
-    val key get() = avatar.key + if (gold) "*" else ""
+/**
+ * A Memory card's picture: an animal, on a plain card or (in the 36-card deck) a gold one. In a deck of the players'
+ * photos ([pair] set; key "p3") the animal is the plain face of that pair, shown until the pair's photo has arrived, so
+ * the two cards of a pair always look alike.
+ */
+data class CardFace(val avatar: Avatar, val gold: Boolean = false, val pair: Int? = null) {
+    val key get() = if (pair != null) "p$pair" else avatar.key + if (gold) "*" else ""
 
     companion object {
-        fun from(key: String?): CardFace? = key?.let { k -> Avatar.from(k.removeSuffix("*"))?.let { CardFace(it, k.endsWith("*")) } }
+        private val PHOTO_KEY = Regex("p(\\d{1,2})")
+
+        /** The face of pair [pair] in a deck of photos: its plain animal (gold once the animals run out). */
+        fun photo(pair: Int): CardFace = Avatar.entries.size.let { n -> CardFace(Avatar.entries[pair % n], gold = pair >= n, pair = pair) }
+
+        fun from(key: String?): CardFace? {
+            if (key == null) return null
+            PHOTO_KEY.matchEntire(key)?.let { return photo(it.groupValues[1].toInt()) }
+            return Avatar.from(key.removeSuffix("*"))?.let { CardFace(it, key.endsWith("*")) }
+        }
     }
 }
 
@@ -22,10 +35,12 @@ data class CardFace(val avatar: Avatar, val gold: Boolean = false) {
  * yours and you go again, otherwise they stay up until the next flip and the turn passes.
  * Moves are {"card": n}.
  */
-class MemoryMatch(random: Random = Random.Default, cards: Int = CARDS) : TurnMatch {
+class MemoryMatch(random: Random = Random.Default, cards: Int = CARDS, photos: Boolean = false) : TurnMatch {
     val cards = cards.takeIf { it in DECKS } ?: CARDS
-    val deck: List<CardFace> = (Avatar.entries.shuffled(random).map { CardFace(it) } + Avatar.entries.shuffled(random).map { CardFace(it, gold = true) })
-        .take(this.cards / 2).let { (it + it).shuffled(random) }
+    val deck: List<CardFace> = (
+        if (photos) List(this.cards / 2) { CardFace.photo(it) }
+        else Avatar.entries.shuffled(random).map { CardFace(it) } + Avatar.entries.shuffled(random).map { CardFace(it, gold = true) }
+        ).take(this.cards / 2).let { (it + it).shuffled(random) }
     var owners = ".".repeat(this.cards)
         private set
     /** Face-up cards that aren't matched: a first flip, or a missed pair until the next flip. */

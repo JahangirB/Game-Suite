@@ -49,6 +49,7 @@ import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
 import com.pippop.data.ChatLines
 import com.pippop.data.Faces
+import com.pippop.data.MemoryPhotos
 import com.pippop.data.PackKey
 import com.pippop.data.PackReceiver
 import com.pippop.data.PackShown
@@ -125,6 +126,9 @@ object Takeover {
     }
 }
 
+/** Memory Pairs: the opener's photos being made and sent to the room, for the lobby's "3 of 8 sent". [thumbs] are the photos made so far, by place. */
+data class MemoryPicking(val total: Int, val sent: Int = 0, val thumbs: Map<Int, String> = emptyMap(), val failed: Int = 0)
+
 data class BattleUiState(
     val hostCode: String = Invite.randomCode(),
     val joinCode: String = "",
@@ -149,6 +153,10 @@ data class BattleUiState(
     val myReaction: ShownReaction? = null,
     /** The photos of the room's other players, fetched once each, by the id the room state carries ([Faces]). */
     val faces: Map<Int, String> = emptyMap(),
+    /** Memory Pairs: the deck's photos, fetched once each, by the id the room state carries per pair ([MemoryPhotos]). */
+    val memoryPics: Map<Int, String> = emptyMap(),
+    /** Memory Pairs: the opener's photos being sent, or null. */
+    val memoryPicking: MemoryPicking? = null,
     /** Ship Battle: the fleet you will be ready with (shuffle until you like it). */
     val fleetDraft: List<Ship> = Fleet.random(),
     /** A move or shot is on its way; it already shows where the rules allow (see [playMove]). */
@@ -1044,12 +1052,122 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sendReady(room.copy(codeRules = rules, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, rules.toJson()) }
     }
 
-    /** Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. */
+    /**
+     * Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. A new size
+     * takes the photos away (the server says so in its next state), where the deck is the photos.
+     */
     fun setMemoryCards(cards: Int) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.memoryCards == cards) return
-        sendReady(room.copy(memoryCards = cards, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("cards", cards))
+        sendReady(room.copy(memoryCards = cards, memoryPhotoIds = emptyList(), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("cards", cards).apply { if (room.memoryPhotosOffered) put("deck", if (room.memoryDeckPhotos) "photos" else "animals") })
+        }
+    }
+
+    /** Memory Pairs: whoever opened the game picks the animals or "Your photos" (only where [RoomState.memoryPhotosOffered]); everyone gets ready again. */
+    fun setMemoryPhotosDeck(photos: Boolean) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || !room.memoryPhotosOffered || room.memoryDeckPhotos == photos || _state.value.memoryPicking != null) return
+        sendReady(room.copy(memoryDeckPhotos = photos, memoryPhotoIds = emptyList(), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("cards", room.memoryCards).put("deck", if (photos) "photos" else "animals"))
+        }
+    }
+
+    /**
+     * Memory Pairs: the opener's chosen [uris] are each cropped square, made small and sent once, one after the other
+     * ([MemoryPhotos.plan] says where each goes; [onlyMissing] fills the empty places, else the set is replaced).
+     * The lobby shows "3 of 8 sent" from [BattleUiState.memoryPicking]; a photo that cannot be read is skipped and said so.
+     */
+    fun sendMemoryPhotos(uris: List<android.net.Uri>, onlyMissing: Boolean) {
+        val room = _state.value.room ?: return
+        val me = playerId ?: return
+        val b = backend ?: return
+        if (!room.setsOptions || !room.memoryPhotosOn || _state.value.memoryPicking != null) return
+        val plan = MemoryPhotos.plan(room.memoryPairs, room.memoryPhotoIds, uris.size, onlyMissing)
+        if (plan.isEmpty()) return
+        _state.update { it.copy(memoryPicking = MemoryPicking(plan.size)) }
+        memoryJob = viewModelScope.launch {
+            val made = mutableMapOf<Int, String>()
+            var failed = 0
+            var error: String? = null
+            try {
+                for ((slot, from) in plan) {
+                    val photo = from?.let { MemoryPhotos.fromUri(getApplication(), uris[it]) }
+                    if (from != null && photo == null) {
+                        failed++
+                        _state.update { s -> s.copy(memoryPicking = s.memoryPicking?.copy(sent = s.memoryPicking.sent + 1, failed = failed)) }
+                        continue
+                    }
+                    // Decoded once here, off the main thread, so the thumbnail can be drawn at once.
+                    if (photo != null) kotlinx.coroutines.withContext(Dispatchers.Default) { MemoryPhotos.decode(photo) }
+                    try {
+                        sendMemoryPic(b, room.code, me, slot, photo)
+                    } catch (e: ApiException) {
+                        // The server's pace limit: wait a moment and try this one again.
+                        if (e.message?.contains("Slow down") != true) throw e
+                        delay(MemoryPhotos.SEND_GAP_MS * 2)
+                        sendMemoryPic(b, room.code, me, slot, photo)
+                    }
+                    if (photo != null) made[slot] = photo
+                    _state.update { s -> s.copy(memoryPicking = s.memoryPicking?.copy(sent = s.memoryPicking.sent + 1, thumbs = made.toMap())) }
+                    delay(MemoryPhotos.SEND_GAP_MS)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                error = e.message
+            } catch (e: IOException) {
+                error = "Network problem, try again."
+            }
+            // The photos this phone made need no fetching: the ids the room now holds for them are matched here.
+            val ids = _state.value.room?.memoryPhotoIds.orEmpty()
+            _state.update { s ->
+                val mine = made.mapNotNull { (slot, photo) -> ids.getOrNull(slot)?.let { id -> id to photo } }.toMap()
+                memoryPicsAsked.addAll(mine.keys)
+                s.copy(memoryPicking = null, memoryPics = s.memoryPics + mine)
+            }
+            _state.value.room?.let(::syncMemoryPics)
+            when {
+                error != null -> showMessage(error, Tone.Bad)
+                failed > 0 -> showMessage(if (failed == 1) "One photo could not be read." else "$failed photos could not be read.", Tone.Bad)
+            }
+        }
+    }
+
+    /** The photos being sent (see [sendMemoryPhotos]); cancelled when the session ends. */
+    private var memoryJob: Job? = null
+
+    private suspend fun sendMemoryPic(b: BattleBackend, code: String, me: String, slot: Int, photo: String?) {
+        applyResponse(b.setMemoryPic(code, me, slot, photo), null)
+    }
+
+    /** Photo ids of the deck asked for in this session, so each is fetched once. */
+    private val memoryPicsAsked = mutableSetOf<Int>()
+
+    /**
+     * Where the deck is the players' photos, each photo the room state names is fetched once by its id, decoded off the
+     * main thread and checked before it is kept; a missing or unreadable one is left, and its cards show the plain animal.
+     */
+    private fun syncMemoryPics(room: RoomState) {
+        // While this phone is sending, its own photos are not fetched back: they are matched to their ids at the end.
+        if (!room.memoryPhotosOn || _state.value.memoryPicking != null) return
+        val b = backend ?: return
+        val me = playerId ?: return
+        val ids = room.memoryPhotoIds.filterNotNull().toSet()
+        if (_state.value.memoryPics.keys.any { it !in ids }) _state.update { s -> s.copy(memoryPics = s.memoryPics.filterKeys { it in ids }) }
+        for (id in MemoryPhotos.toFetch(room.memoryPhotoIds, memoryPicsAsked)) {
+            viewModelScope.launch {
+                val photo = try {
+                    b.memoryPic(room.code, me, id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                if (photo != null && kotlinx.coroutines.withContext(Dispatchers.Default) { MemoryPhotos.decode(photo) } != null) {
+                    _state.update { it.copy(memoryPics = it.memoryPics + (id to photo)) }
+                }
+            }
         }
     }
 
@@ -2005,6 +2123,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
         if (room.game == GameKind.SLIDE) fetchSlidePhoto(room)
         syncFaces(room)
+        syncMemoryPics(room)
         countForTonight(room)
         // A game starting (its countdown, or playing if it has none) is noted once per round, for you being in it.
         if (room.atGame && room.inMatch && notedStart != room.game to room.round) {
@@ -2093,11 +2212,14 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         loadedRound = -1
         lastVersion = -1
         facesAsked.clear()
+        memoryPicsAsked.clear()
+        memoryJob?.cancel()
+        memoryJob = null
         faceSent = null
         _state.update {
             it.copy(
                 room = null, board = null, selected = null, notesMode = false, reconnecting = false,
-                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null, faces = emptyMap(),
+                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null, faces = emptyMap(), memoryPics = emptyMap(), memoryPicking = null,
                 hostCode = store.profile.value.partner?.code ?: Invite.randomCode(),
             )
         }

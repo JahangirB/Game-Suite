@@ -446,7 +446,7 @@ fun hasOptions(room: RoomState) = when (room.game) {
 
 /** The options for [room]'s next round, as the lobby shows them. */
 @Composable
-fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewModel) {
+fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewModel, state: com.pippop.ui.BattleUiState? = null) {
     when (room.game) {
         GameKind.DOMINOES -> DominoOptionsCard(room, busy, vm::setDominoOptions)
         GameKind.NUMBERS -> NumbersLevelCard(room, busy, vm::setNumberLevel)
@@ -455,7 +455,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.TTT -> TttModeCard(room, busy, vm::setTttClassic)
         GameKind.GOLF -> if (room.golfLevel != null) GolfLevelCard(room, busy, vm::setGolfLevel)
         GameKind.BLOCKS -> BlocksHelpCard()
-        GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards)
+        GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards, state?.let { MemoryPhotosPanel(it.memoryPics, it.memoryPicking, vm::setMemoryPhotosDeck, vm::sendMemoryPhotos) })
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)

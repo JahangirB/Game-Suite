@@ -187,6 +187,12 @@ class CloudflareBattle(serverUrl: String, private val password: String) : Battle
     override suspend fun face(code: String, playerId: String, id: Int): String? =
         request(JSONObject().put("type", "getface").put("face", id)).let { if (it.isNull("photo")) null else it.optString("photo") }
 
+    override suspend fun setMemoryPic(code: String, playerId: String, slot: Int, photo: String?) =
+        request(JSONObject().put("type", "mempic").put("slot", slot).put("photo", photo ?: JSONObject.NULL))
+
+    override suspend fun memoryPic(code: String, playerId: String, id: Int): String? =
+        request(JSONObject().put("type", "getmempic").put("pic", id)).let { if (it.isNull("photo")) null else it.optString("photo") }
+
     override suspend fun slidePhoto(code: String, playerId: String): String? =
         request(JSONObject().put("type", "getphoto")).let { if (it.isNull("photo")) null else it.optString("photo") }
 

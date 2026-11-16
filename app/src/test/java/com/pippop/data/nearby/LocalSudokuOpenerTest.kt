@@ -22,7 +22,7 @@ class LocalSudokuOpenerTest {
     @Test
     fun everyRoomStateListsTheCap() {
         val r = room(NEW)
-        assertEquals(listOf(LocalRoom.SUDOKU_OPENER, LocalRoom.LINES, LocalRoom.PACKS, LocalRoom.FACES), parseRoom(r.view(LocalRoom.HOST, t0)).caps)
+        assertEquals(listOf(LocalRoom.SUDOKU_OPENER, LocalRoom.LINES, LocalRoom.PACKS, LocalRoom.FACES, LocalRoom.MEMORY_PHOTOS), parseRoom(r.view(LocalRoom.HOST, t0)).caps)
     }
 
     @Test

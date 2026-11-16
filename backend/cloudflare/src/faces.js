@@ -11,10 +11,10 @@ const PREFIX = 'face:';
 /** The least time between one player's photo changes (ms); the same as the nearby host. */
 export const FACE_INTERVAL_MS = 2000;
 
-/** The photo as a clean base64 string; throws unless it is a JPEG of at most FACE_MAX characters. */
-export function cleanFace(photo) {
+/** The photo as a clean base64 string; throws unless it is a JPEG of at most [max] (FACE_MAX) characters. */
+export function cleanFace(photo, max = FACE_MAX) {
   if (typeof photo !== 'string' || photo.length === 0) throw new GameError('That photo is not usable.');
-  if (photo.length > FACE_MAX) throw new GameError('That photo is too big.');
+  if (photo.length > max) throw new GameError('That photo is too big.');
   if (photo.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(photo)) throw new GameError('That photo is not usable.');
   let bytes;
   try {

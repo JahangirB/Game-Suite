@@ -49,16 +49,19 @@ object Faces {
      * The middle square of [source], made [SIZE] x [SIZE] and compressed to a JPEG, as base64. The quality goes down
      * until it fits [MAX_BASE64]; null if it never does.
      */
-    fun fromBitmap(source: Bitmap): String? {
+    fun fromBitmap(source: Bitmap): String? = squareJpeg(source, SIZE, MAX_BASE64)
+
+    /** The middle square of [source], made [size] x [size] and compressed to a JPEG as base64 of at most [maxBase64] characters (the quality goes down until it fits); null if it never does. */
+    fun squareJpeg(source: Bitmap, size: Int, maxBase64: Int): String? {
         val c = centreSquare(source.width, source.height)
         if (c.side <= 0) return null
         val square = Bitmap.createBitmap(source, c.left, c.top, c.side, c.side)
-        val small = Bitmap.createScaledBitmap(square, SIZE, SIZE, true)
+        val small = Bitmap.createScaledBitmap(square, size, size, true)
         for (quality in listOf(85, 75, 65, 55, 45)) {
             val out = ByteArrayOutputStream()
             small.compress(Bitmap.CompressFormat.JPEG, quality, out)
             val text = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-            if (text.length <= MAX_BASE64) return text
+            if (text.length <= maxBase64) return text
         }
         return null
     }
@@ -83,9 +86,9 @@ object Faces {
     }
 
     /** The power of two that shrinks a picture [w] x [h] while its short side stays at least twice [SIZE]. */
-    private fun sampleFor(w: Int, h: Int): Int {
+    private fun sampleFor(w: Int, h: Int, size: Int = SIZE): Int {
         var sample = 1
-        while (minOf(w, h) / (sample * 2) >= SIZE * 2) sample *= 2
+        while (minOf(w, h) / (sample * 2) >= size * 2) sample *= 2
         return sample
     }
 
@@ -94,23 +97,26 @@ object Faces {
      * what is needed, so a big photo costs little memory, and stood upright by its EXIF orientation: from API 28 by
      * ImageDecoder, which applies it, before that by [ExifInterface] and [upright].
      */
-    suspend fun fromUri(context: Context, uri: Uri): String? = withContext(Dispatchers.Default) {
+    suspend fun fromUri(context: Context, uri: Uri): String? = fromUri(context, uri, SIZE, MAX_BASE64)
+
+    /** [fromUri] for a picture of [size] x [size] and at most [maxBase64] characters (Memory Pairs' photos). */
+    suspend fun fromUri(context: Context, uri: Uri, size: Int, maxBase64: Int): String? = withContext(Dispatchers.Default) {
         runCatching {
             val resolver = context.contentResolver
             val bitmap = if (Build.VERSION.SDK_INT >= 28) {
                 ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
                     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    decoder.setTargetSampleSize(sampleFor(info.size.width, info.size.height))
+                    decoder.setTargetSampleSize(sampleFor(info.size.width, info.size.height, size))
                 }
             } else {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-                val opts = BitmapFactory.Options().apply { inSampleSize = sampleFor(bounds.outWidth, bounds.outHeight) }
+                val opts = BitmapFactory.Options().apply { inSampleSize = sampleFor(bounds.outWidth, bounds.outHeight, size) }
                 val raw = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return@runCatching null
                 val orientation = resolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
                 upright(raw, orientation ?: ExifInterface.ORIENTATION_NORMAL)
             }
-            fromBitmap(bitmap)
+            squareJpeg(bitmap, size, maxBase64)
         }.getOrNull()
     }
 
@@ -126,18 +132,21 @@ object Faces {
      * a side over [MAX_SIDE] (a small file can declare a huge picture, so the size is read before anything is decoded).
      * Decoding is work: call it off the main thread (Dispatchers.Default). Results are kept for the next ask.
      */
-    fun decode(photo: String?): ImageBitmap? {
-        if (photo.isNullOrEmpty() || photo.length > MAX_BASE64) return null
-        peek(photo)?.let { return it }
+    fun decode(photo: String?): ImageBitmap? = decodeInto(decoded, photo, MAX_BASE64, MAX_SIDE)
+
+    /** [decode] for another kind of picture: at most [maxBase64] characters and [maxSide] pixels a side, kept in [cache]. */
+    internal fun decodeInto(cache: MutableMap<String, ImageBitmap>, photo: String?, maxBase64: Int, maxSide: Int): ImageBitmap? {
+        if (photo.isNullOrEmpty() || photo.length > maxBase64) return null
+        synchronized(cache) { cache[photo] }?.let { return it }
         val image = runCatching {
             val bytes = Base64.decode(photo, Base64.DEFAULT)
             if (!isJpeg(bytes)) return null
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            if (bounds.outWidth !in 1..MAX_SIDE || bounds.outHeight !in 1..MAX_SIDE) return null
+            if (bounds.outWidth !in 1..maxSide || bounds.outHeight !in 1..maxSide) return null
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
         }.getOrNull() ?: return null
-        synchronized(decoded) { decoded[photo] = image }
+        synchronized(cache) { cache[photo] = image }
         return image
     }
 
