@@ -127,10 +127,20 @@ passes: the next player can shoot while the statue is still up and after it has 
 ### Step 10. Mini Golf: an unfinished hole costs 5
 
 A player still out when a hole ends scores the strokes they took plus 5 for that hole, in every
-server and solo, shown on the score strip and the result, and said in the rules. *Done when* tests
+server and solo, shown in each player's total and on the result, and said in the rules. *Done when* tests
 in each place cover holed out, not holed out, and everyone out.
 
-### Step 11. The last pass
+### Step 11. Mini Golf: no score strip at the top
+
+The strip at the top of Mini Golf that lists each player's strokes for every hole goes; the owner
+finds it takes room from the course and says little. The course gets that space. What stays: each
+player's chip shows their total strokes (and how many on this hole), and the full hole-by-hole
+card stays on the result and in the menu ("Scorecard"), so nothing is lost. Online, nearby and
+solo, all three looks (day, sunset, night) and the 3D view. *Done when* screenshots show the course
+filling the freed space in light and dark, and the totals and the scorecard still show the same
+numbers.
+
+### Step 12. The last pass
 
 All checks pass; the latest CI run on the work branch is green; the preview is from it; every
 changed screen looked at in light and dark; README updated (the Store, editing the shelf); the

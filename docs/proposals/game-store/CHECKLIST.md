@@ -32,8 +32,10 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [ ] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
   - [ ] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
 - [ ] **Step 10. Mini Golf: an unfinished hole costs 5**
-  - [ ] Scoring, score strip, result and rules; tested in every place
-- [ ] **Step 11. The last pass**
+  - [ ] Scoring, totals, result and rules; tested in every place
+- [ ] **Step 11. Mini Golf: no score strip at the top**
+  - [ ] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
+- [ ] **Step 12. The last pass**
   - [ ] All checks pass locally; the last CI run is green; the preview is from it
   - [ ] Every changed screen looked at in light and dark
   - [ ] README updated
