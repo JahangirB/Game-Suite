@@ -3,6 +3,7 @@ package com.pippop.data.nearby
 import android.content.Context
 import com.pippop.data.ApiException
 import com.pippop.data.BattleBackend
+import com.pippop.data.ChatLines
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Hello
@@ -146,6 +147,9 @@ class NearbyGuest(context: Context) : BattleBackend {
 
     override suspend fun emoji(code: String, playerId: String, reaction: Reaction) =
         request(JSONObject().put("type", "emoji").put("emoji", reaction.key))
+
+    override suspend fun line(code: String, playerId: String, text: String) =
+        request(JSONObject().put("type", "emoji").put("emoji", ChatLines.KEY).put("text", text))
 
     override suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("fleet", fleet.toJson()))

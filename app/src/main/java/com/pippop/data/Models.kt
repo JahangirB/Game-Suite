@@ -288,8 +288,10 @@ data class DrawView(
     val race get() = mode == "race"
 }
 
-/** A player's latest reaction; [seq] goes up with every new one. */
-data class EmojiEvent(val reaction: Reaction, val seq: Int)
+/**
+ * A player's latest reaction; [seq] goes up with every new one. A line they wrote is [line] with no [reaction].
+ */
+data class EmojiEvent(val reaction: Reaction?, val seq: Int, val line: String? = null)
 
 data class PlayerInfo(
     val name: String,
@@ -512,7 +514,11 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     avatar = Avatar.from(json.stringOrNull("avatar")),
     deviceId = json.stringOrNull("deviceId"),
     emoji = json.optJSONObject("emoji")?.let { e ->
-        Reaction.from(e.optString("key"))?.let { EmojiEvent(it, e.optInt("seq")) }
+        if (e.optString("key") == ChatLines.KEY) {
+            ChatLines.clean(e.opt("text") as? String).takeIf { it.isNotEmpty() }?.let { EmojiEvent(null, e.optInt("seq"), it) }
+        } else {
+            Reaction.from(e.optString("key"))?.let { EmojiEvent(it, e.optInt("seq")) }
+        }
     },
     ready = json.optBoolean("ready"),
     difficulty = json.stringOrNull("difficulty")?.let { Difficulty.from(it) },

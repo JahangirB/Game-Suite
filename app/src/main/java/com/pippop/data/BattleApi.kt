@@ -59,6 +59,9 @@ class BattleApi(scriptUrl: String) : BattleBackend {
     override suspend fun emoji(code: String, playerId: String, reaction: Reaction) =
         call("emoji", "code" to code, "playerId" to playerId, "emoji" to reaction.key)
 
+    override suspend fun line(code: String, playerId: String, text: String) =
+        call("emoji", "code" to code, "playerId" to playerId, "emoji" to ChatLines.KEY, "text" to text)
+
     override suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>): JSONObject =
         throw ApiException(SHIPS_UNSUPPORTED)
 

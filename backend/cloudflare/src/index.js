@@ -276,7 +276,7 @@ export class Room extends DurableObject {
           else submitBoard(this.room, role, msg.board, now);
           break;
         case 'emoji':
-          sendEmoji(this.room, role, msg.emoji, now);
+          sendEmoji(this.room, role, msg.emoji, now, msg.text);
           break;
         case 'game':
           openGame(this.room, role, String(msg.game ?? ''), now);

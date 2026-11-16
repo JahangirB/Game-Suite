@@ -5,6 +5,7 @@ import com.pippop.data.Avatar
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Reaction
+import com.pippop.data.ChatLines
 import com.pippop.data.toJson
 import com.pippop.game.golf.GolfLevel
 import com.pippop.game.Generator
@@ -44,6 +45,9 @@ class LocalRoom(
     val game: GameKind = GameKind.SUDOKU,
     private val generate: (Int) -> Generator.Result = { Generator.generate(it) },
 ) {
+    /** What a player last said with one tap: a reaction's key, or [ChatLines.KEY] with its words in [text]. */
+    class Said(val key: String, val seq: Int, val text: String? = null)
+
     class Player(val id: String, val name: String, var avatar: Avatar?) {
         /** The phone this player is on, so it gets this seat back if it joins again. */
         var deviceId: String? = null
@@ -59,7 +63,7 @@ class LocalRoom(
         var left = false
         var connected = true
         var awaySince: Long? = null
-        var emoji: Pair<Reaction, Int>? = null
+        var emoji: Said? = null
         var emojiAt = 0L
         // Ship Battle
         var pendingFleet: List<Ship>? = null
@@ -1189,14 +1193,27 @@ class LocalRoom(
         return true
     }
 
-    fun sendEmoji(role: String, reaction: Reaction, now: Long) {
+    /** A reaction sent on its own. */
+    fun sendEmoji(role: String, reaction: Reaction, now: Long) = say(role, reaction.key, null, reaction.takesOverMs, now)
+
+    /**
+     * A line of the player's own, shown like a reaction under the key [ChatLines.KEY] with its words in the text.
+     * [text] is cleaned as the other two servers clean it ([ChatLines.clean]); one that is empty then is refused.
+     */
+    fun sendLine(role: String, text: String, now: Long) {
+        val line = ChatLines.clean(text)
+        if (line.isEmpty()) throw ApiException("Write something first.")
+        say(role, ChatLines.KEY, line, 0, now)
+    }
+
+    private fun say(role: String, key: String, text: String?, takesOverMs: Long, now: Long) {
         if (inRoom().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
         if (now < takenOverUntil) throw ApiException("Kylian Dictador has the floor.")
         if (now - player.emojiAt < EMOJI_INTERVAL_MS) throw ApiException("Slow down a little.")
-        if (reaction.takesOverMs > 0) takenOverUntil = now + reaction.takesOverMs
+        if (takesOverMs > 0) takenOverUntil = now + takesOverMs
         emojiSeq++
-        player.emoji = reaction to emojiSeq
+        player.emoji = Said(key, emojiSeq, text)
         player.emojiAt = now
         version++
     }
@@ -1423,7 +1440,7 @@ class LocalRoom(
             .put("role", role)
             .put("game", game.key)
             // What this phone's room can do; an app shows a control only when its cap is here.
-            .put("caps", org.json.JSONArray(listOf(SUDOKU_OPENER)))
+            .put("caps", org.json.JSONArray(CAPS))
             // Sudoku: the opener picks the level while everyone in the room understands it.
             .put("sudokuOpener", openerMode())
             .put("status", shown)
@@ -1520,7 +1537,7 @@ class LocalRoom(
     private fun playerView(p: Player, includeProgress: Boolean, now: Long): JSONObject = JSONObject()
         .put("name", p.name)
         .put("avatar", p.avatar?.key ?: JSONObject.NULL)
-        .put("emoji", p.emoji?.let { JSONObject().put("key", it.first.key).put("seq", it.second) } ?: JSONObject.NULL)
+        .put("emoji", p.emoji?.let { JSONObject().put("key", it.key).put("seq", it.seq).apply { if (it.text != null) put("text", it.text) } } ?: JSONObject.NULL)
         .put("ready", p.ready)
         .put("difficulty", p.difficulty?.key ?: JSONObject.NULL)
         .put("progress", if (includeProgress) p.progress else JSONObject.NULL)
@@ -1560,6 +1577,10 @@ class LocalRoom(
         const val BIG_SUDOKU = "sudoku-big"
         /** What an app that plays Sudoku where the opener picks the level adds to the games it says it knows. */
         const val SUDOKU_OPENER = "sudoku-opener"
+
+        /** What a phone hosting a room can do, sent in every room state; an app shows a control only when its cap is here. */
+        const val LINES = "lines"
+        val CAPS = listOf(SUDOKU_OPENER, LINES)
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L

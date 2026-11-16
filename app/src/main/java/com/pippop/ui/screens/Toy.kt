@@ -244,6 +244,8 @@ fun ToyField(
     modifier: Modifier = Modifier,
     label: String? = null,
     placeholder: String? = null,
+    /** The accessible name where the label or placeholder is not the right one to read. */
+    name: String? = null,
     help: String? = null,
     enabled: Boolean = true,
     singleLine: Boolean = false,
@@ -254,7 +256,7 @@ fun ToyField(
 ) {
     val p = AppTheme.palette
     var focused by remember { mutableStateOf(false) }
-    val name = label ?: placeholder
+    val accessibleName = name ?: label ?: placeholder
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.XS)) {
         if (label != null) Text(label, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics {})
         BasicTextField(
@@ -269,7 +271,7 @@ fun ToyField(
             visualTransformation = visualTransformation,
             modifier = Modifier.fillMaxWidth()
                 .onFocusChanged { focused = it.isFocused }
-                .semantics { if (name != null) contentDescription = name },
+                .semantics { if (accessibleName != null) contentDescription = accessibleName },
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(Shapes.M).background(p.card)

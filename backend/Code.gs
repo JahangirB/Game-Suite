@@ -31,6 +31,10 @@ var ROOM_PREFIX = 'room_';
 var AVATARS = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'unicorn', 'robot', 'alien', 'lion', 'penguin'];
 var EMOJIS = ['thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry'];
 var EMOJI_INTERVAL_MS = 1500;
+// A line of the player's own travels as a reaction under the key 'line' with its words in `text`.
+// Today's app drops a reaction key it does not know, so it ignores a line.
+var LINE_KEY = 'line';
+var LINE_MAX = 24;
 
 function doGet(e) {
   return respond_(handleRequest_((e && e.parameter) || {}));
@@ -319,16 +323,41 @@ function emoji_(p, now) {
   var room = requireRoom_(p.code);
   var role = requireRole_(room, p.playerId);
   var emoji = String(p.emoji || '');
-  if (EMOJIS.indexOf(emoji) < 0) throw new Error('Unknown reaction.');
+  var isLine = emoji === LINE_KEY;
+  if (!isLine && EMOJIS.indexOf(emoji) < 0) throw new Error('Unknown reaction.');
+  var text = isLine ? cleanLine_(p.text) : '';
+  if (isLine && !text) throw new Error('Write something first.');
   if (!room.players[otherRole_(role)]) throw new Error('Nobody to send it to yet.');
   var player = room.players[role];
   if (now - (player.emojiAt || 0) < EMOJI_INTERVAL_MS) throw new Error('Slow down a little.');
   room.emojiSeq = (room.emojiSeq || 0) + 1;
-  player.emoji = { key: emoji, seq: room.emojiSeq };
+  player.emoji = isLine ? { key: emoji, seq: room.emojiSeq, text: text } : { key: emoji, seq: room.emojiSeq };
   player.emojiAt = now;
   player.lastSeen = now;
   saveRoom_(room, now);
   return view_(room, role, now);
+}
+
+/**
+ * A line of the player's own: control characters removed, trimmed, at most LINE_MAX characters
+ * (counted as code points, so an emoji is never split). Empty when nothing is left.
+ */
+function cleanLine_(raw) {
+  // Only a string counts, and only its first 256 UTF-16 units are looked at, so a huge text costs nothing.
+  // Control characters and invisible format characters (soft hyphen, zero-width space, direction marks and
+  // overrides, line separators, word joiner, byte-order mark) go; the zero-width joiner stays for emoji.
+  var s = (typeof raw === 'string' ? raw : '').slice(0, 256).replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g, '').replace(/^\s+|\s+$/g, '');
+  var out = '';
+  var count = 0;
+  for (var i = 0; i < s.length && count < LINE_MAX; count++) {
+    var c = s.charCodeAt(i);
+    var d = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+    // A pair counts as one only when the next unit really is a low surrogate.
+    var n = c >= 0xd800 && c <= 0xdbff && d >= 0xdc00 && d <= 0xdfff ? 2 : 1;
+    out += s.substr(i, n);
+    i += n;
+  }
+  return out.replace(/\s+$/, '');
 }
 
 function leave_(p, now) {
@@ -449,7 +478,7 @@ function view_(room, role, now) {
     // The Google Script server only hosts Sudoku battles.
     game: 'sudoku',
     // What this server can do; an app shows a control only when its cap is here.
-    caps: ['sudoku-opener'],
+    caps: ['sudoku-opener', 'lines'],
     // The host picks the level while both apps understand it.
     sudokuOpener: openerMode_(room),
     options: openerMode_(room) ? { level: openerLevel_(room) } : undefined,

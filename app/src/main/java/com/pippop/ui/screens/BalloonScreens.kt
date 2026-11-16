@@ -381,7 +381,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         tools = listOf(DockTool("Used letters", GameIcons.Sort, badge = view.guessed.size) { showUsed = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }) },
         resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(

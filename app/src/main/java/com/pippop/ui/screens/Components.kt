@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -276,6 +277,8 @@ fun ProgressRow(
     showAvatar: Boolean = false,
     avatar: Avatar? = null,
     reaction: ShownReaction? = null,
+    /** This is your own row: your line is read as "You said" and is not announced. */
+    mine: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         if (showAvatar) {
@@ -283,9 +286,10 @@ fun ProgressRow(
             Spacer(Modifier.width(10.dp))
         }
         Box(Modifier.weight(1f)) { ProgressBar(label, percent, color, trailing) }
-        if (reaction != null) {
+        if (reaction?.reaction != null) {
             ReactionImage(reaction.reaction, 34.dp, Modifier.padding(start = 8.dp), startedAt = reaction.at)
         }
+        if (reaction?.line != null) Bubble(reaction.line, label, Modifier.widthIn(max = 160.dp).padding(start = 8.dp), mine = mine)
     }
 }
 

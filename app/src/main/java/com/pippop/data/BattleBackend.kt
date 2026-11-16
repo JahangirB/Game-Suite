@@ -27,6 +27,9 @@ interface BattleBackend {
     suspend fun sync(code: String, playerId: String, board: String?, version: Int?): JSONObject
     suspend fun emoji(code: String, playerId: String, reaction: Reaction): JSONObject
 
+    /** Says one of the player's own lines ([ChatLines]) like a reaction. Only to a server with the "lines" cap. */
+    suspend fun line(code: String, playerId: String, text: String): JSONObject = throw ApiException("Lines need the latest Pip & Pop.")
+
     /** Ship Battle: ready with [fleet] (or not ready). */
     suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>): JSONObject
 

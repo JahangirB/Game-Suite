@@ -62,8 +62,10 @@ fun ReactionImage(reaction: Reaction, size: Dp, modifier: Modifier = Modifier, s
 /** Plays [shown] large in the middle of the screen when it arrives, then clears away. */
 @Composable
 fun ReactionBurst(shown: ShownReaction?) {
+    // A line a player wrote shows as a bubble by their chip, not here.
     if (shown == null) return
-    if (shown.reaction.sticker) {
+    val reaction = shown.reaction ?: return
+    if (reaction.sticker) {
         StickerBurst(shown)
         return
     }
@@ -76,7 +78,7 @@ fun ReactionBurst(shown: ShownReaction?) {
         visible = false
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(160.dp)) { drawReaction(shown.reaction, progress.value.toDouble()) }
+        Canvas(Modifier.size(160.dp)) { drawReaction(reaction, progress.value.toDouble()) }
     }
 }
 
@@ -100,8 +102,9 @@ internal fun StickerBurst(shown: ShownReaction) {
 
 @Composable
 private fun StickerBurstOnce(shown: ShownReaction) {
-    val takeover = shown.reaction.takesOverMs > 0
-    val shownMs = if (takeover) shown.reaction.takesOverMs else STICKER_SHOWN_MS
+    val reaction = shown.reaction ?: return
+    val takeover = reaction.takesOverMs > 0
+    val shownMs = if (takeover) reaction.takesOverMs else STICKER_SHOWN_MS
     val elapsed by produceState(System.currentTimeMillis() - shown.at, shown) {
         value = System.currentTimeMillis() - shown.at
         while (value < shownMs) {
@@ -125,7 +128,7 @@ private fun StickerBurstOnce(shown: ShownReaction) {
         ),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha }) { drawSticker(stickerOf(shown.reaction), elapsed) }
+        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha }) { drawSticker(stickerOf(reaction), elapsed) }
     }
 }
 

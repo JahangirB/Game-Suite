@@ -4,6 +4,7 @@ import android.content.Context
 import com.pippop.data.ApiException
 import com.pippop.data.Avatar
 import com.pippop.data.BattleBackend
+import com.pippop.data.ChatLines
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.game.numbers.NumberPuzzle
@@ -96,6 +97,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun emoji(code: String, playerId: String, reaction: Reaction) =
         local { sendEmoji(LocalRoom.HOST, reaction, now()) }
+
+    override suspend fun line(code: String, playerId: String, text: String) =
+        local { sendLine(LocalRoom.HOST, text, now()) }
 
     override suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>) =
         local { setShipsReady(LocalRoom.HOST, ready, fleet, now()) }
@@ -340,11 +344,16 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 } else {
                     r.submitBoard(role!!, msg.optString("board"), now)
                 }
-                "emoji" -> r.sendEmoji(
-                    role!!,
-                    Reaction.from(msg.optString("emoji")) ?: throw ApiException("Unknown reaction."),
-                    now,
-                )
+                "emoji" -> if (msg.optString("emoji") == ChatLines.KEY) {
+                    // Only a string is a line; a number or an object is not.
+                    r.sendLine(role!!, msg.opt("text") as? String ?: "", now)
+                } else {
+                    r.sendEmoji(
+                        role!!,
+                        Reaction.from(msg.optString("emoji")) ?: throw ApiException("Unknown reaction."),
+                        now,
+                    )
+                }
                 "game" -> {
                     val next = GameKind.entries.firstOrNull { it.key == msg.optString("game") }
                         ?: throw ApiException("This game needs the latest Pip & Pop.", reason = "update_needed")

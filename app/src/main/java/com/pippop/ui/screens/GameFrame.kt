@@ -51,6 +51,13 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -89,6 +96,8 @@ class ChipPlayer(
     val active: Boolean = false,
     /** The seat's shape on the avatar (you ●, then ▲, ■, ◆). */
     val mark: Mark? = null,
+    /** This is you: your own line is read as "You said" and is not announced. */
+    val mine: Boolean = false,
 )
 
 /**
@@ -174,8 +183,13 @@ fun GameFrame(
                     val compact = players.size > 2
                     // While someone plays, everyone else's chip dims, so whose turn it is reads at a glance.
                     val someoneActive = players.any { it.active }
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth()) {
-                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f).alpha(if (someoneActive && !it.active) 0.55f else 1f), compact) }
+                    // A line someone just said is a bubble that hangs below their chip, over the board.
+                    val saying = players.any { it.reaction?.line != null }
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth().zIndex(if (saying) 1f else 0f)) {
+                        players.forEachIndexed { i, it ->
+                            val side = if (i == 0) Alignment.Start else if (i == players.lastIndex) Alignment.End else Alignment.CenterHorizontally
+                            PlayerChip(it, glow, Modifier.weight(1f), compact, side, dimmed = someoneActive && !it.active)
+                        }
                     }
                     if (swipeToFocus) {
                         Text(
@@ -238,21 +252,56 @@ private fun FoldedPlayers(players: List<ChipPlayer>, glow: Color, onOpen: () -> 
 }
 
 @Composable
-private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, compact: Boolean = false) {
+private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, compact: Boolean = false, bubbleSide: Alignment.Horizontal = Alignment.Start, dimmed: Boolean = false) {
     val p = AppTheme.palette
     val edge = if (player.active) glow else p.ink
+    // Where the chip is on screen, so a wide bubble can be kept inside it.
+    var left by remember { mutableFloatStateOf(0f) }
+    val root = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.roundToPx() }
+    Box(modifier.onGloballyPositioned { left = it.positionInRoot().x }) {
+    PlayerChipCard(player, glow, edge, compact, Modifier.alpha(if (dimmed) 0.55f else 1f))
+    // A line they said, by their chip: it hangs below the card and may be wider than it.
+    player.reaction?.line?.let { line ->
+        Bubble(
+            line, player.name,
+            // BottomStart is only its height: no height of its own, so it hangs from the chip's bottom edge.
+            Modifier.align(Alignment.BottomStart).layout { m, c ->
+                val margin = 14.dp.roundToPx()
+                val limit = minOf(240.dp.roundToPx(), root - 2 * margin)
+                val placeable = m.measure(androidx.compose.ui.unit.Constraints(maxWidth = limit))
+                layout(c.maxWidth, 0) {
+                    // Which side of the chip it lines up with, then kept inside the screen.
+                    var x = when (bubbleSide) {
+                        Alignment.End -> c.maxWidth - placeable.width
+                        Alignment.CenterHorizontally -> (c.maxWidth - placeable.width) / 2
+                        else -> 0
+                    }
+                    val lo = margin - left.toInt()
+                    x = x.coerceIn(lo, (root - margin - placeable.width - left.toInt()).coerceAtLeast(lo))
+                    placeable.place(x, 4.dp.roundToPx())
+                }
+            },
+            mine = player.mine,
+        )
+    }
+    }
+}
+
+@Composable
+private fun PlayerChipCard(player: ChipPlayer, glow: Color, edge: Color, compact: Boolean, modifier: Modifier) {
+    val p = AppTheme.palette
     Surface(
         color = p.card,
         shape = Shapes.L,
         border = BorderStroke(if (player.active) 3.dp else 2.dp, edge),
-        modifier = modifier.pressedEdge(edge, Radius.L),
+        modifier = modifier.fillMaxWidth().pressedEdge(edge, Radius.L),
     ) {
         if (compact) {
             // Avatar over name and detail, so four fit across a phone.
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.TopEnd) {
                     PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar, mark = player.mark)
-                    if (player.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
+                    if (player.reaction?.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
                 }
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
@@ -270,7 +319,7 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
                     Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Label, maxLines = 1)
                 }
             }
-            if (player.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
+            if (player.reaction?.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
         }
     }
 }
@@ -289,7 +338,7 @@ fun battleChips(
     active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
     otherColor: (Int) -> Color = { SeatColors[it % SeatColors.size] },
 ): List<ChipPlayer> = listOf(
-    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0)),
+    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0), mine = true),
 ) + room.others.mapIndexed { i, other ->
     // Presence shows in the chip's detail line, not glued onto the name where it truncates.
     val presence = when {

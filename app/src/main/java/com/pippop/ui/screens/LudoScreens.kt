@@ -475,7 +475,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tools = listOf(DockTool("Dice history", GameIcons.History, badge = view.rollCount) { showDice = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }) },
         resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(

@@ -31,6 +31,9 @@ export const AVATARS = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'u
 export const EMOJIS = ['kylian', 'thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry', 'sideeye', 'stonks', 'galaxybrain', 'thisisfine'];
 // At most one reaction per player this often.
 export const EMOJI_INTERVAL_MS = 1500;
+/** A line of a player's own travels as a reaction under this key, its words in `text`. Today's app drops a key it does not know. */
+export const LINE_KEY = 'line';
+export const LINE_MAX = 24;
 /** Reactions that take the game over for a while (their song): nobody can send another meanwhile. */
 export const TAKEOVER_MS = { kylian: 11000 };
 // A player disconnected this long during a match loses it.
@@ -115,7 +118,7 @@ const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku
 /** Whether an app that sent [games] understands a Sudoku room where the opener picks the level. */
 const knowsSudokuOpener = (games) => Array.isArray(games) && games.includes('sudoku-opener');
 /** What this server can do, sent in every room state; an app shows a control only when its cap is here. */
-export const CAPS = ['sudoku-opener'];
+export const CAPS = ['sudoku-opener', 'lines'];
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -1374,16 +1377,31 @@ export function leave(room, role, now = Date.now()) {
   bump(room);
 }
 
-/** Shows a predefined reaction to the opponent. Throws when it is not allowed. */
-export function sendEmoji(room, role, emoji, now) {
-  if (!EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
+/**
+ * A line of a player's own: control characters removed, trimmed, at most LINE_MAX characters
+ * (counted as code points, so an emoji is never split). Empty when nothing is left.
+ */
+export function cleanLine(raw) {
+  // Only a string counts, and only its first 256 UTF-16 units are looked at, so a huge text costs nothing.
+  // Control characters and invisible format characters (soft hyphen, zero-width space, direction marks and
+  // overrides, line separators, word joiner, byte-order mark) go; the zero-width joiner stays for emoji.
+  const s = (typeof raw === 'string' ? raw : '').slice(0, 256).replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g, '').trim();
+  return Array.from(s).slice(0, LINE_MAX).join('').trim();
+}
+
+/** Shows a predefined reaction, or a line (`emoji` is LINE_KEY and `text` its words), to the other players. Throws when it is not allowed. */
+export function sendEmoji(room, role, emoji, now, text) {
+  const isLine = emoji === LINE_KEY;
+  if (!isLine && !EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
+  const line = isLine ? cleanLine(text) : '';
+  if (isLine && !line) throw new GameError('Write something first.');
   if (inRoom(room).length < 2) throw new GameError('Nobody to send it to yet.');
   const player = room.players[role];
   if (now < (room.takenOverUntil || 0)) throw new GameError('Kylian Dictador has the floor.');
   if (now - (player.emojiAt || 0) < EMOJI_INTERVAL_MS) throw new GameError('Slow down a little.');
   if (TAKEOVER_MS[emoji]) room.takenOverUntil = now + TAKEOVER_MS[emoji];
   room.emojiSeq = (room.emojiSeq || 0) + 1;
-  player.emoji = { key: emoji, seq: room.emojiSeq };
+  player.emoji = isLine ? { key: emoji, seq: room.emojiSeq, text: line } : { key: emoji, seq: room.emojiSeq };
   player.emojiAt = now;
   bump(room);
 }

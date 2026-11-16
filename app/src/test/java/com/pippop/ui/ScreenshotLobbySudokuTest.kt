@@ -118,7 +118,7 @@ class ScreenshotLobbySudokuTest : ScreenshotBase() {
         old.join("Maya", Avatar.PANDA, null, listOf("sudoku"))
         val view = parseRoom(old.view(LocalRoom.GUEST, 0))
         assertFalse(view.picksByOpener)
-        assertEquals(listOf("sudoku-opener"), view.caps)
+        assertEquals(listOf("sudoku-opener", "lines"), view.caps)
         assertEquals(null, view.sudokuLevel)
     }
 

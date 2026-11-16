@@ -373,7 +373,7 @@ const TOKENS = 'sudoku,ships,sudoku-big,sudoku-opener';
 test('the server lists what it can do', () => {
   const b = loadBackend();
   const host = b.call({ action: 'create', code: 'CAP123', name: 'A' });
-  assert.deepEqual(host.caps, ['sudoku-opener']);
+  assert.deepEqual(host.caps, ['sudoku-opener', 'lines']);
 });
 
 test('where both apps have the token, the host picks the level and the guest only taps Ready', () => {
@@ -440,4 +440,110 @@ test('a rejoin from an app without the token drops opener mode', () => {
   assert.equal(guest.sudokuOpener, true);
   const again = b.call({ action: 'join', code: 'RJ1234', name: 'B', playerId: guest.playerId });
   assert.equal(again.sudokuOpener, false);
+});
+
+// ---- Lines of the player's own (cap "lines") ----
+// A line travels as a reaction under the key 'line' with its words in `text`. Today's app drops a
+// reaction key it does not know, so it never shows one. The same rule and tests are in
+// backend/cloudflare/test/lines.test.js and the app's LocalLinesTest.
+
+function lineRoom(b, code = 'LIN123') {
+  const host = b.call({ action: 'create', code, name: 'A' });
+  const guest = b.call({ action: 'join', code, name: 'B' });
+  return { host, guest, code };
+}
+const say = (b, who, code, text, extra = {}) => b.call({ action: 'emoji', code, playerId: who.playerId, emoji: 'line', text, ...extra });
+const EMOJI2 = '\u{1F600}';
+
+test('lines: the server lists the cap', () => {
+  const b = loadBackend();
+  assert.ok(b.call({ action: 'create', code: 'LCAP12', name: 'A' }).caps.includes('lines'));
+});
+
+test('lines: a line reaches the other player as a reaction under the key "line"', () => {
+  const b = loadBackend();
+  const { host, guest, code } = lineRoom(b);
+  const sent = say(b, host, code, 'Nice one');
+  assert.deepEqual(sent.me.emoji, { key: 'line', seq: 1, text: 'Nice one' });
+  const seen = b.call({ action: 'sync', code, playerId: guest.playerId, v: guest.version });
+  assert.deepEqual(seen.opponent.emoji, { key: 'line', seq: 1, text: 'Nice one' });
+  // Today's app reads the key against its reactions and drops one it does not know.
+  assert.ok(!['thumbsup', 'clap', 'fire', 'laugh', 'wow', 'sweat', 'think', 'cool', 'heart', 'hurry', 'kylian', 'sideeye', 'stonks', 'galaxybrain', 'thisisfine'].includes(seen.opponent.emoji.key));
+});
+
+test('lines: control characters are stripped, the ends trimmed, and a line with nothing left is refused', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  assert.equal(say(b, host, code, '  Hi\u0007 th\u0000ere\n\t ').me.emoji.text, 'Hi there');
+  for (const empty of ['', '   ', '\u0007\u0000\n', undefined]) {
+    b.clock.now += 2000;
+    assert.equal(say(b, host, code, empty).ok, false, JSON.stringify(empty));
+  }
+  assert.equal(b.call({ action: 'sync', code, playerId: host.playerId }).me.emoji.text, 'Hi there', 'a refused line leaves the last one in place');
+});
+
+test('lines: at most 24 characters, counted as code points so an emoji is not split', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  assert.equal(say(b, host, code, 'abcdefghij'.repeat(3)).me.emoji.text, 'abcdefghijabcdefghijabcd');
+  b.clock.now += 2000;
+  // 23 letters and an emoji is exactly 24 code points: kept whole.
+  assert.equal(say(b, host, code, 'a'.repeat(23) + EMOJI2 + 'zzz').me.emoji.text, 'a'.repeat(23) + EMOJI2);
+  b.clock.now += 2000;
+  // The emoji is the 25th: dropped, and never cut in half.
+  assert.equal(say(b, host, code, 'a'.repeat(24) + EMOJI2).me.emoji.text, 'a'.repeat(24));
+  b.clock.now += 2000;
+  // A space at the cut is trimmed away.
+  assert.equal(say(b, host, code, 'a'.repeat(23) + ' tail').me.emoji.text, 'a'.repeat(23));
+});
+
+test('lines: the same pace limit as reactions, in either order', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  assert.equal(say(b, host, code, 'One').ok, true);
+  assert.equal(say(b, host, code, 'Two').ok, false, 'a line right after a line');
+  assert.equal(b.call({ action: 'emoji', code, playerId: host.playerId, emoji: 'fire' }).ok, false, 'a reaction right after a line');
+  b.clock.now += 2000;
+  assert.equal(say(b, host, code, 'Two').me.emoji.seq, 2);
+  assert.equal(b.call({ action: 'emoji', code, playerId: host.playerId, emoji: 'fire' }).ok, false, 'a reaction right after a line');
+});
+
+test('lines: a reaction without text is unchanged, and text sent with one is ignored', () => {
+  const b = loadBackend();
+  const { host, guest, code } = lineRoom(b);
+  assert.deepEqual(b.call({ action: 'emoji', code, playerId: host.playerId, emoji: 'fire' }).me.emoji, { key: 'fire', seq: 1 });
+  b.clock.now += 2000;
+  assert.deepEqual(b.call({ action: 'emoji', code, playerId: host.playerId, emoji: 'clap', text: 'sneaky' }).me.emoji, { key: 'clap', seq: 2 });
+  assert.equal(b.call({ action: 'emoji', code, playerId: guest.playerId, emoji: 'bomb', text: 'x' }).ok, false, 'an unknown key is still refused');
+});
+
+test('lines: invisible format characters go, the joiner stays, and "a\\u202Eb\\u200Bc" becomes "abc"', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  assert.equal(say(b, host, code, 'a‮b​c').me.emoji.text, 'abc');
+  b.clock.now += 2000;
+  assert.equal(say(b, host, code, '­a؜b‎c‏d e f‪g⁠h⁤i⁦j⁩k﻿l').me.emoji.text, 'abcdefghijkl');
+  b.clock.now += 2000;
+  // The zero-width joiner holds an emoji sequence together.
+  const family = '\u{1F468}‍\u{1F469}';
+  assert.equal(say(b, host, code, family).me.emoji.text, family);
+});
+
+test('lines: a text that is not a string is refused, and a huge one is only read to 256 units', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  for (const odd of [12345, { a: 1 }, ['x'], true]) {
+    b.clock.now += 2000;
+    assert.equal(say(b, host, code, odd).ok, false, JSON.stringify(odd));
+  }
+  b.clock.now += 2000;
+  assert.equal(say(b, host, code, 'a'.repeat(100000)).me.emoji.text, 'a'.repeat(24));
+  b.clock.now += 2000;
+  assert.equal(say(b, host, code, ' '.repeat(300) + 'hi').ok, false, 'words after the first 256 units are never read');
+});
+
+test('lines: a lone high surrogate counts as one character, so all three servers keep 24', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b);
+  assert.equal(say(b, host, code, 'a'.repeat(23) + '\uD83D' + 'bbbb').me.emoji.text, 'a'.repeat(23) + '\uD83D');
 });

@@ -107,6 +107,8 @@ data class Profile(
     val recentGames: List<RecentGame> = emptyList(),
     /** Keys of the reactions sent, the last first; the reactions tray follows this order. */
     val recentReactions: List<String> = emptyList(),
+    /** The six lines the player says with one tap ([ChatLines]); an unset one is its default. */
+    val lines: List<String> = ChatLines.DEFAULTS,
     /** Games taken off the shelf on the arrange screen; they stay in [gameOrder]. */
     val putAway: Set<GameKind> = emptySet(),
     /** True once the order has been changed, so the home can stop saying how. */
@@ -220,6 +222,13 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val keys = (listOf(reaction.key) + _profile.value.recentReactions.filter { it != reaction.key }).take(MAX_RECENT_REACTIONS)
         prefs.edit { putString(KEY_RECENT_REACTIONS, keys.joinToString(",")) }
         _profile.update { it.copy(recentReactions = keys) }
+    }
+
+    /** Keeps [lines] as the player's six lines: each cleaned (24 characters at most), an empty one back to its default. */
+    fun setLines(lines: List<String>) {
+        val kept = ChatLines.resolve(lines)
+        prefs.edit { putString(KEY_LINES, ChatLines.encode(kept)) }
+        _profile.update { it.copy(lines = kept) }
     }
 
     /** Drops only the recent games that match [entries] exactly (game and time); a later real play of the same game stays. */
@@ -394,6 +403,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
             recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
             recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
+            lines = ChatLines.decode(prefs.getString(KEY_LINES, null)),
             putAway = gamesOf(prefs.getString(KEY_PUT_AWAY, null)),
             // Someone who arranged the games before this was kept has already learned how.
             arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, prefs.contains(KEY_GAME_ORDER)),
@@ -452,6 +462,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_RECENT = "recent_games"
         /** Reaction keys, the one sent last first: the order of the reactions tray. */
         private const val KEY_RECENT_REACTIONS = "recent_reactions"
+        /** The player's six lines, one per line of text. */
+        private const val KEY_LINES = "chat_lines"
         /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
         private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
         private const val KEY_PUT_AWAY = "put_away"

@@ -47,6 +47,7 @@ import com.pippop.data.Hello
 import com.pippop.data.SavedPartner
 import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
+import com.pippop.data.ChatLines
 import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.MatchRecord
@@ -86,8 +87,8 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Online goes through the host's server; nearby connects two phones directly, no internet. */
 enum class BattleMode { ONLINE, NEARBY }
 
-/** A reaction on screen and when it appeared. */
-data class ShownReaction(val reaction: Reaction, val at: Long)
+/** A reaction (or a [line] a player wrote, which has no reaction) on screen and when it appeared. */
+data class ShownReaction(val reaction: Reaction?, val at: Long, val line: String? = null)
 
 /**
  * Kylian Dictador taking the game over, on this phone's clock. [until] is when his song ends:
@@ -669,6 +670,14 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private fun sudokuOptions(room: RoomState, together: Boolean = room.sudokuTogether, shape: com.pippop.game.SudokuShape = room.sudokuShape, level: Difficulty? = room.sudokuLevel) =
         JSONObject().put("mode", if (together) "together" else "race").put("shape", shape.key).apply { if (room.sudokuOpener && level != null) put("level", level.key) }
 
+    /**
+     * HOOK (step 31, sounds): the sound `line_sent` plays here when a line from another player arrives.
+     * There is no such sound asset yet (`Sound` has no entry for it), so nothing plays. When step 31
+     * adds `Sound.LINE_SENT`, make this `sfx.play(Sound.LINE_SENT)`.
+     */
+    private fun playLineSent() {
+    }
+
     /** Sends a quick reaction; it shows next to your name on both phones. */
     fun react(reaction: Reaction) {
         val room = _state.value.room ?: return
@@ -687,6 +696,40 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 // A lost reaction is not worth an error message.
+            }
+        }
+    }
+
+    /**
+     * What a reaction tray does with a tap on one of the player's lines: [afterSend] runs once it is sent
+     * (the tray closes). Null where the server has no "lines" cap, so the tray shows no lines and text
+     * is never sent to a server that would not understand it.
+     */
+    fun lineSender(afterSend: () -> Unit = {}): ((String) -> Unit)? {
+        val room = _state.value.room ?: return null
+        if (ChatLines.CAP !in room.caps) return null
+        return { text -> sendLine(text); afterSend() }
+    }
+
+    /** Says [text] (one of the player's lines) next to your name on every phone. Only to a server with the "lines" cap. */
+    fun sendLine(text: String) {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (ChatLines.CAP !in room.caps) return
+        val line = ChatLines.clean(text)
+        if (line.isEmpty()) return
+        val now = System.currentTimeMillis()
+        if (Takeover.locked(now)) return
+        _state.update { it.copy(myReaction = ShownReaction(null, now, line)) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.line(room.code, id, line), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A lost line is not worth an error message.
             }
         }
     }
@@ -1765,14 +1808,17 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             other.emoji?.takeIf { lastOpponentEmojiSeq >= 0 && it.seq > lastOpponentEmojiSeq }?.let { other.name to it }
         }
         lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
-        fresh.maxByOrNull { it.second.seq }?.second?.reaction?.let { reaction ->
-            Takeover.takeOver(reaction, now)
-            reaction.sound?.let { sfx.play(it) }
+        fresh.maxByOrNull { it.second.seq }?.second?.let { e ->
+            e.reaction?.let { reaction ->
+                Takeover.takeOver(reaction, now)
+                reaction.sound?.let { sfx.play(it) }
+            }
+            if (e.line != null) playLineSent()
         }
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
-            fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now)) }
-            if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now) })
+            fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now, e.line)) }
+            if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now, e.line) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
             room.slide?.takeIf { it.start != null && room.round != next.slideRound }?.let { sl ->

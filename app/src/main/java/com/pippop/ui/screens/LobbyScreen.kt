@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -114,6 +115,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
             }
         } else null,
         onReact = vm::react,
+        onLine = vm.lineSender(),
     ) {
         if (room.game == GameKind.SHIPS) {
             FleetCard(
@@ -162,6 +164,8 @@ internal fun LobbyFrame(
     onLeave: () -> Unit,
     onReady: (() -> Unit)?,
     onReact: (Reaction) -> Unit,
+    /** Says one of the player's own lines; null where the server cannot carry them. */
+    onLine: ((String) -> Unit)? = null,
     options: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
@@ -259,7 +263,7 @@ internal fun LobbyFrame(
 
             options()
         }
-        ReadyBar(room, state.busy, onReady, if (opponent != null) onReact else null)
+        ReadyBar(room, state.busy, onReady, if (opponent != null) onReact else null, if (opponent != null) onLine else null)
     }
 }
 
@@ -336,7 +340,7 @@ internal fun readyLook(room: RoomState): ReadyLook {
  * game has no Ready button (the level taps are the ready); [onReact] is null while you are alone.
  */
 @Composable
-fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((Reaction) -> Unit)?) {
+fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((Reaction) -> Unit)?, onLine: ((String) -> Unit)? = null) {
     val p = AppTheme.palette
     var reacting by remember { mutableStateOf(false) }
     if (onReady == null && onReact == null) return
@@ -344,6 +348,7 @@ fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((
         Box(Modifier.fillMaxWidth().height(2.dp).background(p.ink))
         if (reacting && onReact != null) ReactionBar(
             onReact = { onReact(it); reacting = false },
+            onLine = onLine?.let { send -> { text: String -> send(text); reacting = false } },
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp),
         )
         Row(
@@ -439,7 +444,8 @@ internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
         )
-        if (reaction != null) ReactionImage(reaction.reaction, 30.dp, Modifier.padding(end = 8.dp), startedAt = reaction.at)
+        if (reaction?.reaction != null) ReactionImage(reaction.reaction, 30.dp, Modifier.padding(end = 8.dp), startedAt = reaction.at)
+        if (reaction?.line != null) Bubble(reaction.line, player.name, Modifier.widthIn(max = 160.dp).padding(end = 8.dp), mine = isMe)
         when {
             player.online == false -> Pill("Offline", p.bad)
             // Connected, but not in this game yet: in the menu or still on another game's screen.

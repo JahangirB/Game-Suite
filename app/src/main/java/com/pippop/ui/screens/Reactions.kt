@@ -16,6 +16,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -61,25 +63,39 @@ private val TrayGap = 6.dp
  *
  * [trailing] is an optional item after the last reaction (the "+" for sticker packs). It takes a
  * place in the grid like any reaction; pass null, the default, and no place is made.
+ * [onLine] says one of the player's own lines; it is null where the server has no "lines" cap
+ * (`BattleViewModel.lineSender`), and then the row of lines above the grid is not drawn.
  */
 @Composable
 fun ReactionBar(
     onReact: (Reaction) -> Unit,
     modifier: Modifier = Modifier,
     trailing: TraySlot? = null,
+    onLine: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val recent by remember(context) { ProfileStore.get(context).profile }.collectAsState()
-    ReactionTray(Reaction.recentFirst(recent.recentReactions), onReact, modifier, trailing)
+    val store = remember(context) { ProfileStore.get(context) }
+    val profile by store.profile.collectAsState()
+    var editing by remember { mutableStateOf(false) }
+    if (editing && onLine != null) LinesSheet(profile.lines, onSave = store::setLines) { editing = false }
+    ReactionTray(
+        Reaction.recentFirst(profile.recentReactions), onReact, modifier, trailing,
+        lines = profile.lines.takeIf { onLine != null }, onLine = onLine, onEditLines = { editing = true },
+    )
 }
 
-/** The tray for an already ordered list of reactions (the screenshot tests draw this one). */
+/** The tray for an already ordered list of reactions (the screenshot tests draw this one). * With [lines] (the player's own, when the server can carry them) a row of chips sits above the grid,
+ * the pencil first ([onEditLines]); a tap on a chip says it ([onLine]). It is not part of the grid.
+ */
 @Composable
 internal fun ReactionTray(
     reactions: List<Reaction>,
     onReact: (Reaction) -> Unit,
     modifier: Modifier = Modifier,
     trailing: TraySlot? = null,
+    lines: List<String>? = null,
+    onLine: ((String) -> Unit)? = null,
+    onEditLines: () -> Unit = {},
 ) {
     val lockedUntil by Takeover.until.collectAsState()
     val locked = rememberTicker() < lockedUntil
@@ -87,19 +103,22 @@ internal fun ReactionTray(
         reactions.forEach { r -> add { size -> ReactionCell(r, size, locked, onReact) } }
         trailing?.let { add(it) }
     }
-    BoxWithConstraints(modifier.fillMaxWidth().alpha(if (locked) 0.35f else 1f)) {
-        val columns = minOf(TRAY_COLUMNS, (maxWidth / TrayTarget).toInt()).coerceAtLeast(1)
-        val cell = maxWidth / columns
-        val rows = cells.chunked(columns)
-        val rowsShown = if (columns < TRAY_COLUMNS) 3 else 2
-        Column(
-            modifier = if (rows.size > rowsShown) {
-                Modifier.heightIn(max = TrayTarget * rowsShown + TrayTarget / 2).verticalScroll(rememberScrollState())
-            } else Modifier,
-        ) {
-            rows.forEach { row ->
-                Row {
-                    row.forEach { slot -> Box(Modifier.size(cell, TrayTarget), contentAlignment = Alignment.Center) { slot(cell) } }
+    Column(modifier.fillMaxWidth().alpha(if (locked) 0.35f else 1f)) {
+        if (lines != null && onLine != null) LinesRow(lines, enabled = !locked, onLine = onLine, onEdit = onEditLines)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = minOf(TRAY_COLUMNS, (maxWidth / TrayTarget).toInt()).coerceAtLeast(1)
+            val cell = maxWidth / columns
+            val rows = cells.chunked(columns)
+            val rowsShown = if (columns < TRAY_COLUMNS) 3 else 2
+            Column(
+                modifier = if (rows.size > rowsShown) {
+                    Modifier.heightIn(max = TrayTarget * rowsShown + TrayTarget / 2).verticalScroll(rememberScrollState())
+                } else Modifier,
+            ) {
+                rows.forEach { row ->
+                    Row {
+                        row.forEach { slot -> Box(Modifier.size(cell, TrayTarget), contentAlignment = Alignment.Center) { slot(cell) } }
+                    }
                 }
             }
         }
