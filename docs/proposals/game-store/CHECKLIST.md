@@ -8,8 +8,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 
 ## Steps
 
-- [ ] **Step 1. Take out "Update by itself"**
-  - [ ] Both commits reverted; the update offer works as before; `quiet-leave-wip` deleted
+- [x] **Step 1. Take out "Update by itself"**
+  - [x] Both commits reverted; the update offer works as before; `quiet-leave-wip` deleted
 - [ ] **Step 2. The shelf and the Store, as data**
   - [ ] The nine by default; old order and put-away keys migrated and left in place; tested
 - [ ] **Step 3. The fixed top bar**
