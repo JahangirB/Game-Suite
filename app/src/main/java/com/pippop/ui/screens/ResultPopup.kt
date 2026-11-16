@@ -110,11 +110,14 @@ fun BoxScope.ResultPopup(
     bump: TallyBump = TallyBump.NONE,
     /** A record this result set against a partner ([MatchPopup] passes it); alone, the solo store's latest is used. */
     record: BrokenRecord? = null,
+    /** Which game this result is, for the tally's sound ([MatchPopup] gives the room and round). */
+    scoreKey: Any? = null,
 ) {
     val p = AppTheme.palette
     // The gold line: a record against your partner, or (playing alone) the game's own best just beaten.
     val soloBroke = remember { SoloRecordStore.current?.broke }?.collectAsState()?.value?.takeIf { !versus && it.game == game }
-    val recordText = (record ?: soloBroke)?.let { RecordLines.text(it) }
+    val shownRecord = record ?: soloBroke
+    val recordText = shownRecord?.let { RecordLines.text(it) }
     var folded by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val sfx = rememberSfx()
@@ -130,7 +133,7 @@ fun BoxScope.ResultPopup(
         val face = winner ?: if (!versus && outcome == Outcome.WIN) soloWinner() else null
         ResultCard(
             game, outcome, title, detail, face, tally, bump, finish, again, scores, status, statusGood, next, rematch, onChange,
-            another?.let { { anotherOpen = true } }, extra, recordText,
+            another?.let { { anotherOpen = true } }, extra, recordText, shownRecord, scoreKey,
         )
         return
     }
@@ -199,7 +202,7 @@ fun BoxScope.ResultPopup(
                     }
                 }
                 if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
-                if (recordText != null) RecordLine(recordText)
+                if (recordText != null) RecordLine(recordText, soundKey = shownRecord ?: recordText)
                 if (scores.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         scores.forEach {
@@ -329,6 +332,7 @@ fun BoxScope.MatchPopup(
         tally = if (room.endReason == "restart") null else LocalTonight.current,
         bump = if (room.endReason == "restart") TallyBump.NONE else tallyBump(room),
         record = record.takeIf { room.endReason != "restart" },
+        scoreKey = "score:${room.code}:${room.round}",
     )
 }
 

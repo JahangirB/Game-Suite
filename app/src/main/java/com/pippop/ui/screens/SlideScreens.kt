@@ -90,6 +90,20 @@ import kotlin.math.sign
 fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier, photo: androidx.compose.ui.graphics.ImageBitmap? = null) {
     // A tile taps along one square; the last one in place sets off the cascade and chime.
     SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
+    // A tile that slides into its right place clicks as it lands (the glide takes 120 ms); the last one has the chime instead.
+    // Only one slide counts: a new shuffle or a jump to another position (many tiles at once) never clicks.
+    val tilesBefore = remember { arrayOf(tiles) }
+    SoundOnChange(tiles) {
+        val before = tilesBefore[0]
+        tilesBefore[0] = tiles
+        val goal = Slide.solved(size)
+        fun home(t: List<Int>) = goal.indices.count { t.getOrNull(it) == goal[it] && goal[it] != 0 }
+        val oneSlide = before.size == tiles.size && tiles.indices.count { before[it] != tiles[it] } == 2
+        if (oneSlide && home(tiles) > home(before) && tiles != goal) {
+            delay(120)
+            play(Sound.SLIDE_HOME)
+        }
+    }
     val p = AppTheme.palette
     // A wooden tray: the frame is Board.Wood, the tiles sit in a darker well.
     Box(modifier.clip(Shapes.L).background(Brush.verticalGradient(listOf(Board.Wood.lighter(0.2f), Board.Wood.darker(0.2f)))).padding(6.dp)) {

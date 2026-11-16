@@ -256,7 +256,7 @@ internal fun rememberUnitSweeps(board: BoardState, errors: Set<Int>, celebrate: 
         if (before == null || still) return@LaunchedEffect
         val fresh = full - before
         if (fresh.isEmpty()) return@LaunchedEffect
-        sfx.play(Sound.NUMBERS_SUM_RIGHT)
+        sfx.play(Sound.SUDOKU_UNIT_DONE) // once for the digit that finishes one or more units, with the gold
         for (u in fresh) {
             val sweep = UnitSweep(units[u])
             sweeps += sweep

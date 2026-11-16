@@ -25,6 +25,7 @@ import com.pippop.ui.theme.readableOn
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
+import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.textFill
@@ -177,6 +178,12 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
     // Four in a row: once the last disc has landed, a line is drawn through the four (0 to 1)
     // and a burst plays at its end (0 to 1).
     val still = LocalReduceMotion.current
+    // The line's notes play as it is drawn (once per win: not when the finished board is shown again).
+    SoundOnChange(winLine.takeIf { it.size >= 2 }) {
+        val others = board.getOrNull(winLine.first()) != 'm'
+        delay(470)
+        play(Sound.C4_FOUR, if (others) Sfx.OTHERS else 1f, others = others)
+    }
     val line = remember(winLine) { Animatable(0f) }
     val sparks = remember(winLine) { Animatable(0f) }
     LaunchedEffect(winLine) {
@@ -327,6 +334,12 @@ fun TttBoard(
     val p = AppTheme.palette
     val ink = rememberMarkInk(lastCell, replay)
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
+    // A small board is won (not drawn): the stamp lands just after the mark that won it.
+    SoundOnChange(boards.count { it == 'm' || it == 'o' }.takeIf { it > 0 }) {
+        val others = board.getOrNull(lastCell ?: -1) != 'm'
+        delay(150)
+        play(Sound.TTT_BOARD_WON, if (others) Sfx.OTHERS else 1f, others = others)
+    }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
@@ -644,10 +657,18 @@ fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?
     var hidden by remember { mutableStateOf<List<Int>?>(null) }
     SoundOnChange(faces.count { it != null }.takeIf { it > 0 }) { play(Sound.CARD_FLIP) }
     SoundOnChange(owners.count { it != '.' }.takeIf { it > 0 }) { play(Sound.MEMORY_MATCH) }
+    // The soft double flip plays as the pair turns back, once per miss: not for a pair that was
+    // already showing when this board appeared (rotating, coming back to the game).
+    val sfx = rememberSfx()
+    val alreadyMissed = remember { booleanArrayOf(missed != null) }
     LaunchedEffect(missed) {
-        if (missed == null) return@LaunchedEffect
+        if (missed == null) {
+            alreadyMissed[0] = false
+            return@LaunchedEffect
+        }
         delay(MISSED_LOOK_MS)
         hidden = missed
+        if (alreadyMissed[0]) alreadyMissed[0] = false else sfx.play(Sound.MEMORY_MISS)
     }
     val shownFaces = if (missed != null && missed == hidden) faces.mapIndexed { i, f -> if (i in missed) null else f } else faces
     val cols = MemoryMatch.columns(faces.size)

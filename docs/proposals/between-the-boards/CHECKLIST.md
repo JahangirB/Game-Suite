@@ -144,8 +144,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase K: sound and touch
 
-- [ ] **Step 31. New sounds** (sound-moments, sound-people, sound-score)
-  - [ ] Fifteen sounds made, in `Sound`, in `docs/SFX.md`, and wired (not `decider`: on hold)
+- [x] **Step 31. New sounds** (sound-moments, sound-people, sound-score)
+  - [x] Fifteen sounds made, in `Sound`, in `docs/SFX.md`, and wired (not `decider`: on hold)
 - [ ] **Step 32. Buzzes with a feel** (sound-buzz)
 
 ## Phase L: the hand-over

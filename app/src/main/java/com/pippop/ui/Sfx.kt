@@ -6,6 +6,7 @@ import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import com.pippop.R
 import com.pippop.data.Profile
@@ -76,6 +77,22 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
     GOLF_CUP(R.raw.sfx_golf_cup, 0.65f),
     GOLF_SPLASH(R.raw.sfx_golf_splash, 0.6f),
     GOLF_DROP(R.raw.sfx_golf_drop, 0.5f),
+    // Between the Boards: next to the sounds they are most like.
+    SUDOKU_UNIT_DONE(R.raw.sfx_sudoku_unit_done, 0.65f),
+    C4_FOUR(R.raw.sfx_c4_four, 0.65f),
+    TTT_BOARD_WON(R.raw.sfx_ttt_board_won, 0.65f),
+    MEMORY_MISS(R.raw.sfx_memory_miss, 0.45f),
+    SLIDE_HOME(R.raw.sfx_slide_home, 0.45f, varied = true),
+    BINGO_ONE_AWAY(R.raw.sfx_bingo_one_away, 0.65f),
+    DOMINO_KNOCK(R.raw.sfx_domino_knock, 0.65f),
+    CLASH_LAST_CARD(R.raw.sfx_clash_last_card, 0.65f),
+    PLAYER_JOIN(R.raw.sfx_player_join, 0.45f),
+    PLAYER_LEAVE(R.raw.sfx_player_leave, 0.45f),
+    READY(R.raw.sfx_ready, 0.45f),
+    SCORE_UP(R.raw.sfx_score_up, 0.65f),
+    RECORD(R.raw.sfx_record, 0.9f),
+    TROPHY(R.raw.sfx_trophy, 0.9f),
+    LINE_SENT(R.raw.sfx_line_sent, 0.45f),
     /** A sticker's song, 11 s; kept at 32 kHz mono so it loads with the rest and starts at once. */
     KYLIAN_DICTADOR(R.raw.sfx_kylian_dictador, 0.9f),
 }
@@ -139,11 +156,15 @@ private class SoundPoolOut(context: Context) : SoundOut {
     }
 }
 
+/** Where a test puts its own [Sfx] (with a fake player); null in the app, which uses the real one. */
+internal val LocalSfx = staticCompositionLocalOf<Sfx?> { null }
+
 /** The app's [Sfx], for a screen. */
 @Composable
 fun rememberSfx(): Sfx {
+    val given = LocalSfx.current
     val context = LocalContext.current
-    return remember { Sfx.get(context) }
+    return given ?: remember { Sfx.get(context) }
 }
 
 private object Unseen
@@ -163,3 +184,21 @@ fun SoundOnChange(key: Any?, block: suspend Sfx.() -> Unit) {
         if (!first && key != null) sfx.block()
     }
 }
+
+private val shownOnce = HashSet<Any>()
+
+/**
+ * Plays [block] when [key] is first shown in this run of the app: for a moment that is made once (a record line, a score
+ * going up) and must not play again when its screen is rebuilt by a rotation, a theme change or coming back to it. Put
+ * something in [key] that tells this moment from the next of its kind.
+ */
+@Composable
+fun SoundOnce(key: Any, block: suspend Sfx.() -> Unit) {
+    val sfx = rememberSfx()
+    LaunchedEffect(key) {
+        if (synchronized(shownOnce) { shownOnce.add(key) }) sfx.block()
+    }
+}
+
+/** Forgets what [SoundOnce] has played: for tests. */
+internal fun resetSoundOnce() = synchronized(shownOnce) { shownOnce.clear() }

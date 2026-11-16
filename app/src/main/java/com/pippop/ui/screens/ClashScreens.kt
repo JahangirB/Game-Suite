@@ -316,6 +316,18 @@ internal fun ColumnScope.ClashTable(
                         play(Sound.KYLIAN_DICTADOR)
                     }
                 }
+                // Someone is down to one card: a bright ping as their last-but-one card lands (the flight takes MOVE_MS).
+                val onLast = view.counts.filterValues { it == 1 }.keys
+                val onLastBefore = remember { arrayOf(onLast) }
+                SoundOnChange(onLast) {
+                    val fresh = onLast - onLastBefore[0]
+                    onLastBefore[0] = onLast
+                    if (fresh.isNotEmpty()) {
+                        delay(Motion.MOVE_MS.toLong())
+                        val theirs = 'm' !in fresh
+                        play(Sound.CLASH_LAST_CARD, if (theirs) Sfx.OTHERS else 1f, others = theirs)
+                    }
+                }
                 // The view holds only the top card, so the last few tops are remembered here: the
                 // one or two before it show, a little turned, under the top card.
                 var tops by remember { mutableStateOf(listOf(view.top)) }

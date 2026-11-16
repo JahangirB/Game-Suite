@@ -21,6 +21,8 @@ import com.pippop.data.BrokenRecord
 import com.pippop.data.GameKind
 import com.pippop.data.SoloKey
 import com.pippop.data.SoloMetric
+import com.pippop.ui.Sound
+import com.pippop.ui.SoundOnce
 import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.Mark
 import com.pippop.ui.theme.MarkIcon
@@ -68,10 +70,16 @@ object RecordLines {
 /**
  * The gold line on a result that is a record: a star, then [text]. The star and the words say it
  * together (nothing by colour alone); the ink on the soft gold is dark on light in both themes.
- * Steps 31 and 32 play the `record` sound and buzz where this appears.
+ * The `record` sound plays as it shows, once for each record (not when the card is rebuilt or its words change); step 32 adds the buzz here.
  */
 @Composable
-fun RecordLine(text: String, modifier: Modifier = Modifier) {
+fun RecordLine(
+    text: String,
+    modifier: Modifier = Modifier,
+    /** What the record is (the [BrokenRecord] where there is one), so the sound plays once for each record, whatever the words. */
+    soundKey: Any = text,
+) {
+    SoundOnce(Pair("record", soundKey)) { play(Sound.RECORD) }
     Row(
         modifier.fillMaxWidth().clip(Shapes.Full).background(Board.GlowSoft).border(1.5.dp, Board.Ink, Shapes.Full)
             .padding(horizontal = 10.dp, vertical = 3.dp)

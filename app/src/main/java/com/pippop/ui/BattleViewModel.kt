@@ -695,12 +695,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private fun sudokuOptions(room: RoomState, together: Boolean = room.sudokuTogether, shape: com.pippop.game.SudokuShape = room.sudokuShape, level: Difficulty? = room.sudokuLevel) =
         JSONObject().put("mode", if (together) "together" else "race").put("shape", shape.key).apply { if (room.sudokuOpener && level != null) put("level", level.key) }
 
-    /**
-     * HOOK (step 31, sounds): the sound `line_sent` plays here when a line from another player arrives.
-     * There is no such sound asset yet (`Sound` has no entry for it), so nothing plays. When step 31
-     * adds `Sound.LINE_SENT`, make this `sfx.play(Sound.LINE_SENT)`.
-     */
+    /** A line from another player arrives: `line_sent`, a little quieter, silent while Their moves is off. */
     private fun playLineSent() {
+        sfx.play(Sound.LINE_SENT, Sfx.OTHERS, others = true)
     }
 
     /** Sends a quick reaction; it shows next to your name on both phones. */
@@ -2062,6 +2059,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             haptics.play(Buzz.YOUR_TURN)
             sfx.play(Sound.YOUR_TURN)
         }
+        // Someone else came, went or tapped Ready (a reconnect blip is none of these).
+        roomSounds(before, room).forEach { sfx.play(it, Sfx.OTHERS, others = true) }
         val offset = sentAt?.let { clockOffset(room.serverTime, it) } ?: _state.value.clockOffsetMs
         lastVersion = json.optInt("version", -1)
         if (room.others.map { it.progress } != _state.value.room?.others?.map { it.progress }) {

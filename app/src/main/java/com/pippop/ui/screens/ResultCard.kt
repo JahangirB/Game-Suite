@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +48,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pippop.data.Avatar
 import com.pippop.data.GameKind
+import com.pippop.ui.Sfx
+import com.pippop.ui.Sound
+import com.pippop.ui.SoundOnce
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.ResultAnimation
@@ -166,10 +170,23 @@ private fun RollingDigit(from: Int, to: Int, color: Color) {
  * one with a "+1" ([score] already counts this game). A tie bumps nothing.
  */
 @Composable
-fun TallyRow(score: TonightScore, bump: TallyBump) {
+fun TallyRow(
+    score: TonightScore,
+    bump: TallyBump,
+    /** Which game's point this is, for the `score_up` sound: one sound for each game, whatever the tally says ([MatchPopup] gives room and round). */
+    soundKey: Any = "score:${score.otherName}:${score.mine}-${score.theirs}",
+) {
     val p = AppTheme.palette
     val bumpMine = bump == TallyBump.MINE && score.mine >= 1
     val bumpTheirs = bump == TallyBump.THEIRS && score.theirs >= 1
+    // The "+1" rolls in as the digit starts to turn; once for each game's point (not when the card is rebuilt, and again after
+    // a reconnect starts the tally over). A point for them is the game's result, not their move: quieter, but not "Their moves".
+    if (bumpMine || bumpTheirs) {
+        SoundOnce(soundKey) {
+            delay(Motion.STAGGER_MS.toLong())
+            play(Sound.SCORE_UP, if (bumpMine) 1f else Sfx.OTHERS)
+        }
+    }
     Surface(
         color = p.accent, shape = Shapes.M, modifier = Modifier.fillMaxWidth()
             .clearAndSetSemantics { contentDescription = score.description },
@@ -223,6 +240,10 @@ internal fun ResultCard(
     extra: @Composable ColumnScope.() -> Unit,
     /** What the gold line says when this result is a record ([RecordLines]); null for no line. */
     record: String? = null,
+    /** Which record the gold line is about, for its sound (null: the words). */
+    recordKey: Any? = null,
+    /** Which game's point the tally shows, for its sound. */
+    scoreKey: Any? = null,
 ) {
     val p = AppTheme.palette
     Surface(color = p.card, shape = Shapes.L, border = BorderStroke(3.dp, p.ink), modifier = Modifier.fillMaxWidth().testTag("resultCard").pressedEdge(p.ink, Radius.L, 4.dp)) {
@@ -240,13 +261,13 @@ internal fun ResultCard(
                         lineHeight = LineHeight.DisplayM, modifier = Modifier.semantics { heading() },
                     )
                     // A record takes the detail line's own place (it says more, and adds no height): a compact gold pill.
-                    if (record != null) RecordLine(record)
+                    if (record != null) RecordLine(record, soundKey = recordKey ?: record)
                     else if (detail.isNotEmpty()) Text(detail, color = p.muted, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, lineHeight = LineHeight.Body)
                 }
                 Spacer(Modifier.width(8.dp))
                 ResultAnimation(game, outcome, Modifier.width(84.dp))
             }
-            if (tally != null) TallyRow(tally, bump)
+            if (tally != null) { if (scoreKey != null) TallyRow(tally, bump, scoreKey) else TallyRow(tally, bump) }
             if (scores.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     scores.forEach {

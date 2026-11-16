@@ -24,7 +24,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.pippop.ui.Sound
+import com.pippop.ui.rememberSfx
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -110,6 +116,16 @@ internal fun TrophyMoment(end: MonthEnd, current: YearMonth, myAvatar: Avatar?, 
     val tie = end.winner == null
     val partnerName = end.partner
     val cupFace = if (mineWon) myAvatar else partnerAvatar.takeIf { !tie }
+    // The cup's chord plays as it shows. Saved with the screen, so a rotation or theme change doesn't play it again;
+    // closing it and opening it afresh ("Show last month's cup") does.
+    val sfx = rememberSfx()
+    var chimed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!chimed) {
+            chimed = true
+            sfx.play(Sound.TROPHY)
+        }
+    }
     Box(modifier.fillMaxSize()) {
         if (showsConfetti(LocalReduceMotion.current)) Confetti(Modifier.fillMaxWidth().height(420.dp), count = 60)
         Column(Modifier.fillMaxSize().padding(horizontal = Space.XXL, vertical = Space.XL), horizontalAlignment = Alignment.CenterHorizontally) {

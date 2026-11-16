@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Makes Pip & Pop's sound effects from scratch (no recordings, so no licence questions).
 
-Each sound in docs/SFX.md marked priority 1 is built here from tones and noise, in the
+Each sound in docs/SFX.md marked priority 1, and the fifteen added for "Between the Boards", is built here from tones and noise, in the
 "Felt" style: round, low and short, kept out of the 2-5 kHz band people find harshest. Run it to (re)make app/src/main/res/raw/sfx_*.ogg:
 
     python3 scripts/make-sounds.py
@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import wave
+import zlib
 
 import numpy as np
 
@@ -487,6 +488,111 @@ def golf_drop():
     return 0.8 * boop(700, 520, 3.5, glide=0.3)
 
 
+def new_sound(fn):
+    """Like [sound], for the sounds added after the first set: each starts its own random stream, from its name,
+    so it comes out the same whether the script makes all of the sounds or only this one."""
+    def make():
+        global rng
+        rng = np.random.default_rng(zlib.crc32(fn.__name__.encode()))
+        return fn()
+    make.__name__ = fn.__name__
+    SOUNDS[fn.__name__] = make
+    return make
+
+
+# Between the Boards: the sounds that go with moments between the moves (docs/SFX.md). Kept at the
+# end, and each with a random stream of its own, so that the sounds above come out exactly as before.
+
+@new_sound
+def sudoku_unit_done():
+    # A row, column or box is finished: three rising notes under the gold sweep.
+    return seq(*[at(i * 90, 0.8 * boop(hz(n), 300, 9)) for i, n in enumerate(['E4', 'G4', 'C5'])])
+
+
+@new_sound
+def c4_four():
+    # The line through four discs is drawn: four quick rising notes.
+    return seq(*[at(i * 75, 0.8 * boop(hz(n), 260, 11)) for i, n in enumerate(['C4', 'E4', 'G4', 'C5'])])
+
+
+@new_sound
+def ttt_board_won():
+    # A small board is won in Ultimate: a stamp.
+    return seq(at(0, thump(110, 180, 20)), at(0, 0.5 * shush(120, 900)), at(45, 0.6 * boop(hz('G4'), 220, 12)))
+
+
+@new_sound
+def memory_miss():
+    # A pair that doesn't match turns back: a soft, lower double flip.
+    return seq(at(0, shush(110, 900)), at(0, 0.5 * boop(hz('E4'), 160, 14)), at(130, 0.8 * shush(110, 700)), at(130, 0.5 * boop(hz('C4'), 240, 12)))
+
+
+@new_sound
+def slide_home():
+    # A tile lands in its place: a small click-ting.
+    return seq(at(0, tap_(480, 60, 60)), at(40, 0.7 * boop(hz('E5'), 220, 12)))
+
+
+@new_sound
+def bingo_one_away():
+    # A card is one away from a line: a double heartbeat, twice.
+    return seq(at(0, thump(90, 140, 24)), at(170, 0.8 * thump(80, 160, 22)), at(620, thump(90, 140, 24)), at(790, 0.8 * thump(80, 160, 22)))
+
+
+@new_sound
+def domino_knock():
+    # A player passes: a knuckle knocking twice on the table.
+    return seq(at(0, thump(180, 90, 40)), at(110, 0.9 * thump(170, 100, 36)))
+
+
+@new_sound
+def clash_last_card():
+    # A player is down to one card: a bright ping.
+    return seq(at(0, boop(hz('E5'), 140, 14)), at(110, boop(hz('A5'), 360, 8)))
+
+
+@new_sound
+def player_join():
+    # Someone joins the room: rising "boop-bip".
+    return seq(at(0, boop(hz('C4'), 150, 12)), at(120, boop(hz('G4'), 260, 9)))
+
+
+@new_sound
+def player_leave():
+    # Someone leaves the room: falling "bip-boop".
+    return seq(at(0, boop(hz('G4'), 150, 12)), at(120, boop(hz('C4'), 280, 8, glide=0.95)))
+
+
+@new_sound
+def ready():
+    # Someone taps Ready or Rematch: a light confirm click.
+    return mix(tap_(360, 70, 55), 0.6 * boop(hz('E4'), 140, 16))
+
+
+@new_sound
+def score_up():
+    # Tonight's score ticks up: a coin-like blip.
+    return seq(at(0, boop(hz('B4'), 90, 18)), at(70, boop(hz('E5'), 240, 10)))
+
+
+@new_sound
+def record():
+    # The record line shows: four rising notes and a held, wavering fifth.
+    return seq(*[at(i * 60, 0.7 * boop(hz(n), 240, 10)) for i, n in enumerate(['G4', 'B4', 'D5', 'G5'])], at(270, 0.5 * boop(hz('D5'), 520, 5, vibrato=6)))
+
+
+@new_sound
+def trophy():
+    # The month's cup shows: a thump and a long, shimmering chord.
+    return seq(at(0, thump(100, 200, 16)), at(60, 0.6 * boop(hz('C5'), 720, 4, vibrato=5)), at(60, 0.4 * boop(hz('G5'), 720, 4, vibrato=5)))
+
+
+@new_sound
+def line_sent():
+    # A line arrives: one rising note.
+    return boop(hz('F4'), 110, 20, glide=1.5)
+
+
 # --- Writing the files ------------------------------------------------------------------------
 
 def write(name, samples):
@@ -500,7 +606,7 @@ def write(name, samples):
         w.setframerate(RATE)
         w.writeframes(pcm.tobytes())
     out = os.path.join(OUT, f'sfx_{name}.ogg')
-    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', path, '-c:a', 'libvorbis', '-q:a', '4', '-map_metadata', '-1', out], check=True)
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', path, '-c:a', 'libvorbis', '-q:a', '4', '-map_metadata', '-1', '-fflags', '+bitexact', '-flags:a', '+bitexact', out], check=True)
     os.unlink(path)
 
 

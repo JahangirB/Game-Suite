@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,6 +105,10 @@ private fun oneAwaySquares(dabs: Set<Int>): Set<Int> = buildSet {
     }
 }
 
+/** Which of [Bingo.LINES] (by position) are one dab from done: the lines behind [oneAwaySquares]. */
+private fun oneAwayLines(dabs: Set<Int>): Set<Int> =
+    Bingo.LINES.indices.filterTo(HashSet()) { i -> Bingo.LINES[i].count { it != Bingo.FREE && it !in dabs } == 1 }
+
 /**
  * The win: the five squares hop one after another, a gold ribbon runs through them and a little
  * confetti falls. [p] runs 0 to 1; at 1 only the ribbon is left. Squares sit in a grid of [cell]
@@ -144,6 +149,18 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
     SoundOnChange(dabs.size.takeIf { enabled }) { play(Sound.BINGO_DAB) }
     // A full line dabbed: the Bingo button lights up with a shimmer.
     SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) { play(Sound.BINGO_LINE_READY) }
+    // A card is first one away from a line: a heartbeat sound, once for each line on this card (not again when a dab is
+    // taken off and put back, after a rotation, or when the card shows with a line already one away).
+    val oneAwayNow = if (enabled && line == null) oneAwayLines(dabs) else emptySet()
+    val announced = rememberSaveable(card.joinToString(",")) { ArrayList(oneAwayNow) }
+    SoundOnChange(oneAwayNow.takeIf { it.isNotEmpty() }) {
+        val fresh = oneAwayNow.filter { it !in announced }
+        if (fresh.isNotEmpty()) {
+            announced += fresh
+            delay(120) // after the dab's own tap
+            play(Sound.BINGO_ONE_AWAY)
+        }
+    }
     val oneAway = remember(dabs, enabled, line == null) { if (enabled && line == null) oneAwaySquares(dabs) else emptySet() }
     // A heartbeat for the squares one dab from a line; a still glow when motion is reduced.
     val beat = if (oneAway.isNotEmpty()) {

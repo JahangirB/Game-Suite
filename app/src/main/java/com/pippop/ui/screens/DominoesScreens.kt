@@ -4,6 +4,7 @@ import com.pippop.ui.startWith
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.pippop.ui.Sound
+import com.pippop.ui.SoundOnChange
 import com.pippop.ui.rememberSfx
 import com.pippop.ui.Sfx
 import com.pippop.ui.theme.TextSize
@@ -315,6 +316,11 @@ internal fun ColumnScope.DominoTable(
 
     val move = view.lastMove
     val lastIndex = move?.tile?.let { if (move.end == "left") 0 else view.line.lastIndex }
+    // A pass is a knuckle knocked on the table, when it is made (the news line says so in words).
+    SoundOnChange(move?.takeIf { it.passed }) {
+        val theirs = move?.who != 'm'
+        play(Sound.DOMINO_KNOCK, if (theirs) Sfx.OTHERS else 1f, others = theirs)
+    }
     BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm', myTurn = canMove) }
 
     val chosen = selected
