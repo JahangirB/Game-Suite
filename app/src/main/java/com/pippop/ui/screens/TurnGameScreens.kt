@@ -910,7 +910,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     // Boxes or pairs each player has, for the games that keep score.
     val owned = turns.boxes ?: turns.owners
     fun score(mark: Char): String? = owned?.let { o -> o.count { it == mark }.let { if (game == GameKind.MEMORY) it / 2 else it } }
-        ?.let { if (game == GameKind.MEMORY) "$it pairs" else "$it boxes" }
+        ?.let { if (game == GameKind.MEMORY) "$it ${if (it == 1) "pair" else "pairs"}" else "$it ${if (it == 1) "box" else "boxes"}" }
     val (myLabel, theirLabel) = if (game == GameKind.TTT) "X" to "O" else "Red" to "Yellow"
     // Each other player's mark on the board: 'o', 'p', 'q' in seat order.
     fun markOf(player: PlayerInfo, isMe: Boolean) = if (isMe) 'm' else "opq"[room.others.indexOf(player).coerceAtLeast(0)]

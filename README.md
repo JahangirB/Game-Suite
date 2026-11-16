@@ -30,7 +30,7 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   whole fleet wins. Play against the computer, online with your partner (Cloudflare server)
   or nearby. Tap a ship and then the square it goes to (or drag it), **Turn** to rotate it, or tap **Shuffle**, then **Ready**. The server keeps both
   fleets, so neither phone can peek; enemy ships are revealed as they sink. Pick the look of
-  the ships in *Profile → Appearance*: **Toy Harbor** or **Pirate Wood**.
+  the ships in *Profile → Look*: **Toy Harbour** or **Pirate Wood**.
 - **Connect Four:** take turns dropping discs into seven columns; four in a row across, down
   or diagonally wins, and a full board is a draw. Play against the computer (Easy, Medium,
   Hard), online with your partner (Cloudflare server) or nearby. Both tap **Ready**; who
@@ -134,6 +134,52 @@ don't need you both online at once: close the app after your move and your partn
 notification (Cloudflare server with invitations set up). Tap it to make your move. Turn games
 are never lost for being away, and the room waits up to a week.
 
+## New in the latest round
+
+- **A new home.** Every game is its picture, three to a row. One bar connects you (Nearby,
+  Online, or your saved partner). **Jump back in** shows your Sudoku in progress and the games
+  you played last. The **Games** row has **Scores**, **Surprise us** (it picks a game that fits
+  the room) and **Arrange games**, where you can also put games away under **More games**. Once
+  connected, a room bar shows everyone's faces, who is waiting in which game, and **Leave**.
+- **A sheet for each game.** Tap a game to see how many play, about how long it takes and whether
+  you take turns, race or play live. **Play solo** starts from there with your last setup, and
+  **Change** edits it. Rules are a few short points, with **Show me how** for the walk-through.
+- **Setup as rows of choices.** The lobby shows each option as a row you tap. A Ready bar under it
+  shows everyone's faces and says who you are waiting for.
+- **Sudoku: whoever opens it picks the level.** No more agreeing on a level in the lobby. If a phone
+  or server is too old for it, the level is chosen the old way.
+- **The result sits under the board.** When a game ends the board moves up and the result shows
+  below it, so you can still see the last move. The winner's face, tonight's score and
+  **Rematch** are all there; a gold line appears when someone beats a record. **Another game**
+  opens a short list: the one who lost picks (the other can still pick), or tap **Surprise us**.
+  Games where the board fills the whole screen keep the old result sheet.
+- **Tonight's score.** In a game against one other player, both faces and your score since you
+  connected sit in the title row.
+- **Scores.** The scoreboard has **This month**, **All time** and **Solo**. See where you stand,
+  the last five results, and each game's own story (longest run, quickest win, biggest win). Solo
+  shows your best in each game. Each month's winner gets a gold cup (silver for a tie), and the
+  first time you open the app after a month ends you see **who took it**.
+- **Profile.** You (name and picture), Look, Sound and touch, then Playing online. Sound has
+  **Off, Quiet, Normal and Loud**, and a switch for the sounds of other players' moves.
+- **Colour themes.** Lavender, Mint, Peach and Sky, each with a dark version. Each phone picks
+  its own.
+- **Looks.** In the menu of Memory Pairs, Colour Clash, Connect Four and Dominoes, **Looks**
+  changes the card backs, the Connect Four frame or the domino tiles. It only changes your own
+  screen.
+- **Reactions.** The whole tray shows at once, two rows, the ones you used last first. The **pencil**
+  holds six short lines of your own, which the others see as a speech bubble. The **+** opens
+  **sticker packs**: new stickers come from this repository's `stickers/` folder, so they need no
+  app update (see [stickers/README.md](stickers/README.md)).
+- **Your photo as your face.** In the profile, **Use a photo** crops one to a circle. The animal
+  is still sent too, so a phone that can't show the photo shows the animal.
+- **Memory Pairs with your photos.** Whoever opens the game can set the deck to **Your photos**.
+- **Sounds and buzzes.** Fifteen new sounds (a finished Sudoku row, column or box, four in a row,
+  someone joining or leaving, a record, the month's cup, a line arriving) and five new buzzes.
+
+Lines, sticker packs, photo faces, Memory photos and the Sudoku opener need a server running the
+new code; see *Which server features need the new code* below. Without them everything else
+works as before.
+
 ## Playing with your partner
 
 After your first online battle the app **remembers your partner**: the server link,
@@ -169,8 +215,11 @@ The **profile icon** (top right of the home screen) holds all setup:
   lion or penguin, drawn by the app so both phones show the same picture), which your opponent sees
 - the **server link** for online battles (Google Script or Cloudflare), the **server
   password** if the host set one, plus *Paste invite* and *Test link*
-- **appearance** (system, light or dark, and the Ship Battle style)
-- your **statistics** (wins and best time per level, battles won and lost)
+- **look**: light or dark, one of four colour themes, and the Ship Battle style
+- **sound and touch**: loudness (Off, Quiet, Normal, Loud), whether other players' moves make
+  sounds, and buzzes
+- an optional **photo** in place of the avatar (**Use a photo**)
+- your solo bests and wins live on the **Scores** screen, not here
 
 ## How a battle works
 
@@ -185,8 +234,9 @@ The **profile icon** (top right of the home screen) holds all setup:
    button. **Games** (or back) from a lobby or result returns to the home and keeps the
    connection; only **Leave** disconnects. Hold a game on the home to arrange the games
    in your own order.
-4. **Sudoku: both players choose a level in the lobby.** Tapping a level means "I'm ready for
-   this level" (tap it again to cancel). You can see your opponent's pick. The game only
+4. **Sudoku: both players choose a level in the lobby** (when every phone has the new app and
+   the server has the new code, whoever opens the game picks it instead). Tapping a level means
+   "I'm ready for this level" (tap it again to cancel). You can see your opponent's pick. The game only
    starts when **both players have picked the same level**. If the levels differ, both
    players see a message ("Levels don't match: you chose Hard, Sam chose Easy…") and the
    game waits until someone changes their pick.
@@ -234,6 +284,26 @@ phone).
 
 The app recognises the server from the link, so players just paste whatever link the
 host shares. Both servers follow the same rules.
+
+### Which server features need the new code
+
+Some features need the updated server code. An older server still works for everything else: the
+app simply hides the control.
+
+| Feature | Apps Script | Cloudflare | Nearby |
+|---|:-:|:-:|:-:|
+| Lines of your own | yes | yes | yes |
+| Sticker packs | yes | yes | yes |
+| Sudoku: whoever opens it picks the level | yes | yes | yes |
+| Photo faces | no | yes | yes |
+| Memory Pairs with your photos | no | yes | yes |
+
+Nearby needs nothing deployed: the host phone's app is the server. To update the others:
+
+- **Cloudflare:** run `npx wrangler deploy` in `backend/cloudflare` (a Worker connected to this
+  repository redeploys by itself once the code reaches the default branch).
+- **Apps Script:** paste the new [`backend/Code.gs`](backend/Code.gs) over the old code, then
+  **Deploy → Manage deployments → Edit → New version**.
 
 ## 1a. Host setup: Cloudflare Worker (fast, free)
 
@@ -461,7 +531,29 @@ RUN_WORKER_TESTS=1 npm test                  # + a full battle against `wrangler
 npx wrangler dev                             # run the Cloudflare server locally
 ./gradlew testDebugUnitTest                  # Kotlin unit tests
 ./gradlew assembleDebug                      # build the APK
+./gradlew assemblePreview                    # build the preview app
+python3 scripts/test_make_stickers.py        # sticker files
 ```
+
+### The preview app
+
+**Pip & Pop Preview** is the same code built as the `preview` build type. It installs next to the
+real app, with its own name, icon colour, games and scores, so trying new work never touches your
+real data. It has no Firebase, so invitations are off, and it plays nearby only with other
+previews. Online it uses whatever server link you type in. Both players need it for anything two
+phones share.
+
+Install `PipPopPreview.apk` from the `preview` pre-release, which CI builds and publishes from the work
+branch (a branch whose name starts with `between-the-boards`; see the `preview` job in
+`.github/workflows/build.yml`). It is a pre-release, so installed copies of the real app never
+see it. The `preview` job signs with the same `SIGNING_KEYSTORE_BASE64` secret as the real build
+(see *Make your own copy*), so the preview can update over an earlier preview; it needs no Firebase
+secret. Build it yourself with `./gradlew assemblePreview`. In the preview, the profile's
+**Preview app** card has test tools, such as sample games for the scoreboard.
+
+Sticker packs come from the `stickers/` folder of the branch the preview was built from (the real
+app reads your default branch), so a new sticker can be tried before it is merged. How to add one
+is in [stickers/README.md](stickers/README.md).
 
 Sound effects: the planned sounds for every game, and how to source and wire them, are in
 [docs/SFX.md](docs/SFX.md).

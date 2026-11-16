@@ -328,7 +328,13 @@ class ScreenshotResultTest : ScreenshotBase() {
 
     private fun sudoku(winner: String?): RoomState = room(
         GameKind.SUDOKU, winner, "solved",
-        change = { it.copy(difficulty = com.pippop.data.Difficulty.EASY, me = it.me.copy(finishMs = 312_000, progress = if (winner == "me") 100 else 86)) },
+        change = {
+            val maya = it.others.map { o -> o.copy(finishMs = 287_000) }
+            it.copy(
+                difficulty = com.pippop.data.Difficulty.EASY, others = maya, opponent = maya.firstOrNull(),
+                me = it.me.copy(finishMs = 312_000, progress = if (winner == "me") 100 else 86),
+            )
+        },
     )
 
     private val sudokuBoard = com.pippop.game.BoardState(
@@ -450,9 +456,9 @@ class ScreenshotResultTest : ScreenshotBase() {
     // ---- Games that keep the sheet (the board is the whole screen) ---------------------------------
 
     /** Draws a result that stays a sheet over the game: no card under the board. */
-    private fun sheet(name: String, r: RoomState, screen: @Composable (BattleUiState, BattleViewModel) -> Unit) {
+    private fun sheet(name: String, r: RoomState, dark: Boolean = false, screen: @Composable (BattleUiState, BattleViewModel) -> Unit) {
         val s = BattleUiState(room = r, tally = tallyFor(r.winner))
-        shot("result-$name-${if (r.winner == "me") "won" else "lost"}", dark = false) { Session(r) { screen(s, vm()) } }
+        shot("result-$name-${if (r.winner == "me") "won" else "lost"}", dark = dark) { Session(r) { screen(s, vm()) } }
         compose.onNodeWithTag("resultCard").assertDoesNotExist()
     }
 
@@ -470,14 +476,18 @@ class ScreenshotResultTest : ScreenshotBase() {
     }
 
     @Test fun shipsWon() = sheet("ships", shipsRoom("me")) { s, v -> ShipsGameScreen(s, v, onLeave = {}) }
+    @Test fun shipsWonDark() = sheet("ships", shipsRoom("me"), dark = true) { s, v -> ShipsGameScreen(s, v, onLeave = {}) }
     @Test fun shipsLost() = sheet("ships", shipsRoom("opponent")) { s, v -> ShipsGameScreen(s, v, onLeave = {}) }
+    @Test fun shipsLostDark() = sheet("ships", shipsRoom("opponent"), dark = true) { s, v -> ShipsGameScreen(s, v, onLeave = {}) }
 
     private fun hockey(winner: String?) = room(
         GameKind.HOCKEY, winner, "goals", change = { it.copy(hockey = HockeyScore(if (winner == "me") 7 else 4, if (winner == "me") 4 else 7, 7)) },
     )
 
     @Test fun hockeyWon() = sheet("hockey", hockey("me")) { s, v -> HockeyScreen(s, v, onLeave = {}) }
+    @Test fun hockeyWonDark() = sheet("hockey", hockey("me"), dark = true) { s, v -> HockeyScreen(s, v, onLeave = {}) }
     @Test fun hockeyLost() = sheet("hockey", hockey("opponent")) { s, v -> HockeyScreen(s, v, onLeave = {}) }
+    @Test fun hockeyLostDark() = sheet("hockey", hockey("opponent"), dark = true) { s, v -> HockeyScreen(s, v, onLeave = {}) }
 
     private fun golf(winner: String?) = room(
         GameKind.GOLF, winner, "strokes",
@@ -493,7 +503,9 @@ class ScreenshotResultTest : ScreenshotBase() {
     ) { it.copy(golfLevel = com.pippop.game.golf.GolfLevel.entries.first()) }
 
     @Test fun golfWon() = sheet("golf", golf("me")) { s, v -> GolfGameScreen(s, v, onLeave = {}) }
+    @Test fun golfWonDark() = sheet("golf", golf("me"), dark = true) { s, v -> GolfGameScreen(s, v, onLeave = {}) }
     @Test fun golfLost() = sheet("golf", golf("opponent")) { s, v -> GolfGameScreen(s, v, onLeave = {}) }
+    @Test fun golfLostDark() = sheet("golf", golf("opponent"), dark = true) { s, v -> GolfGameScreen(s, v, onLeave = {}) }
 
     // ---- On your own: the same card without the score row -----------------------------------------
 

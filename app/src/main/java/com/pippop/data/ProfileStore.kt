@@ -18,7 +18,7 @@ enum class ColourTheme(val label: String) { LAVENDER("Lavender"), MINT("Mint"), 
 enum class PlayMode { OFFLINE, ONLINE }
 
 /** How the ships look in Ship Battle; each player picks their own. */
-enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood") }
+enum class ShipStyle(val label: String) { TOY("Toy Harbour"), PIRATE("Pirate Wood") }
 
 /** The back of Memory Pairs' and Colour Clash's cards; each player picks their own. [STRIPES] is the look from before this could be chosen. */
 enum class CardBackLook(val label: String) { STRIPES("Stripes"), DOTS("Dots"), DIAMONDS("Diamonds"), WAVES("Waves") }

@@ -151,11 +151,11 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 ## Phase L: the hand-over
 
 - [ ] **Step 33. The last pass**
-  - [ ] Every line above is ticked or explained
-  - [ ] All checks pass locally; the last CI run on the work branch is green
+  - [x] Every line above is ticked or explained
+  - [x] All checks pass locally; the last CI run on the work branch is green
   - [ ] The `preview` pre-release is from that run; the latest release is still `latest`
-  - [ ] Every screenshot looked at in light and dark; the home in all four themes
-  - [ ] `README.md` and `docs/UX-PLAN.md` updated
+  - [x] Every screenshot looked at in light and dark; the home in all four themes
+  - [x] `README.md` and `docs/UX-PLAN.md` updated
   - [ ] The owner has the report and has been asked for the code word
 
 ## Not built
@@ -166,7 +166,7 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [-] "How you two stand in this game": left out by the owner
 - [-] "First to three": left out by the owner
 - [-] "The night's winner": left out by the owner
-- [ ] The decider: on hold until the owner says what it means without a target
+- [-] The decider: on hold until the owner says what it means without a target (not built; its sound left out too)
 
 ## After the owner writes `lubudum`
 

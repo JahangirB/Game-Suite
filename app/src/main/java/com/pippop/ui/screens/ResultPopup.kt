@@ -163,12 +163,6 @@ fun BoxScope.ResultPopup(
     )
     BoxWithConstraints(Modifier.matchParentSize()) {
         val room = maxHeight
-        // The game's own little scene, over the board above the sheet.
-        ResultAnimation(
-            game, outcome,
-            Modifier.align(Alignment.TopCenter).padding(top = 12.dp).widthIn(max = 220.dp).fillMaxWidth(0.55f)
-                .graphicsLayer { alpha = enter.value },
-        )
         Surface(
             color = p.card,
             shape = Shapes.Top,
@@ -193,14 +187,18 @@ fun BoxScope.ResultPopup(
                         .clickable { folded = true },
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(width = 44.dp, height = 5.dp).clip(Shapes.Full).background(p.hairline)) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM, modifier = Modifier.weight(1f))
-                    if (tonight != null) {
-                        Text(
-                            tonight, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
-                            modifier = Modifier.clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
+                // The game's own little scene sits beside the title, so it never covers the game's header.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
+                        if (tonight != null) {
+                            Text(
+                                tonight, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
+                                modifier = Modifier.clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
                     }
+                    ResultAnimation(game, outcome, Modifier.width(120.dp).graphicsLayer { alpha = enter.value })
                 }
                 if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 if (recordText != null) RecordLine(recordText, soundKey = shownRecord ?: recordText)
@@ -228,7 +226,7 @@ fun BoxScope.ResultPopup(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     if (onChange != null) SecondaryButton("Change", onChange, Modifier.weight(1f))
-                    SecondaryButton(finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
+                    SecondaryButton(if (finish.label == "Games") "Back to games" else finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
                 }
                 if (another != null) SecondaryButton("Another game", { anotherOpen = true }, Modifier.fillMaxWidth())
             }

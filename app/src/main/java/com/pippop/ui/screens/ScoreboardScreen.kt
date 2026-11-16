@@ -312,8 +312,8 @@ private fun GameLine(g: GameScore, partner: String, tag: String?, onClick: () ->
         Row(Modifier.heightIn(min = 48.dp).padding(horizontal = Space.M, vertical = Space.S), verticalAlignment = Alignment.CenterVertically) {
             GameBadge(g.game)
             Spacer(Modifier.width(Space.M))
-            Column(Modifier.weight(0.9f)) {
-                Text(g.game.label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(0.9f).padding(end = Space.S)) {
+                Text(g.game.label, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (tag != null) Text(tag, color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 2)
             }
             Text("${g.mine}", style = Digits, color = p.meText, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 24.dp))

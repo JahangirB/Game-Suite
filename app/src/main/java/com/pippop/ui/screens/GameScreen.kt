@@ -352,7 +352,7 @@ private fun BoxScope.SudokuPopup(
         "solved" -> if (won) {
             "You solved it in ${formatDuration(room.me.finishMs ?: 0L)}!"
         } else {
-            "$opponentName solved it in ${formatDuration(opponent?.finishMs ?: 0L)}. " +
+            "$opponentName solved it${opponent?.finishMs?.let { " in ${formatDuration(it)}" } ?: ""}. " +
                 "You had ${room.me.progress ?: 0}% correct."
         }
         "forfeit" -> if (won) "$opponentName left the game." else "You left the game."

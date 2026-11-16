@@ -102,3 +102,14 @@ Copy and polish:
 Fixes asked for along the way, outside the numbered steps. None open: Slide Race swipes and
 the Ship Battle hang against the computer are fixed.
 
+## Between the Boards: built
+
+The "Between the Boards" round is built, in 33 steps (see
+[proposals/between-the-boards/PLAN.md](proposals/between-the-boards/PLAN.md)). It gives the
+app one toy box of parts (dialogs, sheets, fields, switches), a new home with a sheet for each
+game, setup as rows of choices, the result under the board with "Another game", tonight's score,
+a scoreboard with records and a monthly cup, a reorganised profile with colour themes, looks for
+cards, frames and tiles, a whole reaction tray with your own lines and sticker packs, photo faces
+and Memory with your photos, and new sounds and buzzes. It was built and tried in the separate
+Pip & Pop Preview app. The features that need new server code (lines, packs and the Sudoku opener
+on all three servers; photos on Cloudflare and Nearby) are listed in the README.
