@@ -95,6 +95,11 @@ class LocalRoom(
         var bigSudoku = false
         /** Their app plays Sudoku where whoever opened the game picks the level. */
         var sudokuOpener = false
+        /** Their photo (a small JPEG as base64) and its id; kept here, never in a room state. Goes with them when they leave. */
+        var face: String? = null
+        var photoId: Int? = null
+        /** When they last set or removed it, for the pace limit. */
+        var faceAt: Long? = null
     }
 
     var status = "waiting"
@@ -729,6 +734,32 @@ class LocalRoom(
         version++
     }
 
+    private var faceSeq = 0
+
+    /**
+     * [role] sets their own photo (a JPEG as base64, at most [MAX_FACE] characters), or removes it with null or an empty
+     * string. A new photo gets a new id, so phones fetch it again once. As on the server (faces.js).
+     */
+    fun setFace(role: String, photo: String?, now: Long = System.currentTimeMillis()) {
+        val me = players[role] ?: throw ApiException("You are not in this game.")
+        if (photo.isNullOrEmpty()) {
+            if (me.faceAt?.let { now - it < FACE_INTERVAL_MS } == true) throw ApiException("Slow down a little.")
+            me.face = null
+            me.photoId = null
+        } else {
+            if (photo.length > MAX_FACE) throw ApiException("That photo is too big.")
+            if (!isJpegBase64(photo)) throw ApiException("That photo is not usable.")
+            if (me.faceAt?.let { now - it < FACE_INTERVAL_MS } == true) throw ApiException("Slow down a little.")
+            me.face = photo
+            me.photoId = ++faceSeq
+        }
+        me.faceAt = now
+        version++
+    }
+
+    /** The photo with this [id], or null: only a photo of someone still in the room. As on the server. */
+    fun face(id: Int): String? = players.values.firstOrNull { it != null && !it.left && it.photoId == id }?.face
+
     /** Mini Golf: how many islands every hole of the next game has. */
     var golfLevel = GolfLevel.EASY
         private set
@@ -1307,11 +1338,15 @@ class LocalRoom(
                 it.emojiAt = p.emojiAt
                 it.bigSudoku = p.bigSudoku
                 it.sudokuOpener = p.sudokuOpener
+                it.face = p.face
+                it.photoId = p.photoId
+                it.faceAt = p.faceAt
                 it.at = if (r == role) next else p.at
             }
         }
         fresh.version = version + 1
         fresh.emojiSeq = emojiSeq
+        fresh.faceSeq = faceSeq
         fresh.round = round
         fresh.startPushedRound = startPushedRound
         fresh.openedBy = role
@@ -1547,6 +1582,8 @@ class LocalRoom(
     private fun playerView(p: Player, includeProgress: Boolean, now: Long): JSONObject = JSONObject()
         .put("name", p.name)
         .put("avatar", p.avatar?.key ?: JSONObject.NULL)
+        // The id of their photo (fetched once with "getface"), never the photo itself.
+        .put("photoId", p.photoId ?: JSONObject.NULL)
         .put("emoji", p.emoji?.let { JSONObject().put("key", it.key).put("seq", it.seq).apply { if (it.text != null) put("text", it.text) } } ?: JSONObject.NULL)
         .put("ready", p.ready)
         .put("difficulty", p.difficulty?.key ?: JSONObject.NULL)
@@ -1591,7 +1628,20 @@ class LocalRoom(
         /** What a phone hosting a room can do, sent in every room state; an app shows a control only when its cap is here. */
         const val LINES = "lines"
         const val PACKS = PackKey.CAP
-        val CAPS = listOf(SUDOKU_OPENER, LINES, PACKS)
+        const val FACES = "faces"
+        val CAPS = listOf(SUDOKU_OPENER, LINES, PACKS, FACES)
+        /** The most base64 characters a player's photo may take (the server's FACE_MAX). */
+        const val MAX_FACE = 12_000
+        /** The least time between one player's photo changes (the server's FACE_INTERVAL_MS). */
+        const val FACE_INTERVAL_MS = 2000L
+
+        /** Whether [s] is padded base64 of a JPEG: it starts FF D8 FF and ends FF D9. */
+        fun isJpegBase64(s: String): Boolean {
+            if (s.length % 4 != 0 || !s.all { it.isLetterOrDigit() && it.code < 128 || it == '+' || it == '/' || it == '=' }) return false
+            val bytes = try { java.util.Base64.getDecoder().decode(s) } catch (e: IllegalArgumentException) { return false }
+            return bytes.size >= 8 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() &&
+                bytes[bytes.size - 2] == 0xFF.toByte() && bytes[bytes.size - 1] == 0xD9.toByte()
+        }
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L

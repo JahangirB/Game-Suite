@@ -48,6 +48,7 @@ import com.pippop.data.SavedPartner
 import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
 import com.pippop.data.ChatLines
+import com.pippop.data.Faces
 import com.pippop.data.PackKey
 import com.pippop.data.PackReceiver
 import com.pippop.data.PackShown
@@ -78,7 +79,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -144,6 +147,8 @@ data class BattleUiState(
     /** Each other player's latest reaction, by name, for their chip. */
     val otherReactions: Map<String, ShownReaction> = emptyMap(),
     val myReaction: ShownReaction? = null,
+    /** The photos of the room's other players, fetched once each, by the id the room state carries ([Faces]). */
+    val faces: Map<Int, String> = emptyMap(),
     /** Ship Battle: the fleet you will be ready with (shuffle until you like it). */
     val fleetDraft: List<Ship> = Fleet.random(),
     /** A move or shot is on its way; it already shows where the rules allow (see [playMove]). */
@@ -249,6 +254,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var sessionServer: Pair<String, String>? = null
 
     init {
+        // A photo chosen or removed while in a room reaches the others at once (where the server has the cap).
+        viewModelScope.launch {
+            store.profile.map { it.face }.distinctUntilChanged().collect { _state.value.room?.let(::syncFaces) }
+        }
         // A declined invitation shows on screen too when the app is open.
         viewModelScope.launch {
             Push.events.collect { event ->
@@ -1597,6 +1606,75 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Photos asked for in this session, so each id is fetched once. */
+    private val facesAsked = mutableSetOf<Int>()
+
+    /** What this phone last told the room's server about your own photo. */
+    private var faceSent: Faces.Sent? = null
+
+    /**
+     * Your photo goes to the room's server, and the others' photos are fetched, only where the room lists the
+     * cap "faces" (see [Faces.share]). Each photo is fetched once per id; a missing or unreadable one is left, and
+     * that player shows as their animal.
+     */
+    private fun syncFaces(room: RoomState) {
+        if (Faces.CAP !in room.caps) return
+        val b = backend ?: return
+        val me = playerId ?: return
+        when (val a = Faces.share(room.caps, room.code, store.profile.value.face, room.me.photoId, faceSent)) {
+            Faces.Share.Nothing -> Unit
+            is Faces.Share.Send -> sendFace(room.code, a.photo)
+            Faces.Share.Remove -> sendFace(room.code, null)
+        }
+        val ids = room.others.mapNotNull { it.photoId }.toSet()
+        if (_state.value.faces.keys.any { it !in ids }) _state.update { s -> s.copy(faces = s.faces.filterKeys { it in ids }) }
+        for (id in ids) {
+            if (!facesAsked.add(id)) continue
+            viewModelScope.launch {
+                val photo = try {
+                    b.face(room.code, me, id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                // Decoding is work, and the photo came from another phone: off the main thread, and checked first.
+                if (photo != null && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Faces.decode(photo) } != null) {
+                    _state.update { it.copy(faces = it.faces + (id to photo)) }
+                    _state.value.room?.let { keepPartnerFace(it) }
+                }
+            }
+        }
+        keepPartnerFace(room)
+    }
+
+    private fun sendFace(code: String, photo: String?) {
+        val me = playerId ?: return
+        val b = backend ?: return
+        val sent = Faces.Sent(code, photo)
+        faceSent = sent
+        viewModelScope.launch {
+            try {
+                applyResponse(b.setFace(code, me, photo), null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // No error message (the others see the animal), but the next room update tries again.
+                if (faceSent == sent) faceSent = null
+            }
+        }
+    }
+
+    /** The saved partner's last photo, kept with them for the scoreboard and the cups once their photo has arrived. */
+    private fun keepPartnerFace(room: RoomState) {
+        val partner = store.profile.value.partner ?: return
+        when (val a = Faces.partnerFace(partner, room.others, room.caps, _state.value.faces)) {
+            Faces.PartnerFace.Keep -> Unit
+            Faces.PartnerFace.Clear -> store.setPartnerFace(null)
+            is Faces.PartnerFace.Set -> store.setPartnerFace(a.photo)
+        }
+    }
+
     fun setSlideLevel(level: SlideLevel) {
         val room = _state.value.room ?: return
         val slide = room.slide ?: return
@@ -1926,6 +2004,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         rememberPartner(room)
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
         if (room.game == GameKind.SLIDE) fetchSlidePhoto(room)
+        syncFaces(room)
         countForTonight(room)
         // A game starting (its countdown, or playing if it has none) is noted once per round, for you being in it.
         if (room.atGame && room.inMatch && notedStart != room.game to room.round) {
@@ -1984,6 +2063,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val opponent = room.opponent?.takeIf { !it.left } ?: return
         val old = store.profile.value.partner
         val partner = SavedPartner(
+            face = Faces.carryOver(old, opponent.name, opponent.deviceId),
             serverUrl = url,
             password = password,
             code = room.code,
@@ -2012,10 +2092,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sessionServer = null
         loadedRound = -1
         lastVersion = -1
+        facesAsked.clear()
+        faceSent = null
         _state.update {
             it.copy(
                 room = null, board = null, selected = null, notesMode = false, reconnecting = false,
-                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null,
+                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null, faces = emptyMap(),
                 hostCode = store.profile.value.partner?.code ?: Invite.randomCode(),
             )
         }

@@ -29,6 +29,11 @@ import com.pippop.ui.screens.Tone
 import com.pippop.ui.screens.ToastVisuals
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
+import com.pippop.ui.screens.FaceBook
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
+import com.pippop.ui.screens.LocalFaces
 import com.pippop.ui.screens.LocalSlidePhoto
 import com.pippop.ui.screens.ScoreboardScreen
 import com.pippop.ui.screens.LocalRoomControls
@@ -303,7 +308,17 @@ fun PipPopApp(
     BackHandler(enabled = transition.busy) {}
 
     val tutorials = remember { TutorialHost() }
-    CompositionLocalProvider(LocalTutorialHost provides tutorials) {
+    // The photos players chose, for PlayerAvatar to show in place of their animal.
+    val whoIsHere = room?.let { r -> r.me.name to r.others.map { it.name to it.photoId } }
+    // Decoding photos is work: done once per change on a background thread, never while drawing.
+    val myName = profile.name
+    val myFace = profile.face
+    val savedPartner = profile.partner
+    val fetchedFaces = battleState.faces
+    val faceBook by produceState(FaceBook.None, myName, myFace, savedPartner, whoIsHere, fetchedFaces) {
+        value = withContext(Dispatchers.Default) { FaceBook.build(myName, myFace, savedPartner, room, fetchedFaces) }
+    }
+    CompositionLocalProvider(LocalTutorialHost provides tutorials, LocalFaces provides faceBook) {
         Scaffold(
             containerColor = p.background,
             snackbarHost = { ToastHost(snackbar) },

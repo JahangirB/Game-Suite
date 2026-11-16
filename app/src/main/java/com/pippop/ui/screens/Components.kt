@@ -237,9 +237,18 @@ fun ScreenTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
  * [mark] adds their seat's shape in a small badge, so players aren't told apart by colour alone.
  */
 @Composable
-fun PlayerAvatar(name: String, color: Color, size: Int = 40, avatar: Avatar? = null, mark: Mark? = null) {
+fun PlayerAvatar(
+    name: String, color: Color, size: Int = 40, avatar: Avatar? = null, mark: Mark? = null,
+    /** The player's own photo ("Use a photo"); by default the one [LocalFaces] has for [name]. Without one the animal (or letter) shows. */
+    face: androidx.compose.ui.graphics.ImageBitmap? = LocalFaces.current.of(name),
+) {
     Box(Modifier.size(size.dp)) {
-        if (avatar != null) {
+        if (face != null) {
+            androidx.compose.foundation.Image(
+                face, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(size.dp).clip(CircleShape).border(1.5.dp, AppTheme.palette.ink, CircleShape),
+            )
+        } else if (avatar != null) {
             AvatarImage(avatar, Modifier.size(size.dp))
         } else {
             Box(

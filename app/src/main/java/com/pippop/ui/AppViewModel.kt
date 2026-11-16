@@ -30,6 +30,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setScriptUrl(value: String) = store.setScriptUrl(value)
     fun setServerPassword(value: String) = store.setServerPassword(value)
     fun setAvatar(value: Avatar?) = store.setAvatar(value)
+    /** Your own photo ([com.pippop.data.Faces]: a base64 JPEG), or null to remove it. */
+    fun setFace(photo: String?) = store.setFace(photo)
     fun setTheme(mode: ThemeMode) = store.setTheme(mode)
     fun setColourTheme(theme: ColourTheme) = store.setColourTheme(theme)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)

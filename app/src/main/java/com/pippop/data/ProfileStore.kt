@@ -2,6 +2,7 @@ package com.pippop.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,12 +53,16 @@ data class SavedPartner(
     val avatar: Avatar?,
     val deviceId: String?,
     val myPlayerId: String?,
+    /** Their photo when last seen ([Faces], base64 JPEG), kept in a small file so the scoreboard and cups can show it. */
+    val face: String? = null,
 )
 
 /** Everything the player sets up in the profile screen, plus their win statistics. */
 data class Profile(
     val name: String = "",
     val avatar: Avatar? = null,
+    /** This player's own photo ([Faces], base64 JPEG), or null. Kept in a small file on this phone; the animal is [avatar]. */
+    val face: String? = null,
     /** The battle server: a Google Apps Script link or a Cloudflare Worker link. */
     val scriptUrl: String = "",
     /** Only needed for a Cloudflare server whose host set a password. */
@@ -126,7 +131,9 @@ data class Profile(
 }
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
-class ProfileStore private constructor(private val prefs: SharedPreferences) {
+class ProfileStore private constructor(private val prefs: SharedPreferences, private val faceDir: java.io.File?) {
+    private constructor(prefs: SharedPreferences) : this(prefs, null)
+
     private var lastAudible = Loudness.NORMAL
     private val _profile = MutableStateFlow(load())
     val profile: StateFlow<Profile> = _profile.asStateFlow()
@@ -140,6 +147,41 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setAvatar(value: Avatar?) {
         prefs.edit { putString(KEY_AVATAR, value?.key) }
         _profile.update { it.copy(avatar = value) }
+    }
+
+    /** Keeps [photo] (a base64 JPEG from [Faces]) as this player's own photo, or removes it with null. */
+    fun setFace(photo: String?) {
+        writeFace(MINE_FILE, photo)
+        _profile.update { it.copy(face = photo) }
+    }
+
+    /** Keeps the saved partner's latest [photo] (null: removes it). Nothing happens without a saved partner. */
+    fun setPartnerFace(photo: String?) {
+        val partner = _profile.value.partner ?: return
+        if (partner.face == photo) return
+        writeFace(PARTNER_FILE, photo)
+        _profile.update { it.copy(partner = partner.copy(face = photo)) }
+    }
+
+    private fun writeFace(name: String, photo: String?) {
+        val file = faceDir?.let { java.io.File(it, name) } ?: return
+        runCatching {
+            if (photo == null) {
+                file.delete()
+            } else {
+                file.parentFile?.mkdirs()
+                file.writeBytes(Base64.decode(photo, Base64.DEFAULT))
+            }
+        }
+    }
+
+    /** A kept photo as base64, or null when there is none or the file is not a usable JPEG. */
+    private fun readFace(name: String): String? {
+        val file = faceDir?.let { java.io.File(it, name) }?.takeIf { it.isFile && it.length() in 8..MAX_FACE_BYTES } ?: return null
+        return runCatching {
+            val bytes = file.readBytes()
+            if (Faces.isJpeg(bytes)) Base64.encodeToString(bytes, Base64.NO_WRAP).takeIf { it.length <= Faces.MAX_BASE64 } else null
+        }.getOrNull()
     }
 
     fun setServerPassword(value: String) {
@@ -183,6 +225,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 putString(KEY_P_PLAYER, partner.myPlayerId)
             }
         }
+        writeFace(PARTNER_FILE, partner?.face)
         _profile.update { it.copy(partner = partner) }
     }
 
@@ -367,6 +410,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 avatar = Avatar.from(prefs.getString(KEY_P_AVATAR, null)),
                 deviceId = prefs.getString(KEY_P_DEVICE, null),
                 myPlayerId = prefs.getString(KEY_P_PLAYER, null),
+                face = readFace(PARTNER_FILE),
             )
         }
         return Profile(
@@ -374,6 +418,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             deviceId = deviceId,
             name = prefs.getString(KEY_NAME, "").orEmpty(),
             avatar = Avatar.from(prefs.getString(KEY_AVATAR, null)),
+            face = readFace(MINE_FILE),
             scriptUrl = prefs.getString(KEY_URL, "").orEmpty(),
             serverPassword = prefs.getString(KEY_PASSWORD, "").orEmpty(),
             theme = runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, "").orEmpty()) }
@@ -420,6 +465,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
 
     companion object {
         const val MAX_NAME = 16
+        /** The photos are kept as files in this folder of the app's private storage: your own, and the saved partner's. */
+        private const val FACE_DIR = "faces"
+        private const val MINE_FILE = "me.jpg"
+        private const val PARTNER_FILE = "partner.jpg"
+        private const val MAX_FACE_BYTES = 12_000L
         const val MAX_RECENT = 6
         /** More than any tray holds, so keys of reactions added later still keep their place. */
         const val MAX_RECENT_REACTIONS = 40
@@ -530,6 +580,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         fun get(context: Context): ProfileStore = instance ?: synchronized(this) {
             instance ?: ProfileStore(
                 context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE),
+                java.io.File(context.applicationContext.filesDir, FACE_DIR),
             ).also { instance = it }
         }
     }

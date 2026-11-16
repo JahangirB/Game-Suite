@@ -172,6 +172,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
 
     override suspend fun slidePhoto(code: String, playerId: String): String? = withContext(Dispatchers.Main.immediate) { room?.slidePhoto }
 
+    override suspend fun setFace(code: String, playerId: String, photo: String?) =
+        local { setFace(LocalRoom.HOST, photo, now()) }
+
+    override suspend fun face(code: String, playerId: String, id: Int): String? = withContext(Dispatchers.Main.immediate) { room?.face(id) }
+
     override suspend fun openGame(code: String, playerId: String, game: GameKind): JSONObject = withContext(Dispatchers.Main.immediate) {
         val r = room ?: throw ApiException("The game is over.", fatal = true)
         room = r.openGame(LocalRoom.HOST, game)
@@ -374,6 +379,11 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 "photo" -> r.setSlidePhoto(role!!, if (msg.isNull("photo")) null else msg.optString("photo"))
                 "getphoto" -> {
                     send(endpointId, r.view(role!!, now).put("re", id).put("photo", r.slidePhoto ?: JSONObject.NULL))
+                    return
+                }
+                "face" -> r.setFace(role!!, if (msg.isNull("photo")) null else msg.opt("photo") as? String ?: throw ApiException("That photo is not usable."), now)
+                "getface" -> {
+                    send(endpointId, r.view(role!!, now).put("re", id).put("photo", r.face(msg.optInt("face", -1)) ?: JSONObject.NULL))
                     return
                 }
                 "pause" -> r.setPaused(role!!, msg.optBoolean("on", true), now)

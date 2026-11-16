@@ -79,6 +79,12 @@ interface BattleBackend {
     /** Slide Race: the photo being slid (base64 JPEG), or null. */
     suspend fun slidePhoto(code: String, playerId: String): String? = null
 
+    /** Your own photo for the others in the room (base64 JPEG, at most [Faces.MAX_BASE64] characters), or null to remove it. */
+    suspend fun setFace(code: String, playerId: String, photo: String?): JSONObject = throw ApiException("Photos need the latest Pip & Pop.")
+
+    /** The photo of the room's player whose room state said [id], or null. Fetched once per id. */
+    suspend fun face(code: String, playerId: String, id: Int): String? = null
+
     /** Draw & Guess: the drawer takes back the last line. */
     suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
 

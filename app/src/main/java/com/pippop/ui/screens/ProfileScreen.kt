@@ -32,6 +32,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import com.pippop.data.Avatar
+import kotlinx.coroutines.launch
+import com.pippop.data.BattleBackend
+import com.pippop.data.Faces
 import com.pippop.data.ColourTheme
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.platform.LocalDensity
@@ -93,6 +96,44 @@ internal fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** Your photo as a picture: one already decoded at once, else decoded off the main thread; null (the animal) until then or if unusable. */
+@Composable
+private fun profileFace(photo: String?): androidx.compose.ui.graphics.ImageBitmap? =
+    androidx.compose.runtime.produceState(Faces.peek(photo), photo) {
+        value = Faces.peek(photo) ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Faces.decode(photo) }
+    }.value
+
+/**
+ * "Use a photo": the phone's own photo picker (no storage permission), the middle square of the picture made a
+ * [Faces.SIZE] px JPEG, which shows as a circle next to the name. The animal stays chosen: it is what servers and
+ * older apps show. Under it, who sees the photo, and that nobody does on an Apps Script link but you.
+ */
+@Composable
+internal fun PhotoOption(hasPhoto: Boolean, appsScript: Boolean, onPhoto: (String?) -> Unit) {
+    val p = AppTheme.palette
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        // Reading and cropping the picture is work: it runs off the main thread.
+        if (uri != null) scope.launch { Faces.fromUri(context, uri)?.let(onPhoto) }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Space.S)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
+            SecondaryButton(
+                if (hasPhoto) "Another photo" else "Use a photo",
+                { pick.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                Modifier.weight(1f),
+            )
+            if (hasPhoto) SecondaryButton("Remove photo", { onPhoto(null) }, Modifier.weight(1f))
+        }
+        Text(
+            "Only the players in your game see your photo. Elsewhere, your animal shows." +
+                if (appsScript) "\nWith an Apps Script link, only you see your photo." else "",
+            color = p.muted, fontSize = TextSize.Label,
+        )
     }
 }
 
@@ -166,7 +207,7 @@ fun ProfileScreen(
         ) {
             AppCard("You") {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PlayerAvatar(profile.name.ifBlank { "?" }, p.me, size = 52, avatar = profile.avatar)
+                    PlayerAvatar(profile.name.ifBlank { "?" }, p.me, size = 52, avatar = profile.avatar, face = profileFace(profile.face))
                     ToyField(
                         value = profile.name,
                         onValueChange = app::setName,
@@ -177,6 +218,7 @@ fun ProfileScreen(
                 }
                 Text("Avatar", color = p.muted, fontSize = TextSize.Body)
                 AvatarPicker(selected = profile.avatar, onPick = app::setAvatar)
+                PhotoOption(hasPhoto = profile.face != null, appsScript = BattleBackend.isAppsScript(profile.scriptUrl), onPhoto = app::setFace)
             }
 
             AppCard("Look") {

@@ -137,8 +137,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 
 ## Phase J: photos
 
-- [ ] **Step 29. Your photo as your face** (profile-photo)
-  - [ ] Cloudflare and Nearby; the animal is still sent; Apps Script unaffected
+- [x] **Step 29. Your photo as your face** (profile-photo)
+  - [x] Cloudflare and Nearby; the animal is still sent; Apps Script unaffected
 - [ ] **Step 30. Memory Pairs with your photos** (looks-photos)
   - [ ] Offered only when the server and every player can; photos kept out of the room object
 

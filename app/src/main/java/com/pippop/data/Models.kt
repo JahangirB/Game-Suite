@@ -325,6 +325,8 @@ data class PlayerInfo(
     val hard: Boolean = false,
     /** Sudoku together: the digits this player put in. */
     val placed: Int = 0,
+    /** The id of this player's photo ([Faces]); fetched once by it. Null: none, or a server without the cap. */
+    val photoId: Int? = null,
 )
 
 /**
@@ -537,6 +539,7 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
     wantsRestart = json.optBoolean("restart"),
     hard = json.optBoolean("hard"),
     placed = json.optInt("placed"),
+    photoId = if (json.isNull("photoId")) null else json.optInt("photoId").takeIf { it > 0 },
 )
 
 private fun parseShips(json: JSONObject) = ShipsView(

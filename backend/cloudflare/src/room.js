@@ -120,7 +120,7 @@ const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku
 /** Whether an app that sent [games] understands a Sudoku room where the opener picks the level. */
 const knowsSudokuOpener = (games) => Array.isArray(games) && games.includes('sudoku-opener');
 /** What this server can do, sent in every room state; an app shows a control only when its cap is here. */
-export const CAPS = ['sudoku-opener', 'lines', 'packs'];
+export const CAPS = ['sudoku-opener', 'lines', 'packs', 'faces'];
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -1321,9 +1321,11 @@ export function openGame(room, role, game, now) {
       emoji: p.emoji, emojiAt: p.emojiAt, connected: p.connected, awaySince: p.awaySince,
       // What their app understands goes with them to the new game.
       bigSudoku: p.bigSudoku, sudokuOpener: p.sudokuOpener,
+      // Their photo stays in storage under the same id (faces.js).
+      photoId: p.photoId ?? null, faceAt: p.faceAt ?? null,
     };
   }
-  const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, round: room.round, startPushedRound: room.startPushedRound };
+  const kept = { createdAt: room.createdAt, version: room.version, emojiSeq: room.emojiSeq, faceSeq: room.faceSeq, round: room.round, startPushedRound: room.startPushedRound };
   for (const key of Object.keys(room)) delete room[key];
   Object.assign(room, fresh, kept, { players, openedBy: role, status: inRoom({ players }).length >= 2 ? 'lobby' : 'waiting' });
   bump(room);
@@ -1627,6 +1629,8 @@ function playerView(player, room, includeProgress, now) {
   return {
     name: player.name,
     avatar: player.avatar || null,
+    // The id of their photo (fetch it once with 'getface', faces.js), or null. Never the photo itself.
+    photoId: player.photoId ?? null,
     deviceId: player.deviceId || null,
     // Latest reaction; the app shows it when seq goes up.
     emoji: player.emoji || null,
