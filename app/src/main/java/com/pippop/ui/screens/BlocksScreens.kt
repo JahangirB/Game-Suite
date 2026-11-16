@@ -486,7 +486,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
         ),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(

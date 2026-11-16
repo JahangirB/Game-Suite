@@ -72,6 +72,11 @@ android {
             "String", "SKINS_BASE_URL",
             "\"${if (repository.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/HEAD/skins"}\"",
         )
+        // Sticker packs are files in the same repository's stickers/ folder, read the same way.
+        buildConfigField(
+            "String", "STICKERS_BASE_URL",
+            "\"${if (repository.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/HEAD/stickers"}\"",
+        )
     }
 
     signingConfigs {
@@ -108,6 +113,10 @@ android {
             buildConfigField(
                 "String", "SKINS_BASE_URL",
                 "\"${if (repository.isEmpty() || branch.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/$branch/skins"}\"",
+            )
+            buildConfigField(
+                "String", "STICKERS_BASE_URL",
+                "\"${if (repository.isEmpty() || branch.isEmpty()) "" else "https://raw.githubusercontent.com/$repository/$branch/stickers"}\"",
             )
             // No Firebase: the preview's id is not in the Firebase project, so invitations stay off.
             for (key in listOf("PROJECT_ID", "SENDER_ID", "APP_ID", "API_KEY")) {
@@ -158,6 +167,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi)

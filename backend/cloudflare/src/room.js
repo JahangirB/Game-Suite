@@ -34,6 +34,8 @@ export const EMOJI_INTERVAL_MS = 1500;
 /** A line of a player's own travels as a reaction under this key, its words in `text`. Today's app drops a key it does not know. */
 export const LINE_KEY = 'line';
 export const LINE_MAX = 24;
+/** A sticker from the downloadable packs travels as a reaction under `p:<id>` (id: lower-case letters, digits and hyphens, 32 at most). Today's app drops a key it does not know. */
+export const PACK_KEY = /^p:[a-z0-9-]{1,32}$/;
 /** Reactions that take the game over for a while (their song): nobody can send another meanwhile. */
 export const TAKEOVER_MS = { kylian: 11000 };
 // A player disconnected this long during a match loses it.
@@ -118,7 +120,7 @@ const knowsBigSudoku = (games) => Array.isArray(games) && games.includes('sudoku
 /** Whether an app that sent [games] understands a Sudoku room where the opener picks the level. */
 const knowsSudokuOpener = (games) => Array.isArray(games) && games.includes('sudoku-opener');
 /** What this server can do, sent in every room state; an app shows a control only when its cap is here. */
-export const CAPS = ['sudoku-opener', 'lines'];
+export const CAPS = ['sudoku-opener', 'lines', 'packs'];
 
 /** The other player of a two-player game. */
 export function otherRole(role) {
@@ -1392,7 +1394,7 @@ export function cleanLine(raw) {
 /** Shows a predefined reaction, or a line (`emoji` is LINE_KEY and `text` its words), to the other players. Throws when it is not allowed. */
 export function sendEmoji(room, role, emoji, now, text) {
   const isLine = emoji === LINE_KEY;
-  if (!isLine && !EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
+  if (!isLine && !(typeof emoji === 'string' && PACK_KEY.test(emoji)) && !EMOJIS.includes(emoji)) throw new GameError('Unknown reaction.');
   const line = isLine ? cleanLine(text) : '';
   if (isLine && !line) throw new GameError('Write something first.');
   if (inRoom(room).length < 2) throw new GameError('Nobody to send it to yet.');

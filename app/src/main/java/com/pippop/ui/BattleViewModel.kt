@@ -48,6 +48,11 @@ import com.pippop.data.SavedPartner
 import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
 import com.pippop.data.ChatLines
+import com.pippop.data.PackKey
+import com.pippop.data.PackReceiver
+import com.pippop.data.PackShown
+import com.pippop.data.PackSticker
+import com.pippop.data.StickerStore
 import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.MatchRecord
@@ -87,8 +92,11 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Online goes through the host's server; nearby connects two phones directly, no internet. */
 enum class BattleMode { ONLINE, NEARBY }
 
-/** A reaction (or a [line] a player wrote, which has no reaction) on screen and when it appeared. */
-data class ShownReaction(val reaction: Reaction?, val at: Long, val line: String? = null)
+/**
+ * A reaction on screen and when it appeared. A [line] a player wrote, or the name of a [pack] sticker that was
+ * slow to arrive, is shown in a bubble and has no reaction; a sticker from the downloadable packs is [pack].
+ */
+data class ShownReaction(val reaction: Reaction?, val at: Long, val line: String? = null, val pack: PackSticker? = null, val seq: Int = 0)
 
 /**
  * Kylian Dictador taking the game over, on this phone's clock. [until] is when his song ends:
@@ -730,6 +738,72 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 // A lost line is not worth an error message.
+            }
+        }
+    }
+
+    /** The stickers kept on this phone; where a sticker someone sent is fetched when this phone does not have it. */
+    private val packStore by lazy { StickerStore.get(getApplication()) }
+    private val packReceiver by lazy { PackReceiver(packStore) }
+
+    /**
+     * What a reaction tray does with a tap on a downloaded sticker: [afterSend] runs once it is sent (the tray
+     * closes). Null where the server has no "packs" cap, so the tray has no "+" and no pack stickers, and a
+     * `p:` key is never sent to a server that would not understand it.
+     */
+    fun packSender(afterSend: () -> Unit = {}): ((String) -> Unit)? {
+        val room = _state.value.room ?: return null
+        if (PackKey.CAP !in room.caps) return null
+        return { id -> sendPack(id); afterSend() }
+    }
+
+    /** Sends the downloaded sticker [id] ([PackKey]) next to your name on every phone. Only to a server with the "packs" cap. */
+    fun sendPack(id: String) {
+        val room = _state.value.room ?: return
+        val me = playerId ?: return
+        val b = backend ?: return
+        if (PackKey.CAP !in room.caps || !PackKey.validId(id)) return
+        val sticker = packStore.get(id) ?: return
+        val now = System.currentTimeMillis()
+        if (Takeover.locked(now)) return
+        _state.update { it.copy(myReaction = ShownReaction(null, now, pack = sticker)) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.sticker(room.code, me, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A lost sticker is not worth an error message.
+            }
+        }
+    }
+
+    /**
+     * A sticker [id] from [name]: shown once this phone has it, or as its name in a bubble if that takes
+     * more than two seconds or fails ([PackReceiver]).
+     */
+    private fun showPack(name: String, id: String, seq: Int) {
+        viewModelScope.launch {
+            val got = try {
+                packReceiver.receive(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                PackShown.Name(id)
+            }
+            val at = System.currentTimeMillis()
+            val shown = when (got) {
+                is PackShown.Sticker -> ShownReaction(null, at, pack = got.sticker, seq = seq)
+                is PackShown.Name -> ShownReaction(null, at, line = got.name, seq = seq)
+            }
+            _state.update { s ->
+                // A reaction that came after this one has already been shown: this late one must not cover it.
+                if ((s.otherReactions[name]?.seq ?: -1) > seq) s
+                else s.copy(
+                    opponentReaction = if ((s.opponentReaction?.seq ?: -1) > seq) s.opponentReaction else shown,
+                    otherReactions = s.otherReactions + (name to shown),
+                )
             }
         }
     }
@@ -1815,10 +1889,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (e.line != null) playLineSent()
         }
+        // A pack sticker is shown once this phone has it (see showPack); the rest show at once.
+        fresh.forEach { (name, e) -> e.pack?.let { showPack(name, it, e.seq) } }
+        val instant = fresh.filter { it.second.pack == null }
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
-            fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now, e.line)) }
-            if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now, e.line) })
+            instant.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now, e.line, seq = e.seq)) }
+            if (instant.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + instant.map { (name, e) -> name to ShownReaction(e.reaction, now, e.line, seq = e.seq) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
             room.slide?.takeIf { it.start != null && room.round != next.slideRound }?.let { sl ->

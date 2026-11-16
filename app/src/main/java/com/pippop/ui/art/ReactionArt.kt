@@ -64,6 +64,10 @@ fun ReactionImage(reaction: Reaction, size: Dp, modifier: Modifier = Modifier, s
 fun ReactionBurst(shown: ShownReaction?) {
     // A line a player wrote shows as a bubble by their chip, not here.
     if (shown == null) return
+    if (shown.pack != null) {
+        StickerBurst(shown)
+        return
+    }
     val reaction = shown.reaction ?: return
     if (reaction.sticker) {
         StickerBurst(shown)
@@ -102,9 +106,11 @@ internal fun StickerBurst(shown: ShownReaction) {
 
 @Composable
 private fun StickerBurstOnce(shown: ShownReaction) {
-    val reaction = shown.reaction ?: return
-    val takeover = reaction.takesOverMs > 0
-    val shownMs = if (takeover) reaction.takesOverMs else STICKER_SHOWN_MS
+    // A downloaded sticker plays like a meme sticker and never takes the game over.
+    val reaction = shown.reaction
+    val sticker = if (reaction != null) stickerOf(reaction) else remember(shown) { shown.pack?.toSticker() } ?: return
+    val takeover = reaction != null && reaction.takesOverMs > 0
+    val shownMs = if (reaction != null && takeover) reaction.takesOverMs else STICKER_SHOWN_MS
     val elapsed by produceState(System.currentTimeMillis() - shown.at, shown) {
         value = System.currentTimeMillis() - shown.at
         while (value < shownMs) {
@@ -128,7 +134,7 @@ private fun StickerBurstOnce(shown: ShownReaction) {
         ),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha }) { drawSticker(stickerOf(reaction), elapsed) }
+        Canvas(Modifier.size(220.dp).graphicsLayer { this.alpha = alpha }) { drawSticker(sticker, elapsed) }
     }
 }
 

@@ -30,6 +30,9 @@ interface BattleBackend {
     /** Says one of the player's own lines ([ChatLines]) like a reaction. Only to a server with the "lines" cap. */
     suspend fun line(code: String, playerId: String, text: String): JSONObject = throw ApiException("Lines need the latest Pip & Pop.")
 
+    /** Sends the sticker [id] from the downloadable packs like a reaction (`p:<id>`, [PackKey]). Only to a server with the "packs" cap. */
+    suspend fun sticker(code: String, playerId: String, id: String): JSONObject = throw ApiException("Stickers need the latest Pip & Pop.")
+
     /** Ship Battle: ready with [fleet] (or not ready). */
     suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>): JSONObject
 

@@ -373,7 +373,7 @@ const TOKENS = 'sudoku,ships,sudoku-big,sudoku-opener';
 test('the server lists what it can do', () => {
   const b = loadBackend();
   const host = b.call({ action: 'create', code: 'CAP123', name: 'A' });
-  assert.deepEqual(host.caps, ['sudoku-opener', 'lines']);
+  assert.deepEqual(host.caps, ['sudoku-opener', 'lines', 'packs']);
 });
 
 test('where both apps have the token, the host picks the level and the guest only taps Ready', () => {
@@ -546,4 +546,66 @@ test('lines: a lone high surrogate counts as one character, so all three servers
   const b = loadBackend();
   const { host, code } = lineRoom(b);
   assert.equal(say(b, host, code, 'a'.repeat(23) + '\uD83D' + 'bbbb').me.emoji.text, 'a'.repeat(23) + '\uD83D');
+});
+
+// ---- Stickers from the downloadable packs (cap "packs") ----
+// A pack sticker travels as a reaction under the key 'p:<id>' (id: ^[a-z0-9-]{1,32}$). Today's app
+// drops a reaction key it does not know, so it ignores one. The same tests are in
+// backend/cloudflare/test/packs.test.js and the app's LocalPacksTest.
+
+const stick = (b, who, code, key) => b.call({ action: 'emoji', code, playerId: who.playerId, emoji: key });
+
+test('packs: the server lists the cap', () => {
+  const b = loadBackend();
+  assert.ok(b.call({ action: 'create', code: 'PCAP12', name: 'A' }).caps.includes('packs'));
+});
+
+test('packs: a valid key reaches the other player as it was sent', () => {
+  for (const key of ['p:sunny-day', 'p:a', 'p:0', 'p:' + 'a'.repeat(32), 'p:a-b-9']) {
+    const b = loadBackend();
+    const { host, guest, code } = lineRoom(b, 'PKS123');
+    assert.deepEqual(stick(b, host, code, key).me.emoji, { key, seq: 1 }, key);
+    const seen = b.call({ action: 'sync', code, playerId: guest.playerId, v: guest.version });
+    assert.deepEqual(seen.opponent.emoji, { key, seq: 1 });
+  }
+});
+
+test('packs: a key of the wrong shape is refused like an unknown reaction', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b, 'PKB123');
+  for (const key of ['p:', 'p:Sunny', 'p:' + 'a'.repeat(33), 'p:a/b', 'p:a.b', 'p:../x', 'p:a b', 'p:a\n', 'P:abc', 'p', 'pack:abc', 'p:é', '']) {
+    const r = stick(b, host, code, key);
+    assert.equal(r.ok, false, JSON.stringify(key));
+    b.clock.now += 2000;
+  }
+  const r = stick(b, host, code, 'p:');
+  assert.match(r.error, /Unknown reaction/);
+  assert.equal(b.call({ action: 'sync', code, playerId: host.playerId }).me.emoji, null, 'nothing was shown');
+});
+
+test('packs: the same pace limit as reactions, in either order', () => {
+  const b = loadBackend();
+  const { host, code } = lineRoom(b, 'PKP123');
+  assert.equal(stick(b, host, code, 'p:one').ok !== false, true);
+  assert.equal(stick(b, host, code, 'p:two').ok, false, 'rate limited');
+  assert.equal(stick(b, host, code, 'fire').ok, false, 'a reaction too');
+  b.clock.now += 2000;
+  assert.equal(stick(b, host, code, 'p:two').me.emoji.seq, 2);
+  assert.equal(stick(b, host, code, 'fire').ok, false);
+});
+
+test('packs: nobody to send it to yet is refused', () => {
+  const b = loadBackend();
+  const host = b.call({ action: 'create', code: 'PKA123', name: 'A' });
+  assert.equal(stick(b, host, 'PKA123', 'p:one').ok, false);
+});
+
+test('packs: normal reactions are unchanged', () => {
+  const b = loadBackend();
+  const { host, guest, code } = lineRoom(b, 'PKN123');
+  stick(b, host, code, 'fire');
+  const seen = b.call({ action: 'sync', code, playerId: guest.playerId, v: guest.version });
+  assert.deepEqual(seen.opponent.emoji, { key: 'fire', seq: 1 });
+  b.clock.now += 2000;
+  assert.equal(stick(b, host, code, 'bomb').ok, false, 'unknown stays unknown');
 });

@@ -123,6 +123,9 @@ class CloudflareBattle(serverUrl: String, private val password: String) : Battle
     override suspend fun line(code: String, playerId: String, text: String) =
         request(JSONObject().put("type", "emoji").put("emoji", ChatLines.KEY).put("text", text))
 
+    override suspend fun sticker(code: String, playerId: String, id: String) =
+        request(JSONObject().put("type", "emoji").put("emoji", PackKey.key(id)))
+
     override suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("fleet", fleet.toJson()))
 

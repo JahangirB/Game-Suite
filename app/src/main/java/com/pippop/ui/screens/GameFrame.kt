@@ -76,6 +76,7 @@ import com.pippop.ui.BattleUiState
 import com.pippop.ui.theme.OpponentColor
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.ShownReactionImage
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.color
 import com.pippop.ui.art.rules
@@ -301,7 +302,7 @@ private fun PlayerChipCard(player: ChipPlayer, glow: Color, edge: Color, compact
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.TopEnd) {
                     PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar, mark = player.mark)
-                    if (player.reaction?.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
+                    if (player.reaction != null) ShownReactionImage(player.reaction, 20.dp)
                 }
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
@@ -319,7 +320,7 @@ private fun PlayerChipCard(player: ChipPlayer, glow: Color, edge: Color, compact
                     Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Label, maxLines = 1)
                 }
             }
-            if (player.reaction?.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
+            if (player.reaction != null) ShownReactionImage(player.reaction, 28.dp)
         }
     }
 }

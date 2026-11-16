@@ -1,0 +1,18 @@
+<!-- Sunny day: the first sticker of the downloadable packs, drawn by hand from plain shapes.
+     scripts/make-stickers.py turns it into stickers/sunny-day.json. "a glow" is its one animation (see ui/art/Stickers.kt). -->
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="480" height="480">
+<defs><linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="60" y2="120"><stop offset="0" stop-color="#7cc8f5"/><stop offset="1" stop-color="#d9f1ff"/></linearGradient><clipPath id="frame"><rect x="0" y="0" width="120" height="120" rx="12"/></clipPath></defs>
+<g clip-path="url(#frame)">
+<rect id="backdrop" x="0" y="0" width="120" height="120" fill="url(#sky)"/>
+<circle class="a glow" cx="60" cy="58" r="40" fill="#ffe28a" fill-opacity=".55"/>
+<path d="M60 8 V20 M60 96 V108 M10 58 H22 M98 58 H110 M25 23 L33 31 M87 85 L95 93 M95 23 L87 31 M33 85 L25 93" stroke="#f2a400" stroke-width="5" stroke-linecap="round"/>
+<circle cx="60" cy="58" r="30" fill="#ffc93c" stroke="#14121c" stroke-width="3"/>
+<ellipse cx="49" cy="52" rx="4" ry="5.5" fill="#14121c"/>
+<ellipse cx="71" cy="52" rx="4" ry="5.5" fill="#14121c"/>
+<circle cx="50.5" cy="50" r="1.4" fill="#fff"/><circle cx="72.5" cy="50" r="1.4" fill="#fff"/>
+<circle cx="42" cy="64" r="5" fill="#ff8a7a" fill-opacity=".7"/><circle cx="78" cy="64" r="5" fill="#ff8a7a" fill-opacity=".7"/>
+<path d="M47 66 Q60 80 73 66" fill="none" stroke="#14121c" stroke-width="3.4" stroke-linecap="round"/>
+<path d="M0 108 Q30 96 60 106 T120 104 V120 H0 Z" fill="#6fcf7f" stroke="#14121c" stroke-width="2.5"/>
+</g>
+<rect id="frame-line" x="1.5" y="1.5" width="117" height="117" rx="11" fill="none" stroke="#14121c" stroke-width="3"/>
+</svg>

@@ -289,9 +289,10 @@ data class DrawView(
 }
 
 /**
- * A player's latest reaction; [seq] goes up with every new one. A line they wrote is [line] with no [reaction].
+ * A player's latest reaction; [seq] goes up with every new one. A line they wrote is [line] with no [reaction];
+ * a sticker from the downloadable packs is [pack], the sticker's id, with no [reaction].
  */
-data class EmojiEvent(val reaction: Reaction?, val seq: Int, val line: String? = null)
+data class EmojiEvent(val reaction: Reaction?, val seq: Int, val line: String? = null, val pack: String? = null)
 
 data class PlayerInfo(
     val name: String,
@@ -517,7 +518,10 @@ private fun parsePlayer(json: JSONObject, game: GameKind) = PlayerInfo(
         if (e.optString("key") == ChatLines.KEY) {
             ChatLines.clean(e.opt("text") as? String).takeIf { it.isNotEmpty() }?.let { EmojiEvent(null, e.optInt("seq"), it) }
         } else {
-            Reaction.from(e.optString("key"))?.let { EmojiEvent(it, e.optInt("seq")) }
+            val key = e.optString("key")
+            val pack = PackKey.idOf(key)
+            if (pack != null) EmojiEvent(null, e.optInt("seq"), pack = pack)
+            else Reaction.from(key)?.let { EmojiEvent(it, e.optInt("seq")) }
         }
     },
     ready = json.optBoolean("ready"),

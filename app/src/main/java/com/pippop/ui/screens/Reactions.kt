@@ -31,7 +31,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pippop.data.ProfileStore
+import com.pippop.data.PackSticker
 import com.pippop.data.Reaction
+import com.pippop.data.StickerStore
+import com.pippop.ui.art.PackStickerImage
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.Takeover
 import com.pippop.ui.art.ReactionImage
@@ -63,6 +66,8 @@ private val TrayGap = 6.dp
  *
  * [trailing] is an optional item after the last reaction (the "+" for sticker packs). It takes a
  * place in the grid like any reaction; pass null, the default, and no place is made.
+ * [onPack] sends a sticker from the packs by its id; it is null where the server has no "packs" cap
+ * (`BattleViewModel.packSender`), and then there are no pack stickers in the tray and no "+" after them.
  * [onLine] says one of the player's own lines; it is null where the server has no "lines" cap
  * (`BattleViewModel.lineSender`), and then the row of lines above the grid is not drawn.
  */
@@ -72,15 +77,24 @@ fun ReactionBar(
     modifier: Modifier = Modifier,
     trailing: TraySlot? = null,
     onLine: ((String) -> Unit)? = null,
+    onPack: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val store = remember(context) { ProfileStore.get(context) }
     val profile by store.profile.collectAsState()
     var editing by remember { mutableStateOf(false) }
     if (editing && onLine != null) LinesSheet(profile.lines, onSave = store::setLines) { editing = false }
+    // The stickers from the packs, and the "+" that adds more: only where the server can carry them.
+    val stickers = if (onPack != null) remember(context) { StickerStore.get(context) } else null
+    val have = stickers?.installed?.collectAsState()?.value.orEmpty()
+    var browsing by remember { mutableStateOf(false) }
+    if (browsing && stickers != null) PacksSheet(stickers) { browsing = false }
+    val plus: TraySlot = { size -> PacksPlus(size) { browsing = true } }
     ReactionTray(
-        Reaction.recentFirst(profile.recentReactions), onReact, modifier, trailing,
+        Reaction.recentFirst(profile.recentReactions), onReact, modifier,
+        trailing = if (onPack != null) plus else trailing,
         lines = profile.lines.takeIf { onLine != null }, onLine = onLine, onEditLines = { editing = true },
+        packs = have, onPack = onPack,
     )
 }
 
@@ -96,20 +110,26 @@ internal fun ReactionTray(
     lines: List<String>? = null,
     onLine: ((String) -> Unit)? = null,
     onEditLines: () -> Unit = {},
+    packs: List<PackSticker> = emptyList(),
+    onPack: ((String) -> Unit)? = null,
 ) {
     val lockedUntil by Takeover.until.collectAsState()
     val locked = rememberTicker() < lockedUntil
     val cells = buildList<@Composable (Dp) -> Unit> {
         reactions.forEach { r -> add { size -> ReactionCell(r, size, locked, onReact) } }
-        trailing?.let { add(it) }
+        // The downloaded stickers come after the built-in ones. The "+" is placed below, where the rows are known.
+        if (onPack != null) packs.forEach { s -> add { size -> PackCell(s, size, locked, onPack) } }
     }
     Column(modifier.fillMaxWidth().alpha(if (locked) 0.35f else 1f)) {
         if (lines != null && onLine != null) LinesRow(lines, enabled = !locked, onLine = onLine, onEdit = onEditLines)
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val columns = minOf(TRAY_COLUMNS, (maxWidth / TrayTarget).toInt()).coerceAtLeast(1)
             val cell = maxWidth / columns
-            val rows = cells.chunked(columns)
             val rowsShown = if (columns < TRAY_COLUMNS) 3 else 2
+            // The "+" is the last cell, or, when there are more cells than the rows shown hold, the last one in
+            // view: the rest scroll after it, so it is never half cut off.
+            val all = if (trailing == null) cells else cells.toMutableList().apply { add(minOf(cells.size, columns * rowsShown - 1), trailing) }
+            val rows = all.chunked(columns)
             Column(
                 modifier = if (rows.size > rowsShown) {
                     Modifier.heightIn(max = TrayTarget * rowsShown + TrayTarget / 2).verticalScroll(rememberScrollState())
@@ -143,6 +163,17 @@ private fun ReactionCell(reaction: Reaction, width: Dp, locked: Boolean, onReact
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PackCell(sticker: PackSticker, width: Dp, locked: Boolean, onPack: (String) -> Unit) {
+    val art = minOf(width - TrayGap, 42.dp)
+    Surface(
+        onClick = { onPack(sticker.id) }, enabled = !locked, shape = Shapes.S, color = Color.Transparent,
+        modifier = Modifier.size(width, TrayTarget).semantics { contentDescription = sticker.name },
+    ) {
+        Box(Modifier.padding(TrayGap / 2), contentAlignment = Alignment.Center) { PackStickerImage(sticker, art) }
     }
 }
 

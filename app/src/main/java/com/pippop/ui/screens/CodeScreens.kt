@@ -320,7 +320,7 @@ fun CodeGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         tools = if (finished) emptyList() else listOf(DockTool("Clear row", Icons.Filled.Clear) { clearKey++ }),
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(

@@ -360,7 +360,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tools = listOf(DockTool("My words", GameIcons.Book, badge = grid.mine.size) { showWords = true }),
         trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(

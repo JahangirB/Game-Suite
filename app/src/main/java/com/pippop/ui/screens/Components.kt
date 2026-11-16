@@ -60,6 +60,7 @@ import com.pippop.data.Difficulty
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.AvatarImage
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.ShownReactionImage
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.fillMaxSize
@@ -286,9 +287,7 @@ fun ProgressRow(
             Spacer(Modifier.width(10.dp))
         }
         Box(Modifier.weight(1f)) { ProgressBar(label, percent, color, trailing) }
-        if (reaction?.reaction != null) {
-            ReactionImage(reaction.reaction, 34.dp, Modifier.padding(start = 8.dp), startedAt = reaction.at)
-        }
+        if (reaction != null) ShownReactionImage(reaction, 34.dp, Modifier.padding(start = 8.dp))
         if (reaction?.line != null) Bubble(reaction.line, label, Modifier.widthIn(max = 160.dp).padding(start = 8.dp), mine = mine)
     }
 }

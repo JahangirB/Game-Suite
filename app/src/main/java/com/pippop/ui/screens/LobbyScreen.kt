@@ -51,6 +51,7 @@ import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.ShownReactionImage
 import com.pippop.ui.art.color
 import com.pippop.ui.art.KeyArt
 import com.pippop.ui.theme.AppTheme
@@ -116,6 +117,7 @@ fun LobbyScreen(state: BattleUiState, profile: Profile, vm: BattleViewModel, onL
         } else null,
         onReact = vm::react,
         onLine = vm.lineSender(),
+        onPack = vm.packSender(),
     ) {
         if (room.game == GameKind.SHIPS) {
             FleetCard(
@@ -166,6 +168,8 @@ internal fun LobbyFrame(
     onReact: (Reaction) -> Unit,
     /** Says one of the player's own lines; null where the server cannot carry them. */
     onLine: ((String) -> Unit)? = null,
+    /** Sends a sticker from the packs; null where the server cannot carry them. */
+    onPack: ((String) -> Unit)? = null,
     options: @Composable ColumnScope.() -> Unit,
 ) {
     val p = AppTheme.palette
@@ -263,7 +267,7 @@ internal fun LobbyFrame(
 
             options()
         }
-        ReadyBar(room, state.busy, onReady, if (opponent != null) onReact else null, if (opponent != null) onLine else null)
+        ReadyBar(room, state.busy, onReady, if (opponent != null) onReact else null, if (opponent != null) onLine else null, if (opponent != null) onPack else null)
     }
 }
 
@@ -340,7 +344,7 @@ internal fun readyLook(room: RoomState): ReadyLook {
  * game has no Ready button (the level taps are the ready); [onReact] is null while you are alone.
  */
 @Composable
-fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((Reaction) -> Unit)?, onLine: ((String) -> Unit)? = null) {
+fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((Reaction) -> Unit)?, onLine: ((String) -> Unit)? = null, onPack: ((String) -> Unit)? = null) {
     val p = AppTheme.palette
     var reacting by remember { mutableStateOf(false) }
     if (onReady == null && onReact == null) return
@@ -349,6 +353,7 @@ fun ReadyBar(room: RoomState, busy: Boolean, onReady: (() -> Unit)?, onReact: ((
         if (reacting && onReact != null) ReactionBar(
             onReact = { onReact(it); reacting = false },
             onLine = onLine?.let { send -> { text: String -> send(text); reacting = false } },
+            onPack = onPack?.let { send -> { id: String -> send(id); reacting = false } },
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp),
         )
         Row(
@@ -444,7 +449,7 @@ internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
         )
-        if (reaction?.reaction != null) ReactionImage(reaction.reaction, 30.dp, Modifier.padding(end = 8.dp), startedAt = reaction.at)
+        if (reaction != null) ShownReactionImage(reaction, 30.dp, Modifier.padding(end = 8.dp))
         if (reaction?.line != null) Bubble(reaction.line, player.name, Modifier.widthIn(max = 160.dp).padding(end = 8.dp), mine = isMe)
         when {
             player.online == false -> Pill("Offline", p.bad)

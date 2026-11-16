@@ -131,9 +131,9 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [x] **Step 26. The whole tray at once** (react-grid)
 - [x] **Step 27. Lines of your own** (react-lines)
   - [x] Apps Script, Cloudflare and Nearby accept a line; today's app is unaffected; tested
-- [ ] **Step 28. Stickers without an app update** (react-packs)
-  - [ ] `stickers/` folder, its README, `scripts/make-stickers.py` writes pack stickers
-  - [ ] The three servers accept pack keys; a phone without the sticker fetches it
+- [x] **Step 28. Stickers without an app update** (react-packs)
+  - [x] `stickers/` folder, its README, `scripts/make-stickers.py` writes pack stickers
+  - [x] The three servers accept pack keys; a phone without the sticker fetches it
 
 ## Phase J: photos
 

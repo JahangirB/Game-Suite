@@ -35,6 +35,9 @@ var EMOJI_INTERVAL_MS = 1500;
 // Today's app drops a reaction key it does not know, so it ignores a line.
 var LINE_KEY = 'line';
 var LINE_MAX = 24;
+// A sticker from the downloadable packs travels as a reaction under the key 'p:<id>' (id: lower-case letters,
+// digits and hyphens, 32 at most). Today's app drops a reaction key it does not know, so it ignores one.
+var PACK_KEY = /^p:[a-z0-9-]{1,32}$/;
 
 function doGet(e) {
   return respond_(handleRequest_((e && e.parameter) || {}));
@@ -324,7 +327,7 @@ function emoji_(p, now) {
   var role = requireRole_(room, p.playerId);
   var emoji = String(p.emoji || '');
   var isLine = emoji === LINE_KEY;
-  if (!isLine && EMOJIS.indexOf(emoji) < 0) throw new Error('Unknown reaction.');
+  if (!isLine && !PACK_KEY.test(emoji) && EMOJIS.indexOf(emoji) < 0) throw new Error('Unknown reaction.');
   var text = isLine ? cleanLine_(p.text) : '';
   if (isLine && !text) throw new Error('Write something first.');
   if (!room.players[otherRole_(role)]) throw new Error('Nobody to send it to yet.');
@@ -478,7 +481,7 @@ function view_(room, role, now) {
     // The Google Script server only hosts Sudoku battles.
     game: 'sudoku',
     // What this server can do; an app shows a control only when its cap is here.
-    caps: ['sudoku-opener', 'lines'],
+    caps: ['sudoku-opener', 'lines', 'packs'],
     // The host picks the level while both apps understand it.
     sudokuOpener: openerMode_(room),
     options: openerMode_(room) ? { level: openerLevel_(room) } : undefined,

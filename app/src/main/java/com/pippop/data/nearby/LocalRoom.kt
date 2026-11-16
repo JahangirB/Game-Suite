@@ -6,6 +6,7 @@ import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Reaction
 import com.pippop.data.ChatLines
+import com.pippop.data.PackKey
 import com.pippop.data.toJson
 import com.pippop.game.golf.GolfLevel
 import com.pippop.game.Generator
@@ -1206,6 +1207,15 @@ class LocalRoom(
         say(role, ChatLines.KEY, line, 0, now)
     }
 
+    /**
+     * A sticker from the downloadable packs, shown like a reaction under the key `p:<id>` ([PackKey]). A key of any
+     * other shape is refused as an unknown reaction. It takes nothing over, and has the same pace limit.
+     */
+    fun sendPack(role: String, key: String, now: Long) {
+        if (PackKey.idOf(key) == null) throw ApiException("Unknown reaction.")
+        say(role, key, null, 0, now)
+    }
+
     private fun say(role: String, key: String, text: String?, takesOverMs: Long, now: Long) {
         if (inRoom().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
@@ -1580,7 +1590,8 @@ class LocalRoom(
 
         /** What a phone hosting a room can do, sent in every room state; an app shows a control only when its cap is here. */
         const val LINES = "lines"
-        val CAPS = listOf(SUDOKU_OPENER, LINES)
+        const val PACKS = PackKey.CAP
+        val CAPS = listOf(SUDOKU_OPENER, LINES, PACKS)
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L
