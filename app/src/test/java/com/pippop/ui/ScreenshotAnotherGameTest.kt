@@ -86,7 +86,7 @@ class ScreenshotAnotherGameTest : ScreenshotBase() {
             TurnGameScreen(BattleUiState(room = r, tally = tally), vm, onLeave = {})
             if (sheet) Box(Modifier.fillMaxSize().background(AppTheme.palette.scrim.copy(alpha = 0.35f)), contentAlignment = Alignment.BottomCenter) {
                 ToySheetCard {
-                    AnotherGameContent(AnotherGame(GameKind.CONNECT4, shelf, emptySet(), 2, whoPicks(r), {}), allOpen) {}
+                    AnotherGameContent(AnotherGame(GameKind.CONNECT4, shelf, 2, whoPicks(r), {}), allOpen) {}
                 }
             }
         }

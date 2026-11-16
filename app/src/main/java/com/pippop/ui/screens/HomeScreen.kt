@@ -89,6 +89,7 @@ import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.seatMark
 import android.content.Intent
 import com.pippop.data.Profile
+import com.pippop.data.ProfileStore
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -181,8 +182,9 @@ fun HomeScreen(
         if (flicking) return
         if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind
     }
-    val shelf = profile.gameOrder.filter { it !in profile.putAway }
-    val away = profile.gameOrder.filter { it in profile.putAway }
+    val shelf = profile.shelf
+    // The games in the Store, for now still shown in the "More games" row (the Store card replaces it).
+    val away = ProfileStore.storeGames(shelf)
     var moreOpen by rememberSaveable { mutableStateOf(false) }
 
     // Surprise us: a highlight flicks across the tiles for about half a second, stops on a game and opens its sheet.
@@ -228,7 +230,7 @@ fun HomeScreen(
             }
 
             val sudokuPercent = solo.game?.takeIf { solo.canContinue }?.let { Sudoku.filledPercent(it.board.cells, it.board.givens) }
-            val jump = jumpBackIn(sudokuPercent, profile.recentGames, now)
+            val jump = jumpBackIn(sudokuPercent, profile.recentGames, now, shelf = shelf)
             if (jump.isNotEmpty()) {
                 Eyebrow("Jump back in")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

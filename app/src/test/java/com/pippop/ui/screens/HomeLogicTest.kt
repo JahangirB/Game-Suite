@@ -66,6 +66,14 @@ class HomeLogicTest {
         assertTrue(jumpBackIn(null, emptyList(), now, zone).isEmpty())
     }
 
+    @Test fun jumpBackInShowsOnlyShelfGames() {
+        val recent = listOf(RecentGame(GameKind.DOTS, daysAgo(0)), RecentGame(GameKind.LUDO, daysAgo(1)), RecentGame(GameKind.WORDS, daysAgo(2)))
+        val shelf = listOf(GameKind.LUDO, GameKind.WORDS)
+        assertEquals(listOf(GameKind.LUDO, GameKind.WORDS), jumpBackIn(null, recent, now, zone, shelf = shelf).map { it.game })
+        // A Sudoku in progress is left out when Sudoku is not on the shelf.
+        assertEquals(listOf(GameKind.LUDO, GameKind.WORDS), jumpBackIn(40, recent, now, zone, shelf = shelf).map { it.game })
+    }
+
     @Test fun surpriseWithNoRoomNeedsSoloPlay() {
         val shelf = listOf(GameKind.DRAW, GameKind.LUDO, GameKind.TTT)
         assertEquals(listOf(GameKind.LUDO, GameKind.TTT), surpriseCandidates(shelf, 1))

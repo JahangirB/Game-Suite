@@ -115,6 +115,7 @@ import com.pippop.ui.screens.PrimaryButton
 import com.pippop.ui.screens.SecondaryButton
 import com.pippop.ui.screens.ToyDialog
 import com.pippop.data.MonthEnd
+import com.pippop.data.ProfileStore
 import com.pippop.data.ScoreStore
 import com.pippop.ui.screens.TrophyMomentDialog
 import com.pippop.ui.screens.ToySheet
@@ -330,9 +331,8 @@ fun PipPopApp(
                 val session = room?.takeIf { it.inSession }?.let { r ->
                     MatchSession(
                         tally = battleState.tally,
-                        nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                        nextGames = profile.shelf.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         onOpenGame = battle::openGame,
-                        putAway = profile.putAway,
                     )
                 }
                 // Ships look like the downloaded skin in use, or else the built-in style from the profile.
@@ -349,7 +349,7 @@ fun PipPopApp(
                         rematch = battle::rematch,
                         newGame = { battle.wantRestart(true) },
                         switchTo = battle::switchGame,
-                        games = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                        games = profile.shelf.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         setupOpen = setupOpen,
                         busy = battleState.busy,
                     )
@@ -411,7 +411,7 @@ fun PipPopApp(
                             onBack = { dest = Dest.HOME },
                         )
                         dest == Dest.SCORES -> ScoreboardScreen(onBack = { dest = Dest.HOME })
-                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, profile.putAway, app::setArrangement, onBack = { dest = Dest.HOME })
+                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.shelf + ProfileStore.storeGames(profile.shelf), ProfileStore.storeGames(profile.shelf).toSet(), app::setArrangement, onBack = { dest = Dest.HOME })
                         else -> HomeScreen(
                             solo = soloState,
                             profile = profile,

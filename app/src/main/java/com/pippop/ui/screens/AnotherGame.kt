@@ -67,16 +67,15 @@ fun anotherGameTiles(order: List<GameKind>, current: GameKind, people: Int, max:
     order.filter { it != current && fitsRoom(it, people) }.take(max)
 
 /**
- * What "Another game" needs: the [games] to choose from (already without the one just played), those [away] (put away, left out of
- * the six tiles but in "All games"), how many [players] are in the room, [who] picks and the call that opens one.
+ * What "Another game" needs: the [games] to choose from (already without the one just played), how many [players] are in the room, [who] picks and the call that opens one.
  */
 class AnotherGame(
-    val current: GameKind, val games: List<GameKind>, val away: Set<GameKind>, val players: Int, val who: WhoPicks, val onPick: (GameKind) -> Unit,
+    val current: GameKind, val games: List<GameKind>, val players: Int, val who: WhoPicks, val onPick: (GameKind) -> Unit,
 ) {
-    /** The six tiles: games that fit and are not put away. */
-    fun tiles() = anotherGameTiles(games.filter { it !in away }, current, players)
+    /** The six tiles: games that fit. */
+    fun tiles() = anotherGameTiles(games, current, players)
 
-    /** Everything that fits, put-away games too. */
+    /** Everything that fits. */
     fun everything() = anotherGameTiles(games, current, players, Int.MAX_VALUE)
 }
 

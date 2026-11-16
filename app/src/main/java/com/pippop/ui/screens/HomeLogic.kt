@@ -39,7 +39,7 @@ private fun dateTag(day: LocalDate, today: LocalDate, locale: Locale): String {
 
 /**
  * The first row of the home: the Sudoku in progress first ([sudokuPercent] is how far along it is,
- * null when none is), then the games played last (newest first). No game appears twice.
+ * null when none is), then the games played last (newest first), only those on the [shelf]. No game appears twice.
  */
 fun jumpBackIn(
     sudokuPercent: Int?,
@@ -47,10 +47,11 @@ fun jumpBackIn(
     now: Long,
     zone: ZoneId = ZoneId.systemDefault(),
     max: Int = JUMP_TILES,
+    shelf: Collection<GameKind> = GameKind.entries,
 ): List<JumpTile> {
     val first = if (sudokuPercent != null) listOf(JumpTile(GameKind.SUDOKU, "$sudokuPercent% done")) else emptyList()
     val rest = recent.sortedByDescending { it.at }.map { JumpTile(it.game, recentTag(it.at, now, zone)) }
-    return (first + rest).distinctBy { it.game }.take(max)
+    return (first + rest).filter { it.game in shelf }.distinctBy { it.game }.take(max)
 }
 
 /**

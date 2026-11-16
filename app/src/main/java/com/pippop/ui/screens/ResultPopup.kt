@@ -260,7 +260,7 @@ const val TALLY_ME = "You"
  * connecting ([tally], by name), a couple of other games the players could pick next, and
  * how to open one. Null outside a connection that plays game after game.
  */
-class MatchSession(val tally: Map<String, Int>, val nextGames: List<GameKind>, val onOpenGame: (GameKind) -> Unit, val putAway: Set<GameKind> = emptySet())
+class MatchSession(val tally: Map<String, Int>, val nextGames: List<GameKind>, val onOpenGame: (GameKind) -> Unit)
 
 val LocalMatchSession = compositionLocalOf<MatchSession?> { null }
 
@@ -323,7 +323,7 @@ fun BoxScope.MatchPopup(
         rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
         onChange = if (controls?.setup == null || gone || (LocalResultUnder.current && !cardOffersChange(room))) null else ({ controls.setupOpen.value = true }),
         another = if (session == null || gone) null else AnotherGame(
-            game, session.nextGames, session.putAway, present.size + 1, whoPicks(room),
+            game, session.nextGames, present.size + 1, whoPicks(room),
         ) { g -> controls?.switchTo?.invoke(g) ?: session.onOpenGame.invoke(g) }.takeIf { it.tiles().isNotEmpty() },
         extra = extra,
         winner = if (room.endReason == "restart") null else matchWinner(room),

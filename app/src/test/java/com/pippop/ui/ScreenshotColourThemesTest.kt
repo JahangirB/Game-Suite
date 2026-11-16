@@ -33,7 +33,7 @@ class ScreenshotColourThemesTest : ScreenshotBase() {
             name = "Sam", avatar = Avatar.FOX, colourTheme = theme,
             partner = SavedPartner("https://example.com/x", "", "K7Q2NB", "Maya", Avatar.PANDA, "device", "me"),
             playMode = PlayMode.ONLINE,
-            gameOrder = listOf(
+            shelf = listOf(
                 GameKind.SUDOKU, GameKind.SHIPS, GameKind.CONNECT4, GameKind.LUDO, GameKind.WORDS, GameKind.DOMINOES,
                 GameKind.CLASH, GameKind.GOLF, GameKind.MEMORY, GameKind.DOTS, GameKind.DRAW, GameKind.TTT,
             ),

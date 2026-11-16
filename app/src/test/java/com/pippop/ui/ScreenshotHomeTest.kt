@@ -43,8 +43,7 @@ class ScreenshotHomeTest : ScreenshotBase() {
             avatar = Avatar.FOX,
             partner = SavedPartner("https://example.com/x", "", "K7Q2NB", "Maya", Avatar.PANDA, "device", "me"),
             playMode = PlayMode.ONLINE,
-            gameOrder = HomeOrder + PutAway,
-            putAway = PutAway.toSet(),
+            shelf = HomeOrder,
             recentGames = listOf(RecentGame(GameKind.LUDO, now - day), RecentGame(GameKind.WORDS, now - 4 * day)),
         )
         HomeScreen(
@@ -65,6 +64,5 @@ class ScreenshotHomeTest : ScreenshotBase() {
             GameKind.CLASH, GameKind.GOLF, GameKind.MEMORY, GameKind.DOTS, GameKind.DRAW, GameKind.TTT,
             GameKind.BINGO, GameKind.HOCKEY, GameKind.CODE, GameKind.BALLOON,
         )
-        val PutAway = listOf(GameKind.NUMBERS, GameKind.GRID, GameKind.SLIDE, GameKind.BLOCKS)
     }
 }

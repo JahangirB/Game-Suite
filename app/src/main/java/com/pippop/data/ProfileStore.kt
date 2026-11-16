@@ -78,8 +78,10 @@ data class Profile(
     val nearbyCode: String = "",
     /** The home's Online/Offline switch, as last set. */
     val playMode: PlayMode = PlayMode.OFFLINE,
-    /** The games in the order this player arranged them on the home. */
-    val gameOrder: List<GameKind> = GameKind.entries,
+    /** The games on this player's shelf, in the order shown on the home. Every other game is in the Store ([storeGames]). */
+    val shelf: List<GameKind> = ProfileStore.DEFAULT_SHELF,
+    /** Whether the one-time note about the Game Store has been shown (or seen). */
+    val shelfNoteShown: Boolean = false,
     /** Whether the first-run screens have been seen (or skipped, by someone set up before them). */
     val firstRunDone: Boolean = false,
     /** Buzz for game moments (your turn, a move, a win). */
@@ -114,8 +116,6 @@ data class Profile(
     val recentReactions: List<String> = emptyList(),
     /** The six lines the player says with one tap ([ChatLines]); an unset one is its default. */
     val lines: List<String> = ChatLines.DEFAULTS,
-    /** Games taken off the shelf on the arrange screen; they stay in [gameOrder]. */
-    val putAway: Set<GameKind> = emptySet(),
     /** True once the order has been changed, so the home can stop saying how. */
     val arrangedOnce: Boolean = false,
     /** The last solo setup of each game that has one, as picked (see [soloSetup] for what it plays with). */
@@ -229,22 +229,46 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         _profile.update { it.copy(partner = partner) }
     }
 
-    /** Saves the home's game order; null puts the games back in the default order. */
-    fun setGameOrder(order: List<GameKind>?) {
+    /** Saves the whole shelf (the arrange screen's result); null puts back the nine a phone starts with. Nothing else is touched. */
+    fun setShelf(games: List<GameKind>?) {
+        val kept = (games ?: DEFAULT_SHELF).distinct()
         prefs.edit {
-            if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key })
+            putString(KEY_SHELF, encodeShelf(kept))
             putBoolean(KEY_ARRANGED_ONCE, true)
         }
-        _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key }), arrangedOnce = true) }
+        _profile.update { it.copy(shelf = kept, arrangedOnce = true) }
     }
 
-    /** Saves the games taken off the shelf (none: all back). Nothing is deleted; [Profile.gameOrder] still holds them. */
-    fun setPutAway(games: Set<GameKind>) {
-        prefs.edit {
-            putString(KEY_PUT_AWAY, games.joinToString(",") { it.key })
-            putBoolean(KEY_ARRANGED_ONCE, true)
-        }
-        _profile.update { it.copy(putAway = games, arrangedOnce = true) }
+    /** Puts [game] at the end of the shelf; nothing happens if it is there already. */
+    fun addToShelf(game: GameKind) {
+        val shelf = _profile.value.shelf
+        if (game in shelf) return
+        saveShelf(shelf + game)
+    }
+
+    /** Takes [game] off the shelf (it is back in the Store). Scores, records, saved games and recent games are kept. */
+    fun removeFromShelf(game: GameKind) {
+        val shelf = _profile.value.shelf
+        if (game !in shelf) return
+        saveShelf(shelf - game)
+    }
+
+    /** Moves the game at place [from] on the shelf to place [to]; places outside the shelf do nothing. */
+    fun moveOnShelf(from: Int, to: Int) {
+        val shelf = _profile.value.shelf
+        if (from !in shelf.indices || to !in shelf.indices || from == to) return
+        saveShelf(shelf.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    private fun saveShelf(shelf: List<GameKind>) {
+        prefs.edit { putString(KEY_SHELF, encodeShelf(shelf)) }
+        _profile.update { it.copy(shelf = shelf) }
+    }
+
+    /** Marks the Game Store note as shown, for good. */
+    fun markShelfNoteShown() {
+        prefs.edit { putBoolean(KEY_SHELF_NOTE_SHOWN, true) }
+        _profile.update { it.copy(shelfNoteShown = true) }
     }
 
     /** Remembers that [month]'s cup has been shown, so it is not shown again. */
@@ -397,7 +421,21 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         }
     }
 
+    /**
+     * The one-time move to the shelf. When the shelf key is missing (every phone, new or existing, the first time this version opens)
+     * the shelf becomes the nine. The old "game_order" and "put_away" keys are left in place and never read again; their only trace is
+     * that someone who had arranged before has already learned how ([Profile.arrangedOnce]). Running it again changes nothing.
+     */
+    internal fun migrateShelf() {
+        if (prefs.contains(KEY_SHELF)) return
+        prefs.edit {
+            putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF))
+            if (!prefs.contains(KEY_ARRANGED_ONCE) && prefs.contains(OLD_KEY_GAME_ORDER)) putBoolean(KEY_ARRANGED_ONCE, true)
+        }
+    }
+
     private fun load(): Profile {
+        migrateShelf()
         val deviceId = prefs.getString(KEY_DEVICE, null) ?: java.util.UUID.randomUUID().toString().also {
             prefs.edit { putString(KEY_DEVICE, it) }
         }
@@ -429,7 +467,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
                 .getOrDefault(ShipStyle.TOY),
             stats = Stats(prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
-            gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
+            shelf = shelfOf(prefs.getString(KEY_SHELF, null)),
+            shelfNoteShown = prefs.getBoolean(KEY_SHELF_NOTE_SHOWN, false),
             // Someone who set a name before the first-run screens existed has nothing to learn there.
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
@@ -449,9 +488,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
             recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
             lines = ChatLines.decode(prefs.getString(KEY_LINES, null)),
-            putAway = gamesOf(prefs.getString(KEY_PUT_AWAY, null)),
             // Someone who arranged the games before this was kept has already learned how.
-            arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, prefs.contains(KEY_GAME_ORDER)),
+            arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, false),
             soloSetups = GameKind.entries.mapNotNull { game ->
                 prefs.getString(KEY_SOLO_PREFIX + game.key, null)?.let { game to SoloSetups.resolve(game, SoloSetups.decode(it)) }
             }.filter { it.second.isNotEmpty() }.toMap(),
@@ -492,7 +530,10 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         private const val KEY_PASSWORD = "server_password"
         private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_PLAY_MODE = "play_mode"
-        private const val KEY_GAME_ORDER = "game_order"
+        // The old arrange screen's keys ("game_order", "put_away") are no longer read or written, and are left in place.
+        private const val OLD_KEY_GAME_ORDER = "game_order"
+        private const val KEY_SHELF = "shelf"
+        private const val KEY_SHELF_NOTE_SHOWN = "shelf_note_shown"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
         /** The old on/off sound setting: read once to make [KEY_LOUDNESS], never written or removed. */
@@ -516,7 +557,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         private const val KEY_LINES = "chat_lines"
         /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
         private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
-        private const val KEY_PUT_AWAY = "put_away"
         /** The last month whose trophy moment was shown, as "2026-10". */
         private const val KEY_CUP_SHOWN = "cup_shown_month"
         private const val KEY_ARRANGED_ONCE = "arranged_once"
@@ -536,10 +576,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             return migrated
         }
 
-        /** Games from a comma list of keys; unknown keys and repeats are left out. */
-        fun gamesOf(saved: String?): Set<GameKind> =
-            saved.orEmpty().split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.toSet()
-
         /** Recent games from "key:millis" pairs, newest first; anything unreadable is left out. */
         fun recentOf(saved: String?): List<RecentGame> =
             saved.orEmpty().split(",").mapNotNull { pair ->
@@ -548,11 +584,22 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
                 RecentGame(game, at.toLongOrNull() ?: return@mapNotNull null)
             }.sortedByDescending { it.at }.distinctBy { it.game }.take(MAX_RECENT)
 
-        /** The saved order, with games added since (or not known any more) put right. */
-        fun orderOf(saved: String?): List<GameKind> {
-            val known = saved.orEmpty().split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.distinct()
-            return known + (GameKind.entries - known.toSet())
-        }
+        /** The nine games every phone starts with, in this order. */
+        val DEFAULT_SHELF: List<GameKind> = listOf(
+            GameKind.SUDOKU, GameKind.SHIPS, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT,
+            GameKind.DOMINOES, GameKind.CLASH, GameKind.LUDO, GameKind.GOLF,
+        )
+
+        /** The games in the Store: every game not on [shelf], in the catalogue's own order. */
+        fun storeGames(shelf: List<GameKind>): List<GameKind> = GameKind.entries - shelf.toSet()
+
+        private fun encodeShelf(shelf: List<GameKind>) = shelf.joinToString(",") { it.key }
+
+        /** The saved shelf: unknown keys and repeats are left out; a missing value is the nine. Games are never added back. */
+        fun shelfOf(saved: String?): List<GameKind> =
+            if (saved == null) DEFAULT_SHELF
+            else saved.split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.distinct()
+
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
 

@@ -56,9 +56,9 @@ class AnotherGameTest {
         assertEquals("You lost that one, so you pick.", whoPicks(room("opponent", null)).line)
     }
 
-    @Test fun putAwayGamesAreNotTilesButAreInAllGames() {
-        val a = AnotherGame(GameKind.CONNECT4, listOf(GameKind.LUDO, GameKind.WORDS), setOf(GameKind.LUDO), 2, whoPicks(room(null))) {}
-        assertEquals(listOf(GameKind.WORDS), a.tiles())
+    @Test fun tilesAreOnlyTheGamesGiven() {
+        val a = AnotherGame(GameKind.CONNECT4, listOf(GameKind.LUDO, GameKind.WORDS), 2, whoPicks(room(null))) {}
+        assertEquals(listOf(GameKind.LUDO, GameKind.WORDS), a.tiles())
         assertEquals(listOf(GameKind.LUDO, GameKind.WORDS), a.everything())
     }
 

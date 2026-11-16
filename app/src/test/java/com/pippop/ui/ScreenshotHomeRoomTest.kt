@@ -51,7 +51,7 @@ class ScreenshotHomeRoomTest : ScreenshotBase() {
     @Composable
     private fun home(room: RoomState) {
         val profile = Profile(
-            name = "Sam", avatar = Avatar.FOX, playMode = PlayMode.ONLINE, gameOrder = HomeOrder + PutAway, putAway = PutAway.toSet(),
+            name = "Sam", avatar = Avatar.FOX, playMode = PlayMode.ONLINE, shelf = HomeOrder,
             recentGames = listOf(RecentGame(GameKind.LUDO, NOW - day), RecentGame(GameKind.WORDS, NOW - 4 * day)),
             partner = SavedPartner("https://example.com/x", "", "K7Q2NB", "Maya", Avatar.PANDA, "device", "me"),
         )
@@ -80,6 +80,5 @@ class ScreenshotHomeRoomTest : ScreenshotBase() {
             GameKind.CLASH, GameKind.GOLF, GameKind.MEMORY, GameKind.DOTS, GameKind.DRAW, GameKind.TTT,
             GameKind.BINGO, GameKind.HOCKEY, GameKind.CODE, GameKind.BALLOON,
         )
-        val PutAway = listOf(GameKind.NUMBERS, GameKind.GRID, GameKind.SLIDE, GameKind.BLOCKS)
     }
 }

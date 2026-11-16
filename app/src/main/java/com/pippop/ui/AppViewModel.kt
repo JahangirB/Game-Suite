@@ -36,12 +36,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setColourTheme(theme: ColourTheme) = store.setColourTheme(theme)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
-    fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
-    /** The arrange screen's result: the order, and the games below its "Put away" line. */
-    fun setArrangement(order: List<GameKind>?, putAway: Set<GameKind>) {
-        if (putAway != profile.value.putAway) store.setPutAway(putAway)
-        store.setGameOrder(order)
-    }
+    /** The arrange screen's result: [order] holds every game, and the ones in [putAway] (below its line) are back in the Store. */
+    fun setArrangement(order: List<GameKind>?, putAway: Set<GameKind>) = store.setShelf((order ?: GameKind.entries).filter { it !in putAway })
+    fun addToShelf(game: GameKind) = store.addToShelf(game)
+    fun removeFromShelf(game: GameKind) = store.removeFromShelf(game)
+    fun moveOnShelf(from: Int, to: Int) = store.moveOnShelf(from, to)
+    /** The one-time "The other games are in the Game Store" note has been seen. */
+    fun markShelfNoteShown() = store.markShelfNoteShown()
     fun noteGamePlayed(game: GameKind) = store.noteGamePlayed(game)
     /** Remembers how a game was last set up to play alone. */
     fun setSoloSetup(game: GameKind, values: Map<String, String>) = store.setSoloSetup(game, values)

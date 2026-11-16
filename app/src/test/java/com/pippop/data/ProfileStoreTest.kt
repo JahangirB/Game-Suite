@@ -11,7 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** What the home remembers: recent games, put-away games and whether the order was ever changed. */
+/** What the home remembers: recent games, the shelf and the Store, and whether the order was ever changed. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class)
 class ProfileStoreTest {
@@ -35,7 +35,6 @@ class ProfileStoreTest {
     @Test fun defaultsAreEmpty() {
         val p = fresh().profile.value
         assertEquals(emptyList<RecentGame>(), p.recentGames)
-        assertEquals(emptySet<GameKind>(), p.putAway)
         assertFalse(p.arrangedOnce)
     }
 
@@ -74,66 +73,146 @@ class ProfileStoreTest {
         assertEquals(emptyList<RecentGame>(), store().profile.value.recentGames)
     }
 
-    @Test fun putAwayAndBackRoundTrip() {
-        val s = fresh()
-        s.setPutAway(setOf(GameKind.GOLF, GameKind.DOTS))
-        assertEquals(setOf(GameKind.GOLF, GameKind.DOTS), store().profile.value.putAway)
-        s.setPutAway(setOf(GameKind.DOTS))
-        assertEquals(setOf(GameKind.DOTS), store().profile.value.putAway)
-        s.setPutAway(emptySet())
-        assertEquals(emptySet<GameKind>(), store().profile.value.putAway)
+    private val nine = listOf(
+        GameKind.SUDOKU, GameKind.SHIPS, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT,
+        GameKind.DOMINOES, GameKind.CLASH, GameKind.LUDO, GameKind.GOLF,
+    )
+
+    @Test fun aNewPhoneStartsWithTheNine() {
+        val p = fresh().profile.value
+        assertEquals(nine, p.shelf)
+        assertFalse(p.shelfNoteShown)
+        assertEquals(nine, store().profile.value.shelf)
     }
 
-    @Test fun putAwayKeepsEveryGameInTheOrder() {
+    @Test fun anExistingPhoneAlsoStartsWithTheNineWhateverItHad() {
+        // An install from before the shelf: the old keys, and no shelf key.
+        prefs().edit().clear()
+            .putString("player_name", "Sam")
+            .putString("game_order", GameKind.entries.reversed().joinToString(",") { it.key })
+            .putString("put_away", "golf,dots")
+            .commit()
+        val before = prefs().all.toMap()
+        val s = store()
+        assertEquals(before, prefs().all.filterKeys { it in before })
+        assertEquals(nine, s.profile.value.shelf)
+        // The old keys stay, untouched, and the player who arranged before has learned how.
+        assertEquals("golf,dots", prefs().getString("put_away", null))
+        assertTrue(prefs().contains("game_order"))
+        assertTrue(s.profile.value.arrangedOnce)
+        assertEquals("Sam", s.profile.value.name)
+    }
+
+    @Test fun theOldKeysAreNotReadOnceTheShelfExists() {
         val s = fresh()
-        val order = GameKind.entries.reversed()
-        s.setGameOrder(order)
-        s.setPutAway(setOf(GameKind.GOLF))
+        s.addToShelf(GameKind.CONNECT4)
+        prefs().edit().putString("game_order", "ludo").putString("put_away", "sudoku").commit()
+        assertEquals(nine + GameKind.CONNECT4, store().profile.value.shelf)
+    }
+
+    @Test fun runningTheMigrationTwiceChangesNothing() {
+        prefs().edit().clear().putString("game_order", "golf,ludo").commit()
+        val s = store()
+        s.addToShelf(GameKind.DOTS)
+        val before = prefs().all.toMap()
+        s.migrateShelf()
+        store().migrateShelf()
+        assertEquals(before, prefs().all.toMap())
+        assertEquals(nine + GameKind.DOTS, store().profile.value.shelf)
+    }
+
+    @Test fun addingPutsAGameAtTheEndOnce() {
+        val s = fresh()
+        s.addToShelf(GameKind.CONNECT4)
+        s.addToShelf(GameKind.DOTS)
+        s.addToShelf(GameKind.CONNECT4)
+        s.addToShelf(GameKind.SUDOKU)
+        assertEquals(nine + GameKind.CONNECT4 + GameKind.DOTS, s.profile.value.shelf)
+        assertEquals(nine + GameKind.CONNECT4 + GameKind.DOTS, store().profile.value.shelf)
+    }
+
+    @Test fun removingKeepsEverythingTheGameHad() {
+        val s = fresh()
+        s.noteGamePlayed(GameKind.GOLF, 500)
+        s.tutorialSeen(GameKind.GOLF)
+        s.removeFromShelf(GameKind.GOLF)
+        s.removeFromShelf(GameKind.GOLF)
         val p = store().profile.value
-        assertEquals(order, p.gameOrder)
-        assertTrue(GameKind.GOLF in p.gameOrder)
+        assertEquals(nine - GameKind.GOLF, p.shelf)
+        assertEquals(listOf(RecentGame(GameKind.GOLF, 500)), p.recentGames)
+        assertEquals(setOf(GameKind.GOLF), p.tutorialsSeen)
+        assertTrue(GameKind.GOLF in ProfileStore.storeGames(p.shelf))
     }
 
-    @Test fun unknownPutAwayKeysAreIgnored() {
+    @Test fun movingReordersAndIgnoresPlacesOffTheShelf() {
+        val s = fresh()
+        s.moveOnShelf(8, 0)
+        assertEquals(listOf(GameKind.GOLF) + nine.dropLast(1), store().profile.value.shelf)
+        s.moveOnShelf(0, 2)
+        assertEquals(listOf(GameKind.SUDOKU, GameKind.SHIPS, GameKind.GOLF), s.profile.value.shelf.take(3))
+        val now = s.profile.value.shelf
+        s.moveOnShelf(0, 9)
+        s.moveOnShelf(-1, 2)
+        s.moveOnShelf(3, 3)
+        assertEquals(now, s.profile.value.shelf)
+    }
+
+    @Test fun theStoreHoldsEveryGameNotOnTheShelfInCatalogueOrder() {
+        assertEquals(
+            listOf(
+                GameKind.CONNECT4, GameKind.DOTS, GameKind.DRAW, GameKind.NUMBERS, GameKind.HOCKEY, GameKind.GRID,
+                GameKind.BALLOON, GameKind.CODE, GameKind.SLIDE, GameKind.BINGO, GameKind.BLOCKS,
+            ),
+            ProfileStore.storeGames(nine),
+        )
+        // Order on the shelf does not matter; a game added to it leaves the Store, one removed joins it in its place.
+        assertEquals(ProfileStore.storeGames(nine), ProfileStore.storeGames(nine.reversed()))
+        assertFalse(GameKind.DOTS in ProfileStore.storeGames(nine + GameKind.DOTS))
+        assertEquals(GameKind.entries.size - nine.size + 1, ProfileStore.storeGames(nine - GameKind.GOLF).size)
+        assertEquals(emptyList<GameKind>(), ProfileStore.storeGames(GameKind.entries))
+    }
+
+    @Test fun anEmptyShelfStaysEmpty() {
+        val s = fresh()
+        nine.forEach { s.removeFromShelf(it) }
+        assertEquals(emptyList<GameKind>(), store().profile.value.shelf)
+    }
+
+    @Test fun theStoreNoteIsShownOnce() {
+        val s = fresh()
+        assertFalse(s.profile.value.shelfNoteShown)
+        s.markShelfNoteShown()
+        assertTrue(store().profile.value.shelfNoteShown)
+    }
+
+    @Test fun unknownAndRepeatedShelfKeysAreIgnored() {
         fresh()
-        prefs().edit().putString("put_away", "golf,not-a-game,,dots,golf").commit()
-        assertEquals(setOf(GameKind.GOLF, GameKind.DOTS), store().profile.value.putAway)
+        prefs().edit().putString("shelf", "golf,not-a-game,,dots,golf").commit()
+        assertEquals(listOf(GameKind.GOLF, GameKind.DOTS), store().profile.value.shelf)
     }
 
-    @Test fun arrangedOnceIsSetByTheFirstChangeOfOrder() {
+    @Test fun arrangedOnceIsSetByArranging() {
         val s = fresh()
         s.setName("Sam")
         s.noteGamePlayed(GameKind.GOLF)
         assertFalse(s.profile.value.arrangedOnce)
-        s.setGameOrder(GameKind.entries.reversed())
-        assertTrue(s.profile.value.arrangedOnce)
+        s.setShelf(nine.reversed())
+        assertEquals(nine.reversed(), store().profile.value.shelf)
         assertTrue(store().profile.value.arrangedOnce)
-        // Putting the order back to the default is still a change that was made.
-        s.setGameOrder(null)
-        assertTrue(store().profile.value.arrangedOnce)
-    }
-
-    @Test fun puttingAGameAwayCountsAsArranging() {
-        val s = fresh()
-        s.setPutAway(setOf(GameKind.GOLF))
-        assertTrue(store().profile.value.arrangedOnce)
-    }
-
-    @Test fun anOrderSavedBeforeThisExistedCountsAsArranged() {
-        fresh()
-        prefs().edit().putString("game_order", GameKind.entries.reversed().joinToString(",") { it.key }).commit()
+        // Putting the shelf back to the nine is still a change that was made.
+        s.setShelf(null)
+        assertEquals(nine, store().profile.value.shelf)
         assertTrue(store().profile.value.arrangedOnce)
     }
 
     @Test fun existingValuesAreUntouched() {
-        fresh()
-        prefs().edit().putString("player_name", "Sam").putString("game_order", "golf,ludo").putString("tutorials_seen", "golf").commit()
+        prefs().edit().clear().putString("player_name", "Sam").putString("game_order", "golf,ludo").putString("tutorials_seen", "golf").commit()
         val s = store()
         s.noteGamePlayed(GameKind.GOLF)
-        s.setPutAway(setOf(GameKind.LUDO))
+        s.removeFromShelf(GameKind.LUDO)
         val p = store().profile.value
         assertEquals("Sam", p.name)
-        assertEquals(listOf(GameKind.GOLF, GameKind.LUDO), p.gameOrder.take(2))
+        assertEquals(nine - GameKind.LUDO, p.shelf)
         assertEquals(setOf(GameKind.GOLF), p.tutorialsSeen)
     }
 

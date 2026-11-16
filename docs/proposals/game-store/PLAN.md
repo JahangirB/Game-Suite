@@ -75,7 +75,9 @@ Remove the Arrange screen, its button and its hint. Holding any game card starts
 the cards wiggle (not under reduced motion), each shows a round × at its top-right corner
 ("Remove <game>"), a card can be dragged to a new place, and a "Drag to move. Tap × to remove." bar
 with "Done" sits at the top. Removing shows "<Game> is back in the Store. Undo". Drag works with
-TalkBack too (move up / move down actions). *Done when* a test drags a card to a new place and the
+TalkBack too (move up / move down actions). With an empty shelf the home says "Your shelf is empty.
+Get games from the Game Store." and Surprise us says the same, not "No game fits everyone here".
+*Done when* a test drags a card to a new place and the
 order is saved, × and Undo work, and holding never opens another screen.
 
 ### Step 5. The Game Store
@@ -85,7 +87,10 @@ Choices row (All, Puzzles, Words, Party, Quick) that really filters, each Store 
 one line, players and minutes, and "Get"; below, "On your shelf" with "Open". A game's page: banner,
 description, facts, how to play, "Add to my games" (then "Play" and "Remove from my games", and the
 toast "<Game> is on your shelf"). "Maya has this game" where the saved partner is known to have it
-(skip the line otherwise). *Done when* screenshots match the mock-ups in light and dark, and tests
+(skip the line otherwise). The first open after the update shows a one-time note on the home:
+"The other games are in the Game Store", with a button to it; a phone that never had the app
+before does not see it. "Another game" and the switch-game sheet get a "Game Store" entry at the
+end. *Done when* screenshots match the mock-ups in light and dark, and tests
 cover Get, Remove, the filter and the empty Store ("Every game is on your shelf").
 
 ### Step 6. A partner picks a game you don't have
