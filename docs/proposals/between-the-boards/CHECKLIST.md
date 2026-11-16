@@ -174,3 +174,8 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 - [ ] The work branch merged into the live branch and pushed (steps kept, not squashed)
 - [ ] The "Build" run on the live branch is green; `latest` is a new release with `PipPop.apk` and `version.json`
 - [ ] The owner knows: the real app will offer the update; Apps Script needs `backend/Code.gs` pasted in; the preview can be uninstalled
+
+## Extra: "Update by itself"
+
+- [x] Built and checked (quiet update while the app is closed, Android 12+)
+- [ ] The owner's phone updated itself from 1.0.203 to a newer preview build on its own
