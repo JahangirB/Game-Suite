@@ -22,10 +22,10 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [ ] **Step 4b. Editing the shelf: smoother moves, a tap ends it**
   - [ ] The animation and wiggle the owner picked; reduced motion fades
   - [ ] A tap anywhere but an × ends editing (on a card too)
-- [ ] **Step 5. The Game Store**
-  - [ ] Store list with working filter, Get, "On your shelf"
-  - [ ] A game's page, "Add to my games", then Play / Remove
-  - [ ] The one-time note after the update; a "Game Store" entry in Another game and switch-game
+- [x] **Step 5. The Game Store**
+  - [x] Store list with working filter, Get, "On your shelf"
+  - [x] A game's page, "Add to my games", then Play / Remove
+  - [x] The one-time note after the update; a "Game Store" entry in Another game and switch-game
 - [ ] **Step 6. A partner picks a game you don't have**
   - [ ] "Add and join" sheet from invite, lobby, Another game and switch-game
 - [ ] **Step 7. Profile**

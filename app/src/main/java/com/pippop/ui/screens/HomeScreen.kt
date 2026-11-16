@@ -153,6 +153,13 @@ fun HomeScreen(
     onRemoveFromShelf: (GameKind) -> Unit = {},
     onMoveOnShelf: (from: Int, to: Int) -> Unit = { _, _ -> },
     onRestoreToShelf: (GameKind, Int) -> Unit = { _, _ -> },
+    /** Opens the Game Store. */
+    onOpenStore: () -> Unit = {},
+    /** The one-time Game Store note was dismissed (opening the Store counts too). */
+    onShelfNoteSeen: () -> Unit = {},
+    /** A game the Store asked to play: its start sheet opens, as if its tile were tapped. [onPlayRequestHandled] says it has. */
+    playRequest: GameKind? = null,
+    onPlayRequestHandled: () -> Unit = {},
     /** Our scoreboard: this month against your partner, every game, the trophies. */
     onScores: () -> Unit = {},
     partnerBusy: Boolean,
@@ -198,9 +205,13 @@ fun HomeScreen(
         if (hasTutorial(kind) && kind !in profile.tutorialsSeen) tutorial = kind else sheetGame = kind
     }
     val shelf = profile.shelf
-    // The games in the Store, for now still shown in the "More games" row (the Store card replaces it).
     val away = ProfileStore.storeGames(shelf)
-    var moreOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(playRequest) {
+        if (playRequest != null) {
+            openGame(playRequest)
+            onPlayRequestHandled()
+        }
+    }
 
     // Surprise us: a highlight flicks across the tiles for about half a second, stops on a game and opens its sheet.
     var surprise by remember { mutableIntStateOf(0) }
@@ -245,6 +256,9 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             NotificationPrimer(profile, onNotificationsAnswered)
+            if (profile.shelfNoteDue && !profile.shelfNoteShown) {
+                ShelfNote(onOpen = { onShelfNoteSeen(); onOpenStore() }, onDismiss = onShelfNoteSeen)
+            }
 
             if (room != null) {
                 RoomBar(room, nearby, partnerBusy, Invite(profile.scriptUrl, room.code).toShareText(), onOpenGame, onLeaveRoom)
@@ -276,7 +290,7 @@ fun HomeScreen(
             }
 
             if (shelf.isEmpty()) {
-                EmptyShelf()
+                EmptyShelf(onOpenStore)
             } else {
                 // Three tiles per row, in your order; each row stands on a thin shelf. Holding one starts editing (and can go straight on into dragging it).
                 EditableShelf(
@@ -294,17 +308,8 @@ fun HomeScreen(
                 )
             }
 
-            if (away.isNotEmpty()) {
-                MoreGamesBar(away, moreOpen) { moreOpen = !moreOpen }
-                if (moreOpen) away.chunked(3).forEach { row ->
-                    ShelfRow {
-                        row.forEach { kind ->
-                            RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), onClick = { openGame(kind) })
-                        }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
+            // With an empty shelf the line above already has the button.
+            if (shelf.isNotEmpty()) StoreCard(away, enabled = !editing, onClick = onOpenStore)
         }
       }
 
@@ -382,10 +387,13 @@ internal const val EMPTY_SHELF = "Your shelf is empty. Get games from the Game S
 
 /** The shelf with no games on it: one line, where the tiles would be. */
 @Composable
-private fun EmptyShelf() {
+private fun EmptyShelf(onOpenStore: () -> Unit) {
     val p = AppTheme.palette
     Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
-        Text(EMPTY_SHELF, color = p.text, fontSize = TextSize.BodyL, modifier = Modifier.padding(Space.L), textAlign = TextAlign.Center)
+        Column(Modifier.padding(Space.L), verticalArrangement = Arrangement.spacedBy(Space.M), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(EMPTY_SHELF, color = p.text, fontSize = TextSize.BodyL, textAlign = TextAlign.Center)
+            PrimaryButton("Open the Game Store", onOpenStore, Modifier.fillMaxWidth())
+        }
     }
 }
 
@@ -547,29 +555,6 @@ private fun RoundButton(description: String, onClick: () -> Unit, enabled: Boole
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center, content = content,
     )
-}
-
-/** The end of the shelf: "More games · N", the put-away games as small badges; tapping it opens them out. */
-@Composable
-private fun MoreGamesBar(games: List<GameKind>, open: Boolean, onToggle: () -> Unit) {
-    val p = AppTheme.palette
-    Surface(
-        color = p.accent, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline),
-        modifier = Modifier.fillMaxWidth().clip(Shapes.L)
-            .semantics { stateDescription = if (open) "Open" else "Closed" }
-            .clickable(role = Role.Button, onClick = onToggle),
-    ) {
-        Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("More games · ${games.size}", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (!open) games.take(4).forEach { kind ->
-                Box(
-                    Modifier.size(26.dp).clip(Shapes.S).background(Brush.verticalGradient(listOf(kind.color.lighter(0.18f), kind.color.darker(0.12f)))).border(2.dp, p.ink, Shapes.S),
-                    contentAlignment = Alignment.Center,
-                ) { GameIcon(kind, Modifier.size(16.dp)) }
-            }
-            Icon(if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = p.muted)
-        }
-    }
 }
 
 /**

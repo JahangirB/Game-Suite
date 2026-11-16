@@ -75,6 +75,9 @@ class AnotherGame(
     /** The six tiles: games that fit. */
     fun tiles() = anotherGameTiles(games, current, players)
 
+    /** Opens the Game Store (null where it can't be): an entry at the end of the sheet. */
+    var onStore: (() -> Unit)? = null
+
     /** Everything that fits. */
     fun everything() = anotherGameTiles(games, current, players, Int.MAX_VALUE)
 }
@@ -83,13 +86,18 @@ class AnotherGame(
 @Composable
 fun AnotherGameSheet(another: AnotherGame, onBack: (() -> Unit)? = null, onDismiss: () -> Unit) {
     ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true) {
-        AnotherGameContent(another, onBack = onBack?.let { b -> { onDismiss(); b() } }) { onDismiss(); another.onPick(it) }
+        AnotherGameContent(
+            another, onBack = onBack?.let { b -> { onDismiss(); b() } },
+            onStore = another.onStore?.let { s -> { onDismiss(); s() } },
+        ) { onDismiss(); another.onPick(it) }
     }
 }
 
 /** What the sheet holds; [onPick] is called with the chosen game. [allOpen] starts with the whole shelf out. */
 @Composable
-internal fun AnotherGameContent(another: AnotherGame, allOpen: Boolean = false, onBack: (() -> Unit)? = null, onPick: (GameKind) -> Unit) {
+internal fun AnotherGameContent(
+    another: AnotherGame, allOpen: Boolean = false, onBack: (() -> Unit)? = null, onStore: (() -> Unit)? = another.onStore, onPick: (GameKind) -> Unit,
+) {
     val p = AppTheme.palette
     var all by remember { mutableStateOf(allOpen) }
     var surprise by remember { mutableIntStateOf(0) }
@@ -138,6 +146,7 @@ internal fun AnotherGameContent(another: AnotherGame, allOpen: Boolean = false, 
             if (!all && everything.size > tiles.size) SecondaryButton("All games", { if (!flicking) all = true }, Modifier.weight(1f))
             SecondaryButton("Surprise us", { if (!flicking) surprise++ }, Modifier.weight(1f))
         }
+        onStore?.let { store -> SecondaryButton("Game Store", store, Modifier.fillMaxWidth()) }
         if (onBack != null) SecondaryButton("Back to games", onBack, Modifier.fillMaxWidth())
     }
 }

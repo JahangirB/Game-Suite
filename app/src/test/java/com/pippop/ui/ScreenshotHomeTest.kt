@@ -18,7 +18,7 @@ import org.junit.Test
 /**
  * The home before you connect: the header, one line to connect, "Jump back in" (the Sudoku 27% done
  * and the last two games played), the Games row and the key-art tiles on their shelves. Four games
- * are put away, so the shelf ends in "More games · 4". No month strip, no scores on tiles.
+ * are put away, so the shelf ends in the Game Store card. No month strip, no scores on tiles.
  */
 class ScreenshotHomeTest : ScreenshotBase() {
     private val puzzle = "530070000600195000098000060800060003400803001700020006060000280000419005000080079"

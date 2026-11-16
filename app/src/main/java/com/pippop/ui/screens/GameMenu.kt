@@ -277,6 +277,9 @@ fun SwitchGameSheet(controls: RoomControls, onDismiss: () -> Unit) {
                 onDismiss()
                 controls.switchTo(it)
             }
+            LocalOpenStore.current?.let { open ->
+                SecondaryButton("Game Store", { onDismiss(); open(controls.switchTo) }, Modifier.fillMaxWidth())
+            }
         }
     }
 }

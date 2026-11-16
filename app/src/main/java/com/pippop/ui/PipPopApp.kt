@@ -118,6 +118,12 @@ import com.pippop.data.MonthEnd
 import com.pippop.data.ScoreStore
 import com.pippop.ui.screens.TrophyMomentDialog
 import com.pippop.ui.screens.ToySheet
+import com.pippop.ui.screens.GamePageScreen
+import com.pippop.ui.screens.LocalOpenStore
+import com.pippop.ui.screens.StoreFilter
+import com.pippop.ui.screens.StoreScreen
+import com.pippop.ui.screens.backInStoreToast
+import com.pippop.ui.screens.onShelfToast
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.LocalReduceMotion
@@ -125,7 +131,7 @@ import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
 import kotlinx.coroutines.launch
 
-private enum class Dest { HOME, PROFILE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
 /** The screen of a game's solo play (Draw & Guess has none). */
 private fun soloDest(game: GameKind) = when (game) {
@@ -228,6 +234,20 @@ fun PipPopApp(
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     // Leaving the room altogether (from the home, while connected).
     var confirmDisconnect by rememberSaveable { mutableStateOf(false) }
+    // The Game Store: its Choices, the game whose page is open (null: the list), what "Play" does when it was opened from a room's sheet,
+    // and a game the Store asked the home to open the start sheet of.
+    var storeFilter by rememberSaveable { mutableStateOf(StoreFilter.ALL) }
+    var storeGame by rememberSaveable { mutableStateOf<GameKind?>(null) }
+    var storeRoomPick by remember { mutableStateOf<((GameKind) -> Unit)?>(null) }
+    // A game picked in the Store while a game is under way: it ends (and counts as a loss), so ask first.
+    var confirmSwitch by remember { mutableStateOf<GameKind?>(null) }
+    var playRequest by remember { mutableStateOf<GameKind?>(null) }
+    val openStore: (((GameKind) -> Unit)?) -> Unit = { roomPick ->
+        app.markShelfNoteShown()
+        storeRoomPick = roomPick
+        storeGame = null
+        dest = Dest.STORE
+    }
 
     LaunchedEffect(battleState.message) {
         battleState.message?.let {
@@ -304,6 +324,10 @@ fun PipPopApp(
         if (dest == Dest.SOLO) solo.pause()
         goHome()
     }
+    // In the Store, back goes from a game's page to the list, and from the list to where it was opened.
+    BackHandler(enabled = dest == Dest.STORE) {
+        if (storeGame != null) storeGame = null else dest = Dest.HOME
+    }
     // While the animation plays, back does nothing instead of piling a second one on top.
     BackHandler(enabled = transition.busy) {}
 
@@ -356,6 +380,7 @@ fun PipPopApp(
                 CompositionLocalProvider(
                     LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle),
                     LocalMatchSession provides session, LocalRoomControls provides controls,
+                    LocalOpenStore provides openStore,
                     // Tonight's score in a game against one other player, and the turn count for its "Your turn" hint.
                     LocalTonight provides room?.takeIf { inRoomGame }?.let { tonightScore(it, battleState.tally) },
                     // The record this round's result broke, for its card's gold line.
@@ -365,6 +390,56 @@ fun PipPopApp(
                 ) {
                     when {
                         !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
+                        dest == Dest.STORE -> {
+                            val say: (String) -> Unit = { m -> scope.launch { snackbar.showSnackbar(ToastVisuals(m, Tone.Good)) } }
+                            val roomPick = storeRoomPick.takeIf { room != null }
+                            // "Play" from the Store: in a room, what the sheet it came from would do; otherwise the home opens the game's start sheet.
+                            val start: (GameKind) -> Unit = { g ->
+                                if (roomPick != null) roomPick(g) else playRequest = g
+                                storeGame = null
+                                dest = Dest.HOME
+                            }
+                            val play: (GameKind) -> Unit = { g ->
+                                if (roomPick != null && room?.inMatch == true) confirmSwitch = g else start(g)
+                            }
+                            confirmSwitch?.let { g ->
+                                val who = room?.present?.singleOrNull()?.name ?: "Everyone else"
+                                ToyDialog(
+                                    title = "Switch to ${g.label}?",
+                                    body = "This game ends and counts as a loss. $who gets an invite to join you.",
+                                    onDismiss = { confirmSwitch = null },
+                                ) {
+                                    SecondaryButton("Stay", { confirmSwitch = null }, Modifier.weight(1f))
+                                    PrimaryButton("Switch", { confirmSwitch = null; start(g) }, Modifier.weight(1f))
+                                }
+                            }
+                            val page = storeGame
+                            if (page == null) {
+                                StoreScreen(
+                                    shelf = profile.shelf, filter = storeFilter, onFilter = { storeFilter = it },
+                                    onBack = { dest = Dest.HOME },
+                                    onGet = { g -> app.addToShelf(g); say(onShelfToast(g)) },
+                                    onOpenPage = { storeGame = it },
+                                    onOpen = play,
+                                    roomSeats = room?.takeIf { roomPick != null }?.let { it.present.size + 1 }, roomGame = room?.game,
+                                )
+                            } else {
+                                GamePageScreen(
+                                    kind = page, onShelf = page in profile.shelf, onBack = { storeGame = null },
+                                    onAdd = { app.addToShelf(page); say(onShelfToast(page)) },
+                                    onRemove = {
+                                        val place = profile.shelf.indexOf(page)
+                                        app.removeFromShelf(page)
+                                        snackbar.currentSnackbarData?.dismiss()
+                                        scope.launch {
+                                            if (snackbar.showSnackbar(ToastVisuals(backInStoreToast(page), Tone.Good, "Undo")) == SnackbarResult.ActionPerformed) app.restoreToShelf(page, place)
+                                        }
+                                    },
+                                    onPlay = { play(page) },
+                                    roomSeats = room?.takeIf { roomPick != null }?.let { it.present.size + 1 }, roomGame = room?.game,
+                                )
+                            }
+                        }
                         inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
                             LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
@@ -454,6 +529,10 @@ fun PipPopApp(
                             onRemoveFromShelf = app::removeFromShelf,
                             onMoveOnShelf = app::moveOnShelf,
                             onRestoreToShelf = app::restoreToShelf,
+                            onOpenStore = { openStore(null) },
+                            onShelfNoteSeen = app::markShelfNoteShown,
+                            playRequest = playRequest,
+                            onPlayRequestHandled = { playRequest = null },
                             onScores = { dest = Dest.SCORES },
                             partnerBusy = battleState.busy,
                             onPlayWithPartner = battle::playWithPartner,

@@ -183,6 +183,30 @@ class ProfileStoreTest {
         assertTrue(store().profile.value.shelfNoteShown)
     }
 
+    @Test fun theStoreNoteIsDueOnlyOnAPhoneThatHadTheApp() {
+        // A brand-new phone: nothing saved before the migration, so no note, now or after a restart.
+        val fresh = fresh().profile.value
+        assertFalse(fresh.shelfNoteDue)
+        assertFalse(store().profile.value.shelfNoteDue)
+        // A phone from before the shelf: the old keys are there, so the note is due, and stays due after a restart.
+        prefs().edit().clear().putString("player_name", "Sam").commit()
+        assertTrue(store().profile.value.shelfNoteDue)
+        assertTrue(store().profile.value.shelfNoteDue)
+        // Not because it was run twice: the flag is not set again, nor cleared, by running the migration again.
+        store().migrateShelf()
+        assertTrue(store().profile.value.shelfNoteDue)
+    }
+
+    @Test fun theStoreNoteStaysSeenOnceDismissed() {
+        prefs().edit().clear().putString("player_name", "Sam").commit()
+        val s = store()
+        assertTrue(s.profile.value.shelfNoteDue && !s.profile.value.shelfNoteShown)
+        s.markShelfNoteShown()
+        val p = store().profile.value
+        assertTrue(p.shelfNoteShown)
+        assertTrue(p.shelfNoteDue)
+    }
+
     @Test fun unknownAndRepeatedShelfKeysAreIgnored() {
         fresh()
         prefs().edit().putString("shelf", "golf,not-a-game,,dots,golf").commit()

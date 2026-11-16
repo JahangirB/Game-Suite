@@ -309,6 +309,8 @@ fun BoxScope.MatchPopup(
     val controls = LocalRoomControls.current
     if (controls != null && controls.setupOpen.value && !gone) SetupSheet(game, controls) { controls.setupOpen.value = false }
     val rematch = onRematch ?: controls?.rematch
+    val openStore = LocalOpenStore.current
+    val pick: (GameKind) -> Unit = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) ?: Unit }
     ResultPopup(
         game = game,
         outcome = if (room.endReason == "restart") Outcome.TIE else outcome,
@@ -323,8 +325,8 @@ fun BoxScope.MatchPopup(
         rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
         onChange = if (controls?.setup == null || gone || (LocalResultUnder.current && !cardOffersChange(room))) null else ({ controls.setupOpen.value = true }),
         another = if (session == null || gone) null else AnotherGame(
-            game, session.nextGames, present.size + 1, whoPicks(room),
-        ) { g -> controls?.switchTo?.invoke(g) ?: session.onOpenGame.invoke(g) }.takeIf { it.tiles().isNotEmpty() },
+            game, session.nextGames, present.size + 1, whoPicks(room), pick,
+        ).also { a -> a.onStore = openStore?.let { open -> { open(pick) } } }.takeIf { it.tiles().isNotEmpty() },
         extra = extra,
         winner = if (room.endReason == "restart") null else matchWinner(room),
         versus = true,

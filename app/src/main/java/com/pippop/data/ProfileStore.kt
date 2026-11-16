@@ -82,6 +82,8 @@ data class Profile(
     val shelf: List<GameKind> = ProfileStore.DEFAULT_SHELF,
     /** Whether the one-time note about the Game Store has been shown (or seen). */
     val shelfNoteShown: Boolean = false,
+    /** Set once, at the shelf migration, on a phone that already had the app: it should see the one-time Game Store note. A new phone never does. */
+    val shelfNoteDue: Boolean = false,
     /** Whether the first-run screens have been seen (or skipped, by someone set up before them). */
     val firstRunDone: Boolean = false,
     /** Buzz for game moments (your turn, a move, a win). */
@@ -423,7 +425,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
      */
     internal fun migrateShelf() {
         if (prefs.contains(KEY_SHELF)) return
-        prefs.edit { putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF)) }
+        // A phone with anything saved already had the app; a brand-new one has an empty file at this point.
+        val existing = prefs.all.isNotEmpty()
+        prefs.edit {
+            putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF))
+            if (existing) putBoolean(KEY_SHELF_NOTE_DUE, true)
+        }
     }
 
     private fun load(): Profile {
@@ -461,6 +468,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
             shelf = shelfOf(prefs.getString(KEY_SHELF, null)),
             shelfNoteShown = prefs.getBoolean(KEY_SHELF_NOTE_SHOWN, false),
+            shelfNoteDue = prefs.getBoolean(KEY_SHELF_NOTE_DUE, false),
             // Someone who set a name before the first-run screens existed has nothing to learn there.
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
@@ -523,6 +531,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         // The old arrange screen's keys ("game_order", "put_away") are no longer read or written, and are left in place.
         private const val KEY_SHELF = "shelf"
         private const val KEY_SHELF_NOTE_SHOWN = "shelf_note_shown"
+        private const val KEY_SHELF_NOTE_DUE = "shelf_note_due"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
         /** The old on/off sound setting: read once to make [KEY_LOUDNESS], never written or removed. */
