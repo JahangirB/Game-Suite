@@ -1,5 +1,6 @@
 package com.pippop.data
 
+import kotlinx.coroutines.delay
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -14,7 +15,7 @@ import kotlin.coroutines.cancellation.CancellationException
  */
 
 /** What one try ended with. */
-enum class QuietOutcome { UP_TO_DATE, DOWNLOADED, INSTALLED, NEEDED_TAP, FAILED, SKIPPED }
+enum class QuietOutcome { WAITING, CHECKING, STOPPED, UP_TO_DATE, DOWNLOADED, INSTALLED, NEEDED_TAP, FAILED, SKIPPED }
 
 /** One line of the log: when, what happened, and for which build. [detail] is a short reason, in plain words. */
 data class QuietEntry(
@@ -44,9 +45,11 @@ interface QuietState {
     var hintedKey: String?
     /** Whether a game was going (a live room) when the app last left the front. */
     var gameGoing: Boolean
+    /** A job was scheduled at the last close and has not finished or been stopped. */
+    var jobPending: Boolean
 }
 
-const val QUIET_LOG_SIZE = 5
+const val QUIET_LOG_SIZE = 8
 
 /** The log with [entry] added the way every [QuietState] keeps it. */
 fun List<QuietEntry>.withEntry(entry: QuietEntry): List<QuietEntry> {
@@ -109,17 +112,27 @@ class QuietUpdateRunner(
     private val isForeground: () -> Boolean,
     private val now: () -> Long,
     private val dir: File,
+    /** How long to wait first, so a quick return to the app stops it before anything starts. */
+    private val settleMs: Long = 20_000,
 ) {
-    /** Returns what happened, or null when nothing was tried (setting off, app open, or a run already going). */
+    /** Returns what happened, or null when nothing was tried. Every way of not trying leaves a line in the log. */
     suspend fun run(): QuietOutcome? {
-        if (!state.enabled || isForeground()) return null
+        // Before Android 12 nothing can be installed without a tap: leave it to the usual offer, say nothing.
+        if (!installer.canInstallQuietly) return null
+        if (!state.enabled) return skip("the switch is off")
+        if (isForeground()) return skip("the app was open")
         // One at a time: a second job never starts a second download.
-        if (!busy.compareAndSet(false, true)) return null
+        if (!busy.compareAndSet(false, true)) return skip("a check was already running")
         var apk: File? = null
         try {
             // Whatever an earlier run left behind goes.
             dir.listFiles()?.forEach { it.deleteRecursively() }
+            log(QuietOutcome.CHECKING)
             if (state.gameGoing) return log(QuietOutcome.SKIPPED, detail = "a game was going")
+            // A short wait: coming straight back to the app stops everything before it starts.
+            delay(settleMs)
+            if (isForeground()) return log(QuietOutcome.STOPPED, detail = "the app was opened")
+
             val latest = try {
                 source.latest()
             } catch (e: CancellationException) {
@@ -129,8 +142,6 @@ class QuietUpdateRunner(
             }
             if (latest.versionCode <= running.versionCode) return log(QuietOutcome.UP_TO_DATE)
             if (isForeground()) return log(QuietOutcome.SKIPPED, latest, "the app was open")
-            // Before Android 12 nothing can be installed without a tap: leave it to the usual offer, say nothing.
-            if (!installer.canInstallQuietly) return null
             if (!installer.mayInstall()) return log(QuietOutcome.NEEDED_TAP, latest, "installs aren't allowed yet")
 
             apk = try {
@@ -168,10 +179,22 @@ class QuietUpdateRunner(
                 InstallResult.Aborted -> log(QuietOutcome.SKIPPED, latest, "the app was open")
                 is InstallResult.Failed -> log(QuietOutcome.FAILED, latest, result.reason)
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Whatever went wrong shows in the log by its name.
+            return log(QuietOutcome.FAILED, detail = e.javaClass.simpleName.ifBlank { "error" })
         } finally {
             apk?.delete()
+            state.jobPending = false
             busy.set(false)
         }
+    }
+
+    private fun skip(reason: String): QuietOutcome? {
+        log(QuietOutcome.SKIPPED, detail = reason)
+        state.jobPending = false
+        return null
     }
 
     private fun log(outcome: QuietOutcome, info: UpdateInfo? = null, detail: String = ""): QuietOutcome {
@@ -232,15 +255,29 @@ interface QuietScheduler {
 }
 
 /** Reacts to the whole app going to the background or coming back. */
-class QuietTrigger(private val state: QuietState, private val scheduler: QuietScheduler, private val available: Boolean) {
+class QuietTrigger(
+    private val state: QuietState,
+    private val scheduler: QuietScheduler,
+    private val available: Boolean,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
     // [available] is false for a build with no update address and for Android before 12.
+
     /** The last screen is gone: one job per close (the scheduler keeps a second from queuing). */
     fun appStopped() {
-        if (available && state.enabled) scheduler.schedule()
+        if (!available || !state.enabled) return
+        scheduler.schedule()
+        state.jobPending = true
+        state.add(QuietEntry(now(), QuietOutcome.WAITING, detail = "closed"))
     }
 
-    /** Back in front: a job that has not installed yet gives up and tries again at the next close. */
-    fun appStarted() = scheduler.cancel()
+    /** Back in front: a job that has not finished gives up and tries again at the next close. */
+    fun appStarted() {
+        if (!state.jobPending) return
+        state.jobPending = false
+        scheduler.cancel()
+        state.add(QuietEntry(now(), QuietOutcome.STOPPED, detail = "the app was opened"))
+    }
 }
 
 /** Thrown by a download that stopped because the app came back. */

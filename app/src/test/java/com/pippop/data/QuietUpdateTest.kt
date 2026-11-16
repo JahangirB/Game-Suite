@@ -28,6 +28,7 @@ class QuietUpdateTest {
         override var lastSeenVersionCode = 0
         override var hintedKey: String? = null
         override var gameGoing = false
+        override var jobPending = false
     }
 
     private class FakeSource(var info: UpdateInfo = UpdateInfo(7, "1.0.7-preview"), var fail: Boolean = false) : QuietSource {
@@ -77,7 +78,7 @@ class QuietUpdateTest {
         installer: FakeInstaller = FakeInstaller(),
     ): QuietUpdateRunner {
         installer.state = state
-        return QuietUpdateRunner(state, source, verifier, installer, running, { foreground }, { clock++ }, tmp.newFolder())
+        return QuietUpdateRunner(state, source, verifier, installer, running, { foreground }, { clock++ }, tmp.newFolder(), 0L)
     }
 
     private fun run(r: QuietUpdateRunner) = runBlocking { r.run() }
@@ -89,7 +90,7 @@ class QuietUpdateTest {
         val source = FakeSource(UpdateInfo(5, "1.0.5-preview"))
         assertEquals(QuietOutcome.UP_TO_DATE, run(runner(state, source)))
         assertEquals(0, source.downloads)
-        assertEquals(listOf(QuietOutcome.UP_TO_DATE), state.entries.map { it.outcome })
+        assertEquals(listOf(QuietOutcome.UP_TO_DATE, QuietOutcome.CHECKING), state.entries.map { it.outcome })
     }
 
     @Test fun olderIsAlsoUpToDate() {
@@ -102,7 +103,7 @@ class QuietUpdateTest {
         val installer = FakeInstaller()
         assertEquals(QuietOutcome.INSTALLED, run(runner(state, installer = installer)))
         assertEquals(1, installer.installs)
-        assertEquals(listOf(QuietOutcome.INSTALLED, QuietOutcome.DOWNLOADED), state.entries.map { it.outcome })
+        assertEquals(listOf(QuietOutcome.INSTALLED, QuietOutcome.DOWNLOADED, QuietOutcome.CHECKING), state.entries.map { it.outcome })
         assertEquals(7, state.entries.first().versionCode)
         // The install is noted before it is handed over, because the app is replaced while it runs.
         assertEquals(7, installer.pendingSeenDuringInstall?.versionCode)
@@ -113,7 +114,7 @@ class QuietUpdateTest {
         val dir = tmp.newFolder()
         val state = MemoryState()
         val installer = FakeInstaller().also { it.state = state }
-        runBlocking { QuietUpdateRunner(state, FakeSource(), FakeVerifier(), installer, running, { false }, { 1L }, dir).run() }
+        runBlocking { QuietUpdateRunner(state, FakeSource(), FakeVerifier(), installer, running, { false }, { 1L }, dir, 0L).run() }
         assertFalse(File(dir, "PipPop.apk").exists())
     }
 
@@ -131,7 +132,7 @@ class QuietUpdateTest {
         val state = MemoryState()
         val installer = FakeInstaller().also { it.state = state }
         val out = runBlocking {
-            QuietUpdateRunner(state, FakeSource(), FakeVerifier("the file is signed differently"), installer, running, { false }, { 1L }, dir).run()
+            QuietUpdateRunner(state, FakeSource(), FakeVerifier("the file is signed differently"), installer, running, { false }, { 1L }, dir, 0L).run()
         }
         assertEquals(QuietOutcome.FAILED, out)
         assertEquals(0, installer.installs)
@@ -166,16 +167,47 @@ class QuietUpdateTest {
         val source = FakeSource()
         assertNull(run(runner(state, source)))
         assertEquals(0, source.downloads)
-        assertTrue(state.entries.isEmpty())
+        assertEquals("the switch is off", state.entries.single().detail)
+        assertEquals(QuietOutcome.SKIPPED, state.entries.single().outcome)
     }
 
-    @Test fun foregroundAtTheStartDoesNothing() {
+    @Test fun foregroundAtTheStartIsSkippedAndLogged() {
         foreground = true
         val state = MemoryState()
         val source = FakeSource()
         assertNull(run(runner(state, source)))
         assertEquals(0, source.downloads)
+        assertEquals(QuietEntry(1_000L, QuietOutcome.SKIPPED, detail = "the app was open"), state.entries.single())
         foreground = false
+    }
+
+    @Test fun startingTheJobIsLoggedAsChecking() {
+        val state = MemoryState()
+        run(runner(state, FakeSource(UpdateInfo(5, "x"))))
+        assertTrue(state.entries.any { it.outcome == QuietOutcome.CHECKING })
+    }
+
+    @Test fun theAppComingBackDuringTheWaitStopsTheJobAndLogsIt() {
+        val state = MemoryState()
+        val source = FakeSource()
+        var asked = 0
+        val r = QuietUpdateRunner(state, source, FakeVerifier(), FakeInstaller(), running, { ++asked > 1 }, { clock++ }, tmp.newFolder(), 0L)
+        assertEquals(QuietOutcome.STOPPED, run(r))
+        assertEquals(0, source.downloads)
+        assertEquals("the app was opened", state.entries.first().detail)
+    }
+
+    @Test fun aThrowIsCaughtAndLoggedByName() {
+        val state = MemoryState()
+        val installer = object : QuietInstaller {
+            override val canInstallQuietly = true
+            override fun mayInstall(): Boolean = throw IllegalStateException("boom")
+            override suspend fun install(apk: File, shouldAbort: () -> Boolean, onCommit: () -> Unit): InstallResult = InstallResult.Installed
+        }
+        val out = runBlocking { QuietUpdateRunner(state, FakeSource(), FakeVerifier(), installer, running, { false }, { 1L }, tmp.newFolder(), 0L).run() }
+        assertEquals(QuietOutcome.FAILED, out)
+        assertEquals("IllegalStateException", state.entries.first().detail)
+        assertFalse(state.jobPending)
     }
 
     @Test fun appOpenedDuringDownloadSkipsTheInstall() {
@@ -254,7 +286,7 @@ class QuietUpdateTest {
         File(dir, "PipPop.apk").writeText("old")
         File(dir, "PipPop.apk.part").writeText("old")
         val state = MemoryState()
-        runBlocking { QuietUpdateRunner(state, FakeSource(UpdateInfo(5, "x")), FakeVerifier(), FakeInstaller(), running, { false }, { 1L }, dir).run() }
+        runBlocking { QuietUpdateRunner(state, FakeSource(UpdateInfo(5, "x")), FakeVerifier(), FakeInstaller(), running, { false }, { 1L }, dir, 0L).run() }
         assertEquals(0, dir.listFiles()!!.size)
     }
 
@@ -263,7 +295,7 @@ class QuietUpdateTest {
         val installer = FakeInstaller()
         val verifier = object : QuietVerifier { override fun problem(apk: File): String? = throw IllegalStateException("boom") }
         installer.state = state
-        val out = runBlocking { QuietUpdateRunner(state, FakeSource(), verifier, installer, running, { false }, { 1L }, tmp.newFolder()).run() }
+        val out = runBlocking { QuietUpdateRunner(state, FakeSource(), verifier, installer, running, { false }, { 1L }, tmp.newFolder(), 0L).run() }
         assertEquals(QuietOutcome.FAILED, out)
         assertEquals(0, installer.installs)
         assertEquals("couldn't check the file", state.entries.first().detail)
@@ -322,13 +354,13 @@ class QuietUpdateTest {
         assertEquals("not enough space", state.entries.first().detail)
     }
 
-    @Test fun logKeepsTheLastFiveAndFoldsRepeats() {
+    @Test fun logKeepsTheLastEightAndFoldsRepeats() {
         val state = MemoryState()
-        for (i in 1..8) state.add(QuietEntry(i.toLong(), QuietOutcome.FAILED, i, "v$i", "x"))
-        assertEquals(5, state.entries.size)
-        assertEquals(8, state.entries.first().versionCode)
-        state.add(QuietEntry(99, QuietOutcome.FAILED, 8, "v8", "x"))
-        assertEquals(5, state.entries.size)
+        for (i in 1..12) state.add(QuietEntry(i.toLong(), QuietOutcome.FAILED, i, "v$i", "x"))
+        assertEquals(8, state.entries.size)
+        assertEquals(12, state.entries.first().versionCode)
+        state.add(QuietEntry(99, QuietOutcome.FAILED, 12, "v12", "x"))
+        assertEquals(8, state.entries.size)
         assertEquals(99L, state.entries.first().at)
         state.add(QuietEntry(100, QuietOutcome.UP_TO_DATE))
         state.add(QuietEntry(101, QuietOutcome.UP_TO_DATE))
@@ -350,6 +382,14 @@ class QuietUpdateTest {
         assertEquals(1, s.scheduled)
     }
 
+    @Test fun closingTheAppLogsWaitingAndMarksTheJobPending() {
+        val state = MemoryState()
+        QuietTrigger(state, FakeScheduler(), available = true, now = { 42L }).appStopped()
+        assertEquals(QuietEntry(42L, QuietOutcome.WAITING, detail = "closed"), state.entries.single())
+        assertTrue(state.jobPending)
+        assertEquals("1 Jan, 00:00 \u00b7 Waiting to check (closed)".substringAfter(" \u00b7 "), quietLine(state.entries.single()).substringAfter(" \u00b7 "))
+    }
+
     @Test fun settingOffSchedulesNothing() {
         val s = FakeScheduler()
         QuietTrigger(MemoryState(enabled = false), s, available = true).appStopped()
@@ -362,10 +402,22 @@ class QuietUpdateTest {
         assertEquals(0, s.scheduled)
     }
 
-    @Test fun comingBackCancelsTheJob() {
+    @Test fun comingBackCancelsAPendingJobAndLogsIt() {
         val s = FakeScheduler()
-        QuietTrigger(MemoryState(), s, available = true).appStarted()
+        val state = MemoryState().also { it.jobPending = true }
+        QuietTrigger(state, s, available = true, now = { 7L }).appStarted()
         assertEquals(1, s.cancelled)
+        assertEquals(QuietEntry(7L, QuietOutcome.STOPPED, detail = "the app was opened"), state.entries.single())
+        assertEquals("Stopped: the app was opened", quietLine(state.entries.single()).substringAfter(" \u00b7 "))
+        assertFalse(state.jobPending)
+    }
+
+    @Test fun comingBackWithNoJobLogsNothing() {
+        val s = FakeScheduler()
+        val state = MemoryState()
+        QuietTrigger(state, s, available = true).appStarted()
+        assertEquals(0, s.cancelled)
+        assertTrue(state.entries.isEmpty())
     }
 
     // The hint.
