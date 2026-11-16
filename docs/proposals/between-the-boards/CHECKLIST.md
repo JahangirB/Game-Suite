@@ -178,4 +178,4 @@ Before every push, the three rules of `PLAN.md` section 1 hold:
 ## Extra: "Update by itself"
 
 - [x] Built and checked (quiet update while the app is closed, Android 12+)
-- [ ] The owner's phone updated itself from 1.0.203 to a newer preview build on its own
+- [ ] The owner's phone updated itself to a newer preview build on its own (1.0.203 left no trace; 1.0.205 starts promptly and logs every step; testing 1.0.205 → 1.0.206)
