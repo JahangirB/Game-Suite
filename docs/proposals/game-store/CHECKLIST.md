@@ -12,8 +12,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Both commits reverted; the update offer works as before; `quiet-leave-wip` deleted
 - [x] **Step 2. The shelf and the Store, as data**
   - [x] The nine by default; old order and put-away keys migrated and left in place; tested
-- [ ] **Step 3. The fixed top bar**
-  - [ ] "Hi, name", app name, avatar with photo; stays put when scrolling; opens the profile
+- [x] **Step 3. The fixed top bar**
+  - [x] "Hi, name", app name, avatar with photo; stays put when scrolling; opens the profile
 - [ ] **Step 4. Hold a card to edit the shelf**
   - [ ] Arrange screen, button and hint gone
   - [ ] Wiggle, drag to move (saved), × to remove with Undo; TalkBack move actions

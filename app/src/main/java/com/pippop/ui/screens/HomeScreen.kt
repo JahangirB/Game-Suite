@@ -11,6 +11,7 @@ import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.KeyArt
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -95,6 +96,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import com.pippop.data.Avatar
 import com.pippop.ui.SoloUiState
 import com.pippop.ui.theme.AppTheme
 import androidx.compose.foundation.LocalIndication
@@ -202,25 +205,14 @@ fun HomeScreen(
         openGame(pick)
     }
 
+    val scroll = rememberScrollState()
     Box(Modifier.fillMaxSize()) {
+      Column(Modifier.fillMaxSize()) {
+        HomeTopBar(profile.name, profile.avatar, scrolled = scroll.value > 0, onProfile = onProfile)
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    if (profile.name.isNotBlank()) Text("Hi, ${profile.name}", color = p.muted, fontSize = TextSize.BodyL)
-                    Text(stringResource(R.string.app_name), color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(48.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape).clickable(onClick = onProfile),
-                ) {
-                    val avatar = profile.avatar
-                    if (avatar != null) AvatarImage(avatar, Modifier.fillMaxSize()) else Icon(Icons.Filled.Person, contentDescription = "Profile", tint = p.text)
-                }
-            }
-
             NotificationPrimer(profile, onNotificationsAnswered)
 
             if (room != null) {
@@ -281,6 +273,7 @@ fun HomeScreen(
                 }
             }
         }
+      }
 
         if (solo.generating) {
             Box(
@@ -751,5 +744,35 @@ private fun NotificationPrimer(profile: Profile, onAnswered: () -> Unit) {
             PrimaryButton("Allow", { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) }, Modifier.weight(1f))
             SecondaryButton("Not now", onAnswered, Modifier.weight(1f))
         }
+    }
+}
+
+/**
+ * The home's fixed top bar: "Hi, <name>" small over the app's name on the left, the player's face on the right (their
+ * photo if they chose one, else their animal) in an ink ring that opens the profile and settings. It stays put while
+ * the shelf scrolls under it; a thin line shows once something has scrolled under it. The status bar's room comes from
+ * the app's Scaffold.
+ */
+@Composable
+fun HomeTopBar(name: String, avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    Column(modifier.fillMaxWidth().background(p.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                if (name.isNotBlank()) Text("Hi, $name", color = p.muted, fontSize = TextSize.BodyL, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.app_name), color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(52.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape)
+                    .semantics { contentDescription = "Profile and settings"; role = Role.Button }
+                    .clickable(onClick = onProfile),
+            ) { PlayerAvatar(FaceBook.YOU, p.accent, size = 44, avatar = avatar) }
+        }
+        if (scrolled) HorizontalDivider(color = p.ink.copy(alpha = 0.25f), thickness = 1.dp)
     }
 }
