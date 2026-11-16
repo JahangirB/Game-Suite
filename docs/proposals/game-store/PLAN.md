@@ -82,6 +82,15 @@ Get games from the Game Store." and Surprise us says the same, not "No game fits
 *Done when* a test drags a card to a new place and the
 order is saved, × and Undo work, and holding never opens another screen.
 
+### Step 4b. Editing the shelf: smoother moves, a tap ends it
+
+From the owner's try on the phone. (1) The other cards jump to their new places; they should move
+with the animation the owner picks from the "Shelf Moves" catalogue (and the wiggle style picked
+there), under reduced motion a short fade. (2) Ending edit mode should not need Back: a short tap
+anywhere on the screen except an × ends it, on a card too (a long press still starts a drag).
+*Done when* a frame-by-frame test shows the chosen motion, a tap on a card and a tap on empty space
+each end editing, and a tap on × still only removes.
+
 ### Step 5. The Game Store
 
 A "Game Store · N more games" card at the end of the shelf opens the Store: a back arrow, a

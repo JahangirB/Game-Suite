@@ -19,6 +19,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Arrange screen, button and hint gone
   - [x] Wiggle, drag to move (saved), × to remove with Undo; TalkBack move actions
   - [x] An empty shelf says so and points to the Store
+- [ ] **Step 4b. Editing the shelf: smoother moves, a tap ends it**
+  - [ ] The animation and wiggle the owner picked; reduced motion fades
+  - [ ] A tap anywhere but an × ends editing (on a card too)
 - [ ] **Step 5. The Game Store**
   - [ ] Store list with working filter, Get, "On your shelf"
   - [ ] A game's page, "Add to my games", then Play / Remove
