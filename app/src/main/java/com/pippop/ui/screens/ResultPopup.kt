@@ -122,7 +122,8 @@ fun BoxScope.ResultPopup(
     val haptics = rememberHaptics()
     val sfx = rememberSfx()
     LaunchedEffect(Unit) {
-        haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
+        // A result with a record line has the record buzz instead (see RecordLine): one buzz for the moment.
+        if (recordText == null) haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
         sfx.play(when (outcome) { Outcome.WIN -> Sound.WIN; Outcome.LOSE -> Sound.LOSE; else -> Sound.TIE })
     }
     var anotherOpen by remember { mutableStateOf(false) }

@@ -3,7 +3,9 @@ package com.pippop.ui.screens
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.pippop.ui.Sound
+import com.pippop.ui.Buzz
 import com.pippop.ui.SoundOnChange
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.rememberSfx
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -80,12 +82,14 @@ fun SudokuGrid(
     flash: Pair<Int, Int>? = null,
     /** Sweep gold along each unit the player completes (only where a full unit is known to be right). */
     celebrate: Boolean = false,
+    /** Sudoku together: whether a square's digit was placed by another player (their unit finishes without a buzz). */
+    placedByOther: (Int) -> Boolean = { false },
 ) {
     val p = AppTheme.palette
     // Notepad paper: every other 3x3 box faintly tinted, calmer than the highlights.
     val tinted = lerp(p.boardBackground, p.cellPeer, 0.6f)
     val tintedPeer = lerp(p.cellPeer, p.cellSameDigit, 0.4f)
-    val sweeps = rememberUnitSweeps(board, errors, celebrate)
+    val sweeps = rememberUnitSweeps(board, errors, celebrate, placedByOther)
     // A pencil tap for each digit placed, and the gentle bonk when one clashes.
     SoundOnChange(board.cells.count { it != 0 }) { play(Sound.SUDOKU_DIGIT) }
     SoundOnChange(errors.size.takeIf { it > 0 }) { play(Sound.ERROR) }
@@ -239,9 +243,17 @@ internal class UnitSweep(val unit: IntArray) {
  * reduced nothing does.
  */
 @Composable
-internal fun rememberUnitSweeps(board: BoardState, errors: Set<Int>, celebrate: Boolean): List<UnitSweep> {
+internal fun rememberUnitSweeps(board: BoardState, errors: Set<Int>, celebrate: Boolean, placedByOther: (Int) -> Boolean = { false }): List<UnitSweep> {
     val still = LocalReduceMotion.current
     val sfx = rememberSfx()
+    val haptics = rememberHaptics()
+    // The squares this change of the board filled or cleared: a unit another player finished does not buzz.
+    val lastCells = remember(board.givens, celebrate) { arrayOf(board.cells) }
+    val changed = remember(board.cells) {
+        val before = lastCells[0]
+        lastCells[0] = board.cells
+        board.cells.indices.filter { before.getOrNull(it) != board.cells[it] }
+    }
     val scope = rememberCoroutineScope()
     val units = board.shape.units
     // A new puzzle (new givens) starts afresh: what is full then is where it began.
@@ -257,6 +269,7 @@ internal fun rememberUnitSweeps(board: BoardState, errors: Set<Int>, celebrate: 
         val fresh = full - before
         if (fresh.isEmpty()) return@LaunchedEffect
         sfx.play(Sound.SUDOKU_UNIT_DONE) // once for the digit that finishes one or more units, with the gold
+        if (changed.isEmpty() || !changed.all(placedByOther)) haptics.play(Buzz.LINE_DONE) // and one buzz, for your own digit
         for (u in fresh) {
             val sweep = UnitSweep(units[u])
             sweeps += sweep

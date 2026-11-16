@@ -2,6 +2,7 @@ package com.pippop.ui.screens
 
 import androidx.compose.ui.geometry.CornerRadius
 import com.pippop.ui.theme.Space
+import com.pippop.ui.Buzz
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import kotlinx.coroutines.delay
@@ -92,6 +93,7 @@ import com.pippop.ui.art.drawSeaArt
 import com.pippop.ui.art.drawShipArt
 import com.pippop.ui.art.drawShotArt
 import com.pippop.ui.art.shipKinds
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.OpponentColor
 
@@ -153,10 +155,15 @@ fun ShipsSea(
         blast.animateTo(1f, tween(BLAST_MS, easing = LinearEasing))
     }
     // The cannon, then a blast or a splash as the shot lands; a creak and bubbles when a ship goes down.
+    // Your own hit on their sea buzzes with the blast; their shots at you (this sea is not [enemy]) do not.
+    val haptics = rememberHaptics()
     SoundOnChange(lastShot) {
         play(Sound.SHIPS_FIRE)
         delay(250)
         play(if (lastShot?.hit == true) Sound.SHIPS_HIT else Sound.SHIPS_MISS)
+        // The shot that sinks the last ship ends the game: its win buzz follows, so no hit buzz cuts it off.
+        val lastShip = ships.isNotEmpty() && ships.all { it in sunk }
+        if (enemy && lastShot?.hit == true && !lastShip) haptics.play(Buzz.HIT)
     }
     SoundOnChange(sunk.size.takeIf { it > 0 }) {
         delay(700)

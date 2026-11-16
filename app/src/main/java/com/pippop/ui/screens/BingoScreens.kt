@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.Buzz
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.width
 
@@ -146,9 +148,13 @@ private fun DrawScope.winRibbon(line: List<Int>, p: Float, cell: Float) {
 @Composable
 fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    val haptics = rememberHaptics()
     SoundOnChange(dabs.size.takeIf { enabled }) { play(Sound.BINGO_DAB) }
     // A full line dabbed: the Bingo button lights up with a shimmer.
-    SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) { play(Sound.BINGO_LINE_READY) }
+    SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) {
+        play(Sound.BINGO_LINE_READY)
+        haptics.play(Buzz.LINE_DONE)
+    }
     // A card is first one away from a line: a heartbeat sound, once for each line on this card (not again when a dab is
     // taken off and put back, after a rotation, or when the card shows with a line already one away).
     val oneAwayNow = if (enabled && line == null) oneAwayLines(dabs) else emptySet()
@@ -159,6 +165,7 @@ fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolea
             announced += fresh
             delay(120) // after the dab's own tap
             play(Sound.BINGO_ONE_AWAY)
+            haptics.play(Buzz.ONE_AWAY)
         }
     }
     val oneAway = remember(dabs, enabled, line == null) { if (enabled && line == null) oneAwaySquares(dabs) else emptySet() }

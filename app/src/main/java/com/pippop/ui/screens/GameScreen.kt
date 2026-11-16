@@ -156,6 +156,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                 val rings = coop?.cursors.orEmpty().withIndex()
                     .filter { (i, cell) -> cell in board.cells.indices && room.others.getOrNull(i)?.let { !it.left && !it.out } == true }
                     .associate { (i, cell) -> cell to CoopInk[(i + 1).coerceAtMost(CoopInk.lastIndex)] }
+                val byOther = { i: Int -> coop?.by?.getOrNull(i)?.let { it in '1'..'3' } == true }
                 val shown = if (showSolution) room.solution?.let(board.shape::parse) else null
                 if (board.shape.big) {
                     // Joined grids: the whole board, to pinch or double-tap into.
@@ -163,6 +164,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                         board = board, errors = conflicts, selected = state.selected, hidden = phase == RoomStatus.COUNTDOWN,
                         solution = shown, onSelect = vm::select, onLongPress = vm::fillNotes, inkOf = inkOf, rings = rings, flash = flash,
                         celebrate = together,
+                        placedByOther = byOther,
                     )
                 } else {
                     SudokuGrid(
@@ -178,6 +180,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                         flash = flash,
                         // Together only keeps right digits, so a full unit is right; in a race it may not be.
                         celebrate = together,
+                        placedByOther = byOther,
                     )
                 }
                 if (phase == RoomStatus.COUNTDOWN) {

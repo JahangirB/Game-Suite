@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.Buzz
+import com.pippop.ui.Haptics
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.startWith
 import androidx.compose.ui.text.font.FontWeight
 
@@ -145,6 +148,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
     val steps = remember { Animatable(0f) }
     val reduce = LocalReduceMotion.current
     val sfx = rememberSfx()
+    val haptics = rememberHaptics()
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(move) {
         val m = move
@@ -155,7 +159,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         }
         // Coming out of the yard is a single step onto the start square.
         val count = if (m.from!! < 0) 1 else m.to!! - m.from
-        launch { ludoSounds(sfx, m, count) }
+        launch { ludoSounds(sfx, haptics, m, count) }
         steps.snapTo(0f)
         if (reduce) steps.snapTo(count.toFloat()) else steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
     }
@@ -313,9 +317,11 @@ private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).
  * every roll is seen happening.
  */
 @Composable
-internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
+internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null, buzzes: Boolean = false) {
     var face by remember { mutableStateOf(n) }
     val sfx = rememberSfx()
+    val haptics = rememberHaptics()
+    val buzz by rememberUpdatedState(buzzes)
     val spin = remember { Animatable(0f) }
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(rolled, n) {
@@ -326,6 +332,7 @@ internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null
         }
         launch { spin.snapTo(0f); spin.animateTo(1f, tween(TUMBLE_MS, easing = FastOutSlowInEasing)) }
         sfx.play(Sound.DICE_ROLL)
+        if (buzz) haptics.play(Buzz.DICE)
         repeat(7) {
             face = (1..6).random()
             delay(TUMBLE_MS / 8L)
@@ -398,7 +405,8 @@ private fun ColumnScope.LudoTable(
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
     // The die and the Roll button: the roll shows at once, nothing to wait for.
     if (!over) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
+        // Only your own throw buzzes (a roll, not the move that follows it, and not another player's).
+        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll, buzzes = view.lastMove?.let { it.who == 'm' && it.token == null } == true)
         PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
     }
 }
@@ -551,7 +559,7 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
  * A token's move, in sound: a pop out of the yard, a tap on each square (rising as it goes),
  * then a bonk and a slide whistle for a token knocked back, or a little fanfare at home.
  */
-private suspend fun ludoSounds(sfx: Sfx, m: LudoMove, count: Int) {
+private suspend fun ludoSounds(sfx: Sfx, haptics: Haptics, m: LudoMove, count: Int) {
     val others = m.who != 'm'
     val v = if (others) Sfx.OTHERS else 1f
     if (m.from!! < 0) {
@@ -563,7 +571,10 @@ private suspend fun ludoSounds(sfx: Sfx, m: LudoMove, count: Int) {
         delay(HOP_MS.toLong())
     }
     when {
-        m.captured.isNotEmpty() -> sfx.play(Sound.LUDO_CAPTURE)
+        m.captured.isNotEmpty() -> {
+            sfx.play(Sound.LUDO_CAPTURE)
+            if (!others) haptics.play(Buzz.HIT) // your capture; another player's is only seen and heard
+        }
         m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v, others = others)
     }
 }

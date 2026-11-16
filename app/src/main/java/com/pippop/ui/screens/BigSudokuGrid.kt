@@ -65,6 +65,7 @@ fun BigSudokuGrid(
     rings: Map<Int, Color> = emptyMap(),
     flash: Pair<Int, Int>? = null,
     celebrate: Boolean = false,
+    placedByOther: (Int) -> Boolean = { false },
 ) {
     val p = AppTheme.palette
     val shape = board.shape
@@ -82,7 +83,7 @@ fun BigSudokuGrid(
     val shared = lerp(p.boardBackground, Pieces.Yellow, 0.22f)
     val digitPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER } }
     val empty = board.cells.indices.count { shape.onBoard(it) && board.cells[it] == 0 }
-    val sweeps = rememberUnitSweeps(board, errors, celebrate)
+    val sweeps = rememberUnitSweeps(board, errors, celebrate, placedByOther)
 
     BoxWithConstraints(
         modifier.fillMaxWidth().aspectRatio(1f)

@@ -21,8 +21,10 @@ import com.pippop.data.BrokenRecord
 import com.pippop.data.GameKind
 import com.pippop.data.SoloKey
 import com.pippop.data.SoloMetric
+import com.pippop.ui.Buzz
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnce
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.Mark
 import com.pippop.ui.theme.MarkIcon
@@ -70,7 +72,7 @@ object RecordLines {
 /**
  * The gold line on a result that is a record: a star, then [text]. The star and the words say it
  * together (nothing by colour alone); the ink on the soft gold is dark on light in both themes.
- * The `record` sound plays as it shows, once for each record (not when the card is rebuilt or its words change); step 32 adds the buzz here.
+ * The `record` sound plays as it shows, once for each record (not when the card is rebuilt or its words change); so does its buzz (which stands in for the result's own win buzz).
  */
 @Composable
 fun RecordLine(
@@ -79,7 +81,11 @@ fun RecordLine(
     /** What the record is (the [BrokenRecord] where there is one), so the sound plays once for each record, whatever the words. */
     soundKey: Any = text,
 ) {
-    SoundOnce(Pair("record", soundKey)) { play(Sound.RECORD) }
+    val haptics = rememberHaptics()
+    SoundOnce(Pair("record", soundKey)) {
+        play(Sound.RECORD)
+        haptics.play(Buzz.RECORD)
+    }
     Row(
         modifier.fillMaxWidth().clip(Shapes.Full).background(Board.GlowSoft).border(1.5.dp, Board.Ink, Shapes.Full)
             .padding(horizontal = 10.dp, vertical = 3.dp)

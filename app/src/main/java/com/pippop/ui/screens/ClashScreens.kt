@@ -1,5 +1,7 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.Buzz
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.startWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -319,6 +321,7 @@ internal fun ColumnScope.ClashTable(
                 // Someone is down to one card: a bright ping as their last-but-one card lands (the flight takes MOVE_MS).
                 val onLast = view.counts.filterValues { it == 1 }.keys
                 val onLastBefore = remember { arrayOf(onLast) }
+                val haptics = rememberHaptics()
                 SoundOnChange(onLast) {
                     val fresh = onLast - onLastBefore[0]
                     onLastBefore[0] = onLast
@@ -326,6 +329,7 @@ internal fun ColumnScope.ClashTable(
                         delay(Motion.MOVE_MS.toLong())
                         val theirs = 'm' !in fresh
                         play(Sound.CLASH_LAST_CARD, if (theirs) Sfx.OTHERS else 1f, others = theirs)
+                        if (!theirs) haptics.play(Buzz.ONE_AWAY) // your own last card; the others' is only seen and heard
                     }
                 }
                 // The view holds only the top card, so the last few tops are remembered here: the

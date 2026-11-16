@@ -22,9 +22,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import com.pippop.ui.theme.readableOn
+import com.pippop.ui.Buzz
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
@@ -166,6 +168,7 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
             1f at 470
         })
     }
+    val haptics = rememberHaptics()
     // The disc rattles down the slot and clacks into its hole as it lands.
     SoundOnChange(lastCell) {
         val others = board.getOrNull(lastCell ?: -1) != 'm'
@@ -183,6 +186,7 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
         val others = board.getOrNull(winLine.first()) != 'm'
         delay(470)
         play(Sound.C4_FOUR, if (others) Sfx.OTHERS else 1f, others = others)
+        if (!others) haptics.play(Buzz.LINE_DONE)
     }
     val line = remember(winLine) { Animatable(0f) }
     val sparks = remember(winLine) { Animatable(0f) }
@@ -334,11 +338,14 @@ fun TttBoard(
     val p = AppTheme.palette
     val ink = rememberMarkInk(lastCell, replay)
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
+    val haptics = rememberHaptics()
     // A small board is won (not drawn): the stamp lands just after the mark that won it.
     SoundOnChange(boards.count { it == 'm' || it == 'o' }.takeIf { it > 0 }) {
         val others = board.getOrNull(lastCell ?: -1) != 'm'
         delay(150)
         play(Sound.TTT_BOARD_WON, if (others) Sfx.OTHERS else 1f, others = others)
+        // The board that wins the whole game has the win buzz coming: the small one would cut it off.
+        if (!others && winLine.isEmpty()) haptics.play(Buzz.LINE_DONE)
     }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
