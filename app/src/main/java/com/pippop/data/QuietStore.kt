@@ -51,10 +51,6 @@ class QuietStore private constructor(private val prefs: SharedPreferences) : Qui
         get() = prefs.getBoolean(KEY_GAME, false)
         set(value) = prefs.edit(commit = true) { putBoolean(KEY_GAME, value) }
 
-    override var jobPending: Boolean
-        get() = prefs.getBoolean(KEY_JOB, false)
-        set(value) = prefs.edit(commit = true) { putBoolean(KEY_JOB, value) }
-
     override var hintedKey: String?
         get() = prefs.getString(KEY_HINTED, null)
         set(value) = prefs.edit { putString(KEY_HINTED, value) }
@@ -84,7 +80,6 @@ class QuietStore private constructor(private val prefs: SharedPreferences) : Qui
         private const val KEY_SEEN = "last_seen_version_code"
         private const val KEY_HINTED = "hinted_key"
         private const val KEY_GAME = "game_going"
-        private const val KEY_JOB = "job_pending"
 
         @Volatile private var instance: QuietStore? = null
 
@@ -103,9 +98,6 @@ fun quietLine(entry: QuietEntry, zone: java.time.ZoneId = java.time.ZoneId.syste
         .format(java.time.Instant.ofEpochMilli(entry.at).atZone(zone))
     val build = entry.versionName.ifBlank { null }
     val what = when (entry.outcome) {
-        QuietOutcome.WAITING -> "Waiting to check" + (entry.detail.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
-        QuietOutcome.CHECKING -> "Checking"
-        QuietOutcome.STOPPED -> "Stopped" + (entry.detail.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")
         QuietOutcome.UP_TO_DATE -> "Up to date"
         QuietOutcome.DOWNLOADED -> "Downloaded ${build.orEmpty()}".trim()
         QuietOutcome.INSTALLED -> "Installed by itself" + (build?.let { ": $it" } ?: "")

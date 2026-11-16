@@ -9,7 +9,6 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.Lifecycle
@@ -17,9 +16,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
-import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
-import androidx.work.OutOfQuotaPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -162,54 +159,18 @@ class SessionInstaller(context: Context) : QuietInstaller {
 class QuietUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val context = applicationContext
-        val store = QuietStore.get(context)
-        try {
-            QuietUpdateRunner(
-                state = store,
-                source = Updater(context),
-                verifier = PackageVerifier(context),
-                installer = SessionInstaller(context),
-                running = RunningApp(BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME),
-                isForeground = ::appInForeground,
-                now = System::currentTimeMillis,
-                dir = File(context.filesDir, "quiet-update"),
-            ).run()
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            // A crash must show in the log, not vanish.
-            runCatching {
-                store.add(QuietEntry(System.currentTimeMillis(), QuietOutcome.FAILED, detail = e.javaClass.simpleName.ifBlank { "error" }))
-                store.jobPending = false
-            }
-        }
+        QuietUpdateRunner(
+            state = QuietStore.get(context),
+            source = Updater(context),
+            verifier = PackageVerifier(context),
+            installer = SessionInstaller(context),
+            running = RunningApp(BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME),
+            isForeground = ::appInForeground,
+            now = System::currentTimeMillis,
+            dir = File(context.filesDir, "quiet-update"),
+        ).run()
         // Whatever happened is in the log; a failed try is not retried until the next close.
         return Result.success()
-    }
-
-    /** Only asked for by Android before 12, where this job is never scheduled; it must still never throw. */
-    override suspend fun getForegroundInfo(): ForegroundInfo {
-        val context = applicationContext
-        return try {
-            val channel = "quiet_update"
-            context.getSystemService(android.app.NotificationManager::class.java)?.createNotificationChannel(
-                android.app.NotificationChannel(channel, "Updates", android.app.NotificationManager.IMPORTANCE_MIN),
-            )
-            ForegroundInfo(
-                NOTIFICATION_ID,
-                NotificationCompat.Builder(context, channel)
-                    .setSmallIcon(android.R.drawable.stat_sys_download)
-                    .setContentTitle("Checking for a new version")
-                    .setPriority(NotificationCompat.PRIORITY_MIN)
-                    .build(),
-            )
-        } catch (e: Exception) {
-            ForegroundInfo(NOTIFICATION_ID, android.app.Notification())
-        }
-    }
-
-    private companion object {
-        const val NOTIFICATION_ID = 4204
     }
 }
 
@@ -220,8 +181,8 @@ class WorkScheduler(context: Context) : QuietScheduler {
     override fun schedule() {
         val request = OneTimeWorkRequestBuilder<QuietUpdateWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            // Starts promptly (the job is only scheduled on Android 12 and later); the app waits about 20 s itself.
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            // A short wait, so closing and quickly coming back never starts anything.
+            .setInitialDelay(2, java.util.concurrent.TimeUnit.MINUTES)
             .build()
         work.enqueueUniqueWork(NAME, ExistingWorkPolicy.KEEP, request)
     }
