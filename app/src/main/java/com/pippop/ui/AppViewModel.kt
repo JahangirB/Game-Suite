@@ -36,11 +36,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setColourTheme(theme: ColourTheme) = store.setColourTheme(theme)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
-    /** The arrange screen's result: [order] holds every game, and the ones in [putAway] (below its line) are back in the Store. */
-    fun setArrangement(order: List<GameKind>?, putAway: Set<GameKind>) = store.setShelf((order ?: GameKind.entries).filter { it !in putAway })
     fun addToShelf(game: GameKind) = store.addToShelf(game)
     fun removeFromShelf(game: GameKind) = store.removeFromShelf(game)
     fun moveOnShelf(from: Int, to: Int) = store.moveOnShelf(from, to)
+    /** Undoes a removal: [game] goes back to place [index] on the shelf (the end if the shelf is shorter now). */
+    fun restoreToShelf(game: GameKind, index: Int) {
+        val shelf = profile.value.shelf
+        if (game in shelf) return
+        store.setShelf(shelf.toMutableList().apply { add(index.coerceIn(0, size), game) })
+    }
     /** The one-time "The other games are in the Game Store" note has been seen. */
     fun markShelfNoteShown() = store.markShelfNoteShown()
     fun noteGamePlayed(game: GameKind) = store.noteGamePlayed(game)

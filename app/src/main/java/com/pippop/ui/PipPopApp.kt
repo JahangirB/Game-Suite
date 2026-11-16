@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,7 +45,6 @@ import com.pippop.ui.screens.inMatch
 import com.pippop.ui.screens.modeLabel
 import com.pippop.ui.screens.TutorialHost
 import com.pippop.ui.screens.TutorialLayer
-import com.pippop.ui.screens.ArrangeGamesScreen
 import com.pippop.ui.screens.FirstRunScreen
 import com.pippop.ui.screens.ConnectKind
 import com.pippop.ui.screens.ConnectSheet
@@ -115,7 +115,6 @@ import com.pippop.ui.screens.PrimaryButton
 import com.pippop.ui.screens.SecondaryButton
 import com.pippop.ui.screens.ToyDialog
 import com.pippop.data.MonthEnd
-import com.pippop.data.ProfileStore
 import com.pippop.data.ScoreStore
 import com.pippop.ui.screens.TrophyMomentDialog
 import com.pippop.ui.screens.ToySheet
@@ -126,7 +125,7 @@ import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
 import kotlinx.coroutines.launch
 
-private enum class Dest { HOME, PROFILE, ARRANGE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
 
 /** The screen of a game's solo play (Draw & Guess has none). */
 private fun soloDest(game: GameKind) = when (game) {
@@ -411,7 +410,6 @@ fun PipPopApp(
                             onBack = { dest = Dest.HOME },
                         )
                         dest == Dest.SCORES -> ScoreboardScreen(onBack = { dest = Dest.HOME })
-                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.shelf + ProfileStore.storeGames(profile.shelf), ProfileStore.storeGames(profile.shelf).toSet(), app::setArrangement, onBack = { dest = Dest.HOME })
                         else -> HomeScreen(
                             solo = soloState,
                             profile = profile,
@@ -453,7 +451,9 @@ fun PipPopApp(
                                 }
                                 go(soloDest(game))
                             },
-                            onArrange = { dest = Dest.ARRANGE },
+                            onRemoveFromShelf = app::removeFromShelf,
+                            onMoveOnShelf = app::moveOnShelf,
+                            onRestoreToShelf = app::restoreToShelf,
                             onScores = { dest = Dest.SCORES },
                             partnerBusy = battleState.busy,
                             onPlayWithPartner = battle::playWithPartner,
@@ -468,6 +468,11 @@ fun PipPopApp(
                             onNotificationsAnswered = app::notificationsAnswered,
                             onTutorialSeen = app::tutorialSeen,
                             onMessage = { m -> scope.launch { snackbar.showSnackbar(ToastVisuals(m, Tone.Neutral)) } },
+                            onUndoable = { m, undo ->
+                                // Only the latest removal can be undone: an earlier toast goes first.
+                                snackbar.currentSnackbarData?.dismiss()
+                                scope.launch { if (snackbar.showSnackbar(ToastVisuals(m, Tone.Good, "Undo")) == SnackbarResult.ActionPerformed) undo() }
+                            },
                             tiles = tiles,
                         )
                     }

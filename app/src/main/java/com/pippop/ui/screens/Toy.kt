@@ -43,6 +43,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -493,18 +494,18 @@ fun PipPopLoader(
 }
 
 /** What a toast says and how it is marked; the words carry the meaning, the mark and its colour back them up. */
-class ToastVisuals(override val message: String, val tone: Tone = Tone.Neutral) : SnackbarVisuals {
-    override val actionLabel: String? = null
+class ToastVisuals(override val message: String, val tone: Tone = Tone.Neutral, override val actionLabel: String? = null) : SnackbarVisuals {
     override val withDismissAction: Boolean = false
     override val duration: SnackbarDuration = SnackbarDuration.Short
 }
 
 /**
  * A short message in a pill with a mark for its [tone]: a tick, an exclamation mark, a cross or an
- * i. A screen reader announces it when it appears.
+ * i. A screen reader announces it when it appears. With an [actionLabel] ("Undo") the toast also
+ * holds a 48 dp button that calls [onAction].
  */
 @Composable
-fun Toast(text: String, tone: Tone, modifier: Modifier = Modifier) {
+fun Toast(text: String, tone: Tone, modifier: Modifier = Modifier, actionLabel: String? = null, onAction: () -> Unit = {}) {
     val p = AppTheme.palette
     val (color, mark) = when (tone) {
         Tone.Good -> p.good to "✓"
@@ -517,13 +518,18 @@ fun Toast(text: String, tone: Tone, modifier: Modifier = Modifier) {
         modifier = modifier.pressedEdge(p.ink, 28.dp).semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(
-            Modifier.padding(start = Space.S, end = Space.L, top = Space.S, bottom = Space.S),
+            Modifier.padding(start = Space.S, end = if (actionLabel != null) Space.XS else Space.L, top = Space.S, bottom = Space.S),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M),
         ) {
             Box(Modifier.size(28.dp).clip(CircleShape).background(color).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
                 Text(mark, color = readableOn(color), fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
             }
-            Text(text, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+            Text(text, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f, fill = false))
+            if (actionLabel != null) {
+                TextButton(onClick = onAction, modifier = Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp)) {
+                    Text(actionLabel, color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -539,7 +545,7 @@ fun ToastHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
     LaunchedEffect(data) {
         if (data != null) {
             val base = if (data.visuals.duration == SnackbarDuration.Long) 10_000L else 4_000L
-            delay(accessibility?.calculateRecommendedTimeoutMillis(base, containsIcons = true, containsText = true) ?: base)
+            delay(accessibility?.calculateRecommendedTimeoutMillis(base, containsIcons = true, containsText = true, containsControls = data.visuals.actionLabel != null) ?: base)
             data.dismiss()
         }
     }
@@ -552,7 +558,7 @@ fun ToastHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
         if (current != null) {
             val tone = (current.visuals as? ToastVisuals)?.tone ?: Tone.Neutral
             Box(Modifier.fillMaxWidth().padding(Space.L), contentAlignment = Alignment.Center) {
-                Toast(current.visuals.message, tone)
+                Toast(current.visuals.message, tone, actionLabel = current.visuals.actionLabel, onAction = { current.performAction() })
             }
         }
     }

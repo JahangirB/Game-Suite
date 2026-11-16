@@ -82,7 +82,6 @@ class ScreenshotTest {
         onContinue = {},
         onProfile = {},
         onSolo = { _, _ -> },
-        onArrange = {},
         partnerBusy = false,
         onPlayWithPartner = {},
         onInvitePartner = {},

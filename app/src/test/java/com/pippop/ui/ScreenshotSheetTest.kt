@@ -33,7 +33,7 @@ class ScreenshotSheetTest : ScreenshotBase() {
     private fun over(sheet: @Composable () -> Unit) {
         HomeScreen(
             solo = SoloUiState(), profile = profile, onContinue = {}, onProfile = {}, onSolo = { _, _ -> },
-            onArrange = {}, onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
+            onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
             connected = false, onConnect = {},
         )
         Box(Modifier.fillMaxSize().background(AppTheme.palette.scrim.copy(alpha = 0.45f)), contentAlignment = Alignment.BottomCenter) {

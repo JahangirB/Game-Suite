@@ -28,13 +28,18 @@ import com.pippop.ui.screens.HomeScreen
 import com.pippop.ui.screens.LocalFaces
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.PipPopTheme
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Game Store step 3, the fixed top bar of the home: "Hi, <name>" over the app's name, the player's photo (or animal)
- * in an ink ring on the right. Pictures: with a photo, without, scrolled (the bar stays, shelf cards under it), and
- * at font scale 1.3 with a long name.
+ * The fixed top bar of the home: one thin row, the app's name and the player's photo (or animal) in an ink ring on the
+ * right; no greeting. Pictures: with a photo, without, scrolled (the bar stays, shelf cards under it), and at font scale 1.3.
  */
 class ScreenshotHomeTopBarTest : ScreenshotBase() {
     private fun portrait(): androidx.compose.ui.graphics.ImageBitmap {
@@ -63,7 +68,7 @@ class ScreenshotHomeTopBarTest : ScreenshotBase() {
         CompositionLocalProvider(LocalFaces provides faces) {
             HomeScreen(
                 solo = SoloUiState(), profile = Profile(name = name, avatar = Avatar.FOX, playMode = PlayMode.ONLINE, shelf = if (scrollable) GameKind.entries else shelf),
-                onContinue = {}, onProfile = onProfile, onSolo = { _, _ -> }, onArrange = {}, onScores = {},
+                onContinue = {}, onProfile = onProfile, onSolo = { _, _ -> }, onScores = {},
                 partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {}, connected = false, onConnect = {},
                 now = 0L,
             )
@@ -94,8 +99,25 @@ class ScreenshotHomeTopBarTest : ScreenshotBase() {
     @Test fun animalDark() = snap("topbar-animal", true) { home(photo = false) }
     @Test fun scrolledLight() = snap("topbar-scrolled", false, scroll = true) { home(photo = true, scrollable = true) }
     @Test fun scrolledDark() = snap("topbar-scrolled", true, scroll = true) { home(photo = true, scrollable = true) }
-    @Test fun bigTextLight() = snap("topbar-big", false, scale = 1.3f) { home("Bartholomew-Alexandria Featherstonehaugh", photo = true) }
-    @Test fun bigTextDark() = snap("topbar-big", true, scale = 1.3f) { home("Bartholomew-Alexandria Featherstonehaugh", photo = true) }
+    @Test fun bigTextLight() = snap("topbar-big", false, scale = 1.3f) { home(photo = true) }
+    @Test fun bigTextDark() = snap("topbar-big", true, scale = 1.3f) { home(photo = true) }
+
+    @Test fun theBarIsAtMost64dpTallAndHasNoGreeting() {
+        compose.setContent { PipPopTheme(darkTheme = false) { home(photo = false) } }
+        val bar = compose.onNodeWithTag("homeTopBar").getUnclippedBoundsInRoot()
+        assertTrue("bar is ${bar.height}", bar.height <= 64.dp)
+        assertTrue("bar is ${bar.height}", bar.height >= 48.dp)
+        compose.onNodeWithText("Hi, Sam").assertDoesNotExist()
+    }
+
+    @Test fun theBarStaysTheSameHeightAtLargeTextAndWhenScrolled() {
+        compose.setContent {
+            PipPopTheme(darkTheme = false) {
+                CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.3f)) { home(photo = false) }
+            }
+        }
+        assertTrue(compose.onNodeWithTag("homeTopBar").getUnclippedBoundsInRoot().height <= 64.dp)
+    }
 
     @Test fun tappingTheAvatarOpensTheProfile() {
         var opened = 0

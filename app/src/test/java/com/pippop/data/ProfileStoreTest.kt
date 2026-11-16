@@ -35,7 +35,6 @@ class ProfileStoreTest {
     @Test fun defaultsAreEmpty() {
         val p = fresh().profile.value
         assertEquals(emptyList<RecentGame>(), p.recentGames)
-        assertFalse(p.arrangedOnce)
     }
 
     @Test fun recentGamesAreNewestFirstAndRoundTrip() {
@@ -96,10 +95,9 @@ class ProfileStoreTest {
         val s = store()
         assertEquals(before, prefs().all.filterKeys { it in before })
         assertEquals(nine, s.profile.value.shelf)
-        // The old keys stay, untouched, and the player who arranged before has learned how.
+        // The old keys stay, untouched.
         assertEquals("golf,dots", prefs().getString("put_away", null))
         assertTrue(prefs().contains("game_order"))
-        assertTrue(s.profile.value.arrangedOnce)
         assertEquals("Sam", s.profile.value.name)
     }
 
@@ -191,18 +189,15 @@ class ProfileStoreTest {
         assertEquals(listOf(GameKind.GOLF, GameKind.DOTS), store().profile.value.shelf)
     }
 
-    @Test fun arrangedOnceIsSetByArranging() {
+    @Test fun setShelfSavesTheOrderAndLeavesArrangedOnceAlone() {
         val s = fresh()
-        s.setName("Sam")
-        s.noteGamePlayed(GameKind.GOLF)
-        assertFalse(s.profile.value.arrangedOnce)
+        prefs().edit().putBoolean("arranged_once", true).commit()
         s.setShelf(nine.reversed())
         assertEquals(nine.reversed(), store().profile.value.shelf)
-        assertTrue(store().profile.value.arrangedOnce)
-        // Putting the shelf back to the nine is still a change that was made.
         s.setShelf(null)
         assertEquals(nine, store().profile.value.shelf)
-        assertTrue(store().profile.value.arrangedOnce)
+        // The old key stays where it was; nothing reads it.
+        assertTrue(prefs().getBoolean("arranged_once", false))
     }
 
     @Test fun existingValuesAreUntouched() {

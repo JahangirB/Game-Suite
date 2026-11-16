@@ -116,8 +116,6 @@ data class Profile(
     val recentReactions: List<String> = emptyList(),
     /** The six lines the player says with one tap ([ChatLines]); an unset one is its default. */
     val lines: List<String> = ChatLines.DEFAULTS,
-    /** True once the order has been changed, so the home can stop saying how. */
-    val arrangedOnce: Boolean = false,
     /** The last solo setup of each game that has one, as picked (see [soloSetup] for what it plays with). */
     val soloSetups: Map<GameKind, Map<String, String>> = emptyMap(),
     /** The latest month whose cup has been shown ("a month ends with a moment"), or null before the first. */
@@ -229,14 +227,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         _profile.update { it.copy(partner = partner) }
     }
 
-    /** Saves the whole shelf (the arrange screen's result); null puts back the nine a phone starts with. Nothing else is touched. */
+    /** Saves the whole shelf (an undone removal puts it back as it was); null puts back the nine a phone starts with. Nothing else is touched. */
     fun setShelf(games: List<GameKind>?) {
         val kept = (games ?: DEFAULT_SHELF).distinct()
-        prefs.edit {
-            putString(KEY_SHELF, encodeShelf(kept))
-            putBoolean(KEY_ARRANGED_ONCE, true)
-        }
-        _profile.update { it.copy(shelf = kept, arrangedOnce = true) }
+        prefs.edit { putString(KEY_SHELF, encodeShelf(kept)) }
+        _profile.update { it.copy(shelf = kept) }
     }
 
     /** Puts [game] at the end of the shelf; nothing happens if it is there already. */
@@ -423,15 +418,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
 
     /**
      * The one-time move to the shelf. When the shelf key is missing (every phone, new or existing, the first time this version opens)
-     * the shelf becomes the nine. The old "game_order" and "put_away" keys are left in place and never read again; their only trace is
-     * that someone who had arranged before has already learned how ([Profile.arrangedOnce]). Running it again changes nothing.
+     * the shelf becomes the nine. The old "game_order" and "put_away" keys are left in place and never read again (so is "arranged_once",
+     * which the Arrange screen used to set). Running it again changes nothing.
      */
     internal fun migrateShelf() {
         if (prefs.contains(KEY_SHELF)) return
-        prefs.edit {
-            putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF))
-            if (!prefs.contains(KEY_ARRANGED_ONCE) && prefs.contains(OLD_KEY_GAME_ORDER)) putBoolean(KEY_ARRANGED_ONCE, true)
-        }
+        prefs.edit { putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF)) }
     }
 
     private fun load(): Profile {
@@ -488,8 +480,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
             recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
             lines = ChatLines.decode(prefs.getString(KEY_LINES, null)),
-            // Someone who arranged the games before this was kept has already learned how.
-            arrangedOnce = prefs.getBoolean(KEY_ARRANGED_ONCE, false),
             soloSetups = GameKind.entries.mapNotNull { game ->
                 prefs.getString(KEY_SOLO_PREFIX + game.key, null)?.let { game to SoloSetups.resolve(game, SoloSetups.decode(it)) }
             }.filter { it.second.isNotEmpty() }.toMap(),
@@ -531,7 +521,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_PLAY_MODE = "play_mode"
         // The old arrange screen's keys ("game_order", "put_away") are no longer read or written, and are left in place.
-        private const val OLD_KEY_GAME_ORDER = "game_order"
         private const val KEY_SHELF = "shelf"
         private const val KEY_SHELF_NOTE_SHOWN = "shelf_note_shown"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
@@ -559,7 +548,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
         /** The last month whose trophy moment was shown, as "2026-10". */
         private const val KEY_CUP_SHOWN = "cup_shown_month"
-        private const val KEY_ARRANGED_ONCE = "arranged_once"
         /** A game's last solo setup is kept under this and the game's key. */
         private const val KEY_SOLO_PREFIX = "solo_setup_"
 

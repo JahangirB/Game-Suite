@@ -48,7 +48,7 @@ class ScreenshotHomeTest : ScreenshotBase() {
         )
         HomeScreen(
             solo = SoloUiState(game = saved()), profile = profile, onContinue = {}, onProfile = {}, onSolo = { _, _ -> },
-            onArrange = {}, onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
+            onScores = {}, partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {},
             connected = false, onConnect = {}, now = NOW,
         )
     }

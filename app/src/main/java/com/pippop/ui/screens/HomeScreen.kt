@@ -125,6 +125,14 @@ import com.pippop.ui.art.TrophyCup
 import com.pippop.ui.theme.LocalReduceMotion
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,8 +149,10 @@ fun HomeScreen(
     soloUnfinished: Set<GameKind> = emptySet(),
     /** Back to an unfinished game alone: nothing new starts. */
     onContinueSolo: (GameKind) -> Unit = {},
-    /** The Arrange games screen (also a long press on a game). */
-    onArrange: () -> Unit,
+    /** Editing the shelf: a game's × (it goes back to the Store), a card dragged from one place to another, and Undo. */
+    onRemoveFromShelf: (GameKind) -> Unit = {},
+    onMoveOnShelf: (from: Int, to: Int) -> Unit = { _, _ -> },
+    onRestoreToShelf: (GameKind, Int) -> Unit = { _, _ -> },
     /** Our scoreboard: this month against your partner, every game, the trophies. */
     onScores: () -> Unit = {},
     partnerBusy: Boolean,
@@ -162,6 +172,8 @@ fun HomeScreen(
     onTutorialSeen: (GameKind) -> Unit = {},
     /** A short message in the app's toast. */
     onMessage: (String) -> Unit = {},
+    /** A toast with an "Undo" button: [undo] runs if it is tapped. */
+    onUndoable: (String, undo: () -> Unit) -> Unit = { message, _ -> onMessage(message) },
     /** The time "Jump back in" counts from; the real time unless a test fixes it. */
     now: Long = remember { System.currentTimeMillis() },
     /** Where each tile is, and which one a game is being opened from (for the grow-out animation). */
@@ -199,18 +211,37 @@ fun HomeScreen(
         if (surprise == 0) return@LaunchedEffect
         flicking = true
         val pick = surprisePick(shelf, players)
-        if (pick == null) { flicking = false; onMessage("No game fits everyone here"); return@LaunchedEffect }
+        if (pick == null) {
+            flicking = false
+            onMessage(if (shelf.isEmpty()) EMPTY_SHELF else "No game fits everyone here")
+            return@LaunchedEffect
+        }
         surpriseFlick(shelf, pick, reduceMotion) { lit = it }
         flicking = false
         openGame(pick)
     }
 
     val scroll = rememberScrollState()
+    // Holding a card edits the shelf in place: the cards wiggle, each has a ×, and they can be dragged. Done, Back or a tap on empty space ends it.
+    var editing by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = editing) { editing = false }
+    LaunchedEffect(shelf.isEmpty()) { if (shelf.isEmpty()) editing = false }
+    var viewport by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     Box(Modifier.fillMaxSize()) {
       Column(Modifier.fillMaxSize()) {
-        HomeTopBar(profile.name, profile.avatar, scrolled = scroll.value > 0, onProfile = onProfile)
+        // While editing, the edit bar takes the top bar's place; the top bar stays (unseen, unread) so the height never changes.
+        Box(Modifier.fillMaxWidth()) {
+            HomeTopBar(
+                profile.avatar, scrolled = scroll.value > 0, onProfile = onProfile,
+                modifier = if (editing) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier,
+            )
+            if (editing) ShelfEditBar({ editing = false }, Modifier.matchParentSize())
+        }
         Column(
-            modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f)
+                .onGloballyPositioned { viewport = it.boundsInRoot() }
+                .pointerInput(editing) { if (editing) detectTapGestures { editing = false } }
+                .verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             NotificationPrimer(profile, onNotificationsAnswered)
@@ -230,7 +261,7 @@ fun HomeScreen(
                         val continuing = t.game == GameKind.SUDOKU && sudokuPercent != null
                         RoomTile(
                             t.game, room, Modifier.weight(1f), tag = t.tag, jump = true,
-                            onClick = { if (flicking) Unit else if (continuing) { tiles.pending = GameKind.SUDOKU; onContinue() } else openGame(t.game) },
+                            onClick = { if (flicking || editing) Unit else if (continuing) { tiles.pending = GameKind.SUDOKU; onContinue() } else openGame(t.game) },
                         )
                     }
                     repeat(JUMP_TILES - jump.size) { Spacer(Modifier.weight(1f)) }
@@ -238,27 +269,29 @@ fun HomeScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                    if (!profile.arrangedOnce) Text("Hold a game to move it", color = p.muted, fontSize = TextSize.Label)
-                }
-                RoundButton("Scores", { if (!flicking) onScores() }) { TrophyCup(Modifier.size(26.dp)) }
-                RoundButton("Surprise us", { if (!flicking) surprise++ }) { GameIcon(GameKind.LUDO, Modifier.size(24.dp), tint = p.text) }
-                RoundButton("Arrange games", { if (!flicking) onArrange() }) {
-                    Canvas(Modifier.size(18.dp)) {
-                        for (i in 0..1) for (j in 0..2) drawCircle(p.text, 1.8.dp.toPx(), Offset(size.width * (0.3f + 0.4f * i), size.height * (0.18f + 0.32f * j)))
-                    }
-                }
+                Text("Games", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                // While editing, the buttons rest: the edit bar is where the action is.
+                RoundButton("Scores", { if (!flicking) onScores() }, enabled = !editing) { TrophyCup(Modifier.size(26.dp)) }
+                RoundButton("Surprise us", { if (!flicking) surprise++ }, enabled = !editing) { GameIcon(GameKind.LUDO, Modifier.size(24.dp), tint = p.text) }
             }
 
-            // Three tiles per row, in your order; each row stands on a thin shelf.
-            shelf.chunked(3).forEach { row ->
-                ShelfRow {
-                    row.forEach { kind ->
-                        RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
-                    }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                }
+            if (shelf.isEmpty()) {
+                EmptyShelf()
+            } else {
+                // Three tiles per row, in your order; each row stands on a thin shelf. Holding one starts editing (and can go straight on into dragging it).
+                EditableShelf(
+                    shelf, editing, scroll, viewport = { viewport }, onMove = onMoveOnShelf,
+                    onRemove = { kind ->
+                        val place = shelf.indexOf(kind)
+                        onRemoveFromShelf(kind)
+                        onUndoable("${kind.label} is back in the Store.") { onRestoreToShelf(kind, place) }
+                    },
+                    canEdit = { !flicking },
+                    onEnterEdit = { editing = true },
+                    normalCard = { kind ->
+                        RoomTile(kind, room, Modifier.reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) editing = true }, onClick = { openGame(kind) })
+                    },
+                )
             }
 
             if (away.isNotEmpty()) {
@@ -266,7 +299,7 @@ fun HomeScreen(
                 if (moreOpen) away.chunked(3).forEach { row ->
                     ShelfRow {
                         row.forEach { kind ->
-                            RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), onLongClick = { if (!flicking) onArrange() }, onClick = { openGame(kind) })
+                            RoomTile(kind, room, Modifier.weight(1f).reportTile(tiles, kind), onClick = { openGame(kind) })
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -344,6 +377,18 @@ fun HomeScreen(
     }
 }
 
+/** What the home says with nothing on the shelf. */
+internal const val EMPTY_SHELF = "Your shelf is empty. Get games from the Game Store."
+
+/** The shelf with no games on it: one line, where the tiles would be. */
+@Composable
+private fun EmptyShelf() {
+    val p = AppTheme.palette
+    Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
+        Text(EMPTY_SHELF, color = p.text, fontSize = TextSize.BodyL, modifier = Modifier.padding(Space.L), textAlign = TextAlign.Center)
+    }
+}
+
 /** One row of tiles standing on a thin shelf. */
 @Composable
 internal fun ShelfRow(content: @Composable RowScope.() -> Unit) {
@@ -386,14 +431,16 @@ private fun Eyebrow(text: String) {
  * ("27% done", "Yesterday"); [highlight] rings it while "Surprise us" flicks across. While connected,
  * [seats] says how many it takes ("2–4"), [dim] fades it with the reason ("2 players") and [face] is
  * someone in it, with a green [ring] round the tile. [description] is what a screen reader says
- * instead of the pieces. Holding it moves it (arrange), and the tile dips a little while pressed.
+ * instead of the pieces. Holding it edits the shelf, and the tile dips a little while pressed. While the shelf is edited the tile is
+ * not [interactive] (it opens nothing), says its [actions] to a screen reader and shows an [overlay] (the ×).
  */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 internal fun ArtTile(
     kind: GameKind, modifier: Modifier = Modifier, tag: String? = null, highlight: Boolean = false,
     seats: String? = null, dim: String? = null, face: PlayerInfo? = null, ring: Boolean = false, description: String? = null,
-    onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null, interactive: Boolean = true,
+    actions: List<CustomAccessibilityAction> = emptyList(), overlay: (@Composable BoxScope.() -> Unit)? = null, onClick: () -> Unit,
 ) {
     val p = AppTheme.palette
     val press = remember { MutableInteractionSource() }
@@ -408,11 +455,18 @@ internal fun ArtTile(
                 // The dip is drawn only: the tile's place in the layout never moves.
                 .graphicsLayer { translationY = if (pressed) 2.dp.toPx() else 0f }
                 .clip(Shapes.M)
-                .combinedClickable(
-                    interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open",
-                    onLongClickLabel = if (onLongClick != null) "Arrange games" else null, onLongClick = onLongClick, onClick = onClick,
+                .then(
+                    if (interactive) Modifier.combinedClickable(
+                        interactionSource = press, indication = LocalIndication.current, onClickLabel = "Open",
+                        onLongClickLabel = if (onLongClick != null) "Edit your games" else null, onLongClick = onLongClick, onClick = onClick,
+                    ) else Modifier,
                 )
-                .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
+                .then(
+                    if (description != null || actions.isNotEmpty()) Modifier.semantics {
+                        if (description != null) contentDescription = description
+                        if (actions.isNotEmpty()) customActions = actions
+                    } else Modifier,
+                ),
         ) {
             Column(Modifier.alpha(if (dim != null) 0.42f else 1f)) {
                 Box(Modifier.fillMaxWidth().aspectRatio(ART)) {
@@ -455,6 +509,7 @@ internal fun ArtTile(
                     .padding(horizontal = 8.dp, vertical = 2.dp).then(quiet),
             )
         }
+        overlay?.invoke(this)
     }
 }
 
@@ -484,12 +539,12 @@ private fun RoomTile(
 
 /** A round button with a drawn icon, for the Games row. 48 dp, named for screen readers. */
 @Composable
-private fun RoundButton(description: String, onClick: () -> Unit, content: @Composable BoxScope.() -> Unit) {
+private fun RoundButton(description: String, onClick: () -> Unit, enabled: Boolean = true, content: @Composable BoxScope.() -> Unit) {
     val p = AppTheme.palette
     Box(
-        Modifier.size(48.dp).pressedEdge(p.ink, 24.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape)
+        Modifier.size(48.dp).alpha(if (enabled) 1f else 0.38f).pressedEdge(p.ink, 24.dp, 2.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape)
             .semantics { contentDescription = description }
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center, content = content,
     )
 }
@@ -747,32 +802,37 @@ private fun NotificationPrimer(profile: Profile, onAnswered: () -> Unit) {
     }
 }
 
+/** The top bar's test tag. */
+internal const val HOME_TOP_BAR = "homeTopBar"
+
 /**
- * The home's fixed top bar: "Hi, <name>" small over the app's name on the left, the player's face on the right (their
- * photo if they chose one, else their animal) in an ink ring that opens the profile and settings. It stays put while
- * the shelf scrolls under it; a thin line shows once something has scrolled under it. The status bar's room comes from
- * the app's Scaffold.
+ * The home's fixed top bar, one thin row (56 dp): the app's name on the left (Title size, bold, one line, cut with an
+ * ellipsis rather than wrapped) and the player's face on the right (their photo if they chose one, else their animal)
+ * in a 40 dp ink ring inside a 48 dp target that opens the profile and settings. It stays put while the shelf scrolls
+ * under it; a thin line, drawn over its bottom edge so the height never changes, shows once something has scrolled
+ * under it. The status bar's room comes from the app's Scaffold.
  */
 @Composable
-fun HomeTopBar(name: String, avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeTopBar(avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
-    Column(modifier.fillMaxWidth().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                if (name.isNotBlank()) Text("Hi, $name", color = p.muted, fontSize = TextSize.BodyL, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    stringResource(R.string.app_name), color = p.text, fontSize = TextSize.DisplayL, fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-            }
+    Box(modifier.fillMaxWidth().background(p.background).testTag(HOME_TOP_BAR)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.app_name), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont,
+                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
             Spacer(Modifier.width(12.dp))
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(52.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape)
+                modifier = Modifier.size(48.dp).clip(CircleShape)
                     .semantics { contentDescription = "Profile and settings"; role = Role.Button }
                     .clickable(onClick = onProfile),
-            ) { PlayerAvatar(FaceBook.YOU, p.accent, size = 44, avatar = avatar) }
+            ) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
+                    PlayerAvatar(FaceBook.YOU, p.accent, size = 32, avatar = avatar)
+                }
+            }
         }
-        if (scrolled) HorizontalDivider(color = p.ink.copy(alpha = 0.25f), thickness = 1.dp)
+        if (scrolled) HorizontalDivider(Modifier.align(Alignment.BottomCenter), color = p.ink.copy(alpha = 0.25f), thickness = 1.dp)
     }
 }

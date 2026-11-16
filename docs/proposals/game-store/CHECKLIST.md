@@ -14,11 +14,11 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] The nine by default; old order and put-away keys migrated and left in place; tested
 - [x] **Step 3. The fixed top bar**
   - [x] App name, avatar with photo; stays put when scrolling; opens the profile
-  - [ ] Thinner, no "Hi, name" line (owner's change, done with step 4)
-- [ ] **Step 4. Hold a card to edit the shelf**
-  - [ ] Arrange screen, button and hint gone
-  - [ ] Wiggle, drag to move (saved), × to remove with Undo; TalkBack move actions
-  - [ ] An empty shelf says so and points to the Store
+  - [x] Thinner, no "Hi, name" line (owner's change, done with step 4)
+- [x] **Step 4. Hold a card to edit the shelf**
+  - [x] Arrange screen, button and hint gone
+  - [x] Wiggle, drag to move (saved), × to remove with Undo; TalkBack move actions
+  - [x] An empty shelf says so and points to the Store
 - [ ] **Step 5. The Game Store**
   - [ ] Store list with working filter, Get, "On your shelf"
   - [ ] A game's page, "Add to my games", then Play / Remove
