@@ -63,11 +63,13 @@ holds (every game not on the shelf). *Done when* unit tests cover a new phone, a
 
 ### Step 3. The fixed top bar
 
-On the home, a top bar that stays put while the page scrolls: "Hi, <name>" small over "Pip & Pop"
-(the preview keeps its own name), and on the right the avatar circle showing the player's photo if
-they chose one, else their animal. Tapping it opens the profile and settings. *Done when* the
-screenshot matches the mock-up in light and dark, with and without a photo, and the bar stays put
-in a scrolled screenshot.
+On the home, a thin top bar (about 56–64 dp) that stays put while the page scrolls: the app name
+on the left (the preview keeps its own name) and on the right the avatar circle showing the
+player's photo if they chose one, else their animal; tapping it opens the profile and settings.
+No "Hi, <name>" line (the owner dropped it to give the games more room). While the shelf is being
+edited, the same bar shows "Drag to move. Tap × to remove." and "Done" at the same height, so
+nothing moves. *Done when* the screenshots show the thin bar in light and dark, with and without
+a photo, and the bar stays put in a scrolled screenshot.
 
 ### Step 4. Hold a card to edit the shelf
 
@@ -140,7 +142,17 @@ solo, all three looks (day, sunset, night) and the 3D view. *Done when* screensh
 filling the freed space in light and dark, and the totals and the scorecard still show the same
 numbers.
 
-### Step 12. The last pass
+### Step 12. Dominoes: no number circles at the line's ends
+
+The circles with a number at each end of the line of tiles go; the end tiles already show the
+open numbers. If those circles are also what a player taps to choose which end to play on, keep
+that choice working another way (the open end of the tile itself, highlighted only while a tile
+that fits there is picked), with at least a 48 dp target. Screen readers still hear the open
+numbers ("Open ends: 3 and 5"). Online, nearby, solo and all three tile looks. *Done when*
+screenshots show the line without the circles in light and dark, and a test still plays a tile
+on each end.
+
+### Step 13. The last pass
 
 All checks pass; the latest CI run on the work branch is green; the preview is from it; every
 changed screen looked at in light and dark; README updated (the Store, editing the shelf); the

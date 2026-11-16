@@ -13,7 +13,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 2. The shelf and the Store, as data**
   - [x] The nine by default; old order and put-away keys migrated and left in place; tested
 - [x] **Step 3. The fixed top bar**
-  - [x] "Hi, name", app name, avatar with photo; stays put when scrolling; opens the profile
+  - [x] App name, avatar with photo; stays put when scrolling; opens the profile
+  - [ ] Thinner, no "Hi, name" line (owner's change, done with step 4)
 - [ ] **Step 4. Hold a card to edit the shelf**
   - [ ] Arrange screen, button and hint gone
   - [ ] Wiggle, drag to move (saved), × to remove with Undo; TalkBack move actions
@@ -35,7 +36,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [ ] Scoring, totals, result and rules; tested in every place
 - [ ] **Step 11. Mini Golf: no score strip at the top**
   - [ ] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
-- [ ] **Step 12. The last pass**
+- [ ] **Step 12. Dominoes: no number circles at the line's ends**
+  - [ ] Circles gone; choosing an end still works (48 dp); open numbers read out
+- [ ] **Step 13. The last pass**
   - [ ] All checks pass locally; the last CI run is green; the preview is from it
   - [ ] Every changed screen looked at in light and dark
   - [ ] README updated
