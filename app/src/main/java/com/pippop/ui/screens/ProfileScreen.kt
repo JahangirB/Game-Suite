@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.pippop.data.MonthEnd
 import com.pippop.data.ProfileStore
 import com.pippop.data.SampleGames
+import com.pippop.data.quietLine
 import com.pippop.data.ScoreStore
 import com.pippop.push.Push
 import com.pippop.push.PushApi
@@ -193,6 +194,7 @@ fun ProfileScreen(
     onCheckUpdates: () -> Unit,
     onUpdate: () -> Unit,
     onBack: () -> Unit,
+    onQuietChange: (Boolean) -> Unit = {},
 ) {
     val p = AppTheme.palette
 
@@ -246,28 +248,43 @@ fun ProfileScreen(
 
             PlayingOnlineCard(profile, busy, app, battle)
 
-            AppCard("App") {
-                Text("Version ${updates.currentVersion}", color = p.text)
-                val available = updates.available
-                if (available != null) {
-                    PrimaryButton(
-                        "Update to ${available.versionName}",
-                        onUpdate,
-                        loading = updates.downloading,
-                    )
-                } else {
-                    SecondaryButton(
-                        if (updates.checking) "Checking…" else "Check for updates",
-                        onCheckUpdates,
-                        enabled = !updates.checking,
-                    )
-                }
-            }
+            AppUpdateCard(updates, onCheckUpdates, onUpdate, onQuietChange)
 
             // Only in the preview app, so the owner always knows which of the two apps is open.
             if (BuildConfig.PREVIEW) {
-                PreviewAppCard()
+                PreviewAppCard(updates)
             }
+        }
+    }
+}
+
+/** The App card: the version, the update button and, from Android 12, the "Update by itself" switch. */
+@Composable
+internal fun AppUpdateCard(updates: UpdateUiState, onCheckUpdates: () -> Unit, onUpdate: () -> Unit, onQuietChange: (Boolean) -> Unit) {
+    val p = AppTheme.palette
+    AppCard("App") {
+        Text("Version ${updates.currentVersion}", color = p.text)
+        val available = updates.available
+        if (available != null) {
+            PrimaryButton(
+                "Update to ${available.versionName}",
+                onUpdate,
+                loading = updates.downloading,
+            )
+        } else {
+            SecondaryButton(
+                if (updates.checking) "Checking…" else "Check for updates",
+                onCheckUpdates,
+                enabled = !updates.checking,
+            )
+        }
+        if (updates.quietAvailable) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = updates.quietOn, role = Role.Switch, onValueChange = onQuietChange)) {
+            Column(Modifier.weight(1f)) {
+                Text("Update by itself", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.SemiBold)
+                Text("Updates install while the app is closed.", color = p.muted, fontSize = TextSize.Body)
+            }
+            Spacer(Modifier.width(Space.M))
+            ToySwitch(checked = updates.quietOn, onCheckedChange = null)
         }
     }
 }
@@ -384,11 +401,21 @@ internal fun PlayingOnlineCard(profile: Profile, busy: Boolean, app: AppViewMode
 
 /** The last card of the preview app's profile: which app this is, and the test tools. */
 @Composable
-internal fun PreviewAppCard() {
+internal fun PreviewAppCard(updates: UpdateUiState = UpdateUiState()) {
     val p = AppTheme.palette
     AppCard("Preview app") {
         Text("This is the preview app. It keeps its own games and scores.", color = p.text)
-        Text("Version ${BuildConfig.VERSION_NAME}", color = p.muted, fontSize = TextSize.Body)
+        Text("Version ${updates.currentVersion}", color = p.muted, fontSize = TextSize.Body)
+        Text(
+            "Update by itself: " + if (!updates.quietAvailable) "not on this Android" else if (updates.quietOn) "on" else "off",
+            color = p.muted, fontSize = TextSize.Body,
+        )
+        Text("Recent tries", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+        if (updates.quietLog.isEmpty()) {
+            Text("Nothing yet. Close the app and open it again later.", color = p.muted, fontSize = TextSize.Body)
+        } else {
+            updates.quietLog.forEach { Text(quietLine(it), color = p.muted, fontSize = TextSize.Body) }
+        }
         PreviewTestTools()
     }
 }

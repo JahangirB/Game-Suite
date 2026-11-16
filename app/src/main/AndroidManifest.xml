@@ -6,8 +6,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Invitations from your partner arrive as notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Lets the app hand a downloaded update to the Android installer (the user still confirms). -->
+    <!-- Lets the app hand a downloaded update to the Android installer (the user may still need to confirm). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Android 12 and later: lets an update by itself install without asking, while the app is closed. Without it every install asks. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <!-- Nearby battles: two phones connect directly over Bluetooth and Wi-Fi, no internet. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

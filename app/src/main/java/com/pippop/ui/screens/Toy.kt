@@ -493,10 +493,10 @@ fun PipPopLoader(
 }
 
 /** What a toast says and how it is marked; the words carry the meaning, the mark and its colour back them up. */
-class ToastVisuals(override val message: String, val tone: Tone = Tone.Neutral) : SnackbarVisuals {
+class ToastVisuals(override val message: String, val tone: Tone = Tone.Neutral, long: Boolean = false) : SnackbarVisuals {
     override val actionLabel: String? = null
     override val withDismissAction: Boolean = false
-    override val duration: SnackbarDuration = SnackbarDuration.Short
+    override val duration: SnackbarDuration = if (long) SnackbarDuration.Long else SnackbarDuration.Short
 }
 
 /**

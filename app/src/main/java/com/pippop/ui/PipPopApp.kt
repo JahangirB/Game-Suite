@@ -243,12 +243,17 @@ fun PipPopApp(
 
     LaunchedEffect(updateState.message) {
         updateState.message?.let {
-            snackbar.showSnackbar(ToastVisuals(it, updateState.messageTone))
+            snackbar.showSnackbar(ToastVisuals(it, updateState.messageTone, long = updateState.messageLong))
             updates.dismissMessage()
         }
     }
 
     val room = battleState.room
+    // What the quiet updater may not interrupt: a live room (a partner game or its lobby). Solo games are saved and carry on after an update.
+    val gameGoing = room != null
+    LaunchedEffect(gameGoing) { updates.gameGoing(gameGoing) }
+    // Back in front: say what the app did while it was away.
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { updates.takeHint() }
     // Your screen is on the room's game; otherwise you're in the menu and still connected.
     val inRoomGame = room != null && room.atGame
     val requestLeave: () -> Unit = {
@@ -407,6 +412,7 @@ fun PipPopApp(
                         dest == Dest.PROFILE -> ProfileScreen(
                             profile, battleState.busy, app, battle, updateState,
                             onCheckUpdates = { updates.check(manual = true) },
+                            onQuietChange = updates::setQuiet,
                             onUpdate = updates::update,
                             onBack = { dest = Dest.HOME },
                         )
