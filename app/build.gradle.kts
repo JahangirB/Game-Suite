@@ -154,9 +154,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    // Updating by itself while the app is closed: a job that outlives the app, and the app-wide foreground state.
-    implementation(libs.androidx.lifecycle.process)
-    implementation(libs.androidx.work.runtime.ktx)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)

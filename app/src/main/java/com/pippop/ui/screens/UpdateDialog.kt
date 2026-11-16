@@ -21,8 +21,7 @@ fun UpdateDialog(state: UpdateUiState, onUpdate: () -> Unit, onAllow: () -> Unit
                 "Tap Allow, switch on \"Allow from this source\", come back and tap Update again."
         } else {
             "Version ${info?.versionName.orEmpty()} is ready (you have ${state.currentVersion}). " +
-                "Your saved game, settings and statistics are kept." +
-                if (state.quietTapFor != null && state.quietTapFor == info?.versionCode) " It couldn't install by itself, so it needs a tap." else ""
+                "Your saved game, settings and statistics are kept."
         },
         onDismiss = { if (!state.downloading) onLater() },
         dismissible = !state.downloading,
