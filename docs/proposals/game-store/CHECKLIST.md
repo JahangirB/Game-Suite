@@ -40,8 +40,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 10. Mini Golf: an unfinished hole costs 5**
   - [x] Scoring, totals, result and rules; tested in every place
     (the penalty is inside the strokes, so older apps total it; an optional `unfinished` field marks the hole)
-- [ ] **Step 11. Mini Golf: no score strip at the top**
-  - [ ] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
+- [x] **Step 11. Mini Golf: no score strip at the top**
+  - [x] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
+    (for the last pass: Rematch sits below the scorecard on the result; solo header with 3 computers wraps)
 - [ ] **Step 12. Dominoes: no number circles at the line's ends**
   - [ ] Circles gone; choosing an end still works (48 dp); open numbers read out
 - [ ] **Step 13. The last pass**

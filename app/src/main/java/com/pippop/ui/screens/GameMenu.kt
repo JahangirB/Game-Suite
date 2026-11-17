@@ -109,6 +109,8 @@ class GameMenu(
     val showLetterMarks: Boolean = false,
     /** What the row that changes the mode says ("Change setup" for a game on your own). */
     val changeLabel: String = "Change mode",
+    /** Mini Golf's full scorecard; a null action leaves the row out. */
+    val onScorecard: (() -> Unit)? = null,
 )
 
 /** The menu as a sheet over the game: everything in one list. */
@@ -156,6 +158,7 @@ internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) 
         MenuRow("Resume", onClick = close)
         menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
         menu.onChangeMode?.let { MenuRow(menu.changeLabel, detail = menu.mode, onClick = then(it)) }
+        menu.onScorecard?.let { MenuRow("Scorecard", onClick = then(it)) }
         MenuRow("Rules", onClick = then(menu.onRules))
         if (onLooks != null && menu.game.hasLooks()) MenuRow("Looks", onClick = onLooks)
         MenuRow("Sound", checked = profile.sound, onClick = { store.setSound(!profile.sound) }) {
@@ -229,11 +232,11 @@ val RoomState.inMatch get() = status == RoomStatus.COUNTDOWN || status == RoomSt
  * match (and restart it), Switch game invites them to another one.
  */
 @Composable
-fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLetterMarks: Boolean = false): GameMenu {
+fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLetterMarks: Boolean = false, onScorecard: (() -> Unit)? = null): GameMenu {
     val controls = LocalRoomControls.current
     var switching by remember { mutableStateOf(false) }
     if (switching && controls != null) SwitchGameSheet(controls, onDismiss = { switching = false })
-    if (controls == null) return GameMenu(game, onRules, onLeave, showLetterMarks = showLetterMarks)
+    if (controls == null) return GameMenu(game, onRules, onLeave, showLetterMarks = showLetterMarks, onScorecard = onScorecard)
     val room = controls.room
     val partner = room.present.isNotEmpty()
     return GameMenu(
@@ -254,6 +257,7 @@ fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLet
         onSwitchGame = if (room.inSession && partner) ({ switching = true }) else null,
         leaveLabel = if (room.inSession) "Leave game" else "Leave",
         showLetterMarks = showLetterMarks,
+        onScorecard = onScorecard,
     )
 }
 

@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -880,8 +881,8 @@ internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.
 }
 
 /** The menu of a game on your own: a fresh game, the rules, sound, and back home. */
-internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?, onChange: (() -> Unit)? = null) =
-    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, onChangeMode = onChange, leaveLabel = "Home", changeLabel = "Change setup")
+internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?, onChange: (() -> Unit)? = null, onScorecard: (() -> Unit)? = null) =
+    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, onChangeMode = onChange, leaveLabel = "Home", changeLabel = "Change setup", onScorecard = onScorecard)
 
 // ---- Against your partner -----------------------------------------------------------------
 
@@ -1049,7 +1050,7 @@ private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp, photo
 
 /** The result popup of a game against the computer: "me", "computer" or "draw". */
 @Composable
-internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome) {
+internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome, extra: @Composable ColumnScope.() -> Unit = {}) {
     ResultPopup(
         game = game,
         outcome = when (result) {
@@ -1065,6 +1066,7 @@ internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, 
         detail = detail,
         finish = PopupAction(finishLabel, onFinish),
         again = PopupAction("Play again", onAgain),
+        extra = extra,
     )
 }
 
