@@ -170,6 +170,52 @@ class GolfTest {
     }
 
     @Test
+    fun kylianTakesOnlyTheTurnOfWhoLandedThere() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        // g lands on Kylian: only g loses a turn, and '3' (next) plays at once.
+        assertEquals('g', m.play('h', shot(0.5, 1.0)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 2.0).put("skip", true)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.5)).turn)
+        // g is passed over once; h and 3 are never skipped.
+        assertEquals('3', m.play('h', shot(0.5, 1.2)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.2)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.1)).turn)
+    }
+
+    private fun kylian(x: Double, y: Double) = shot(x, y).put("skip", true)
+
+    @Test
+    fun twoPlayersOnKylianBackToBackEachLoseTheirNextTurn() {
+        val m = GolfMatch(listOf('h', 'g'))
+        assertEquals('g', m.play('h', kylian(0.5, 2.0)).turn)
+        // Both owe a turn: they are given back and play goes on in order.
+        assertEquals('h', m.play('g', kylian(0.5, 2.1)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('h', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
+    fun threePlayersTwoOnKylianBackToBackBothLoseATurn() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        assertEquals('g', m.play('h', kylian(0.5, 2.0)).turn)
+        assertEquals('3', m.play('g', kylian(0.5, 2.1)).turn)
+        assertEquals('3', m.play('3', shot(0.5, 1.5)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.4)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
+    fun everyoneOnKylianNeverStalls() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        m.play('h', kylian(0.5, 2.0))
+        m.play('g', kylian(0.5, 2.1))
+        assertEquals('h', m.play('3', kylian(0.5, 2.2)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
     fun theComputerFinishesTheBuiltInHoles() {
         val random = Random(3)
         for (hole in Golf.HOLES) {

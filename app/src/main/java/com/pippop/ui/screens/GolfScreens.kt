@@ -23,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,7 +40,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pippop.data.GameKind
-import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.RoomStatus
 import com.pippop.game.golf.Box
@@ -59,7 +57,6 @@ import com.pippop.ui.SoloGolfUiState
 import com.pippop.ui.SoloGolfViewModel
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
-import com.pippop.ui.Takeover
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
 import com.pippop.ui.rememberSfx
@@ -67,7 +64,6 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.TextSize
-import kotlinx.coroutines.delay
 import kotlin.math.hypot
 
 private val Grass = GameColors.Grass
@@ -147,7 +143,11 @@ fun GolfMap(hole: Hole, balls: Map<Char, Pt?>, modifier: Modifier = Modifier) {
  * looked already seen, and the ball jumped to where it stopped without rolling there.)
  */
 @Composable
-fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onShoot: (ShotKind, Double, Double) -> Unit, modifier: Modifier = Modifier) {
+fun GolfPlay(
+    view: GolfView, current: Char?, canShoot: Boolean, game: Any, onShoot: (ShotKind, Double, Double) -> Unit, modifier: Modifier = Modifier,
+    /** The 3D course; a test swaps it for one that has no WebView. */
+    course: @Composable (Golf3DState, Golf3DShot?, (ShotKind, Double, Double) -> Unit, (String) -> Unit, Modifier) -> Unit = { st, sh, shoot, event, mod -> Golf3D(st, sh, shoot, event, mod) },
+) {
     val sfx = rememberSfx()
     val last = view.last
     // Shots already played when the screen opened (or the game started) don't play again.
@@ -163,16 +163,6 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         shot = Golf3DShot("$game-${last.seq}", "$game-${last.hole}", hole, last.who, markColor(last.who), worked.copy(frames = frames), last.hole + 1)
         sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()), others = last.who != 'm')
     }
-    // Nobody shoots while Kylian has the game.
-    val lockedUntil by Takeover.until.collectAsState()
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(lockedUntil) {
-        now = System.currentTimeMillis()
-        if (lockedUntil > now) {
-            delay(lockedUntil - now)
-            now = System.currentTimeMillis()
-        }
-    }
     val hole = view.holeAt(view.hole.coerceIn(0, view.holes - 1))
     // Every ball still out; one not hit yet is on the tee, shown when it's that player's turn
     // (yours always: your camera stands behind it).
@@ -186,15 +176,15 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         hole = hole,
         balls = balls + listOfNotNull(waiting),
         turn = current,
-        canShoot = canShoot && view.done['m'] != true && now >= lockedUntil,
+        canShoot = canShoot && view.done['m'] != true,
         noGuide = mine != null && hole.zoneAt(mine)?.type == ZoneType.EYES,
         number = view.hole + 1,
         meDone = view.done['m'] == true,
         timeOfDay = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current).profile.collectAsState().value.golfTime,
     )
-    Golf3D(
+    course(
         state, shot, onShoot,
-        onEvent = { what ->
+        { what ->
             val others = shot?.who != 'm'
             val v = if (others) Sfx.OTHERS else 1f
             when (what) {
@@ -204,10 +194,10 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
                 "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v, others = others)
                 "holed" -> sfx.play(Sound.GOLF_CUP)
                 "kylian" -> {
-                    // Kylian Dictador takes the next turn, and nobody shoots while his song plays;
-                    // his statue comes down in the 3D view. The song is as loud as your ball is near
-                    // him (full on your own shot, or once you've finished and are watching).
-                    Takeover.takeOver(Reaction.KYLIAN, System.currentTimeMillis())
+                    // His statue comes down in the 3D view and his song plays: a picture and a sound,
+                    // they never hold anyone's shot (the rules skip the player who landed there).
+                    // The song is as loud as your ball is near him (full on your own shot, or once
+                    // you've finished and are watching).
                     val played = shot
                     val volume = if (played == null || played.who == 'm' || view.done['m'] == true) 1f
                     else kylianVolume(hypot((view.balls['m'] ?: hole.tee).x - played.shot.end.x, (view.balls['m'] ?: hole.tee).y - played.shot.end.y))
@@ -215,7 +205,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
                 }
             }
         },
-        modifier = modifier.clip(Shapes.M),
+        modifier.clip(Shapes.M),
     )
 }
 

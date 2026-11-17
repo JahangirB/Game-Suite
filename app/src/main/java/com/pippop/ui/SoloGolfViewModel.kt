@@ -104,8 +104,6 @@ class SoloGolfViewModel : ViewModel() {
             var wait = firstWait
             while (_state.value.result == null && _state.value.turn != 'm') {
                 delay(wait + 500)
-                // While Kylian has the game, everyone waits.
-                while (Takeover.locked()) delay(250)
                 val m = match ?: return@launch
                 val mark = _state.value.turn
                 val hole = Golf.hole(m.course, m.hole)

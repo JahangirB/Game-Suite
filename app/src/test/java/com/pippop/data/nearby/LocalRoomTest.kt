@@ -295,6 +295,29 @@ class LocalShipsTest {
     }
 
     @Test
+    fun golfKylianSkipsOnlyWhoLandedAndTheNextShotIsAcceptedAtOnce() {
+        val room = LocalRoom("GLF1", "Ann", null, GameKind.GOLF)
+        val guest = room.join("Bob", null, null, listOf("golf"))
+        room.setTurnReady(LocalRoom.HOST, true, T0)
+        room.setTurnReady(guest, true, T0)
+        val now = T0 + 10_000
+        fun mine(role: String) = parseRoom(room.view(role, now)).turns!!.turn == "me"
+        fun shot(x: Double, y: Double, skip: Boolean = false) =
+            org.json.JSONObject().put("angle", 1.0).put("power", 0.5).put("x", x).put("y", y).put("holed", false).put("skip", skip)
+        val first = if (mine(LocalRoom.HOST)) LocalRoom.HOST else guest
+        val second = if (first == LocalRoom.HOST) guest else LocalRoom.HOST
+        room.move(first, shot(0.5, 2.0, skip = true), now)
+        // His song plays: nobody's shot waits for it.
+        room.sendEmoji(first, Reaction.KYLIAN, now)
+        assertTrue(mine(second))
+        room.move(second, shot(0.5, 1.5), now)
+        // Only the player who landed lost a turn: with two, the other plays again.
+        assertTrue(mine(second))
+        room.move(second, shot(0.5, 1.2), now + 1)
+        assertTrue(mine(first))
+    }
+
+    @Test
     fun dominoesTeamsWinTogether() {
         val room = LocalRoom("DOM1", "Ann", null, com.pippop.data.GameKind.DOMINOES)
         val guests = listOf("Bob", "Cy", "Di").map { room.join(it, null, null, listOf("dominoes")) }

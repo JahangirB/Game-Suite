@@ -28,28 +28,31 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
 
     fun total(m: Char) = strokes.getValue(m).sum()
 
-    private fun nextOut(mark: Char): Char? {
-        var i = marks.indexOf(mark)
-        repeat(marks.size) {
-            i = (i + 1) % marks.size
-            if (done[marks[i]] != true) return marks[i]
-        }
-        return null
+    /** The players still out on this hole in turn order after [mark], [mark] (if still out) last. */
+    private fun outAfter(mark: Char): List<Char> {
+        val i = marks.indexOf(mark)
+        return List(marks.size) { marks[(i + 1 + it) % marks.size] }.filter { done[it] != true }
     }
 
     /**
-     * Who plays after [mark]: the next player still out, passing over one whose turn Kylian
-     * took. If nobody else is out, the turn lost is a shot added instead.
+     * Who plays after [mark]: the next player still out, passing over each one whose turn Kylian
+     * took (once each). If every one still out lost a turn, they are all given back and play goes
+     * on in order; a player alone on the hole has the turn lost as a shot added instead.
      */
     private fun nextTurn(mark: Char): Char? {
-        val next = nextOut(mark) ?: return null
-        if (skip[next] != true) return next
-        skip[next] = false
-        val after = nextOut(next)
-        if (after != null && after != next) return after
-        val mine = strokes.getValue(next)
-        mine[hole] = mine[hole] + 1
-        return next
+        val out = outAfter(mark)
+        if (out.isEmpty()) return null
+        val at = out.indexOfFirst { skip[it] != true }
+        if (at < 0) {
+            out.forEach { skip[it] = false }
+            if (out.size == 1) {
+                val mine = strokes.getValue(out[0])
+                mine[hole] = mine[hole] + 1
+            }
+            return out[0]
+        }
+        out.take(at).forEach { skip[it] = false }
+        return out[at]
     }
 
     override fun play(mark: Char, move: JSONObject): TurnResult {

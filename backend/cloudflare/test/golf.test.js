@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as golf from '../src/golf.js';
-import { createRoom, joinRoom, makeMove, setConnected, setOptions, setTurnReady, view } from '../src/room.js';
+import { createRoom, joinRoom, makeMove, sendEmoji, setConnected, setOptions, setTurnReady, view } from '../src/room.js';
 
 let ids = 0;
 const uuid = () => `p-${++ids}`;
@@ -138,4 +138,59 @@ test('alone on the hole, the turn Kylian takes is a shot added', () => {
   const t = golf.start(Math.random, ['h', 'g']);
   golf.play(t, 'h', { ...shot(0.5, 0.2, true), skip: true });
   assert.equal(t.skip.h, false);
+});
+
+test('Kylian takes the turn of the player who landed there only; the next player shoots at once', () => {
+  const room = createRoom('GOLF', 'Alice', T0, uuid, null, null, 'golf');
+  setConnected(room, 'host', true, T0);
+  const guest = joinRoom(room, 'Bob', null, T0, uuid, null, null, ['golf']);
+  setConnected(room, guest, true, T0);
+  setTurnReady(room, 'host', true, T0);
+  setTurnReady(room, guest, true, T0);
+  const first = room.turn;
+  const second = first === 'host' ? guest : 'host';
+  // The first player's ball stops on Kylian; his statue song plays at the same moment.
+  makeMove(room, first, { ...shot(0.5, 2.6), skip: true }, T0 + 1000);
+  sendEmoji(room, first, 'kylian', T0 + 1000);
+  assert.equal(room.turn, second);
+  // The next player shoots in the very same moment, and again while the song still plays.
+  makeMove(room, second, shot(0.5, 2.5), T0 + 1000);
+  assert.deepEqual(room.turnState.skip, { h: false, g: false });
+  assert.equal(room.turn, second, 'only the player who landed on Kylian lost a turn');
+  makeMove(room, second, shot(0.5, 2.4), T0 + 1001);
+  assert.equal(room.turn, first);
+});
+
+test('two players on Kylian one after the other each lose their next turn', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  const k = (x, y) => ({ ...shot(x, y), skip: true });
+  assert.equal(golf.play(s, 'h', k(0.5, 2.0)).turn, 'g');
+  // Both owe a turn: they are given back and play goes on in order.
+  assert.equal(golf.play(s, 'g', k(0.5, 2.1)).turn, 'h');
+  assert.deepEqual(s.skip, { h: false, g: false });
+  assert.equal(golf.play(s, 'h', shot(0.5, 1.5)).turn, 'g');
+  assert.equal(golf.play(s, 'g', shot(0.5, 1.5)).turn, 'h');
+});
+
+test('three players: two landing on Kylian back to back both lose a turn', () => {
+  const s = golf.start(Math.random, ['h', 'g', '3']);
+  const k = (x, y) => ({ ...shot(x, y), skip: true });
+  assert.equal(golf.play(s, 'h', k(0.5, 2.0)).turn, 'g');
+  assert.equal(golf.play(s, 'g', k(0.5, 2.1)).turn, '3');
+  // h and g are both passed over: 3 plays again.
+  assert.equal(golf.play(s, '3', shot(0.5, 1.5)).turn, '3');
+  assert.equal(golf.play(s, '3', shot(0.5, 1.4)).turn, 'h');
+  assert.equal(golf.play(s, 'h', shot(0.5, 1.5)).turn, 'g');
+  assert.equal(golf.play(s, 'g', shot(0.5, 1.5)).turn, '3');
+});
+
+test('everyone landing on Kylian never stalls the game', () => {
+  const s = golf.start(Math.random, ['h', 'g', '3']);
+  const k = (x, y) => ({ ...shot(x, y), skip: true });
+  golf.play(s, 'h', k(0.5, 2.0));
+  golf.play(s, 'g', k(0.5, 2.1));
+  assert.equal(golf.play(s, '3', k(0.5, 2.2)).turn, 'h');
+  assert.deepEqual(s.skip, { h: false, g: false, 3: false });
+  assert.equal(golf.play(s, 'h', shot(0.5, 1.5)).turn, 'g');
+  assert.equal(golf.play(s, 'g', shot(0.5, 1.5)).turn, '3');
 });

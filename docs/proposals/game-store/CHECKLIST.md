@@ -34,8 +34,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 8. Colour Clash: the dictator card just gives +8**
   - [x] No lock, no animation; +8 to the next player; tested in all servers and on the phone
     (the lock lived only on the phone; Apps Script has no Colour Clash)
-- [ ] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
-  - [ ] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
+- [x] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
+  - [x] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
+    (the lock was the phone's 11 s take-over; the rules also now skip two Kylian landings in a row correctly)
 - [ ] **Step 10. Mini Golf: an unfinished hole costs 5**
   - [ ] Scoring, totals, result and rules; tested in every place
 - [ ] **Step 11. Mini Golf: no score strip at the top**

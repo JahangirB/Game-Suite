@@ -55,29 +55,29 @@ export function start(random = Math.random, marks = ['h', 'g'], options = {}) {
 const result = (turn, extra = {}) => ({ again: false, over: false, winner: null, reason: null, turn, ...extra });
 const total = (s, m) => s.strokes[m].reduce((a, b) => a + b, 0);
 
-/** The next player after [mark] still out on this hole. */
-function nextOut(s, mark) {
+/** The players still out on this hole in turn order after [mark], [mark] (if still out) last. */
+function outAfter(s, mark) {
   const n = s.marks.length;
-  let i = s.marks.indexOf(mark);
-  for (let k = 0; k < n; k++) {
-    i = (i + 1) % n;
-    if (!s.done[s.marks[i]]) return s.marks[i];
-  }
-  return null;
+  const i = s.marks.indexOf(mark);
+  return Array.from({ length: n }, (_, k) => s.marks[(i + 1 + k) % n]).filter((m) => !s.done[m]);
 }
 
 /**
- * Who plays after [mark]: the next player still out, passing over one whose turn Kylian took.
- * If nobody else is out, the turn lost is a shot added instead.
+ * Who plays after [mark]: the next player still out, passing over each one whose turn Kylian
+ * took (once each). If every one still out lost a turn, they are all given back and play goes on
+ * in order; a player alone on the hole has the turn lost as a shot added instead.
  */
 function nextTurn(s, mark) {
-  const next = nextOut(s, mark);
-  if (!next || !s.skip?.[next]) return next;
-  s.skip[next] = false;
-  const after = nextOut(s, next);
-  if (after && after !== next) return after;
-  s.strokes[next][s.hole] += 1;
-  return next;
+  const out = outAfter(s, mark);
+  if (!out.length) return null;
+  const at = out.findIndex((m) => !s.skip?.[m]);
+  if (at < 0) {
+    out.forEach((m) => { s.skip[m] = false; });
+    if (out.length === 1) s.strokes[out[0]][s.hole] += 1;
+    return out[0];
+  }
+  out.slice(0, at).forEach((m) => { s.skip[m] = false; });
+  return out[at];
 }
 
 // The holes are 1 wide and 3.2 long (older ones 1.6).
