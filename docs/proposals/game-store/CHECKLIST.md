@@ -43,8 +43,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 11. Mini Golf: no score strip at the top**
   - [x] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
     (for the last pass: Rematch sits below the scorecard on the result; solo header with 3 computers wraps)
-- [ ] **Step 12. Dominoes: no number circles at the line's ends**
-  - [ ] Circles gone; choosing an end still works (48 dp); open numbers read out
+- [x] **Step 12. Dominoes: no number circles at the line's ends**
+  - [x] Circles gone; choosing an end still works (48 dp); open numbers read out
+    (the "On the 3 / On the 5" buttons stay; the end tiles are also tappable now)
 - [ ] **Step 13. The last pass**
   - [ ] All checks pass locally; the last CI run is green; the preview is from it
   - [ ] Every changed screen looked at in light and dark

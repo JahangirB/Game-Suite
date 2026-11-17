@@ -22,6 +22,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,17 +46,17 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlin.math.roundToInt
 import kotlin.math.abs
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
@@ -62,6 +65,7 @@ import com.pippop.data.TileLook
 import com.pippop.game.dominoes.DominoLayout
 import com.pippop.game.dominoes.DominoOptions
 import com.pippop.game.dominoes.DominoView
+import com.pippop.game.dominoes.PlacedTile
 import com.pippop.game.dominoes.Dominoes
 import com.pippop.game.dominoes.Tile
 import com.pippop.ui.BattleUiState
@@ -150,19 +154,55 @@ private fun DrawScope.pips(c: Offset, side: Float, n: Int, paint: TilePaint) {
     }
 }
 
+/** Where the line sits on a board [size] wide and high: a tile unit in px, and the line's top left. */
+private class LineGeo(val unit: Float, val left: Float, val top: Float)
+
+private fun lineGeo(placed: List<PlacedTile>, size: Size, pad: Float, cap: Float): LineGeo {
+    val minX = placed.minOf { it.x }
+    val minY = placed.minOf { it.y }
+    val w = placed.maxOf { it.x + it.w } - minX
+    val h = placed.maxOf { it.y + it.h } - minY
+    // Half a tile is at most 32 dp, so the first few tiles don't fill the table.
+    val unit = minOf((size.width - 2 * pad) / w, (size.height - 2 * pad) / h, cap)
+    return LineGeo(unit, (size.width - w * unit) / 2 - minX * unit, (size.height - h * unit) / 2 - minY * unit)
+}
+
+/** An open end of the line: the end tile's centre, the way out of it, and the tile's length that way, in px. */
+private class EndSpot(val centre: Offset, val dir: Offset, val along: Float, val tileW: Float, val tileH: Float) {
+    /** The middle of the tile's outer edge. */
+    val edge get() = centre + dir * (along / 2)
+}
+
+private fun endSpot(placed: List<PlacedTile>, geo: LineGeo, left: Boolean): EndSpot {
+    val i = if (left) 0 else placed.lastIndex
+    val t = placed[i]
+    val c = Offset(geo.left + (t.x + t.w / 2) * geo.unit, geo.top + (t.y + t.h / 2) * geo.unit)
+    val dir = if (placed.size == 1) Offset(if (left) -1f else 1f, 0f) else {
+        val n = placed[if (left) 1 else i - 1]
+        val dx = c.x - (geo.left + (n.x + n.w / 2) * geo.unit)
+        val dy = c.y - (geo.top + (n.y + n.h / 2) * geo.unit)
+        if (abs(dx) >= abs(dy)) Offset(if (dx < 0) -1f else 1f, 0f) else Offset(0f, if (dy < 0) -1f else 1f)
+    }
+    return EndSpot(c, dir, (if (dir.x != 0f) t.w else t.h) * geo.unit, t.w * geo.unit, t.h * geo.unit)
+}
+
 /**
  * The line of play on the table, laid out like a real one: the round's first tile ([start]
  * in the line) in the middle, doubles across, turning near the edges, all scaled to fit. The
  * tile at [highlight] (the last one played) has a gold edge and slides in when [incoming]
- * changes: up from your hand ([fromBelow]) or down from the other side of the table. Each open
- * end has a gold ring with the number that fits there, pulsing gently on [myTurn].
+ * changes: up from your hand ([fromBelow]) or down from the other side of the table. The end
+ * tiles show the open numbers themselves; screen readers hear them as "Open ends: 3 and 5".
+ * While a tile is picked, each end in [pickEnds] ("left" or "right") has its outer half edged
+ * in gold, pulsing gently on [myTurn], and a target of at least 48 dp that calls [onEnd].
  */
 @Composable
-fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true, myTurn: Boolean = false) {
+fun DominoLine(
+    line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier = Modifier, incoming: Any? = null, fromBelow: Boolean = true, myTurn: Boolean = false,
+    pickEnds: Set<String> = emptySet(), onEnd: ((String) -> Unit)? = null,
+) {
     val shape = Shapes.L
     val tile = LocalLooks.current.tile
     val beat by loopingFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), still = 1f, label = "ends")
-    val digits = rememberTextMeasurer()
     val slide = remember { Animatable(1f) }
     val sfx = rememberSfx()
     var seen by remember { mutableStateOf(false) }
@@ -178,57 +218,59 @@ fun DominoLine(line: List<Tile>, start: Int, highlight: Int?, modifier: Modifier
         sfx.play(Sound.PIECE_PLACE, if (fromBelow) 1f else Sfx.OTHERS, others = !fromBelow)
     }
     val placed = remember(line, start) { DominoLayout.layout(line, start) }
-    Canvas(modifier.clip(shape).border(6.dp, Brush.verticalGradient(listOf(Wood.lighter(0.2f), Wood.darker(0.2f))), shape)) {
-        // Green felt, darker towards the edge.
-        drawRect(Brush.radialGradient(0f to Felt, 0.55f to Felt, 1f to Felt.darker(0.4f), center = center, radius = maxOf(size.width, size.height) * 0.75f))
-        if (placed.isEmpty()) return@Canvas
-        val pad = 12.dp.toPx()
-        val minX = placed.minOf { it.x }
-        val minY = placed.minOf { it.y }
-        val w = placed.maxOf { it.x + it.w } - minX
-        val h = placed.maxOf { it.y + it.h } - minY
-        // Half a tile is at most 32 dp, so the first few tiles don't fill the table.
-        val unit = minOf((size.width - 2 * pad) / w, (size.height - 2 * pad) / h, 32.dp.toPx())
-        val left = (size.width - w * unit) / 2 - minX * unit
-        val top = (size.height - h * unit) / 2 - minY * unit
-        placed.forEachIndexed { i, t ->
-            var offset = Offset(left + t.x * unit, top + t.y * unit)
-            if (i == highlight && slide.value < 1f) {
-                // From the bottom edge (your hand) or the top (everyone else), turning as it comes.
-                val k = 1f - slide.value
-                offset += Offset(0f, (if (fromBelow) size.height - offset.y else -offset.y - t.h * unit) * k)
+    val pulse = if (myTurn) 0.6f + 0.4f * beat else 1f
+    val openEnds = if (line.isEmpty()) null else "Open ends: ${line.first().a} and ${line.last().b}"
+    BoxWithConstraints(modifier.semantics { openEnds?.let { contentDescription = it } }) {
+        val density = LocalDensity.current
+        val board = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val pad = with(density) { 12.dp.toPx() }
+        val cap = with(density) { 32.dp.toPx() }
+        Canvas(Modifier.fillMaxSize().clip(shape).border(6.dp, Brush.verticalGradient(listOf(Wood.lighter(0.2f), Wood.darker(0.2f))), shape)) {
+            // Green felt, darker towards the edge.
+            drawRect(Brush.radialGradient(0f to Felt, 0.55f to Felt, 1f to Felt.darker(0.4f), center = center, radius = maxOf(size.width, size.height) * 0.75f))
+            if (placed.isEmpty()) return@Canvas
+            val geo = lineGeo(placed, size, pad, cap)
+            val unit = geo.unit
+            placed.forEachIndexed { i, t ->
+                var offset = Offset(geo.left + t.x * unit, geo.top + t.y * unit)
+                if (i == highlight && slide.value < 1f) {
+                    // From the bottom edge (your hand) or the top (everyone else), turning as it comes.
+                    val k = 1f - slide.value
+                    offset += Offset(0f, (if (fromBelow) size.height - offset.y else -offset.y - t.h * unit) * k)
+                }
+                drawDomino(offset + Offset(1f, 1f), Size(t.w * unit - 2f, t.h * unit - 2f), t.first, t.second, highlight = i == highlight, look = tile)
             }
-            drawDomino(offset + Offset(1f, 1f), Size(t.w * unit - 2f, t.h * unit - 2f), t.first, t.second, highlight = i == highlight, look = tile)
-        }
-        // A ring just beyond each open end of the line, showing the number that fits there.
-        val ringR = maxOf(unit * 0.6f, 11.dp.toPx())
-        val grow = if (myTurn) 1f + 0.1f * beat else 1f
-        val glow = if (myTurn) 0.6f + 0.4f * beat else 1f
-        fun ring(i: Int, neighbour: Int?, outward: Float, number: Int) {
-            val t = placed[i]
-            val c = Offset(left + (t.x + t.w / 2) * unit, top + (t.y + t.h / 2) * unit)
-            val dir = if (neighbour == null) Offset(outward, 0f) else {
-                val n = placed[neighbour]
-                val dx = c.x - (left + (n.x + n.w / 2) * unit)
-                val dy = c.y - (top + (n.y + n.h / 2) * unit)
-                if (abs(dx) >= abs(dy)) Offset(if (dx < 0) -1f else 1f, 0f) else Offset(0f, if (dy < 0) -1f else 1f)
+            // A picked tile fits here: the open half of the end tile, edged in gold.
+            pickEnds.forEach { end ->
+                val e = endSpot(placed, geo, end == "left")
+                val half = Offset(e.dir.x * e.along / 4, e.dir.y * e.along / 4)
+                val at = e.centre + half
+                val boxSize = if (e.dir.x != 0f) Size(e.along / 2, e.tileH) else Size(e.tileW, e.along / 2)
+                val topLeft = at - Offset(boxSize.width / 2, boxSize.height / 2)
+                val corner = CornerRadius(minOf(e.tileW, e.tileH) * 0.18f)
+                drawRoundRect(Glow.copy(alpha = 0.3f * pulse), topLeft, boxSize, corner)
+                drawRoundRect(Glow.copy(alpha = pulse), topLeft, boxSize, corner, style = Stroke(3.dp.toPx()))
             }
-            val along = (if (dir.x != 0f) t.w else t.h) * unit
-            val edge = 8.dp.toPx()
-            val ideal = c + dir * (along / 2 + ringR + 2.dp.toPx())
-            // The full ring only where it fits on the felt, clear of the wooden rim and the tile;
-            // otherwise a small badge on the tile's outer half.
-            val most = ringR * 1.1f + 1.25.dp.toPx()
-            val fits = ideal.x in (most + edge)..(size.width - most - edge) && ideal.y in (most + edge)..(size.height - most - edge)
-            val at = if (fits) ideal else c + dir * (along / 4)
-            val r = (if (fits) ringR else unit * 0.45f) * grow
-            drawCircle(Felt.darker(0.45f).copy(alpha = 0.7f), r, at)
-            drawCircle(Glow.copy(alpha = glow), r, at, style = Stroke(2.5.dp.toPx()))
-            val text = digits.measure("$number", TextStyle(fontSize = TextSize.Label, fontWeight = FontWeight.Bold))
-            drawText(text, Color.White, at - Offset(text.size.width / 2f, text.size.height / 2f))
         }
-        ring(0, if (placed.size > 1) 1 else null, -1f, line.first().a)
-        ring(placed.lastIndex, if (placed.size > 1) placed.lastIndex - 1 else null, 1f, line.last().b)
+        if (placed.isNotEmpty() && onEnd != null) {
+            val geo = lineGeo(placed, board, pad, cap)
+            val target = with(density) { 48.dp.toPx() }
+            pickEnds.sorted().forEach { end ->
+                val isLeft = end == "left"
+                val e = endSpot(placed, geo, isLeft)
+                // Centred on the tile's outer edge, so it reaches past the drawn tile, but kept on the felt.
+                val x = e.edge.x.coerceIn(target / 2, maxOf(target / 2, board.width - target / 2))
+                val y = e.edge.y.coerceIn(target / 2, maxOf(target / 2, board.height - target / 2))
+                val number = if (isLeft) line.first().a else line.last().b
+                Box(
+                    Modifier
+                        .offset { IntOffset((x - target / 2).roundToInt(), (y - target / 2).roundToInt()) }
+                        .size(48.dp)
+                        .semantics { contentDescription = "Play on the $number end" }
+                        .clickable(role = Role.Button) { onEnd(end) },
+                )
+            }
+        }
     }
 }
 
@@ -279,7 +321,7 @@ private fun dominoNews(view: DominoView, name: (Char) -> String): String? {
 
 /**
  * The line, your hand and your choices. Tapping a tile that fits only one end plays it; one
- * that fits both ends asks which. With nothing to play: Draw (the draw game) or Pass.
+ * that fits both ends lights up both ends of the line and waits for a tap on one, or on a button under the line. With nothing to play: Draw (the draw game) or Pass.
  */
 @Composable
 internal fun ColumnScope.DominoTable(
@@ -321,9 +363,15 @@ internal fun ColumnScope.DominoTable(
         val theirs = move?.who != 'm'
         play(Sound.DOMINO_KNOCK, if (theirs) Sfx.OTHERS else 1f, others = theirs)
     }
-    BoardArea(LINE_ASPECT) { size -> DominoLine(view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm', myTurn = canMove) }
-
     val chosen = selected
+    // A picked tile that fits both ends (with different numbers) asks which end: the ends light up and can be tapped.
+    val pickEnds = if (canMove && chosen != null) Dominoes.fits(view.line, view.hand[chosen]).toSet() else emptySet()
+    BoardArea(LINE_ASPECT) { size ->
+        DominoLine(
+            view.line, view.start, lastIndex, size, incoming = move?.takeIf { it.tile != null }, fromBelow = move?.who == 'm', myTurn = canMove,
+            pickEnds = pickEnds, onEnd = chosen?.let { i -> { end: String -> onPlay(i, end) } },
+        )
+    }
     if (canMove && chosen != null && view.line.isNotEmpty()) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             SecondaryButton("◀ On the ${view.line.first().a}", { onPlay(chosen, "left") }, Modifier.weight(1f))

@@ -189,7 +189,7 @@ class ScreenshotTest {
 
     @Test fun sudokuDark() = shot("sudoku", dark = true) { sudoku() }
 
-    // Dominoes mid-game on your turn: the line with a ringed number at each open end, and a hand
+    // Dominoes mid-game on your turn: the line (the end tiles show the open numbers, no circles), and a hand
     // where three tiles fit (they stand up with a gold edge) and three fade back.
     @Composable
     private fun dominoes() = Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
