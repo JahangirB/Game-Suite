@@ -129,7 +129,8 @@ jobs:
           # PipPop.apk is the name the preview's updater asks for; PipPopPreview.apk is for the download link.
           cp app/build/outputs/apk/preview/app-preview.apk PipPop.apk
           cp app/build/outputs/apk/preview/app-preview.apk PipPopPreview.apk
-          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"1.0.${GITHUB_RUN_NUMBER}-preview\"}" > version.json
+          NAME=$(grep '^versionName=' app/version.properties | cut -d= -f2)
+          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"${NAME}-preview.${GITHUB_RUN_NUMBER}\"}" > version.json
           cat version.json
           gh release delete preview --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release create preview PipPop.apk PipPopPreview.apk version.json \
@@ -137,7 +138,7 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --latest=false \
-            --title "Pip & Pop Preview 1.0.${GITHUB_RUN_NUMBER}" \
+            --title "Pip & Pop Preview ${NAME}-preview.${GITHUB_RUN_NUMBER}" \
             --notes "The preview app, built from commit ${GITHUB_SHA::7} of ${GITHUB_REF_NAME}. It installs next to the real Pip & Pop and keeps its own data. Install PipPopPreview.apk."
 
   # Publishes the APK as the "latest" release, which the README download button points to.
@@ -150,6 +151,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only the version name is read from the repository.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/version.properties
       - uses: actions/download-artifact@v4
         with:
           name: pip-pop-debug-apk
@@ -170,11 +175,12 @@ jobs:
           mv app-debug.apk ArcadeSudoku.apk
           # The app's updater reads this to see whether a newer build exists.
           # versionCode is the run number, the same value Gradle used for this build.
-          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"1.0.${GITHUB_RUN_NUMBER}\"}" > version.json
+          NAME=$(grep '^versionName=' app/version.properties | cut -d= -f2)
+          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"versionName\": \"${NAME}\"}" > version.json
           cat version.json
           gh release delete latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release create latest PipPop.apk GameSuite.apk ArcadeSudoku.apk version.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Pip & Pop 1.0.${GITHUB_RUN_NUMBER}" \
+            --title "Pip & Pop ${NAME}" \
             --notes "Built from commit ${GITHUB_SHA::7}. Install PipPop.apk on an Android phone (allow installs from unknown sources)."

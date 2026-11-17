@@ -16,7 +16,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -217,14 +221,16 @@ fun GolfPlay(
 internal fun kylianVolume(distance: Double): Float = (1.0 / (1.0 + (distance / 0.6) * (distance / 0.6))).coerceIn(0.06, 1.0).toFloat()
 
 /** "Hole 3 of 9 · par 3" and everyone's total so far. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>, totals: Boolean = false) {
+internal fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>, totals: Boolean = false) {
     val p = AppTheme.palette
     val hole = view.holeAt()
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    // A flow, not a row: with three computers the players' totals wrap to a second line instead of breaking mid-name.
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.M), verticalArrangement = Arrangement.spacedBy(Space.XS)) {
         Text("Hole ${view.hole + 1} of ${view.holes} · par ${hole.par}", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         // Online, the players' chips carry the totals; on your own there are no chips, so they are here.
-        if (totals) Text(names.joinToString("  ") { (m, n) -> "$n ${golfTotals(view, m)}" }, color = p.muted, fontSize = TextSize.Body)
+        if (totals) names.forEach { (m, n) -> Text("$n ${golfTotals(view, m)}", color = p.muted, fontSize = TextSize.Body) }
     }
 }
 
@@ -306,21 +312,31 @@ private fun scoreSpeech(view: GolfView, who: Char) = (0 until view.holes).mapNot
     } + if (i in view.unfinished[who].orEmpty()) ", not in, ${Golf.UNFINISHED_PENALTY} added" else ""
 }.joinToString("; ")
 
-/** The full card ([compact]: without the line explaining the colours): par, then each player's nine holes, with a note under anyone picked up on a hole. */
+/**
+ * The full card: par, then each player's nine holes, with a note under anyone picked up on a hole.
+ * [compact] (the result, where the card sits above the buttons) starts as just the par and each
+ * player's total, with "Show scorecard" one tap away to open the nine holes.
+ */
 @Composable
 internal fun GolfScorecard(view: GolfView, names: List<Pair<Char, String>>, compact: Boolean = false) {
     val p = AppTheme.palette
+    var open by remember { mutableStateOf(!compact) }
     Column(verticalArrangement = Arrangement.spacedBy(Space.M)) {
         val par = (0 until view.holes).sumOf { view.holeAt(it).par }
-        // On the result the card sits above its buttons, so it drops the explanation to stay short.
         if (!compact) Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
         Text(if (compact) "Par $par" else "Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-        ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
+        if (open) ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
         names.forEach { (m, n) ->
             val t = view.total(m)
             Text("$n · $t", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-            ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
+            if (open) ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
             unfinishedNote(view, m)?.let { Text(it, color = p.muted, fontSize = TextSize.Body) }
+        }
+        if (compact) {
+            Text(
+                if (open) "Hide scorecard" else "Show scorecard", color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { open = !open }.wrapContentHeight(Alignment.CenterVertically),
+            )
         }
     }
 }

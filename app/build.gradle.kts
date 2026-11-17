@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,6 +10,12 @@ plugins {
 // CI stamps each build with its run number, so every published APK has a higher versionCode
 // than the one before. Local builds are version 1 and never count as newer than a release.
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+
+// The name people see is set in app/version.properties (versionName=1.1.000). Without the file it
+// is 1.0.<run number>. Only versionCode (the run number) decides what counts as an update.
+val baseVersionName: String = file("version.properties").takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.reader().use { load(it) } }.getProperty("versionName")?.trim() }
+    ?.takeIf { it.isNotEmpty() } ?: "1.0.$buildNumber"
 
 // The id Android and Firebase know the app by. Set APP_ID to give your own build its own id
 // (so it can sit next to someone else's Pip & Pop). It stays com.gamesuite.app so installed
@@ -50,7 +58,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "1.0.$buildNumber"
+        versionName = baseVersionName
 
         for (key in listOf("PROJECT_ID", "SENDER_ID", "APP_ID", "API_KEY")) {
             buildConfigField("String", "FIREBASE_$key", "\"${firebase[key].orEmpty()}\"")
@@ -101,7 +109,8 @@ android {
         create("preview") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".preview"
-            versionNameSuffix = "-preview"
+            // 1.1.000-preview.<run>, so a published preview reads the same as its version.json.
+            versionNameSuffix = "-preview.$buildNumber"
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "PREVIEW", "true")
             buildConfigField("String", "NEARBY_SERVICE_ID", "\"com.arcade.sudoku.battle.preview\"")

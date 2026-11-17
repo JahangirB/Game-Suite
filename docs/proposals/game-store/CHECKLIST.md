@@ -47,7 +47,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Circles gone; choosing an end still works (48 dp); open numbers read out
     (the "On the 3 / On the 5" buttons stay; the end tiles are also tappable now)
 - [ ] **Step 13. The last pass**
-  - [ ] All checks pass locally; the last CI run is green; the preview is from it
-  - [ ] Every changed screen looked at in light and dark
-  - [ ] README updated
+  - [x] All checks pass locally; the last CI run is green; the preview is from it
+  - [x] Every changed screen looked at in light and dark
+  - [x] README updated
+  - [x] Version 1.1.000 from app/version.properties (owner); golf result keeps Rematch in view, solo header wraps cleanly
   - [ ] The owner has the report and the preview link

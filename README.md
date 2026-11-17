@@ -139,8 +139,19 @@ are never lost for being away, and the room waits up to a week.
 - **A new home.** Every game is its picture, three to a row. One bar connects you (Nearby,
   Online, or your saved partner). **Jump back in** shows your Sudoku in progress and the games
   you played last. The **Games** row has **Scores**, **Surprise us** (it picks a game that fits
-  the room) and **Arrange games**, where you can also put games away under **More games**. Once
-  connected, a room bar shows everyone's faces, who is waiting in which game, and **Leave**.
+  the room). Once connected, a room bar shows everyone's faces, who is waiting in which game, and **Leave**.
+- **Your shelf and the Game Store.** A phone starts with nine games on its shelf: Sudoku, Ship
+  Battle, Memory Pairs, Word Race, Tic-Tac-Toe, Dominoes, Colour Clash, Ludo and Mini Golf. The
+  rest wait in the **Game Store**, the card at the end of the shelf. Filter it (All, Puzzles,
+  Words, Party, Quick), tap **Get** and the game is on your shelf at once: nothing is downloaded,
+  every game is already inside the app. **Remove** puts a game back in the Store; its scores,
+  records and saved games are kept. Phones that already had the app also start from the nine.
+- **Hold a card to edit the shelf.** Hold any game card and the cards wiggle. **Drag** a card to
+  move it (with TalkBack, use move up and move down), tap the round **×** to remove a game
+  (a bar offers **Undo**), and a tap anywhere else ends editing. Holding never opens another screen.
+- **A partner picks a game you don't have.** When an invite, the lobby or *Another game* asks you
+  to play a game that is not on your shelf, a sheet says who wants to play what, with **Add and
+  join** or **Not now**. *Another game* lists only the games on your shelf, plus **All games**.
 - **A sheet for each game.** Tap a game to see how many play, about how long it takes and whether
   you take turns, race or play live. **Play solo** starts from there with your last setup, and
   **Change** edits it. Rules are a few short points, with **Show me how** for the walk-through.
@@ -442,7 +453,10 @@ by hand under *Profile → App*). If a newer build exists it offers to update, d
 opens Android's install screen. The first time, Android asks you to allow Pip & Pop to
 install apps; after that each update is two taps. Android only accepts the update if it is
 signed with the same key as the installed app, and it never installs without your
-confirmation. The offer is never shown during a battle. Version 1.0.N is the CI run number.
+confirmation. The offer is never shown during a battle. The updater compares the build number (Android's
+`versionCode`, the CI run number), not the version name, so the name can be anything.
+The version people see is set in `app/version.properties` (`versionName=1.1.000`); change that
+one line to release a new version. A preview shows it as `1.1.000-preview.N`.
 Builds older than the updater (anything installed before it existed) need one manual download.
 
 ## Make your own copy
