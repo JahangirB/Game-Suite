@@ -63,6 +63,7 @@ import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.TextSize
 import kotlin.math.hypot
 
@@ -244,7 +245,7 @@ private fun vsParText(vs: Int) = if (vs > 0) "+$vs" else if (vs == 0) "E" else "
  * green, bad ones (over par) red, level ones plain; [ringed] marks the hole being played.
  */
 @Composable
-private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, ringed: Boolean, modifier: Modifier = Modifier) {
+private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, ringed: Boolean, modifier: Modifier = Modifier, penalty: Boolean = false) {
     val p = AppTheme.palette
     Column(
         modifier
@@ -255,7 +256,8 @@ private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, rin
             .clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("$number", color = p.muted, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
+        // "+5": the ball was still out when the hole ended (the strokes below already include it).
+        Text(if (penalty) "$number +${Golf.UNFINISHED_PENALTY}" else "$number", color = if (penalty) p.text else p.muted, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
         Text(top, color = tone, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         Text(bottom, color = tone, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
     }
@@ -279,7 +281,7 @@ private fun ScoreRow(view: GolfView, who: Char?, modifier: Modifier = Modifier) 
                     s.vsPar > 0 -> p.bad
                     else -> p.text
                 }
-                ScoreCell(i + 1, s.strokes?.toString() ?: "–", s.vsPar?.let(::vsParText) ?: " ", tone, ringed, cell)
+                ScoreCell(i + 1, s.strokes?.toString() ?: "–", s.vsPar?.let(::vsParText) ?: " ", tone, ringed, cell, penalty = i in view.unfinished[who].orEmpty())
             }
         }
     }
@@ -294,8 +296,26 @@ private fun scoreSpeech(view: GolfView, who: Char) = (0 until view.holes).mapNot
         s.vsPar == 0 -> ", par"
         s.vsPar < 0 -> ", ${-s.vsPar} under par"
         else -> ", ${s.vsPar} over par"
-    }
+    } + if (i in view.unfinished[who].orEmpty()) ", not in, ${Golf.UNFINISHED_PENALTY} added" else ""
 }.joinToString("; ")
+
+/** The full card: par, then each player's nine holes, with a note under anyone picked up on a hole. */
+@Composable
+internal fun GolfScorecard(view: GolfView, names: List<Pair<Char, String>>) {
+    val p = AppTheme.palette
+    Column(verticalArrangement = Arrangement.spacedBy(Space.M)) {
+        val par = (0 until view.holes).sumOf { view.holeAt(it).par }
+        Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
+        Text("Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+        ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
+        names.forEach { (m, n) ->
+            val t = view.total(m)
+            Text("$n · $t", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+            ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
+            unfinishedNote(view, m)?.let { Text(it, color = p.muted, fontSize = TextSize.Body) }
+        }
+    }
+}
 
 /**
  * A strip under the header with your strokes on each of the nine holes (the hole you're on
@@ -306,17 +326,7 @@ private fun scoreSpeech(view: GolfView, who: Char) = (0 until view.holes).mapNot
 internal fun GolfScoreStrip(view: GolfView, names: List<Pair<Char, String>>) {
     val p = AppTheme.palette
     var open by remember { mutableStateOf(false) }
-    if (open) InfoSheet("Scorecard", onDismiss = { open = false }) {
-        val par = (0 until view.holes).sumOf { view.holeAt(it).par }
-        Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
-        Text("Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-        ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
-        names.forEach { (m, n) ->
-            val t = view.total(m)
-            Text("$n · $t", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-            ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
-        }
-    }
+    if (open) InfoSheet("Scorecard", onDismiss = { open = false }) { GolfScorecard(view, names) }
     LayoutBox(
         Modifier.fillMaxWidth().clip(Shapes.M).background(p.card)
             .clickable(onClickLabel = "Open the full scorecard", role = Role.Button) { open = true }
@@ -347,13 +357,19 @@ private fun yourShot(view: GolfView) = when (val left = view.left['m']) {
     else -> "Your shot: $left left to get in"
 }
 
+/** "Not in (+5): hole 3" or "holes 3, 7": the holes [who] was picked up on, or null when there were none. */
+private fun unfinishedNote(view: GolfView, who: Char): String? {
+    val holes = view.unfinished[who].orEmpty().filter { it < view.holes }.sorted()
+    return if (holes.isEmpty()) null else "Not in (+${Golf.UNFINISHED_PENALTY}): hole${if (holes.size > 1) "s" else ""} ${holes.joinToString(", ") { "${it + 1}" }}"
+}
+
 /** Scores per player for the result popup: total and against par. */
 private fun golfScores(view: GolfView, names: List<Pair<Char, String>>): List<String> {
     val par = (0 until view.holes).sumOf { view.holeAt(it).par }
     return names.map { (m, n) ->
         val t = view.total(m)
         val vs = t - par
-        "$n $t (${if (vs > 0) "+$vs" else if (vs == 0) "par" else "$vs"})"
+        "$n $t (${if (vs > 0) "+$vs" else if (vs == 0) "par" else "$vs"})" + (unfinishedNote(view, m)?.let { " ($it)" } ?: "")
     }
 }
 

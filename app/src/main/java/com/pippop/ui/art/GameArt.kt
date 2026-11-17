@@ -221,10 +221,10 @@ val GameKind.rules: List<RulePoint>
         GameKind.GOLF -> pts(
             "Goal" to "Nine holes. The fewest strokes wins.",
             "Aim" to "Swipe to turn round your ball. Pinch to see the whole hole; double-tap faces the flag.",
-            "Shoot" to "Slide up the bar on the right and let go. Low is a roll; high is a jump, over gaps and walls.",
+            "Shoot" to "Slide up the bar on the right and let go. Low rolls; high jumps over gaps and walls.",
             "Trouble" to "Off an island, or stopped on a pond: back to the tee. Sand slows a lot, grass a little.",
             "Sticker spots" to "Kylian takes your next turn. Fire sends you to the tee. Stonks throws you up the course. Portals swap you over. Hmm. Sure. hides your aim line.",
-            "Ending a hole" to "Once someone is in, the rest get three more shots. A ball still out scores one more.",
+            "Ending a hole" to "Once someone is in, the rest get three more shots. Not in when the hole ends? You score your strokes plus 5.",
         )
         GameKind.BLOCKS -> pts(
             "Goal" to "When nobody can place another piece, the most squares placed wins. Stuck players are skipped.",

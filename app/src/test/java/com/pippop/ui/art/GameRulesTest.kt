@@ -29,10 +29,10 @@ class GameRulesTest {
             listOf(
                 RulePoint("Goal", "Nine holes. The fewest strokes wins."),
                 RulePoint("Aim", "Swipe to turn round your ball. Pinch to see the whole hole; double-tap faces the flag."),
-                RulePoint("Shoot", "Slide up the bar on the right and let go. Low is a roll; high is a jump, over gaps and walls."),
+                RulePoint("Shoot", "Slide up the bar on the right and let go. Low rolls; high jumps over gaps and walls."),
                 RulePoint("Trouble", "Off an island, or stopped on a pond: back to the tee. Sand slows a lot, grass a little."),
                 RulePoint("Sticker spots", "Kylian takes your next turn. Fire sends you to the tee. Stonks throws you up the course. Portals swap you over. Hmm. Sure. hides your aim line."),
-                RulePoint("Ending a hole", "Once someone is in, the rest get three more shots. A ball still out scores one more."),
+                RulePoint("Ending a hole", "Once someone is in, the rest get three more shots. Not in when the hole ends? You score your strokes plus 5."),
             ),
             GameKind.GOLF.rules,
         )

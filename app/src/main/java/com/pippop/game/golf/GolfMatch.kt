@@ -21,12 +21,29 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
     private val deadline = marks.associateWith<Char, Int?> { null }.toMutableMap()
     /** Players whose next turn Kylian takes. */
     private val skip = marks.associateWith { false }.toMutableMap()
+    /** The holes each player was picked up on (their strokes there include the penalty). */
+    private val unfinished = marks.associateWith { mutableSetOf<Int>() }
     private var last: JSONObject? = null
     private var shots = 0
 
     override val firstMark: Char get() = marks[0]
 
     fun total(m: Char) = strokes.getValue(m).sum()
+
+    /**
+     * Picks [m] up if the stroke count they have reached ends their hole: the shots they were given
+     * after the first player was in are used up, or it is MAX_STROKES. The strokes taken plus the
+     * penalty are scored, once (the ball is done after this). Returns whether it picked them up.
+     */
+    private fun pickUp(m: Char): Boolean {
+        val mine = strokes.getValue(m)
+        val taken = mine[hole]
+        if (done[m] == true || !(deadline[m]?.let { taken >= it } == true || taken >= Golf.MAX_STROKES)) return false
+        done[m] = true
+        mine[hole] = taken + Golf.UNFINISHED_PENALTY
+        unfinished.getValue(m).add(hole)
+        return true
+    }
 
     /** The players still out on this hole in turn order after [mark], [mark] (if still out) last. */
     private fun outAfter(mark: Char): List<Char> {
@@ -46,8 +63,10 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
         if (at < 0) {
             out.forEach { skip[it] = false }
             if (out.size == 1) {
+                // The turn lost is a shot added, which can be the one that ends their hole.
                 val mine = strokes.getValue(out[0])
                 mine[hole] = mine[hole] + 1
+                if (pickUp(out[0])) return null
             }
             return out[0]
         }
@@ -70,15 +89,12 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
         val mine = strokes.getValue(mark)
         mine[hole] = mine[hole] + 1
         balls[mark] = Pt(x, y)
-        val taken = mine[hole]
         if (holed) {
             done[mark] = true
             // The first one in: everyone still out gets AFTER_FIRST_IN more shots.
             for (m in marks) if (done[m] != true && deadline[m] == null) deadline[m] = strokes.getValue(m)[hole] + Golf.AFTER_FIRST_IN
-        } else if (deadline[mark]?.let { taken >= it } == true || taken >= Golf.MAX_STROKES) {
-            // Picked up, with one more.
-            done[mark] = true
-            mine[hole] = taken + 1
+        } else {
+            pickUp(mark)
         }
         if (skipped && done[mark] != true) skip[mark] = true
         shots++
@@ -116,6 +132,7 @@ class GolfMatch(val marks: List<Char>, val course: List<Int> = Courses.pick(Golf
                 .put("strokes", each { JSONArray(strokes.getValue(it)) })
                 .put("balls", each { balls[it]?.toJson() ?: JSONObject.NULL })
                 .put("done", each { done.getValue(it) })
+                .put("unfinished", each { m -> JSONArray(strokes.getValue(m).indices.map { it in unfinished.getValue(m) }) })
                 .put("left", each { m -> deadline[m]?.takeIf { done[m] != true }?.let { it - strokes.getValue(m)[hole.coerceAtMost(HOLES - 1)] } ?: JSONObject.NULL })
                 .put(
                     "last",
@@ -162,6 +179,8 @@ data class GolfView(
     val course: List<Int>? = null,
     /** Shots left for each player still out once someone is in (absent before that). */
     val left: Map<Char, Int> = emptyMap(),
+    /** The holes each player was picked up on (strokes there include the penalty); empty from a server that predates it. */
+    val unfinished: Map<Char, Set<Int>> = emptyMap(),
 ) {
     fun total(who: Char) = strokes[who].orEmpty().sum()
 
@@ -192,6 +211,7 @@ data class GolfView(
                     )
                 },
                 left = each("left") { o, k -> if (o.isNull(k)) null else o.optInt(k) }.filterValues { it != null }.mapValues { it.value!! },
+                unfinished = each("unfinished") { o, k -> o.optJSONArray(k)?.let { a -> (0 until a.length()).filter { a.optBoolean(it) }.toSet() }.orEmpty() },
                 course = g.optJSONArray("course")?.let { a -> (0 until a.length()).map { a.optInt(it) } }?.takeIf { it.size >= GolfMatch.HOLES },
             )
         }

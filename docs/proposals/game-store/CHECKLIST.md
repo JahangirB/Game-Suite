@@ -37,8 +37,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
   - [x] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
     (the lock was the phone's 11 s take-over; the rules also now skip two Kylian landings in a row correctly)
-- [ ] **Step 10. Mini Golf: an unfinished hole costs 5**
-  - [ ] Scoring, totals, result and rules; tested in every place
+- [x] **Step 10. Mini Golf: an unfinished hole costs 5**
+  - [x] Scoring, totals, result and rules; tested in every place
+    (the penalty is inside the strokes, so older apps total it; an optional `unfinished` field marks the hole)
 - [ ] **Step 11. Mini Golf: no score strip at the top**
   - [ ] Strip gone; the course uses the space; totals on the chips; the scorecard in the result and menu
 - [ ] **Step 12. Dominoes: no number circles at the line's ends**

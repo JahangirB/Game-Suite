@@ -293,10 +293,12 @@ object Golf {
     const val PORTAL = 0.06
     /** How round an island's corners are, on screen and to the ball. */
     const val CORNER = 0.04
-    /** A safety net only: a hole ends when someone is in and the others have had their extra shots. */
+    /** A safety net only: a hole ends when someone is in and the others have had their extra shots (a hole nobody holes ends at this many strokes each). */
     const val MAX_STROKES = 20
     /** Once someone holes out, the shots everyone still out gets to finish. */
     const val AFTER_FIRST_IN = 3
+    /** What a ball still out when its hole ends adds to its strokes. */
+    const val UNFINISHED_PENALTY = 5
     /** How long phones show a lost ball sinking before it's back on the tee. */
     const val LOST_MS = 1100
 

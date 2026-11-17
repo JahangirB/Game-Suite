@@ -45,8 +45,8 @@ test('bad shots are refused; nobody is picked up before someone is in', () => {
   assert.equal(golf.view(s, 'g').golf.left.m, 2);
   golf.play(s, 'g', shot(0.5, 0.5));
   golf.play(s, 'g', shot(0.5, 0.5));
-  // Not in after those: picked up with one more, and on to the next hole.
-  assert.deepEqual(s.strokes.g, [14, 0]);
+  // Not in after those: picked up, the strokes taken plus 5, and on to the next hole.
+  assert.deepEqual(s.strokes.g, [18, 0]);
   assert.deepEqual(s.strokes.h, [11, 0]);
   assert.equal(s.hole, 1);
   assert.deepEqual(golf.view(s, 'g').golf.left, { m: null, o: null });
@@ -61,11 +61,11 @@ test('holing out within the three shots counts as usual, and twenty is a safety 
   assert.deepEqual(s.strokes.g, [2]);
   golf.play(s, '3', shot(0.5, 0.5));
   golf.play(s, '3', shot(0.5, 0.5));
-  assert.deepEqual(s.strokes['3'], [4, 0]);
+  assert.deepEqual(s.strokes['3'], [8, 0]);
   // Alone on a hole nobody finishes, the twentieth shot picks the ball up.
   const t = golf.start(Math.random, ['h']);
   for (let i = 0; i < golf.MAX_STROKES; i++) golf.play(t, 'h', shot(0.5, 0.5));
-  assert.deepEqual(t.strokes.h, [21, 0]);
+  assert.deepEqual(t.strokes.h, [25, 0]);
 });
 
 test('nine holes in a room; fewest strokes wins', () => {
@@ -193,4 +193,55 @@ test('everyone landing on Kylian never stalls the game', () => {
   assert.deepEqual(s.skip, { h: false, g: false, 3: false });
   assert.equal(golf.play(s, 'h', shot(0.5, 1.5)).turn, 'g');
   assert.equal(golf.play(s, 'g', shot(0.5, 1.5)).turn, '3');
+});
+
+test('a hole that ends with a ball still out costs its strokes plus 5, once', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  golf.play(s, 'h', shot(0.5, 0.2, true));
+  for (let i = 0; i < golf.AFTER_FIRST_IN; i++) golf.play(s, 'g', shot(0.5, 0.5));
+  // Holed out: no penalty. Not in: 3 shots plus 5.
+  assert.deepEqual(s.strokes, { h: [1, 0], g: [8, 0] });
+  const v = golf.view(s, 'h').golf;
+  assert.deepEqual(v.strokes.o, [8, 0]);
+  assert.deepEqual(v.unfinished, { m: [false, false], o: [true, false] });
+  // Re-reading the state, or a second look from the other seat, adds nothing.
+  assert.deepEqual(golf.view(s, 'h').golf.strokes, v.strokes);
+  assert.deepEqual(golf.view(s, 'g').golf.strokes.m, [8, 0]);
+  // The next hole has started; the one before keeps its score.
+  assert.deepEqual(s.strokes.g, [8, 0]);
+});
+
+test('a state saved before the penalty (no unfinished list) still plays and shows', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  delete s.unfinished;
+  assert.deepEqual(golf.view(s, 'h').golf.unfinished, { m: [false], o: [false] });
+});
+
+test('nobody holing out: each ball is picked up at twenty strokes, plus 5', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  for (let i = 0; i < golf.MAX_STROKES; i++) {
+    golf.play(s, 'h', shot(0.5, 0.5));
+    golf.play(s, 'g', shot(0.5, 0.5));
+  }
+  assert.equal(s.hole, 1);
+  assert.deepEqual(s.strokes, { h: [25, 0], g: [25, 0] });
+});
+
+test('Kylian taking the turn of the last shot left is a shot added that picks them up, plus 5', () => {
+  const s = golf.start(Math.random, ['h', 'g']);
+  golf.play(s, 'h', shot(0.5, 0.2, true));
+  golf.play(s, 'g', shot(0.5, 0.5));
+  // g's 2nd shot stops on Kylian: the shot added makes 3 of 3, so g is picked up (3 + 5), not given a 4th.
+  const r = golf.play(s, 'g', { ...shot(0.5, 2.0), skip: true });
+  assert.equal(s.hole, 1);
+  assert.deepEqual(s.strokes.g, [8, 0]);
+  assert.deepEqual(golf.view(s, 'h').golf.unfinished.o, [true, false]);
+  assert.equal(r.turn, 'g');
+});
+
+test('alone, Kylian on shot 19 makes 20 and the hole scores 25', () => {
+  const s = golf.start(Math.random, ['h']);
+  for (let i = 0; i < golf.MAX_STROKES - 2; i++) golf.play(s, 'h', shot(0.5, 0.5));
+  golf.play(s, 'h', { ...shot(0.5, 2.0), skip: true });
+  assert.deepEqual(s.strokes.h, [25, 0]);
 });

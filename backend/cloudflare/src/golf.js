@@ -7,7 +7,9 @@
 // player's next turn (passed over; if nobody else is still out, that turn is a shot added).
 // Everyone tees off in seat order, then whoever is still out plays in turn. Nobody is picked up
 // before someone is in: once the first player holes out, everyone still out gets AFTER_FIRST_IN
-// more shots, and a ball still out after those is picked up and scores one more. (MAX_STROKES
+// more shots, and a ball still out after those is picked up and scores its strokes plus
+// UNFINISHED_PENALTY (the penalty is in the stroke count itself, so older apps total it right;
+// `unfinished` in the view only says which holes had it). (MAX_STROKES
 // is only a safety net against a hole that never ends.) The player to start moves on a seat
 // each hole.
 //
@@ -19,6 +21,8 @@
 export const HOLES = 9;
 export const MAX_STROKES = 20;
 export const AFTER_FIRST_IN = 3;
+/** What a ball still out when its hole ends adds to its strokes. */
+export const UNFINISHED_PENALTY = 5;
 export const COURSES = 1000;
 const MEDIUM = 333;
 const HARD = 666;
@@ -55,6 +59,20 @@ export function start(random = Math.random, marks = ['h', 'g'], options = {}) {
 const result = (turn, extra = {}) => ({ again: false, over: false, winner: null, reason: null, turn, ...extra });
 const total = (s, m) => s.strokes[m].reduce((a, b) => a + b, 0);
 
+/**
+ * Picks [m] up if the stroke count they have reached ends their hole: the shots they were given
+ * after the first player was in are used up, or it is MAX_STROKES. The strokes taken plus the
+ * penalty are scored, once (the ball is done after this). Returns whether it picked them up.
+ */
+function pickUp(s, m) {
+  const taken = s.strokes[m][s.hole];
+  if (s.done[m] || !((s.deadline?.[m] != null && taken >= s.deadline[m]) || taken >= MAX_STROKES)) return false;
+  s.done[m] = true;
+  s.strokes[m][s.hole] = taken + UNFINISHED_PENALTY;
+  ((s.unfinished ||= {})[m] ||= [])[s.hole] = true;
+  return true;
+}
+
 /** The players still out on this hole in turn order after [mark], [mark] (if still out) last. */
 function outAfter(s, mark) {
   const n = s.marks.length;
@@ -73,7 +91,11 @@ function nextTurn(s, mark) {
   const at = out.findIndex((m) => !s.skip?.[m]);
   if (at < 0) {
     out.forEach((m) => { s.skip[m] = false; });
-    if (out.length === 1) s.strokes[out[0]][s.hole] += 1;
+    if (out.length === 1) {
+      // The turn lost is a shot added, which can be the one that ends their hole.
+      s.strokes[out[0]][s.hole] += 1;
+      if (pickUp(s, out[0])) return null;
+    }
     return out[0];
   }
   out.slice(0, at).forEach((m) => { s.skip[m] = false; });
@@ -98,17 +120,14 @@ export function play(s, mark, move) {
   s.deadline ||= {};
   s.strokes[mark][s.hole] += 1;
   s.balls[mark] = [x, y];
-  const taken = s.strokes[mark][s.hole];
   if (holed) {
     s.done[mark] = true;
     // The first one in: everyone still out gets AFTER_FIRST_IN more shots.
     for (const m of s.marks) {
       if (!s.done[m] && s.deadline[m] == null) s.deadline[m] = s.strokes[m][s.hole] + AFTER_FIRST_IN;
     }
-  } else if ((s.deadline[mark] != null && taken >= s.deadline[mark]) || taken >= MAX_STROKES) {
-    // Picked up, with one more.
-    s.done[mark] = true;
-    s.strokes[mark][s.hole] = taken + 1;
+  } else {
+    pickUp(s, mark);
   }
   s.skip ||= {};
   if (skipped && !s.done[mark]) s.skip[mark] = true;
@@ -147,6 +166,8 @@ export function view(s, mark, seats = {}) {
       strokes: each((m) => s.strokes[m]),
       balls: each((m) => s.balls[m]),
       done: each((m) => s.done[m]),
+      // Which holes each player was picked up on (their strokes there include the penalty).
+      unfinished: each((m) => s.strokes[m].map((_, i) => s.unfinished?.[m]?.[i] === true)),
       // Shots left for each player still out once someone is in; null before that.
       left: each((m) => (s.done[m] || s.deadline?.[m] == null ? null : s.deadline[m] - s.strokes[m][s.hole])),
       last: s.last ? { ...s.last, mark: undefined, who: who(s.last.mark) } : null,

@@ -449,7 +449,7 @@ private fun golf(): List<TutorialStep> {
         TutorialStep("Swipe, pinch, slide", "Swipe to turn round your ball and pinch to see the whole hole. Slide up the bar on the right and let go to shoot.", map(one, Pt(0.5, 2.3), null), aspect),
         TutorialStep("Roll or jump", "Low on the bar rolls; high jumps, over walls and the gaps between islands. Fall in the sea and you're back on the tee.", map(stickers, Pt(0.3, 2.7), Pt(0.6, 1.5)), aspect),
         TutorialStep("Sticker spots", "Kylian takes your next turn, the fire sends you back to the tee, Stonks throws you up the course, portals swap ends, and Hmm. Sure. hides your aim line.", map(stickers, Pt(0.2, 0.75), null), aspect),
-        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in by then: picked up, plus one.", map(stickers, Pt(0.24, 0.3), null), aspect),
+        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in when the hole ends? You score your strokes plus 5.", map(stickers, Pt(0.24, 0.3), null), aspect),
     )
 }
 
