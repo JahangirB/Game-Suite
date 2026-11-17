@@ -5,10 +5,12 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
 import com.pippop.data.GameKind
@@ -68,15 +70,71 @@ class HomeEditTest : ScreenshotBase() {
         compose.onNodeWithText("How to play").assertExists()
     }
 
-    @Test fun tappingACardInEditModeDoesNotOpenTheGame() {
+    @Test fun tappingACardInEditModeEndsEditingAndDoesNotOpenTheGame() {
         val h = host()
         edit(GameKind.LUDO)
         card(7).performClick()
         compose.waitForIdle()
         compose.onNodeWithText("How to play").assertDoesNotExistCompat()
         assertTrue(h.opened.isEmpty())
-        // And it is still editing.
+        compose.onNodeWithText(bar).assertDoesNotExistCompat()
+        compose.onNodeWithContentDescription("Remove Ludo").assertDoesNotExistCompat()
+    }
+
+    @Test fun tappingTheTopBarAreaOutsideDoneEndsEditingAndOpensNoProfile() {
+        val h = host()
+        edit(GameKind.LUDO)
+        compose.onNodeWithText(bar).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(bar).assertDoesNotExistCompat()
+        assertEquals(0, h.profileOpened)
+    }
+
+    @Test fun theTopBarsProfileButtonIsNotPressedThroughTheEditBar() {
+        val h = host()
+        edit(GameKind.LUDO)
+        // Where the avatar is in the normal bar: the right end of the bar, away from Done's centre.
+        compose.onNodeWithText(bar).performTouchInput { click(Offset(right - 4f, centerY)) }
+        compose.waitForIdle()
+        assertEquals(0, h.profileOpened)
+    }
+
+    @Test fun tappingAButtonWhileEditingOnlyEndsEditing() {
+        val h = host()
+        edit(GameKind.LUDO)
+        compose.onNodeWithText("Connect").performClick()
+        compose.waitForIdle()
+        assertEquals(0, h.connects)
+        compose.onNodeWithText(bar).assertDoesNotExistCompat()
+        // Out of editing it is a button again.
+        compose.onNodeWithText("Connect").performClick()
+        compose.waitForIdle()
+        assertEquals(1, h.connects)
+    }
+
+    @Test fun afterScrollingThePageATapOnACardEndsEditingAndOpensNothing() {
+        val all = GameKind.entries.toList()
+        val h = host(all)
+        val far = all[10]
+        compose.onNodeWithText(far.label).performScrollTo()
+        compose.waitForIdle()
+        edit(far)
         compose.onNodeWithText(bar).assertIsDisplayed()
+        card(10, all.size, all).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(bar).assertDoesNotExistCompat()
+        compose.onNodeWithText("How to play").assertDoesNotExistCompat()
+        assertTrue(h.opened.isEmpty())
+        // And it can be started again.
+        edit(far)
+        compose.onNodeWithText("Done").assertIsDisplayed()
+    }
+
+    @Test fun holdingACardWithoutMovingDoesNotEndEditingWhenLetGo() {
+        val h = frameHost()
+        enterEditByHolding(GameKind.LUDO)
+        compose.onNodeWithText(bar).assertIsDisplayed()
+        assertTrue(h.moves.isEmpty())
     }
 
     @Test fun doneLeavesEditMode() {
@@ -125,10 +183,10 @@ class HomeEditTest : ScreenshotBase() {
     }
 
     // Moves arrive one frame (16 ms) at a time, as a finger sends them, with the clock stepped by hand.
-    private fun frameHost(shelf: List<GameKind> = nine): HomeEditHost {
+    private fun frameHost(shelf: List<GameKind> = nine, reduceMotion: Boolean = true): HomeEditHost {
         val h = HomeEditHost(shelf)
         compose.mainClock.autoAdvance = false
-        compose.setContent { PipPopTheme(darkTheme = false) { h.Content() } }
+        compose.setContent { PipPopTheme(darkTheme = false) { h.Content(reduceMotion) } }
         compose.mainClock.advanceTimeBy(500)
         return h
     }
@@ -150,7 +208,7 @@ class HomeEditTest : ScreenshotBase() {
     private fun center(index: Int, shelf: List<GameKind>) =
         card(index, shelf.size, shelf).fetchSemanticsNode().boundsInRoot.center
 
-    private fun enterEditByHolding(game: GameKind, shelf: List<GameKind> = nine) {
+    private fun enterEditByHolding(game: GameKind, shelf: List<GameKind> = nine, slack: Float = 2f) {
         val at = shelf.indexOf(game)
         val node = compose.onNodeWithText(game.label).fetchSemanticsNode().boundsInRoot
         val other = shelf[(at + 1) % shelf.size]
@@ -161,14 +219,14 @@ class HomeEditTest : ScreenshotBase() {
         // grows a little about its centre (it is lifted), so its top has moved by no more than half of that growth.
         val held = card(at, shelf.size, shelf).fetchSemanticsNode().boundsInRoot
         assertEquals(node.top, held.top, node.height * 0.04f + 2f)
-        assertEquals(otherTop, card((at + 1) % shelf.size, shelf.size, shelf).fetchSemanticsNode().boundsInRoot.top, 2f)
+        assertEquals(otherTop, card((at + 1) % shelf.size, shelf.size, shelf).fetchSemanticsNode().boundsInRoot.top, slack)
         compose.onRoot().performTouchInput { up() }
         compose.mainClock.advanceTimeBy(500)
         // A card's bounds are read fresh only on a second look after its layer changed (the tree is refreshed by the first).
         card(at, shelf.size, shelf).fetchSemanticsNode()
         compose.mainClock.advanceTimeBy(500)
         // Let go, and the held card is back on its place to the pixel.
-        assertEquals(node.top, card(at, shelf.size, shelf).fetchSemanticsNode().boundsInRoot.top, 2f)
+        assertEquals(node.top, card(at, shelf.size, shelf).fetchSemanticsNode().boundsInRoot.top, slack)
     }
 
     private fun dragInEditMode(from: Int, to: Int) {
@@ -238,6 +296,134 @@ class HomeEditTest : ScreenshotBase() {
         compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithContentDescription("Sudoku, 1 of 9").assertExists()
         compose.onNodeWithText(bar).assertIsDisplayed()
+    }
+
+    // A card's bounds, read fresh (a layer-only change reaches the semantics tree on a second look).
+    private fun bounds(index: Int, shelf: List<GameKind> = nine): androidx.compose.ui.geometry.Rect {
+        card(index, shelf.size, shelf).fetchSemanticsNode()
+        return card(index, shelf.size, shelf).fetchSemanticsNode().boundsInRoot
+    }
+
+    // Frames until a card with this description is there (a move reaches the layout a frame or two after the finger).
+    private fun awaitCard(desc: String) {
+        repeat(8) {
+            if (compose.onAllNodesWithContentDescription(desc).fetchSemanticsNodes().isNotEmpty()) return
+            compose.mainClock.advanceTimeBy(16)
+        }
+    }
+
+    private fun boundsOf(desc: String): androidx.compose.ui.geometry.Rect {
+        compose.onNodeWithContentDescription(desc).fetchSemanticsNode()
+        return compose.onNodeWithContentDescription(desc).fetchSemanticsNode().boundsInRoot
+    }
+
+    @Test fun otherCardsGlideToTheirNewPlacesInAboutTwoHundredAndTwentyMilliseconds() {
+        val h = frameHost(reduceMotion = false)
+        enterEditByHolding(GameKind.LUDO, slack = 6f)
+        val ships = "Ship Battle, 2 of 9"
+        val start = boundsOf(ships).left
+        val home0 = bounds(0).left
+        compose.onRoot().performTouchInput { down(bounds(0).center) }
+        compose.mainClock.advanceTimeBy(700)
+        // Drag Sudoku onto the second place: Ship Battle should make room by moving to the first.
+        val target = Offset(start + 40f, bounds(0).center.y)
+        compose.onRoot().performTouchInput { moveTo(bounds(0).center + Offset(8f, 0f)) }
+        compose.mainClock.advanceTimeBy(16)
+        compose.onRoot().performTouchInput { moveTo(target) }
+        awaitCard("Ship Battle, 1 of 9")
+        val seen = mutableListOf<Float>()
+        repeat(8) {
+            seen += boundsOf("Ship Battle, 1 of 9").left
+            compose.mainClock.advanceTimeBy(16)
+        }
+        // Part-way: between where it was and where it is going, and not there yet.
+        assertTrue("seen $seen from $start to $home0", seen.any { it < start - 5f && it > home0 + 5f })
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(home0, boundsOf("Ship Battle, 1 of 9").left, 8f)
+        compose.onRoot().performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(600)
+        assertEquals(listOf(0 to 1), h.moves)
+    }
+
+    @Test fun theDroppedCardSettlesIntoItsPlaceWithoutAJump() {
+        frameHost(reduceMotion = false)
+        enterEditByHolding(GameKind.LUDO, slack = 6f)
+        val home = bounds(0)
+        compose.onRoot().performTouchInput { down(home.center) }
+        compose.mainClock.advanceTimeBy(700)
+        compose.onRoot().performTouchInput { moveTo(home.center + Offset(8f, 8f)) }
+        compose.mainClock.advanceTimeBy(16)
+        compose.onRoot().performTouchInput { moveTo(home.center + Offset(60f, 90f)) }
+        compose.mainClock.advanceTimeBy(16)
+        val held = boundsOf("Sudoku, 1 of 9").top
+        compose.onRoot().performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(48)
+        val mid = boundsOf("Sudoku, 1 of 9").top
+        // On its way down, not yet home, and not back at the start in one step.
+        assertTrue("held $held mid $mid home ${home.top}", mid > home.top + 2f && mid < held + 2f)
+        compose.mainClock.advanceTimeBy(400)
+        assertEquals(home.top, boundsOf("Sudoku, 1 of 9").top, 3f)
+    }
+
+    @Test fun underReducedMotionCardsChangePlaceWithoutSliding() {
+        frameHost(reduceMotion = true)
+        enterEditByHolding(GameKind.LUDO)
+        val start = boundsOf("Ship Battle, 2 of 9").left
+        val home0 = bounds(0).left
+        compose.onRoot().performTouchInput { down(bounds(0).center) }
+        compose.mainClock.advanceTimeBy(700)
+        compose.onRoot().performTouchInput { moveTo(bounds(0).center + Offset(8f, 0f)) }
+        compose.mainClock.advanceTimeBy(16)
+        compose.onRoot().performTouchInput { moveTo(Offset(start + 40f, bounds(0).center.y)) }
+        awaitCard("Ship Battle, 1 of 9")
+        repeat(10) {
+            // Never part-way: it is at its new place at once (fading in).
+            assertEquals(home0, boundsOf("Ship Battle, 1 of 9").left, 3f)
+            compose.mainClock.advanceTimeBy(16)
+        }
+        compose.onRoot().performTouchInput { up() }
+    }
+
+    // The tilt of a card, worked out from how far its box widens when it turns (width grows by about height x angle).
+    private fun tiltDegrees(desc: String, samples: Int): Pair<Double, Double> {
+        val widths = ArrayList<Float>()
+        var height = 0f
+        repeat(samples) {
+            compose.mainClock.advanceTimeBy(16)
+            val b = boundsOf(desc)
+            widths += b.width
+            height = maxOf(height, b.height)
+        }
+        val w = widths.min()
+        val spread = (widths.max() - w).toDouble()
+        // The box is wider than tall by about height x angle; with the least width as the upright card (the swing passes through upright).
+        return Math.toDegrees(spread / height) to widths.map { (it - w).toDouble() }.average()
+    }
+
+    @Test fun theWiggleIsGentleAndSlowAndAbsentUnderReducedMotion() {
+        frameHost(reduceMotion = false)
+        enterEditByHolding(GameKind.LUDO, slack = 6f)
+        // A full swing there and back is about 1.2 s; watch 1.4 s.
+        val (peak, _) = tiltDegrees("Ludo, 8 of 9", 90)
+        assertTrue("peak tilt $peak", peak in 0.5..1.7)
+    }
+
+    @Test fun cardsDoNotWiggleInStep() {
+        frameHost(reduceMotion = false)
+        enterEditByHolding(GameKind.LUDO, slack = 6f)
+        var apart = false
+        repeat(80) {
+            compose.mainClock.advanceTimeBy(16)
+            if (kotlin.math.abs(boundsOf("Ludo, 8 of 9").width - boundsOf("Sudoku, 1 of 9").width) > 1f) apart = true
+        }
+        assertTrue(apart)
+    }
+
+    @Test fun underReducedMotionTheCardsStandStill() {
+        frameHost(reduceMotion = true)
+        enterEditByHolding(GameKind.LUDO)
+        val (peak, _) = tiltDegrees("Ludo, 8 of 9", 90)
+        assertEquals(0.0, peak, 0.01)
     }
 
     @Test fun aQuickSwipeIsNotTakenAsAHold() {

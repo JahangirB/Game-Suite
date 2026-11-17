@@ -127,7 +127,10 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -233,17 +236,19 @@ fun HomeScreen(
     }
 
     val scroll = rememberScrollState()
-    // Holding a card edits the shelf in place: the cards wiggle, each has a ×, and they can be dragged. Done, Back or a tap on empty space ends it.
+    // Holding a card edits the shelf in place: the cards wiggle, each has a ×, and they can be dragged. Done, Back or a short tap anywhere (but on an ×) ends it.
     var editing by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = editing) { editing = false }
     LaunchedEffect(shelf.isEmpty()) { if (shelf.isEmpty()) editing = false }
     var viewport by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
-    Box(Modifier.fillMaxSize()) {
+    // Where the shelf's grid is (on screen): a tap there is the grid's business, a tap anywhere else in the page only ends editing.
+    var gridRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    Box(Modifier.fillMaxSize().pointerInput(editing) { if (editing) detectTapGestures { editing = false } }) {
       Column(Modifier.fillMaxSize()) {
         // While editing, the edit bar takes the top bar's place; the top bar stays (unseen, unread) so the height never changes.
         Box(Modifier.fillMaxWidth()) {
             HomeTopBar(
-                profile.avatar, scrolled = scroll.value > 0, onProfile = onProfile,
+                profile.avatar, scrolled = scroll.value > 0, onProfile = onProfile, enabled = !editing,
                 modifier = if (editing) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier,
             )
             if (editing) ShelfEditBar({ editing = false }, Modifier.matchParentSize())
@@ -251,7 +256,24 @@ fun HomeScreen(
         Column(
             modifier = Modifier.fillMaxWidth().weight(1f)
                 .onGloballyPositioned { viewport = it.boundsInRoot() }
-                .pointerInput(editing) { if (editing) detectTapGestures { editing = false } }
+                // While editing, a tap on anything but the shelf (Connect, the room bar, the notes, Jump back in...) only ends editing:
+                // the touch is taken before the button sees it. A swipe still scrolls.
+                .pointerInput(editing) {
+                    if (!editing) return@pointerInput
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        if (gridRect.contains(down.position + viewport.topLeft)) return@awaitEachGesture
+                        down.consume()
+                        var travelled = 0f
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                            travelled += (change.position - change.previousPosition).getDistance()
+                            if (travelled > viewConfiguration.touchSlop) return@awaitEachGesture
+                            if (!change.pressed) { editing = false; return@awaitEachGesture }
+                        }
+                    }
+                }
                 .verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -302,6 +324,7 @@ fun HomeScreen(
                     },
                     canEdit = { !flicking },
                     onEnterEdit = { editing = true },
+                    modifier = Modifier.onGloballyPositioned { gridRect = it.boundsInRoot() },
                     normalCard = { kind ->
                         RoomTile(kind, room, Modifier.reportTile(tiles, kind), highlight = lit == kind, onLongClick = { if (!flicking) editing = true }, onClick = { openGame(kind) })
                     },
@@ -798,7 +821,7 @@ internal const val HOME_TOP_BAR = "homeTopBar"
  * under it. The status bar's room comes from the app's Scaffold.
  */
 @Composable
-fun HomeTopBar(avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeTopBar(avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val p = AppTheme.palette
     Box(modifier.fillMaxWidth().background(p.background).testTag(HOME_TOP_BAR)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -811,7 +834,7 @@ fun HomeTopBar(avatar: Avatar?, scrolled: Boolean, onProfile: () -> Unit, modifi
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(48.dp).clip(CircleShape)
                     .semantics { contentDescription = "Profile and settings"; role = Role.Button }
-                    .clickable(onClick = onProfile),
+                    .clickable(enabled = enabled, onClick = onProfile),
             ) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
                     PlayerAvatar(FaceBook.YOU, p.accent, size = 32, avatar = avatar)

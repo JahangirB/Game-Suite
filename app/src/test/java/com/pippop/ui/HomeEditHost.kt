@@ -28,6 +28,7 @@ class HomeEditHost(start: List<GameKind>) {
     val opened = mutableListOf<GameKind>()
     val messages = mutableListOf<String>()
     var profileOpened = 0
+    var connects = 0
     var scoresOpened = 0
     var toast by mutableStateOf<Pair<String, () -> Unit>?>(null)
     var lastUndo: (() -> Unit)? = null
@@ -46,7 +47,7 @@ class HomeEditHost(start: List<GameKind>) {
                         shelf = shelf.toMutableList().apply { add(to, removeAt(from)) }
                     },
                     onRestoreToShelf = { g, at -> shelf = shelf.toMutableList().apply { add(at.coerceIn(0, size), g) } },
-                    partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {}, connected = false, onConnect = {},
+                    partnerBusy = false, onPlayWithPartner = {}, onInvitePartner = {}, onPlayMode = {}, connected = false, onConnect = { connects++ },
                     onMessage = { messages += it },
                     onUndoable = { m, undo -> lastUndo = undo; toast = m to undo },
                     now = 0L,

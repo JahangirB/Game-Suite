@@ -254,7 +254,7 @@ fun PipPopApp(
     }
 
     // A partner's pick that is not on the shelf: asked about in a sheet over the home (see PickGate).
-    val pickGate = remember { PickGate() }
+    val pickGate = rememberSaveable(saver = PickGate.Saver) { PickGate() }
     val pick = roomPick(battleState.room, profile.shelf)
 
     LaunchedEffect(battleState.message) {

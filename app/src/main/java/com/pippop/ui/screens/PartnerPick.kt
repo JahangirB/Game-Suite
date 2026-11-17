@@ -58,13 +58,27 @@ fun roomPick(room: RoomState?, shelf: List<GameKind>): PartnerPick? {
  * game asks again through [askAgain].
  */
 class PickGate {
-    private var snoozed by mutableStateOf<Triple<String, GameKind, Int>?>(null)
+    internal var snoozed by mutableStateOf<Triple<String, GameKind, Int>?>(null)
 
     /** The key of a pick: the room, its game and round, so a later pick of the same game is asked afresh. */
     internal fun keyOf(room: RoomState) = Triple(room.code, room.game, room.round)
     internal fun isSnoozed(key: Triple<String, GameKind, Int>) = snoozed == key
     internal fun snooze(key: Triple<String, GameKind, Int>) { snoozed = key }
     internal fun forget() { snoozed = null }
+
+    companion object {
+        /** Keeps "Not now" through a rotation, a dark-mode or font-size change: the room's code, the game's key and the round. */
+        val Saver: androidx.compose.runtime.saveable.Saver<PickGate, Any> = androidx.compose.runtime.saveable.Saver(
+            save = { gate -> gate.snoozed?.let { (code, game, round) -> listOf(code, game.key, round) } ?: emptyList<Any>() },
+            restore = { saved ->
+                val parts = saved as List<*>
+                PickGate().also { gate ->
+                    val game = GameKind.entries.firstOrNull { it.key == parts.getOrNull(1) }
+                    if (parts.size == 3 && game != null) gate.snoozed = Triple(parts[0] as String, game, parts[2] as Int)
+                }
+            },
+        )
+    }
 
     /** The home's "Join" on [game]: true when the sheet has to ask first (the join then waits for "Add and join"). */
     fun askAgain(pick: PartnerPick?, game: GameKind): Boolean {

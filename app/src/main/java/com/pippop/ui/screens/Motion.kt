@@ -51,6 +51,10 @@ object Motion {
     /** A letter dropping into its cell, and the gap before the next one starts. */
     const val DROP_MS = 300
     const val STAGGER_MS = 110
+    /** The other cards sliding to their new places while one is dragged on the shelf, and the dropped card settling into its place. */
+    const val GLIDE_MS = 220
+    /** A card changing place under reduced motion: it fades in at its new place instead of sliding. */
+    const val SHELF_FADE_MS = 120
 }
 
 /**

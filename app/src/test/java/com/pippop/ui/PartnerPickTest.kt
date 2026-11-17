@@ -27,7 +27,9 @@ import com.pippop.ui.screens.roomPick
 import com.pippop.ui.theme.PipPopTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -213,5 +215,18 @@ class PartnerPickTest : ScreenshotBase() {
         compose.waitForIdle()
         assertEquals(true, sheetShows())
         assertNotNull(roomPick(h.room, nine))
+    }
+
+    @Test fun notNowSurvivesASaveAndRestore() {
+        val gate = PickGate()
+        val key = Triple("K7Q2NB", GameKind.GOLF, 3)
+        gate.snooze(key)
+        val saved = with(PickGate.Saver) { androidx.compose.runtime.saveable.SaverScope { true }.save(gate) }!!
+        val back = PickGate.Saver.restore(saved)!!
+        assertTrue(back.isSnoozed(key))
+        assertFalse(back.isSnoozed(Triple("K7Q2NB", GameKind.GOLF, 4)))
+        // Nothing snoozed saves and restores as nothing snoozed.
+        val none = PickGate.Saver.restore(with(PickGate.Saver) { androidx.compose.runtime.saveable.SaverScope { true }.save(PickGate()) }!!)!!
+        assertFalse(none.isSnoozed(key))
     }
 }

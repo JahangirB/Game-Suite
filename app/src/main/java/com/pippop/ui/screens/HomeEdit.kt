@@ -1,6 +1,10 @@
 package com.pippop.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.StartOffsetType
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
@@ -11,7 +15,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +61,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -73,8 +78,8 @@ import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.textFill
 
-/** How far a card tilts either way while the shelf is being edited, in degrees. */
-private const val WIGGLE_DEGREES = 2f
+/** How far a card tilts either way while the shelf is being edited, in degrees (gentle, and slow: a full swing takes four times DROP_MS). */
+internal const val WIGGLE_DEGREES = 1.5f
 
 /** The lifted card grows a little, so it reads as picked up. */
 private const val LIFT_SCALE = 1.06f
@@ -96,7 +101,7 @@ private class ShelfGeometry {
 /**
  * The edit bar: it takes the fixed top bar's place (the home draws it over the top bar, which stays in the layout
  * so the height never changes) with what to do and "Done". It is a live region, so a screen reader says it when
- * editing starts. It swallows taps, so nothing under it is pressed.
+ * editing starts. A tap on it outside Done ends editing too (the home's tap handler).
  */
 @Composable
 internal fun ShelfEditBar(onDone: () -> Unit, modifier: Modifier = Modifier) {
@@ -105,7 +110,7 @@ internal fun ShelfEditBar(onDone: () -> Unit, modifier: Modifier = Modifier) {
     // With large text the line would wrap and make the bar taller: it says less, and a screen reader still hears all of it.
     val short = LocalDensity.current.fontScale > 1.15f
     Row(
-        modifier.background(p.background).pointerInput(Unit) { detectTapGestures { } }
+        modifier.background(p.background)
             .padding(horizontal = 16.dp, vertical = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -242,6 +247,8 @@ internal fun EditableShelf(
                         }
                         val to = draft?.indexOf(kind) ?: from
                         if (finished && to != from && to >= 0) currentMove(from, to)
+                        // The lift-off belongs to the drag: it is not also a tap that ends editing.
+                        currentEvent.changes.fastForEach { it.consume() }
                     } finally {
                         edge = 0
                         dragged = null
@@ -263,12 +270,9 @@ internal fun EditableShelf(
                         }
                         EditCard(
                             kind = kind, index = index, count = shown.size, lifted = dragged == kind, reduceMotion = reduceMotion,
-                            lift = {
-                                // Where the card is now against where its place is: the card follows the finger.
-                                val at = currentShown.indexOf(kind)
-                                val cell = geometry.cells.getOrNull(at)?.topLeft ?: Offset.Zero
-                                finger - grab - cell
-                            },
+                            geometry = geometry,
+                            // Where the held card's corner is, in the grid: the card follows the finger.
+                            liftedAt = { finger - grab },
                             actions = actions,
                             onRemove = { onRemove(kind) },
                         )
@@ -310,29 +314,76 @@ internal fun EditableShelf(
 private val AUTO_SCROLL: Dp = 12.dp
 private val EDGE_ZONE: Dp = 72.dp
 
+/** What one card remembers between layouts, so it can slide from where it was shown to where it now belongs. */
+private class CardMotion(var index: Int) {
+    /** 0 when a slide starts, 1 when it has arrived. */
+    var progress by mutableFloatStateOf(1f)
+    /** The fade-in under reduced motion. */
+    var fade by mutableFloatStateOf(1f)
+    /** Where in the grid the card was drawn when the slide started. */
+    var from = Offset.Zero
+    var lastLifted = Offset.Zero
+    var wasLifted = false
+    var settling by mutableStateOf(false)
+    var run = 0
+
+    /** Where the card is drawn now (the grid position of its corner), given the cells of the last layout. */
+    fun visual(cells: List<Rect>, at: Int): Offset {
+        val cell = cells.getOrNull(at)?.topLeft ?: return from
+        return if (progress < 1f) from + (cell - from) * progress else cell
+    }
+}
+
 /**
- * One card in edit mode: its key art and name (not opening anything), tilting back and forth, with a
- * round × at the top-right corner. [lift] is how far the card is carried from its place while [lifted];
- * its place then shows a dashed gap. The drag itself is the grid's.
+ * One card in edit mode: its key art and name (not opening anything), tilting gently back and forth, with a
+ * round × at the top-right corner. While it is [lifted] it follows the finger ([liftedAt] is where its corner is) and
+ * its place shows a dashed gap. When its place changes it glides there (a short fade under reduced motion); a dropped
+ * card settles into its place the same way. The drag itself is the grid's.
  */
 @Composable
 private fun EditCard(
     kind: GameKind, index: Int, count: Int, lifted: Boolean, reduceMotion: Boolean,
-    lift: () -> Offset, actions: List<CustomAccessibilityAction>, onRemove: () -> Unit,
+    geometry: ShelfGeometry, liftedAt: () -> Offset, actions: List<CustomAccessibilityAction>, onRemove: () -> Unit,
 ) {
     val p = AppTheme.palette
-    // Neighbours tilt opposite ways, so the row does not move as one.
-    val sign = if (index % 2 == 0) 1f else -1f
+    // Each card swings a little out of step with the others (its phase comes from the game, so it keeps it when it moves).
     val tilt by loopingFloat(
-        -WIGGLE_DEGREES * sign, WIGGLE_DEGREES * sign,
-        infiniteRepeatable(tween(Motion.DROP_MS), RepeatMode.Reverse), still = 0f, label = "wiggle",
+        -WIGGLE_DEGREES, WIGGLE_DEGREES,
+        infiniteRepeatable(
+            tween(Motion.DROP_MS * 2), RepeatMode.Reverse,
+            initialStartOffset = StartOffset((kind.ordinal * 230) % (Motion.DROP_MS * 4), StartOffsetType.FastForward),
+        ),
+        still = 0f, label = "wiggle",
     )
+    val m = remember { CardMotion(index) }
+    // The place changed (a neighbour was dragged past, or a screen reader moved it): the layout has not run yet, so the
+    // cells are still where the card was drawn.
+    if (m.index != index) {
+        if (!lifted) {
+            m.run++
+            if (reduceMotion) m.fade = 0f else { m.from = m.visual(geometry.cells, m.index); m.progress = 0f }
+        }
+        m.index = index
+    }
+    // Let go: the card settles from where the finger left it.
+    if (m.wasLifted && !lifted) {
+        m.run++
+        if (reduceMotion) m.fade = 0f else { m.from = m.lastLifted; m.progress = 0f; m.settling = true }
+    }
+    m.wasLifted = lifted
+    LaunchedEffect(m.run) {
+        if (m.run == 0) return@LaunchedEffect
+        if (reduceMotion) animate(0f, 1f, animationSpec = tween(Motion.SHELF_FADE_MS)) { v, _ -> m.fade = v }
+        else {
+            animate(0f, 1f, animationSpec = tween(Motion.GLIDE_MS, easing = FastOutSlowInEasing)) { v, _ -> m.progress = v }
+            m.settling = false
+        }
+    }
     val outline = p.ink
     Box(
         Modifier
-            .zIndex(if (lifted) 1f else 0f)
-            // A tap on a card does nothing (and does not fall through to "tap empty space").
-            .pointerInput(Unit) { detectTapGestures { } }
+            // A dropped card stays on top until it has reached its place.
+            .zIndex(if (lifted || m.settling) 1f else 0f)
             .drawBehind {
                 // Under reduced motion nothing wiggles, so a still dashed outline says the card can move; the lifted card leaves its gap dashed.
                 if (reduceMotion || lifted) {
@@ -347,17 +398,31 @@ private fun EditCard(
     ) {
         Box(
             Modifier.graphicsLayer {
+                val cell = geometry.cells.getOrNull(index)?.topLeft ?: Offset.Zero
                 if (lifted) {
-                    val move = lift()
-                    translationX = move.x
-                    translationY = move.y
+                    val at = liftedAt()
+                    m.lastLifted = at
+                    translationX = at.x - cell.x
+                    translationY = at.y - cell.y
                     scaleX = LIFT_SCALE
                     scaleY = LIFT_SCALE
                     shadowElevation = 12.dp.toPx()
                     shape = Shapes.M
                     clip = false
                 } else {
+                    val left = 1f - m.progress
+                    translationX = (m.from.x - cell.x) * left
+                    translationY = (m.from.y - cell.y) * left
+                    if (m.settling) {
+                        // The lift eases away over the same glide: its size and its shadow.
+                        scaleX = 1f + (LIFT_SCALE - 1f) * left
+                        scaleY = scaleX
+                        shadowElevation = 12.dp.toPx() * left
+                        shape = Shapes.M
+                        clip = false
+                    }
                     rotationZ = tilt
+                    alpha = m.fade
                 }
             },
         ) {
