@@ -6,6 +6,7 @@ import com.pippop.ui.screens.inMatch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pippop.data.Avatar
 import com.pippop.data.BrokenRecord
 import com.pippop.data.Records
 import com.pippop.data.ApiException
@@ -129,6 +130,14 @@ object Takeover {
 /** Memory Pairs: the opener's photos being made and sent to the room, for the lobby's "3 of 8 sent". [thumbs] are the photos made so far, by place. */
 data class MemoryPicking(val total: Int, val sent: Int = 0, val thumbs: Map<Int, String> = emptyMap(), val failed: Int = 0)
 
+/**
+ * Who an invitation came from, as the notification says. [isInvite] is false for "your turn", which has no invitation to decline.
+ */
+data class InviteFrom(val device: String?, val name: String, val avatar: Avatar?, val isInvite: Boolean = true)
+
+/** An invitation for [game], held until the player adds it to the shelf or says "Not now". */
+data class PendingInvite(val code: String, val game: GameKind, val from: InviteFrom)
+
 data class BattleUiState(
     val hostCode: String = Invite.randomCode(),
     val joinCode: String = "",
@@ -199,6 +208,8 @@ data class BattleUiState(
     /** A record the latest result broke, with the round it was for (so a later game never shows it): the card's gold line. */
     val record: BrokenRecord? = null,
     val recordRound: Int = -1,
+    /** An invitation to a game that is not on this phone's shelf, waiting for "Add and join" or "Not now". */
+    val pendingInvite: PendingInvite? = null,
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -410,12 +421,50 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** "Play" on an invitation: join the partner's room with the code from the notification. */
-    fun acceptInvite(code: String, game: GameKind) {
+    /**
+     * "Play" on an invitation: join the partner's room with the code from the notification. A game that is not on the
+     * shelf waits for "Add and join" ([confirmInvite]) or "Not now" ([declineInvite]) before anything is joined.
+     */
+    fun acceptInvite(code: String, game: GameKind, from: InviteFrom = InviteFrom(null, "Your partner", null)) {
         // Invitations work both ways: offer notifications so the next one reaches this phone too.
         store.notificationsNeeded()
         // Tapping "your turn" while already in that room needs nothing more.
         if (_state.value.room?.code == code) return
+        if (game !in store.profile.value.shelf) {
+            _state.update { it.copy(pendingInvite = PendingInvite(code, game, from)) }
+            return
+        }
+        joinInvite(code, game)
+    }
+
+    /** "Add and join": the game goes on the shelf and the invitation carries on as it would have. */
+    fun confirmInvite() {
+        val pending = _state.value.pendingInvite ?: return
+        _state.update { it.copy(pendingInvite = null) }
+        store.addToShelf(pending.game)
+        joinInvite(pending.code, pending.game)
+    }
+
+    /** "Not now": an invitation is declined as its Decline button does (the partner hears you can't play); a turn is just left. */
+    fun declineInvite() {
+        val pending = _state.value.pendingInvite ?: return
+        _state.update { it.copy(pendingInvite = null) }
+        val profile = store.profile.value
+        val server = profile.partner ?: return
+        val to = pending.from.device ?: return
+        if (!pending.from.isInvite) return
+        viewModelScope.launch {
+            try {
+                PushApi(server.serverUrl, server.password).reply(profile.deviceId, to, accepted = false, code = pending.code)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Nothing to do: the inviter will simply not see you join.
+            }
+        }
+    }
+
+    private fun joinInvite(code: String, game: GameKind) {
         val partner = store.profile.value.partner
         if (partner == null) {
             _state.update { it.copy(joinCode = code) }

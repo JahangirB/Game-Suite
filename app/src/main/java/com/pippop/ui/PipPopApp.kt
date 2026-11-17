@@ -122,6 +122,10 @@ import com.pippop.ui.screens.GamePageScreen
 import com.pippop.ui.screens.LocalOpenStore
 import com.pippop.ui.screens.StoreFilter
 import com.pippop.ui.screens.StoreScreen
+import com.pippop.ui.screens.PartnerPick
+import com.pippop.ui.screens.PickGate
+import com.pippop.ui.screens.PartnerPickSheet
+import com.pippop.ui.screens.roomPick
 import com.pippop.ui.screens.backInStoreToast
 import com.pippop.ui.screens.onShelfToast
 import com.pippop.ui.theme.AppTheme
@@ -248,6 +252,10 @@ fun PipPopApp(
         storeGame = null
         dest = Dest.STORE
     }
+
+    // A partner's pick that is not on the shelf: asked about in a sheet over the home (see PickGate).
+    val pickGate = remember { PickGate() }
+    val pick = roomPick(battleState.room, profile.shelf)
 
     LaunchedEffect(battleState.message) {
         battleState.message?.let {
@@ -542,7 +550,8 @@ fun PipPopApp(
                             onConnect = { connectSheet = if (profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.ONLINE },
                             room = room,
                             nearby = battleState.mode == BattleMode.NEARBY,
-                            onOpenGame = battle::openGame,
+                            // "Join" on a game that is not on the shelf asks first (the sheet).
+                            onOpenGame = { g -> if (!pickGate.askAgain(pick, g)) battle.openGame(g) },
                             onLeaveRoom = { confirmDisconnect = true },
                             onNotificationsAnswered = app::notificationsAnswered,
                             onTutorialSeen = app::tutorialSeen,
@@ -568,6 +577,17 @@ fun PipPopApp(
                 transition.Layer(Modifier.fillMaxSize())
             }
         }
+    }
+
+    // The partner's game is not on the shelf: asked before an invitation is accepted, or before following them into the room's game.
+    val invite = battleState.pendingInvite
+    if (invite != null) {
+        PartnerPickSheet(
+            PartnerPick(invite.from.name, invite.from.avatar, invite.game),
+            onAdd = battle::confirmInvite, onNotNow = battle::declineInvite,
+        )
+    } else {
+        pickGate.Sheet(room, profile.shelf, active = dest == Dest.HOME, onAddToShelf = app::addToShelf, onJoin = battle::openGame)
     }
 
     battleState.problem?.let { problem ->

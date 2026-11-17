@@ -26,8 +26,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Store list with working filter, Get, "On your shelf"
   - [x] A game's page, "Add to my games", then Play / Remove
   - [x] The one-time note after the update; a "Game Store" entry in Another game and switch-game
-- [ ] **Step 6. A partner picks a game you don't have**
-  - [ ] "Add and join" sheet from invite, lobby, Another game and switch-game
+- [x] **Step 6. A partner picks a game you don't have**
+  - [x] "Add and join" sheet from invite, lobby, Another game and switch-game
 - [ ] **Step 7. Profile**
   - [ ] Photo in every own avatar
   - [ ] Ship Battle styles only in the game's Skins button

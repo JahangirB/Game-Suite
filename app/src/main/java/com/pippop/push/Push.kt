@@ -54,6 +54,9 @@ object Push {
     const val EXTRA_GAME = "game"
     const val EXTRA_FROM = "fromDevice"
     const val EXTRA_NAME = "fromName"
+    const val EXTRA_AVATAR = "fromAvatar"
+    /** Set on a "your turn" notification: there is no invitation to decline. */
+    const val EXTRA_TURN = "turn"
     private const val CHANNEL = "invites"
 
     /** Whether this build can receive invitations at all. */
@@ -125,6 +128,7 @@ object Push {
             .setAction(ACTION_ACCEPT)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .withInvite(event, id)
+            .putExtra(EXTRA_TURN, true)
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Your turn in ${event.game.label}")
@@ -166,6 +170,7 @@ object Push {
         .putExtra(EXTRA_GAME, event.game.key)
         .putExtra(EXTRA_FROM, event.fromDevice)
         .putExtra(EXTRA_NAME, event.fromName)
+        .putExtra(EXTRA_AVATAR, event.fromAvatar?.key)
         .putExtra("notificationId", id)
 
     private fun notificationId(device: String) = device.hashCode() and 0x0FFFFFFF

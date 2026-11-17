@@ -16,7 +16,9 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.ui.AppViewModel
+import com.pippop.data.Avatar
 import com.pippop.data.GameKind
+import com.pippop.ui.InviteFrom
 import com.pippop.push.Push
 import com.pippop.ui.PipPopApp
 import com.pippop.ui.BattleViewModel
@@ -71,6 +73,12 @@ class MainActivity : ComponentActivity() {
         if (intent?.action != Push.ACTION_ACCEPT) return
         Push.cancel(this, intent.getIntExtra("notificationId", 0))
         val code = intent.getStringExtra(Push.EXTRA_CODE) ?: return
-        battle.acceptInvite(code, GameKind.from(intent.getStringExtra(Push.EXTRA_GAME)))
+        val from = InviteFrom(
+            device = intent.getStringExtra(Push.EXTRA_FROM),
+            name = intent.getStringExtra(Push.EXTRA_NAME) ?: "Your partner",
+            avatar = Avatar.from(intent.getStringExtra(Push.EXTRA_AVATAR)),
+            isInvite = !intent.getBooleanExtra(Push.EXTRA_TURN, false),
+        )
+        battle.acceptInvite(code, GameKind.from(intent.getStringExtra(Push.EXTRA_GAME)), from)
     }
 }
