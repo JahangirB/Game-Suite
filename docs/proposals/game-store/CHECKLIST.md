@@ -46,9 +46,10 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 12. Dominoes: no number circles at the line's ends**
   - [x] Circles gone; choosing an end still works (48 dp); open numbers read out
     (the "On the 3 / On the 5" buttons stay; the end tiles are also tappable now)
-- [ ] **Step 13. The last pass**
+- [x] **Step 13. The last pass**
   - [x] All checks pass locally; the last CI run is green; the preview is from it
   - [x] Every changed screen looked at in light and dark
   - [x] README updated
   - [x] Version 1.1.000 from app/version.properties (owner); golf result keeps Rematch in view, solo header wraps cleanly
-  - [ ] The owner has the report and the preview link
+  - [x] The owner has the report and the preview link
+- [x] **Released:** merged into the live branch with the code word (66d645d); "Pip & Pop 1.1.000" published
