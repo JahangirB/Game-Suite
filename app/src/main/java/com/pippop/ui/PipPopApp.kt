@@ -577,7 +577,6 @@ fun PipPopApp(
                 transition.Layer(Modifier.fillMaxSize())
             }
         }
-    }
 
     // The partner's game is not on the shelf: asked before an invitation is accepted, or before following them into the room's game.
     val invite = battleState.pendingInvite
@@ -670,5 +669,6 @@ fun PipPopApp(
                 if (room.inSession) battle.backToGames() else battle.leave()
             },
         )
+    }
     }
 }

@@ -63,11 +63,8 @@ import com.pippop.push.Push
 import com.pippop.push.PushApi
 import com.pippop.ui.theme.OpponentColor
 import com.pippop.data.Profile
-import com.pippop.data.ShipStyle
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.runtime.collectAsState
-import com.pippop.data.SkinStore
 import com.pippop.ui.art.AvatarImage
 import com.pippop.data.ThemeMode
 import com.pippop.ui.AppViewModel
@@ -101,10 +98,13 @@ internal fun AvatarPicker(selected: Avatar?, onPick: (Avatar?) -> Unit) {
 
 /** Your photo as a picture: one already decoded at once, else decoded off the main thread; null (the animal) until then or if unusable. */
 @Composable
-private fun profileFace(photo: String?): androidx.compose.ui.graphics.ImageBitmap? =
-    androidx.compose.runtime.produceState(Faces.peek(photo), photo) {
+private fun profileFace(photo: String?): androidx.compose.ui.graphics.ImageBitmap? {
+    // No photo: the animal at once, not the last picture until a coroutine has run.
+    if (photo == null) return null
+    return androidx.compose.runtime.produceState(Faces.peek(photo), photo) {
         value = Faces.peek(photo) ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Faces.decode(photo) }
     }.value
+}
 
 /**
  * "Use a photo": the phone's own photo picker (no storage permission), the middle square of the picture made a
@@ -224,22 +224,6 @@ fun ProfileScreen(
             AppCard("Look") {
                 OptionRow("Theme", ThemeMode.entries.map { it to it.label }, profile.theme, app::setTheme)
                 ColourThemePicker(profile.colourTheme, app::setColourTheme)
-                Text("Ship Battle style", color = p.muted, fontSize = TextSize.Body)
-                // The two built in, then any skins downloaded in Ship Battle (its Skins button).
-                val skinId by SkinStore.selected.collectAsState()
-                val skins by SkinStore.installed.collectAsState()
-                val using = skins.firstOrNull { it.id == skinId }
-                val styles = ShipStyle.entries.map { "style:${it.name}" to it.label } + skins.map { "skin:${it.id}" to it.name }
-                val chosen = if (using == null) "style:${profile.shipStyle.name}" else "skin:${using.id}"
-                // Downloaded skins have longer names: two to a row so they keep their room.
-                Choices(styles, chosen, perRow = 2, onPick = { key ->
-                    if (key.startsWith("skin:")) SkinStore.use(key.removePrefix("skin:"))
-                    else {
-                        app.setShipStyle(ShipStyle.valueOf(key.removePrefix("style:")))
-                        SkinStore.use(null)
-                    }
-                })
-                Text("More skins: tap Skins at the bottom of Ship Battle.", color = p.muted, fontSize = TextSize.Label)
             }
 
             SoundAndTouchCard(profile, app)

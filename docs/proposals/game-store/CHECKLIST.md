@@ -28,9 +28,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] The one-time note after the update; a "Game Store" entry in Another game and switch-game
 - [x] **Step 6. A partner picks a game you don't have**
   - [x] "Add and join" sheet from invite, lobby, Another game and switch-game
-- [ ] **Step 7. Profile**
-  - [ ] Photo in every own avatar
-  - [ ] Ship Battle styles only in the game's Skins button
+- [x] **Step 7. Profile**
+  - [x] Photo in every own avatar
+  - [x] Ship Battle styles only in the game's Skins button
 - [ ] **Step 8. Colour Clash: the dictator card just gives +8**
   - [ ] No lock, no animation; +8 to the next player; tested in all servers and on the phone
 - [ ] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**

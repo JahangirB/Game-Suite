@@ -445,7 +445,11 @@ internal fun PlayerRow(player: PlayerInfo, isMe: Boolean, color: Color, reaction
                 scaleX = pop.value
                 scaleY = pop.value
             },
-        ) { PlayerAvatar(player.name, color, avatar = player.avatar, mark = seatMark(seat)) }
+        ) { PlayerAvatar(
+            player.name, color, avatar = player.avatar, mark = seatMark(seat),
+            // Your own row keeps your photo even when another player has your name; the others go by name.
+            face = LocalFaces.current.of(if (isMe) FaceBook.YOU else player.name),
+        ) }
         Spacer(Modifier.width(12.dp))
         Text(
             player.name + if (isMe) " (you)" else "",

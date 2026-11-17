@@ -34,11 +34,11 @@ import com.pippop.ui.theme.Board
 
 /**
  * A gold cup with handles on a wooden foot: the home's button for the scoreboard. On the shelf
- * it carries the month's winner's [face] on its bowl (or, with no picture, their [initial] on
+ * it carries the month's winner's [face] (or your own [photo]) on its bowl (or, with no picture, their [initial] on
  * [initialFill]), and a [tie] is silver, not gold.
  */
 @Composable
-fun TrophyCup(modifier: Modifier = Modifier, face: Avatar? = null, tie: Boolean = false, initial: String? = null, initialFill: Color = Color.Unspecified) {
+fun TrophyCup(modifier: Modifier = Modifier, face: Avatar? = null, photo: androidx.compose.ui.graphics.ImageBitmap? = null, tie: Boolean = false, initial: String? = null, initialFill: Color = Color.Unspecified) {
   Box(modifier, contentAlignment = Alignment.TopCenter) {
     Canvas(Modifier.fillMaxSize()) {
         val w = size.width
@@ -69,10 +69,11 @@ fun TrophyCup(modifier: Modifier = Modifier, face: Avatar? = null, tie: Boolean 
         drawRoundRect(Board.Wood.lighter(0.25f), Offset(w * 0.33f, h * 0.83f), Size(w * 0.34f, h * 0.08f), CornerRadius(h * 0.02f))
         drawRoundRect(Board.Ink, Offset(w * 0.27f, h * 0.78f), Size(w * 0.46f, h * 0.18f), CornerRadius(h * 0.03f), style = line)
     }
-    if (face != null || initial != null) {
+    if (photo != null || face != null || initial != null) {
         Box(Modifier.fillMaxWidth().fillMaxHeight(0.6f), contentAlignment = Alignment.Center) {
             Box(Modifier.fillMaxWidth(0.4f).aspectRatio(1f).clip(CircleShape).background(Board.DieWhite).border(1.5.dp, Board.Ink, CircleShape), contentAlignment = Alignment.Center) {
-                if (face != null) AvatarImage(face, Modifier.fillMaxSize())
+                if (photo != null) androidx.compose.foundation.Image(photo, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else if (face != null) AvatarImage(face, Modifier.fillMaxSize())
                 else Box(Modifier.fillMaxSize().background(initialFill), contentAlignment = Alignment.Center) {
                     BasicText(initial.orEmpty(), style = TextStyle(color = readableOn(initialFill), fontSize = 14.sp, fontWeight = FontWeight.Bold))
                 }

@@ -180,10 +180,13 @@ private fun gameTag(g: GameScore, partner: String, first: Boolean): String? {
 
 /** A face: the player's picture in a ringed circle, or their first letter. */
 @Composable
-internal fun Face(name: String, avatar: Avatar?, color: Color, size: Dp, dim: Boolean = false) {
+internal fun Face(name: String, avatar: Avatar?, color: Color, size: Dp, dim: Boolean = false, mine: Boolean = false) {
     val p = AppTheme.palette
     Box(Modifier.size(size).clip(CircleShape).background(p.accent).border(2.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
-        if (avatar != null) AvatarImage(avatar, Modifier.fillMaxSize())
+        // Your own photo, when you chose one; other players keep their animal.
+        val photo = if (mine) LocalFaces.current.of(FaceBook.YOU) else null
+        if (photo != null) androidx.compose.foundation.Image(photo, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else if (avatar != null) AvatarImage(avatar, Modifier.fillMaxSize())
         else Box(Modifier.fillMaxSize().background(color), contentAlignment = Alignment.Center) {
             Text(name.trim().firstOrNull()?.uppercase() ?: "?", color = readableOn(color), fontWeight = FontWeight.Bold, fontSize = TextSize.Body)
         }
@@ -249,7 +252,7 @@ private fun StandingCard(eyebrow: String, name: String, s: Standing, partner: St
             Text(eyebrow.uppercase(), color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
-                    Face("You", myAvatar, p.me, 52.dp)
+                    Face("You", myAvatar, p.me, 52.dp, mine = true)
                     Text("You", color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
                 }
                 Text(
@@ -358,7 +361,7 @@ private fun TrophyShelf(slots: List<ShelfSlot>, partner: String, board: Scoreboa
                     if (t != null) {
                         val mineWon = t.winner == MatchRecord.ME
                         TrophyCup(
-                            Modifier.size(54.dp, 60.dp), face = if (mineWon) myAvatar else partnerAvatar.takeIf { t.winner != null }, tie = t.winner == null,
+                            Modifier.size(54.dp, 60.dp), face = if (mineWon) myAvatar else partnerAvatar.takeIf { t.winner != null }, photo = if (mineWon) LocalFaces.current.of(FaceBook.YOU) else null, tie = t.winner == null,
                             initial = if (t.winner == null) null else if (mineWon) "Y" else partner.trim().firstOrNull()?.uppercase() ?: "?",
                             initialFill = if (mineWon) p.me else OpponentColor,
                         )
@@ -450,7 +453,7 @@ internal fun GameStoryContent(story: GameStory, g: GameScore, windowName: String
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clearAndSetSemantics {}) {
-            Face("You", myAvatar, p.me, 34.dp)
+            Face("You", myAvatar, p.me, 34.dp, mine = true)
             Text("  You", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text("$partner  ", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Face(partner, partnerAvatar, OpponentColor, 34.dp)
@@ -471,7 +474,7 @@ internal fun GameStoryContent(story: GameStory, g: GameScore, windowName: String
         ) {
             winners.forEach { w ->
                 when (w) {
-                    true -> Face("You", myAvatar, p.me, 29.dp)
+                    true -> Face("You", myAvatar, p.me, 29.dp, mine = true)
                     false -> Face(partner, partnerAvatar, OpponentColor, 29.dp)
                     null -> Box(Modifier.size(29.dp).clip(CircleShape).background(p.card).border(2.dp, p.ink, CircleShape), contentAlignment = Alignment.Center) {
                         Text("=", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
