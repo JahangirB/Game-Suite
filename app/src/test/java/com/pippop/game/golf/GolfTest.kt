@@ -54,8 +54,8 @@ class GolfTest {
         assertEquals(mapOf('m' to 2), GolfView.from(m.view('g', mapOf('h' to 'o'))).left)
         m.play('g', shot(0.5, 0.5))
         m.play('g', shot(0.5, 0.5))
-        // Not in after those: picked up with one more, and on to the next hole.
-        assertEquals(listOf(14, 0), m.strokes['g'])
+        // Not in after those: picked up, the strokes taken plus 5, and on to the next hole.
+        assertEquals(listOf(18, 0), m.strokes['g'])
         assertEquals(listOf(11, 0), m.strokes['h'])
         assertEquals(1, m.hole)
         assertTrue(GolfView.from(m.view('h', mapOf('g' to 'o'))).left.isEmpty())
@@ -65,7 +65,7 @@ class GolfTest {
     fun aHoleNobodyFinishesEndsAtTheSafetyNet() {
         val m = GolfMatch(listOf('h'))
         repeat(Golf.MAX_STROKES) { m.play('h', shot(0.5, 0.5)) }
-        assertEquals(listOf(Golf.MAX_STROKES + 1, 0), m.strokes['h'])
+        assertEquals(listOf(Golf.MAX_STROKES + Golf.UNFINISHED_PENALTY, 0), m.strokes['h'])
     }
 
     @Test
@@ -167,6 +167,109 @@ class GolfTest {
         val solo = GolfMatch(listOf('h'))
         assertEquals('h', solo.play('h', shot(0.5, 2.0).put("skip", true)).turn)
         assertEquals(listOf(2), solo.strokes['h'])
+    }
+
+    @Test
+    fun kylianTakesOnlyTheTurnOfWhoLandedThere() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        // g lands on Kylian: only g loses a turn, and '3' (next) plays at once.
+        assertEquals('g', m.play('h', shot(0.5, 1.0)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 2.0).put("skip", true)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.5)).turn)
+        // g is passed over once; h and 3 are never skipped.
+        assertEquals('3', m.play('h', shot(0.5, 1.2)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.2)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.1)).turn)
+    }
+
+    private fun kylian(x: Double, y: Double) = shot(x, y).put("skip", true)
+
+    @Test
+    fun twoPlayersOnKylianBackToBackEachLoseTheirNextTurn() {
+        val m = GolfMatch(listOf('h', 'g'))
+        assertEquals('g', m.play('h', kylian(0.5, 2.0)).turn)
+        // Both owe a turn: they are given back and play goes on in order.
+        assertEquals('h', m.play('g', kylian(0.5, 2.1)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('h', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
+    fun threePlayersTwoOnKylianBackToBackBothLoseATurn() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        assertEquals('g', m.play('h', kylian(0.5, 2.0)).turn)
+        assertEquals('3', m.play('g', kylian(0.5, 2.1)).turn)
+        assertEquals('3', m.play('3', shot(0.5, 1.5)).turn)
+        assertEquals('h', m.play('3', shot(0.5, 1.4)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
+    fun everyoneOnKylianNeverStalls() {
+        val m = GolfMatch(listOf('h', 'g', '3'))
+        m.play('h', kylian(0.5, 2.0))
+        m.play('g', kylian(0.5, 2.1))
+        assertEquals('h', m.play('3', kylian(0.5, 2.2)).turn)
+        assertEquals('g', m.play('h', shot(0.5, 1.5)).turn)
+        assertEquals('3', m.play('g', shot(0.5, 1.5)).turn)
+    }
+
+    @Test
+    fun aHoleThatEndsWithABallStillOutCostsItsStrokesPlusFiveOnce() {
+        val m = GolfMatch(listOf('h', 'g'))
+        m.play('h', shot(0.5, 0.2, true))
+        repeat(Golf.AFTER_FIRST_IN) { m.play('g', shot(0.5, 0.5)) }
+        // Holed out: no penalty. Not in: 3 shots plus 5.
+        assertEquals(listOf(1, 0), m.strokes['h'])
+        assertEquals(listOf(8, 0), m.strokes['g'])
+        val v = GolfView.from(m.view('h', mapOf('g' to 'o')))
+        assertEquals(listOf(8, 0), v.strokes['o'])
+        assertEquals(setOf(0), v.unfinished['o'])
+        assertEquals(emptySet<Int>(), v.unfinished['m'])
+        // Reading the state again adds nothing.
+        assertEquals(v.strokes, GolfView.from(m.view('h', mapOf('g' to 'o'))).strokes)
+        assertEquals(8, GolfView.from(m.view('g')).total('m'))
+    }
+
+    @Test
+    fun nobodyHolingOutEachBallIsPickedUpAtTwentyPlusFive() {
+        val m = GolfMatch(listOf('h', 'g'))
+        repeat(Golf.MAX_STROKES) {
+            m.play('h', shot(0.5, 0.5))
+            m.play('g', shot(0.5, 0.5))
+        }
+        assertEquals(1, m.hole)
+        assertEquals(listOf(25, 0), m.strokes['h'])
+        assertEquals(listOf(25, 0), m.strokes['g'])
+    }
+
+    @Test
+    fun aServerWithoutTheUnfinishedListStillParses() {
+        val m = GolfMatch(listOf('h', 'g'))
+        val json = m.view('h', mapOf('g' to 'o'))
+        json.getJSONObject("golf").remove("unfinished")
+        assertEquals(emptyMap<Char, Set<Int>>(), GolfView.from(json).unfinished)
+    }
+
+    @Test
+    fun kylianTakingTheLastShotLeftPicksThemUpPlusFive() {
+        val m = GolfMatch(listOf('h', 'g'))
+        m.play('h', shot(0.5, 0.2, true))
+        m.play('g', shot(0.5, 0.5))
+        // The shot added makes 3 of 3: picked up (3 + 5), not given a 4th.
+        m.play('g', shot(0.5, 2.0).put("skip", true))
+        assertEquals(1, m.hole)
+        assertEquals(listOf(8, 0), m.strokes['g'])
+        assertEquals(setOf(0), GolfView.from(m.view('h', mapOf('g' to 'o'))).unfinished['o'])
+    }
+
+    @Test
+    fun aloneKylianOnShotNineteenMakesTwentyAndScoresTwentyFive() {
+        val m = GolfMatch(listOf('h'))
+        repeat(Golf.MAX_STROKES - 2) { m.play('h', shot(0.5, 0.5)) }
+        m.play('h', shot(0.5, 2.0).put("skip", true))
+        assertEquals(listOf(25, 0), m.strokes['h'])
     }
 
     @Test

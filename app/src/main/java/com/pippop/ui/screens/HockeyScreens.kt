@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -246,7 +247,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.HOCKEY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.HOCKEY) { showRules = false }
     val opponent = room.opponent
     // While playing, the live table has the latest score; at the end, the server's.
     val mine = if (finished) room.hockey?.mine ?: shown.bottomScore else shown.bottomScore
@@ -288,7 +289,7 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
         tools = listOf(DockTool("Replay", GameIcons.History, enabled = lastGoal.isNotEmpty()) { replaying = true }),
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -325,37 +326,33 @@ fun HockeyScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit)
 fun SoloHockeyScreen(state: SoloHockeyUiState, vm: SoloHockeyViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.HOCKEY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.HOCKEY) { showRules = false }
     val level = state.level
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (level == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.HOCKEY, "New game", vm::startWith) { changing = false }
     val levels = listOf("Easy", "Medium", "Hard")
     val f = state.frame
     val result = state.result
     GameFrame(
         title = "Air Hockey",
-        subtitle = level?.let { "Against the computer · ${levels[it]}" } ?: "Against the computer",
-        players = if (level == null) emptyList() else listOf(
+        subtitle = "Against the computer · ${levels[level]}",
+        players = listOf(
             ChipPlayer("You", null, MyDisc, "${f.bottomScore} goals"),
             ChipPlayer("Computer", null, TheirDisc, "${f.topScore} goals"),
         ),
         glow = GameKind.HOCKEY.color,
-        menu = soloMenu(GameKind.HOCKEY, onHome, { showRules = true }, if (level != null) vm::changeLevel else null),
-        scrollable = level == null,
-        popup = if (level == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.HOCKEY, onHome, { showRules = true }, vm::again, { changing = true }),
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.HOCKEY, result, "${f.bottomScore} – ${f.topScore}",
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = { changing = true },
             )
         },
     ) {
-        if (level == null) {
-            AppCard("Choose the computer's level") {
-                Text("Drag your paddle to knock the puck into the computer's goal. First to ${Hockey.GOALS} wins.", color = p.muted, fontSize = TextSize.Body)
-                levels.forEachIndexed { i, label -> PrimaryButton(label, { vm.start(i) }, Modifier.fillMaxWidth()) }
-            }
-        } else {
-            BoardArea(Hockey.W / Hockey.H) { size ->
-                HockeyRink(f, MyDisc, TheirDisc, onMove = if (result == null) vm::move else null, modifier = size)
-            }
+        BoardArea(Hockey.W / Hockey.H) { size ->
+            HockeyRink(f, MyDisc, TheirDisc, onMove = if (result == null) vm::move else null, modifier = size)
         }
     }
 }

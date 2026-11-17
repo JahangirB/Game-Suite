@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import com.pippop.data.CodeGuess
 import com.pippop.game.code.CodeBreaker
@@ -28,8 +31,8 @@ class SoloCodeViewModel : ViewModel() {
 
     fun start() = _state.update { SoloCodeUiState(started = true, secret = it.rules.random(), best = it.best, rules = it.rules) }
 
-    /** The settings for the next code; the best score is kept per setting only while they stay. */
-    fun setRules(rules: CodeRules) = _state.update { if (it.started) it else it.copy(rules = rules, best = it.best.takeIf { _ -> rules == it.rules }) }
+    /** A fresh code under [rules]; the best score is kept per setting only while they stay. */
+    fun start(rules: CodeRules) = _state.update { SoloCodeUiState(started = true, secret = rules.random(), best = it.best.takeIf { _ -> rules == it.rules }, rules = rules) }
 
     fun guess(code: String) {
         val s = _state.value
@@ -38,5 +41,9 @@ class SoloCodeViewModel : ViewModel() {
         val guesses = s.guesses + CodeGuess(code, black, white)
         val solved = black == s.rules.pegs
         _state.update { it.copy(guesses = guesses, best = if (solved) minOf(it.best ?: guesses.size, guesses.size) else it.best) }
+        if (solved || guesses.size >= CodeBreaker.TRIES) {
+            val level = "${s.rules.pegs}-${s.rules.colours}-${if (s.rules.repeats) "repeats" else "none"}"
+            SoloRecordStore.current?.record(GameKind.CODE, level, SoloMetric.GUESSES, if (solved) guesses.size.toLong() else null)
+        }
     }
 }

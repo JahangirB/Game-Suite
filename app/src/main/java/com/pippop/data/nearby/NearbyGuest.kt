@@ -3,6 +3,8 @@ package com.pippop.data.nearby
 import android.content.Context
 import com.pippop.data.ApiException
 import com.pippop.data.BattleBackend
+import com.pippop.data.ChatLines
+import com.pippop.data.PackKey
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Hello
@@ -147,6 +149,12 @@ class NearbyGuest(context: Context) : BattleBackend {
     override suspend fun emoji(code: String, playerId: String, reaction: Reaction) =
         request(JSONObject().put("type", "emoji").put("emoji", reaction.key))
 
+    override suspend fun line(code: String, playerId: String, text: String) =
+        request(JSONObject().put("type", "emoji").put("emoji", ChatLines.KEY).put("text", text))
+
+    override suspend fun sticker(code: String, playerId: String, id: String) =
+        request(JSONObject().put("type", "emoji").put("emoji", PackKey.key(id)))
+
     override suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>) =
         request(JSONObject().put("type", "ready").put("ready", ready).put("fleet", fleet.toJson()))
 
@@ -205,6 +213,18 @@ class NearbyGuest(context: Context) : BattleBackend {
 
     override suspend fun slidePhoto(code: String, playerId: String): String? =
         request(JSONObject().put("type", "getphoto")).let { if (it.isNull("photo")) null else it.optString("photo") }
+
+    override suspend fun setFace(code: String, playerId: String, photo: String?) =
+        request(JSONObject().put("type", "face").put("photo", photo ?: JSONObject.NULL))
+
+    override suspend fun face(code: String, playerId: String, id: Int): String? =
+        request(JSONObject().put("type", "getface").put("face", id)).let { if (it.isNull("photo")) null else it.optString("photo") }
+
+    override suspend fun setMemoryPic(code: String, playerId: String, slot: Int, photo: String?) =
+        request(JSONObject().put("type", "mempic").put("slot", slot).put("photo", photo ?: JSONObject.NULL))
+
+    override suspend fun memoryPic(code: String, playerId: String, id: Int): String? =
+        request(JSONObject().put("type", "getmempic").put("pic", id)).let { if (it.isNull("photo")) null else it.optString("photo") }
 
     override suspend fun openGame(code: String, playerId: String, game: GameKind) =
         request(JSONObject().put("type", "game").put("game", game.key))

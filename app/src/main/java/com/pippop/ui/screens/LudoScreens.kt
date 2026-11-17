@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.Buzz
+import com.pippop.ui.Haptics
+import com.pippop.ui.rememberHaptics
+import com.pippop.ui.startWith
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.foundation.layout.Column
@@ -27,7 +31,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -145,6 +148,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
     val steps = remember { Animatable(0f) }
     val reduce = LocalReduceMotion.current
     val sfx = rememberSfx()
+    val haptics = rememberHaptics()
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(move) {
         val m = move
@@ -155,7 +159,7 @@ fun LudoBoard(view: LudoView, onToken: ((Int) -> Unit)?, modifier: Modifier = Mo
         }
         // Coming out of the yard is a single step onto the start square.
         val count = if (m.from!! < 0) 1 else m.to!! - m.from
-        launch { ludoSounds(sfx, m, count) }
+        launch { ludoSounds(sfx, haptics, m, count) }
         steps.snapTo(0f)
         if (reduce) steps.snapTo(count.toFloat()) else steps.animateTo(count.toFloat(), tween(count * HOP_MS, easing = LinearEasing))
     }
@@ -313,9 +317,11 @@ private fun stepsFor(m: LudoMove) = if (m.from!! < 0) 1f else (m.to!! - m.from).
  * every roll is seen happening.
  */
 @Composable
-internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null) {
+internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null, buzzes: Boolean = false) {
     var face by remember { mutableStateOf(n) }
     val sfx = rememberSfx()
+    val haptics = rememberHaptics()
+    val buzz by rememberUpdatedState(buzzes)
     val spin = remember { Animatable(0f) }
     var seen by remember { mutableStateOf(false) }
     LaunchedEffect(rolled, n) {
@@ -326,6 +332,7 @@ internal fun DieFace(n: Int?, modifier: Modifier = Modifier, rolled: Any? = null
         }
         launch { spin.snapTo(0f); spin.animateTo(1f, tween(TUMBLE_MS, easing = FastOutSlowInEasing)) }
         sfx.play(Sound.DICE_ROLL)
+        if (buzz) haptics.play(Buzz.DICE)
         repeat(7) {
             face = (1..6).random()
             delay(TUMBLE_MS / 8L)
@@ -378,11 +385,13 @@ private fun ColumnScope.LudoTable(
     name: (Char) -> String,
     onRoll: () -> Unit,
     onToken: (Int) -> Unit,
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     val myColour = view.colours['m'] ?: 0
     val canMove = myTurn && enabled
-    TurnLine(
+    // Once the game is over the banner, the news and the die leave; the board stays.
+    if (!over) TurnLine(
         when {
             !myTurn -> waitingText
             view.roll == null -> "Your turn: roll the die"
@@ -392,11 +401,12 @@ private fun ColumnScope.LudoTable(
         myTurn,
         ludoColor(myColour),
     )
-    ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+    if (!over) ludoNews(view, name)?.let { Text(it, color = p.muted, fontSize = TextSize.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     BoardArea(1f) { size -> LudoBoard(view, onToken = if (canMove && view.roll != null) onToken else null, modifier = size) }
     // The die and the Roll button: the roll shows at once, nothing to wait for.
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll)
+    if (!over) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        // Only your own throw buzzes (a roll, not the move that follows it, and not another player's).
+        DieFace(view.roll ?: view.lastMove?.roll, rolled = view.lastMove ?: view.roll, buzzes = view.lastMove?.let { it.who == 'm' && it.token == null } == true)
         PrimaryButton("Roll", onRoll, Modifier.weight(1f), enabled = canMove && view.roll == null)
     }
 }
@@ -452,7 +462,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.LUDO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.LUDO) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     fun name(mark: Char) = if (mark == 'm') "You" else room.others.getOrNull("opq".indexOf(mark))?.name ?: "Someone"
     val turnName = turns.turnName ?: room.opponent?.name
@@ -473,7 +483,8 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tools = listOf(DockTool("Dice history", GameIcons.History, badge = view.rollCount) { showDice = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.LUDO,
@@ -496,7 +507,7 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             view, myTurn, enabled = !state.firing,
             waitingText = if (waitingOn?.online == false) "$turnName is away. They'll get a notification." else "${turnName ?: "The other player"} is playing…",
             name = ::name,
-            onRoll = vm::rollDie, onToken = vm::moveToken,
+            onRoll = vm::rollDie, onToken = vm::moveToken, over = finished,
         )
     }
 }
@@ -507,47 +518,40 @@ fun LudoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.LUDO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.LUDO) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.LUDO, "New game", vm::startWith) { changing = false }
     val result = state.result
     fun name(mark: Char) = if (mark == 'm') "You" else "Computer " + ("opq".indexOf(mark) + 1)
     var showDice by remember { mutableStateOf(false) }
-    if (showDice && view != null) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
+    if (showDice) InfoSheet("Dice history", onDismiss = { showDice = false }) { DiceHistory(view, ::name) }
     GameFrame(
         title = "Ludo",
         subtitle = "Against the computer",
-        players = if (view == null) emptyList() else view.colours.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
+        players = view.colours.keys.sortedBy { "mopq".indexOf(it) }.map { mark ->
             ChipPlayer(name(mark), null, ludoColor(view.colours[mark] ?: 0), "${homeCount(view, mark)}/4 home", active = result == null && state.turn == mark)
         },
         glow = GameKind.LUDO.color,
-        menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, if (view != null) vm::changeSetup else null),
-        tools = if (view == null) emptyList() else listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
-        scrollable = view == null,
-        popup = if (view == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.LUDO, onHome, { showRules = true }, vm::start, { changing = true }),
+        tools = listOf(DockTool("Dice history", GameIcons.History) { showDice = true }),
+        resultUnder = true,
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.LUDO, result,
                 if (result == "me") "All four of your tokens are home!" else "A computer got all four tokens home first.",
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Set up the board") {
-                Text("Roll, bring your tokens out with a 6, race them round and home. Land on others to send them back.", color = p.muted, fontSize = TextSize.Body)
-                Text("Computer players", color = p.text, fontSize = TextSize.BodyL)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (1..3).forEach { n -> FilterChip(selected = state.opponents == n, onClick = { vm.setOpponents(n) }, label = { Text("$n") }) }
-                }
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            LudoTable(
-                view, myTurn = state.turn == 'm' && result == null, enabled = true,
-                waitingText = "${name(state.turn)} is playing…",
-                name = ::name,
-                onRoll = vm::roll, onToken = vm::moveToken,
-            )
-        }
+        LudoTable(
+            view, myTurn = state.turn == 'm' && result == null, enabled = true,
+            waitingText = "${name(state.turn)} is playing…",
+            name = ::name,
+            onRoll = vm::roll, onToken = vm::moveToken, over = result != null,
+        )
     }
 }
 
@@ -555,18 +559,22 @@ fun SoloLudoScreen(state: SoloLudoUiState, vm: SoloLudoViewModel, onHome: () -> 
  * A token's move, in sound: a pop out of the yard, a tap on each square (rising as it goes),
  * then a bonk and a slide whistle for a token knocked back, or a little fanfare at home.
  */
-private suspend fun ludoSounds(sfx: Sfx, m: LudoMove, count: Int) {
-    val v = if (m.who == 'm') 1f else Sfx.OTHERS
+private suspend fun ludoSounds(sfx: Sfx, haptics: Haptics, m: LudoMove, count: Int) {
+    val others = m.who != 'm'
+    val v = if (others) Sfx.OTHERS else 1f
     if (m.from!! < 0) {
-        sfx.play(Sound.LUDO_OUT, v)
+        sfx.play(Sound.LUDO_OUT, v, others = others)
         return
     }
     repeat(count) { i ->
-        sfx.play(Sound.PIECE_HOP, v, pitch = 1f + 0.04f * i)
+        sfx.play(Sound.PIECE_HOP, v, pitch = 1f + 0.04f * i, others = others)
         delay(HOP_MS.toLong())
     }
     when {
-        m.captured.isNotEmpty() -> sfx.play(Sound.LUDO_CAPTURE)
-        m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v)
+        m.captured.isNotEmpty() -> {
+            sfx.play(Sound.LUDO_CAPTURE)
+            if (!others) haptics.play(Buzz.HIT) // your capture; another player's is only seen and heard
+        }
+        m.to == Ludo.HOME -> sfx.play(Sound.LUDO_HOME, v, others = others)
     }
 }

@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.Buzz
+import com.pippop.ui.rememberHaptics
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.width
 
 import com.pippop.ui.BingoPace
@@ -34,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,6 +107,10 @@ private fun oneAwaySquares(dabs: Set<Int>): Set<Int> = buildSet {
     }
 }
 
+/** Which of [Bingo.LINES] (by position) are one dab from done: the lines behind [oneAwaySquares]. */
+private fun oneAwayLines(dabs: Set<Int>): Set<Int> =
+    Bingo.LINES.indices.filterTo(HashSet()) { i -> Bingo.LINES[i].count { it != Bingo.FREE && it !in dabs } == 1 }
+
 /**
  * The win: the five squares hop one after another, a gold ribbon runs through them and a little
  * confetti falls. [p] runs 0 to 1; at 1 only the ribbon is left. Squares sit in a grid of [cell]
@@ -140,9 +148,26 @@ private fun DrawScope.winRibbon(line: List<Int>, p: Float, cell: Float) {
 @Composable
 fun BingoCard(card: List<Int>, dabs: Set<Int>, line: List<Int>?, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
+    val haptics = rememberHaptics()
     SoundOnChange(dabs.size.takeIf { enabled }) { play(Sound.BINGO_DAB) }
     // A full line dabbed: the Bingo button lights up with a shimmer.
-    SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) { play(Sound.BINGO_LINE_READY) }
+    SoundOnChange((enabled && Bingo.fullLine(card, dabs.map { card[it] }.toSet()) != null).takeIf { it }) {
+        play(Sound.BINGO_LINE_READY)
+        haptics.play(Buzz.LINE_DONE)
+    }
+    // A card is first one away from a line: a heartbeat sound, once for each line on this card (not again when a dab is
+    // taken off and put back, after a rotation, or when the card shows with a line already one away).
+    val oneAwayNow = if (enabled && line == null) oneAwayLines(dabs) else emptySet()
+    val announced = rememberSaveable(card.joinToString(",")) { ArrayList(oneAwayNow) }
+    SoundOnChange(oneAwayNow.takeIf { it.isNotEmpty() }) {
+        val fresh = oneAwayNow.filter { it !in announced }
+        if (fresh.isNotEmpty()) {
+            announced += fresh
+            delay(120) // after the dab's own tap
+            play(Sound.BINGO_ONE_AWAY)
+            haptics.play(Buzz.ONE_AWAY)
+        }
+    }
     val oneAway = remember(dabs, enabled, line == null) { if (enabled && line == null) oneAwaySquares(dabs) else emptySet() }
     // A heartbeat for the squares one dab from a line; a still glow when motion is reduced.
     val beat = if (oneAway.isNotEmpty()) {
@@ -348,7 +373,7 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BINGO) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BINGO) { showRules = false }
     val startAt = room.startAt ?: 0L
     val card = bingo.card
     val calls = bingo.calls
@@ -387,13 +412,14 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     GameFrame(
         title = "Bingo",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, now, p.primary, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
+        players = battleChips(room, state, now, p.me, detail = { _, isMe -> if (isMe && card != null) "${dabs.size} dabbed" else null }),
         glow = GameKind.BINGO.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         tools = listOf(DockTool("Calls", GameIcons.History, badge = called) { showCalls = true }),
+        resultUnder = true,
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         popup = if (!finished || holdPopup) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
@@ -409,7 +435,8 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
             ) {
                 val win = bingo.winCard
                 if (room.winner == "opponent" && win != null) {
-                    BingoCard(win, emptySet(), bingo.line, false, {}, Modifier.size(180.dp))
+                    // Under the board the card is small: it is a glance at their line.
+                    BingoCard(win, emptySet(), bingo.line, false, {}, Modifier.size(if (LocalResultUnder.current) 104.dp else 180.dp))
                 }
             }
         },
@@ -424,10 +451,12 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 }
             }
         } else {
-            CallStrip(calls, called)
+            // The strip and the button leave when the result card arrives (after the ribbon, on your own win).
+            val over = finished && !holdPopup
+            if (!over) CallStrip(calls, called)
             BingoCard(card, dabs, if (finished && room.winner == "me") bingo.line else null, phase == RoomStatus.PLAYING, vm::dabBingo, Modifier.fillMaxWidth().weight(1f))
             val sfx = rememberSfx()
-            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claimBingo() }, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
+            if (!over) PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claimBingo() }, Modifier.fillMaxWidth(), enabled = canClaim && !state.firing && !finished)
         }
     }
 }
@@ -438,8 +467,10 @@ fun BingoGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BINGO) { showRules = false }
-    val playing = state.computers > 0
+    if (showRules) RulesSheet(GameKind.BINGO) { showRules = false }
+    if (state.computers == 0) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.BINGO, "New game", vm::startWith) { changing = false }
     // As in battle: on your own live win the result sheet waits for the ribbon to finish.
     val watched = remember(state.calls) { state.winner == null }
     var ribbonDone by remember(state.calls) { mutableStateOf(false) }
@@ -448,12 +479,12 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
     val hold = myWin && watched && !ribbonDone && !LocalReduceMotion.current
     GameFrame(
         title = "Bingo",
-        subtitle = if (playing) "Against ${state.computers} computer card${if (state.computers > 1) "s" else ""} · ${state.wins} won" else "On your own",
+        subtitle = "Against ${state.computers} computer card${if (state.computers > 1) "s" else ""} · ${state.wins} won",
         players = emptyList(),
         glow = GameKind.BINGO.color,
-        menu = soloMenu(GameKind.BINGO, onHome, { showRules = true }, if (playing) vm::again else null),
-        scrollable = !playing,
-        popup = if (!playing || state.winner == null || hold) null else popupContent {
+        menu = soloMenu(GameKind.BINGO, onHome, { showRules = true }, vm::again, { changing = true }),
+        resultUnder = true,
+        popup = if (state.winner == null || hold) null else popupContent {
             SoloPopup(
                 GameKind.BINGO, when (state.winner) { "me" -> "me"; "none" -> "none"; else -> "computer" },
                 when (state.winner) {
@@ -461,31 +492,21 @@ fun SoloBingoScreen(state: SoloBingoUiState, vm: SoloBingoViewModel, onHome: () 
                     "none" -> "The calls ran out."
                     else -> "Computer ${state.winner} called Bingo after ${state.called} calls."
                 },
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change players", onFinish = vm::changePlayers,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (!playing) {
-            AppCard("How fast are numbers called?") {
-                OptionGroup(BingoPace.entries.map { it to it.label }, state.pace, enabled = true, onPick = vm::setPace)
-                Text(state.pace.line + ".", color = p.muted, fontSize = TextSize.Body)
-            }
-            AppCard("How many computer cards?") {
-                Text("Dab the called numbers on your card and shout Bingo when you fill a row, a column or a diagonal. The computers never miss a number, but they're slow to shout.", color = p.muted, fontSize = TextSize.Body)
-                for (k in 1..3) PrimaryButton("Against $k", { vm.start(k) }, Modifier.fillMaxWidth())
+        val over = state.winner != null && !hold
+        if (!over) CallStrip(state.calls, state.called)
+        BingoCard(state.card, state.dabs, if (state.winner == "me") state.line else null, state.winner == null && state.called > 0, vm::dab, Modifier.fillMaxWidth().weight(1f))
+        val sfx = rememberSfx()
+        if (over) Unit else if (state.pace == BingoPace.RELAXED) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
+                SecondaryButton("Next number", vm::next, Modifier.weight(1f), enabled = state.winner == null && state.called > 0 && state.called < Bingo.NUMBERS)
+                PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.weight(1f), enabled = state.winner == null && state.myLine != null)
             }
         } else {
-            CallStrip(state.calls, state.called)
-            BingoCard(state.card, state.dabs, if (state.winner == "me") state.line else null, state.winner == null && state.called > 0, vm::dab, Modifier.fillMaxWidth().weight(1f))
-            val sfx = rememberSfx()
-            if (state.pace == BingoPace.RELAXED) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.S), modifier = Modifier.fillMaxWidth()) {
-                    SecondaryButton("Next number", vm::next, Modifier.weight(1f), enabled = state.winner == null && state.called > 0 && state.called < Bingo.NUMBERS)
-                    PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.weight(1f), enabled = state.winner == null && state.myLine != null)
-                }
-            } else {
-                PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
-            }
+            PrimaryButton("BINGO!", { sfx.play(Sound.BINGO_SHOUT); vm.claim() }, Modifier.fillMaxWidth(), enabled = state.winner == null && state.myLine != null)
         }
     }
 }

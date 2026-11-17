@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.foundation.layout.size
 import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
@@ -15,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -70,7 +70,7 @@ fun SoloScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                CircularProgressIndicator(color = p.primary)
+                PipPopLoader(Modifier.size(width = 96.dp, height = 60.dp))
                 Text("Creating your puzzle…", color = p.text, modifier = Modifier.padding(top = 16.dp))
             }
         }
@@ -82,7 +82,7 @@ fun SoloScreen(
     val playing = game.status == SoloStatus.PLAYING
 
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SUDOKU) { showRules = false }
     var menuPaused by remember { mutableStateOf(false) }
     GameFrame(
         title = "Sudoku",
@@ -106,7 +106,7 @@ fun SoloScreen(
                 }
             },
         ),
-        tools = listOf(
+        tools = if (game.status == SoloStatus.WON || game.status == SoloStatus.LOST) emptyList() else listOf(
             DockTool(if (paused) "Resume" else "Pause", if (paused) Icons.Filled.PlayArrow else GameIcons.Pause, enabled = game.isActive) {
                 if (paused) vm.resume() else vm.pause()
             },
@@ -115,6 +115,7 @@ fun SoloScreen(
         trailing = {
             Text(style = Digits, text = formatDuration(game.elapsedMs), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
+        resultUnder = true,
         popup = when (game.status) {
             SoloStatus.WON -> popupContent {
                 ResultPopup(
@@ -162,7 +163,8 @@ fun SoloScreen(
             }
         } }
 
-        ToolRow(
+        val over = game.status == SoloStatus.WON || game.status == SoloStatus.LOST
+        if (!over) ToolRow(
             notesMode = game.notesMode,
             canUndo = game.board.canUndo,
             enabled = playing,
@@ -172,7 +174,7 @@ fun SoloScreen(
             onNotes = vm::toggleNotes,
             onHint = vm::hint,
         )
-        NumberPad(
+        if (!over) NumberPad(
             remaining = remainingDigits(game.board, errors),
             enabled = playing && game.selected != null,
             onDigit = vm::enter,

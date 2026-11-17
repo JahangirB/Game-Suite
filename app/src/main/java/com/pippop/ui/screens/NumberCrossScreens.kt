@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.theme.Digits
@@ -41,7 +42,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import kotlin.random.Random
@@ -197,7 +197,7 @@ internal fun NumberGrid(board: NumberBoard, entries: List<String>, selected: Int
                                 val tint = when (verdict[i]) {
                                     true -> Right
                                     false -> Wrong
-                                    null -> if (pick) p.primary else p.accent
+                                    null -> if (pick) p.me else p.accent
                                 }
                                 Box(
                                     Modifier.fillMaxWidth().height(cell).clip(Shapes.S).sunken(tint, if (p.dark) 0.2f else 0f)
@@ -300,7 +300,7 @@ private fun NumberBank(bank: List<Int>, entries: List<String>, enabled: Boolean,
  * change that wasn't your tap (the other side, the server, a new game) just appears.
  */
 @Composable
-internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit, hint: FlightHint) {
+internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<String>, selected: Int?, enabled: Boolean, onSelect: (Int) -> Unit, onPlace: (String) -> Unit, hint: FlightHint, over: Boolean = false) {
     val used = board.cells.indices.filter { board.cells[it] != "" }
     val rows = used.map { it / board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
     val cols = used.map { it % board.w }.let { if (it.isEmpty()) 1 else it.max() - it.min() + 1 }
@@ -338,7 +338,8 @@ internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<Strin
     Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { spots.origin = it.boundsInRoot().topLeft }) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             BoardArea(cols.toFloat() / rows) { size -> NumberGrid(board, entries, selected, enabled, onSelect, size, spots, flight?.takeIf { !it.back }?.k) }
-            NumberBank(board.bank, entries, enabled && selected != null, { v ->
+            // Over: the number bank leaves and the grid keeps its last position.
+            if (!over) NumberBank(board.bank, entries, enabled && selected != null, { v ->
                 // Your own pick starts flying now, so the number never shows in the blank first.
                 val k = selected
                 if (!calm && k != null && v != "" && entries.getOrNull(k) != v) flight = Flight(v.toInt(), k, false, ++count)
@@ -382,15 +383,9 @@ internal fun ColumnScope.NumberCrossPlay(board: NumberBoard, entries: List<Strin
 /** The host's level for the next puzzle; everyone else sees it. */
 @Composable
 fun NumbersLevelCard(room: RoomState, busy: Boolean, onPick: (NumberLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.numbers?.level ?: NumberLevel.EASY
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(NumberLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-            Text("A new puzzle each round, the same for everyone.", color = p.muted, fontSize = TextSize.Body)
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow("Level", NumberLevel.entries.map { it to it.label }, level, onPick, enabled = enabled, note = "A new puzzle each round, the same for everyone.")
     }
 }
 
@@ -418,7 +413,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     var reacting by remember { mutableStateOf(false) }
     val hint = remember { FlightHint() }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.NUMBERS) { showRules = false }
     val mine = if (board != null) progressOf(board, entries) else 0
     val startAt = room.startAt ?: now
     val elapsed = when (phase) {
@@ -430,16 +425,17 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     GameFrame(
         title = "Number Cross",
         subtitle = "Game ${room.round} · ${numbers.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, localNow, p.me, detail = { player, isMe ->
             if (isMe) "$mine% right" else "${player.progress ?: 0}% right"
         }),
         glow = GameKind.NUMBERS.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
-        tools = listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = { hint.mark(); vm.undoNumber() })),
+        tools = if (finished) emptyList() else listOf(DockTool("Undo", GameIcons.Undo, enabled = playing && state.numberHistory.isNotEmpty(), onClick = { hint.mark(); vm.undoNumber() })),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
@@ -466,7 +462,7 @@ fun NumberCrossScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
                 }
             }
         } else {
-            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber, hint)
+            NumberCrossPlay(board, entries, state.numberSelected, playing, vm::selectBlank, vm::placeNumber, hint, over = finished)
         }
     }
 }
@@ -479,38 +475,33 @@ fun SoloNumbersScreen(state: SoloNumbersUiState, vm: SoloNumbersViewModel, onHom
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
     val hint = remember { FlightHint() }
-    if (showRules) RulesDialog(GameKind.NUMBERS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.NUMBERS) { showRules = false }
     val puzzle = state.puzzle
-    val board = remember(puzzle) { puzzle?.toBoard() }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (puzzle == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.NUMBERS, "New game", vm::startWith) { changing = false }
+    val board = remember(puzzle) { puzzle.toBoard() }
     val now = rememberTicker()
     val done = state.finishedMs
     GameFrame(
         title = "Number Cross",
-        subtitle = if (puzzle == null) "On your own" else "On your own · ${state.level.label}",
+        subtitle = "On your own · ${state.level.label}",
         players = emptyList(),
         glow = GameKind.NUMBERS.color,
-        menu = soloMenu(GameKind.NUMBERS, onHome, { showRules = true }, if (puzzle != null) vm::again else null),
+        menu = soloMenu(GameKind.NUMBERS, onHome, { showRules = true }, vm::again, { changing = true }),
         trailing = {
-            if (puzzle != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+            Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
-        scrollable = puzzle == null,
-        popup = if (puzzle == null || done == null) null else popupContent {
+        resultUnder = true,
+        popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.NUMBERS, "me",
                 "Solved in ${formatDuration(done)}" + (state.best[state.level]?.let { " · best ${formatDuration(it)}" } ?: ""),
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = { changing = true },
             )
         },
     ) {
-        if (board == null) {
-            AppCard("Choose the level") {
-                Text("Fill the blanks from the bank so every sum works, across and down. Every puzzle is new.", color = p.muted, fontSize = TextSize.Body)
-                NumberLevel.entries.forEach { level ->
-                    PrimaryButton(level.label + (state.best[level]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(level) })
-                }
-            }
-        } else {
-            NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint)
-        }
+        NumberCrossPlay(board, state.entries, state.selected, done == null, vm::select, vm::place, hint, over = done != null)
     }
 }

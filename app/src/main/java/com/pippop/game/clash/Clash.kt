@@ -20,7 +20,7 @@ object Clash {
 
     fun fits(card: String, top: String, colour: Char) = isWild(card) || card[0] == colour || face(card) == face(top)
 
-    /** Kylian Dictador: the next player draws eight, and he takes the game over. */
+    /** Kylian Dictador: the next player draws eight. */
     fun isKylian(card: String) = face(card) == "K"
 
     /** How many cards a draw card makes the next player take (0 for any other card). */

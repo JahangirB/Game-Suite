@@ -8,13 +8,15 @@
 //
 // Each room is one Durable Object, so a room's state lives in one place and every
 // change is pushed to both players at once. Messages are JSON:
-//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'game' | 'menu' | 'sync' | 'leave', ... }
+//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'face' | 'getface' | 'mempic' | 'getmempic' | 'game' | 'menu' | 'sync' | 'leave', ... }
 //                  ('game' { game } opens a game in the same room; 'menu' goes back to the menu)
 //   server -> app  { type: 'state', re?, serverTime, ...room view }   (re = id it answers)
 //                  { type: 'error', re?, error, fatal }
 //                  { type: 'stroke', turn, index, stroke }   (Draw & Guess, to the guesser)
 
 import { DurableObject } from 'cloudflare:workers';
+import { getFace, setFace, sweepFaces } from './faces.js';
+import { getMemoryPic, setMemoryPic, sweepMemoryPics } from './memorypics.js';
 import { DirectoryError, pair, prepareMessage, register } from './directory.js';
 import { createPushSender, serviceAccountText } from './push.js';
 import {
@@ -130,6 +132,7 @@ export class Room extends DurableObject {
       server.serializeAttachment({ role });
       setConnected(this.room, role, true, now);
       await this.save();
+      await this.sweep();
       await this.rememberPartners();
       this.send(server, role, { re: 'open', playerId: this.room.players[role].id });
       this.broadcast(server);
@@ -219,6 +222,8 @@ export class Room extends DurableObject {
           break;
         case 'options':
           setOptions(this.room, role, msg.options);
+          // A new deck or size takes the opener's photos away.
+          await this.sweep();
           break;
         case 'guess':
           if (this.room.game === 'bingo') claimBingo(this.room, role, now);
@@ -257,6 +262,20 @@ export class Room extends DurableObject {
         case 'getphoto':
           this.send(ws, role, { re: msg.id, photo: this.room.slidePhoto || null });
           return;
+        case 'face':
+          // A player's own photo (cap "faces"): stored on its own, the room keeps only its id.
+          await setFace(this.ctx.storage, this.room, role, msg.photo ?? null, now);
+          break;
+        case 'getface':
+          this.send(ws, role, { re: msg.id, photo: await getFace(this.ctx.storage, this.room, msg.face) });
+          return;
+        case 'mempic':
+          // Memory Pairs with photos (cap "memory-photos"): one photo for one place in the deck, stored on its own.
+          await setMemoryPic(this.ctx.storage, this.room, role, msg.slot, msg.photo ?? null, now);
+          break;
+        case 'getmempic':
+          this.send(ws, role, { re: msg.id, photo: await getMemoryPic(this.ctx.storage, this.room, msg.pic) });
+          return;
         case 'unstroke':
           undoStroke(this.room, role);
           break;
@@ -276,10 +295,11 @@ export class Room extends DurableObject {
           else submitBoard(this.room, role, msg.board, now);
           break;
         case 'emoji':
-          sendEmoji(this.room, role, msg.emoji, now);
+          sendEmoji(this.room, role, msg.emoji, now, msg.text);
           break;
         case 'game':
           openGame(this.room, role, String(msg.game ?? ''), now);
+          await this.sweep();
           break;
         case 'menu':
           toMenu(this.room, role, now);
@@ -296,6 +316,7 @@ export class Room extends DurableObject {
           leave(this.room, role);
           ws.serializeAttachment({ role: null });
           await this.save();
+          await this.sweep();
           ws.send(JSON.stringify({ type: 'left', re: msg.id }));
           safeClose(ws, 1000, 'Left');
           this.broadcast(ws);
@@ -344,8 +365,16 @@ export class Room extends DurableObject {
       this.room = null;
       return;
     }
+    // Seats given up by the timers take their photos with them.
+    await this.sweep();
     await this.save();
     if (result === 'changed') this.broadcast(null);
+  }
+
+  /** Deletes the stored photos nothing points at any more: players' faces and Memory Pairs' deck. */
+  async sweep() {
+    await sweepFaces(this.ctx.storage, this.room);
+    await sweepMemoryPics(this.ctx.storage, this.room);
   }
 
   /** Sends the room as `role` sees it. */

@@ -5,6 +5,8 @@ import com.pippop.ui.theme.TextSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.alpha
+import com.pippop.data.Difficulty
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -105,7 +107,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
     }
     SoundOnChange(miss?.seq) { play(Sound.ERROR) }
     // During a match only the filled share is known locally; the server reveals the solved share once it is over.
-    val players = battleChips(room, state, localNow, if (together) CoopInk[0] else p.primary, detail = { player, isMe ->
+    val players = battleChips(room, state, localNow, if (together) CoopInk[0] else p.me, detail = { player, isMe ->
         when {
             playing && !isMe && (player.online == false || player.idleMs > OPPONENT_LAG_WARNING_MS) -> "connection lost?"
             together -> {
@@ -116,7 +118,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             else -> "${player.progress ?: 0}% solved"
         }
     }, otherColor = if (together) ({ CoopInk[(it + 1).coerceAtMost(CoopInk.lastIndex)] }) else ({ SeatColors[it % SeatColors.size] }))
-    if (showRules) RulesDialog(GameKind.SUDOKU) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SUDOKU) { showRules = false }
 
     GameFrame(
         title = "Sudoku",
@@ -127,7 +129,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         // A race: the tools work all the time. Together, digits once placed stay (no Undo) and
         // Erase clears your notes.
-        tools = listOfNotNull(
+        tools = if (finished) emptyList() else listOfNotNull(
             DockTool(if (state.notesMode) "Notes: on" else "Notes", GameIcons.Pencil, enabled = playing, onClick = vm::toggleNotes),
             if (together) null else DockTool("Undo", GameIcons.Undo, enabled = playing && board.canUndo, onClick = vm::undo),
             DockTool(if (together) "Erase notes" else "Erase", GameIcons.Eraser, enabled = playing, onClick = vm::erase),
@@ -141,7 +143,8 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             }
         },
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             SudokuPopup(room, state.busy, showSolution, onToggleSolution = { showSolution = !showSolution }, vm = vm, onLeave = onLeave)
         },
@@ -153,6 +156,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                 val rings = coop?.cursors.orEmpty().withIndex()
                     .filter { (i, cell) -> cell in board.cells.indices && room.others.getOrNull(i)?.let { !it.left && !it.out } == true }
                     .associate { (i, cell) -> cell to CoopInk[(i + 1).coerceAtMost(CoopInk.lastIndex)] }
+                val byOther = { i: Int -> coop?.by?.getOrNull(i)?.let { it in '1'..'3' } == true }
                 val shown = if (showSolution) room.solution?.let(board.shape::parse) else null
                 if (board.shape.big) {
                     // Joined grids: the whole board, to pinch or double-tap into.
@@ -160,6 +164,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                         board = board, errors = conflicts, selected = state.selected, hidden = phase == RoomStatus.COUNTDOWN,
                         solution = shown, onSelect = vm::select, onLongPress = vm::fillNotes, inkOf = inkOf, rings = rings, flash = flash,
                         celebrate = together,
+                        placedByOther = byOther,
                     )
                 } else {
                     SudokuGrid(
@@ -175,6 +180,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
                         flash = flash,
                         // Together only keeps right digits, so a full unit is right; in a race it may not be.
                         celebrate = together,
+                        placedByOther = byOther,
                     )
                 }
                 if (phase == RoomStatus.COUNTDOWN) {
@@ -190,7 +196,7 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             }
         }
 
-        NumberPad(
+        if (!finished) NumberPad(
             remaining = remainingDigits(board, conflicts),
             enabled = playing && state.selected != null,
             onDigit = vm::enterDigit,
@@ -247,8 +253,10 @@ fun ShapePicker(selected: SudokuShape, enabled: Boolean, onPick: (SudokuShape) -
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                ShapePreview(shape, Modifier.size(48.dp))
-                Text(shape.label, color = p.text, fontSize = TextSize.Label, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)
+                // Greyed as the choices of an OptionRow are: the chosen one stays as it is, the others fade.
+                val fade = if (enabled || on) 1f else 0.4f
+                ShapePreview(shape, Modifier.size(48.dp).alpha(fade))
+                Text(shape.label, modifier = Modifier.alpha(fade), color = p.text, fontSize = TextSize.Label, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)
             }
         }
     }
@@ -267,17 +275,47 @@ fun SudokuModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit, on
             color = p.muted, fontSize = TextSize.Label,
         )
     }
-    AppCard("Mode") {
-        if (room.setsOptions) {
-            OptionGroup(listOf(false to "Race", true to "Together"), room.sudokuTogether, enabled = !busy, onPick = onPick)
-        } else {
-            Text(if (room.sudokuTogether) "Together, picked by whoever opened the game." else "Race, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text(
-            if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
+    OptionsCard(room, "Mode", busy) { enabled ->
+        OptionRow(
+            "Mode", listOf(false to "Race", true to "Together"), room.sudokuTogether, onPick, enabled = enabled,
+            note = if (room.sudokuTogether) "One board for the team: anyone fills any square. Your digits are blue, your partner's pink, and a ring shows where each of you is. A wrong digit costs one of the team's lives (${if (room.sudokuShape.big) LocalRoom.COOP_LIVES_BIG else LocalRoom.COOP_LIVES}): fill the board and you all win."
             else "The same puzzle on every phone: the first to solve it wins.",
-            color = p.muted, fontSize = TextSize.Label,
         )
+    }
+}
+
+/**
+ * Sudoku where whoever opened the game picks ([RoomState.picksByOpener]): Race or Together, the level and
+ * the board as rows of choices (the others see them greyed), and the others tap Ready.
+ */
+@Composable
+fun SudokuOpenerCard(
+    room: RoomState,
+    busy: Boolean,
+    onLevel: (Difficulty) -> Unit,
+    onTogether: (Boolean) -> Unit,
+    onShape: (SudokuShape) -> Unit,
+) {
+    val p = AppTheme.palette
+    OptionsCard(room, "Setup", busy) { enabled ->
+        if (room.sudokuModes) OptionRow(
+            "Play", listOf(false to "Race", true to "Together"), room.sudokuTogether, onTogether, enabled = enabled,
+            note = if (room.sudokuTogether) "One board for the team: anyone fills any square. A wrong digit costs one of the team's lives."
+            else null,
+        )
+        OptionRow("Level", Difficulty.entries.map { it to it.label }, room.sudokuLevel ?: Difficulty.MEDIUM, onLevel, enabled = enabled, perRow = 3)
+        if (room.sudokuShapes) {
+            ShapePicker(room.sudokuShape, enabled = enabled, onPick = onShape)
+        }
+        if (room.setsOptions) {
+            val others = room.present.map { it.name }
+            val text = when (others.size) {
+                0 -> "You opened Sudoku, so you set it up. Whoever joins sees your choices and taps Ready."
+                1 -> "You opened Sudoku, so you set it up. ${others[0]} sees your choices and taps Ready."
+                else -> "You opened Sudoku, so you set it up. The others see your choices and tap Ready."
+            }
+            Text(text, color = p.muted, fontSize = TextSize.Body)
+        }
     }
 }
 
@@ -314,7 +352,7 @@ private fun BoxScope.SudokuPopup(
         "solved" -> if (won) {
             "You solved it in ${formatDuration(room.me.finishMs ?: 0L)}!"
         } else {
-            "$opponentName solved it in ${formatDuration(opponent?.finishMs ?: 0L)}. " +
+            "$opponentName solved it${opponent?.finishMs?.let { " in ${formatDuration(it)}" } ?: ""}. " +
                 "You had ${room.me.progress ?: 0}% correct."
         }
         "forfeit" -> if (won) "$opponentName left the game." else "You left the game."
@@ -334,7 +372,7 @@ private fun BoxScope.SudokuPopup(
         }
         // Partner picked another level: theirs is one tap away (Change has them all).
         val theirs = opponent?.takeIf { it.ready && !it.left }?.difficulty
-        if (theirs != null && theirs != room.difficulty && !room.me.ready) {
+        if (!room.picksByOpener && theirs != null && theirs != room.difficulty && !room.me.ready) {
             TextButton(onClick = { vm.chooseLevel(theirs) }) { Text("$opponentName wants ${theirs.label}: play that", color = p.primaryText, fontWeight = FontWeight.Bold) }
         }
     }

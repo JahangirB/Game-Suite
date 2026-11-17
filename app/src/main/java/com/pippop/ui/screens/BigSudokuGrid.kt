@@ -65,6 +65,7 @@ fun BigSudokuGrid(
     rings: Map<Int, Color> = emptyMap(),
     flash: Pair<Int, Int>? = null,
     celebrate: Boolean = false,
+    placedByOther: (Int) -> Boolean = { false },
 ) {
     val p = AppTheme.palette
     val shape = board.shape
@@ -82,7 +83,7 @@ fun BigSudokuGrid(
     val shared = lerp(p.boardBackground, Pieces.Yellow, 0.22f)
     val digitPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER } }
     val empty = board.cells.indices.count { shape.onBoard(it) && board.cells[it] == 0 }
-    val sweeps = rememberUnitSweeps(board, errors, celebrate)
+    val sweeps = rememberUnitSweeps(board, errors, celebrate, placedByOther)
 
     BoxWithConstraints(
         modifier.fillMaxWidth().aspectRatio(1f)
@@ -238,7 +239,7 @@ fun BigSudokuGrid(
                 val o = at(i / n, i % n)
                 drawRect(color, o + Offset(thick / 2, thick / 2), Size(c - thick, c - thick), style = Stroke(maxOf(2.dp.toPx(), c * 0.1f)))
             }
-            selected?.let { i -> drawRect(p.primary, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
+            selected?.let { i -> drawRect(p.me, at(i / n, i % n), Size(c, c), style = Stroke(2.dp.toPx())) }
             // A finished unit's tick, in the corner of its last square.
             for (sweep in sweeps) {
                 val last = sweep.unit.last()

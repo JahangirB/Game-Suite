@@ -8,6 +8,7 @@ import com.pippop.data.PlayMode
 import com.pippop.data.Profile
 import com.pippop.data.ProfileStore
 import com.pippop.data.ShipStyle
+import com.pippop.data.ColourTheme
 import com.pippop.data.ThemeMode
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -29,13 +30,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setScriptUrl(value: String) = store.setScriptUrl(value)
     fun setServerPassword(value: String) = store.setServerPassword(value)
     fun setAvatar(value: Avatar?) = store.setAvatar(value)
+    /** Your own photo ([com.pippop.data.Faces]: a base64 JPEG), or null to remove it. */
+    fun setFace(photo: String?) = store.setFace(photo)
     fun setTheme(mode: ThemeMode) = store.setTheme(mode)
+    fun setColourTheme(theme: ColourTheme) = store.setColourTheme(theme)
     fun setShipStyle(style: ShipStyle) = store.setShipStyle(style)
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
-    fun setGameOrder(order: List<GameKind>?) = store.setGameOrder(order)
+    fun addToShelf(game: GameKind) = store.addToShelf(game)
+    fun removeFromShelf(game: GameKind) = store.removeFromShelf(game)
+    fun moveOnShelf(from: Int, to: Int) = store.moveOnShelf(from, to)
+    /** Undoes a removal: [game] goes back to place [index] on the shelf (the end if the shelf is shorter now). */
+    fun restoreToShelf(game: GameKind, index: Int) {
+        val shelf = profile.value.shelf
+        if (game in shelf) return
+        store.setShelf(shelf.toMutableList().apply { add(index.coerceIn(0, size), game) })
+    }
+    /** The one-time "The other games are in the Game Store" note has been seen. */
+    fun markShelfNoteShown() = store.markShelfNoteShown()
+    fun noteGamePlayed(game: GameKind) = store.noteGamePlayed(game)
+    /** Remembers how a game was last set up to play alone. */
+    fun setSoloSetup(game: GameKind, values: Map<String, String>) = store.setSoloSetup(game, values)
     fun finishFirstRun() = store.finishFirstRun()
     fun setVibration(on: Boolean) = store.setVibration(on)
-    fun setSound(on: Boolean) = store.setSound(on)
+    fun setLoudness(value: com.pippop.data.Loudness) = store.setLoudness(value)
+    fun setOthersMoves(on: Boolean) = store.setOthersMoves(on)
     fun notificationsAnswered() = store.notificationsAnswered()
     fun tutorialSeen(kind: GameKind) = store.tutorialSeen(kind)
+    fun setCupShown(month: java.time.YearMonth) = store.setCupShown(month)
 }

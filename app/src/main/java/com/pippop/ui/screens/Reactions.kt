@@ -1,23 +1,40 @@
 package com.pippop.ui.screens
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.pippop.data.ProfileStore
+import com.pippop.data.PackSticker
 import com.pippop.data.Reaction
+import com.pippop.data.StickerStore
+import com.pippop.ui.art.PackStickerImage
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.Takeover
 import com.pippop.ui.art.ReactionImage
@@ -28,31 +45,147 @@ import kotlinx.coroutines.delay
 /** How long a reaction stays next to a player's name. */
 private const val REACTION_SHOWN_MS = 3500L
 
+/** What a tray item draws; [size] is the width of its cell, so it can scale down on a narrow screen. */
+typealias TraySlot = @Composable (size: Dp) -> Unit
+
+/** Eight items fit a row when each has its 48 dp; a narrower screen gets fewer columns instead. */
+private const val TRAY_COLUMNS = 8
+
+private val TrayTarget = 48.dp
+
+/** The space between neighbours, drawn inside each cell so the cells themselves touch. */
+private val TrayGap = 6.dp
+
 /**
- * The predefined reactions; tap one to show it to your opponent. While a reaction that takes the
- * game over is playing (Kylian Dictador), the bar is dimmed and nothing can be sent.
+ * The reactions as a tray taken in at once: two rows of eight, the ones used last first
+ * ([recentKeys], from the profile). On a phone too narrow for eight 48 dp targets a row holds
+ * fewer and three rows show. If there are more reactions than rows shown, the rest sit below a
+ * row that peeks out, and the tray scrolls up to them.
+ * Tap one to show it to your opponent. While a reaction that takes the game over is playing
+ * (Kylian Dictador), the tray is dimmed and nothing can be sent.
+ *
+ * [trailing] is an optional item after the last reaction (the "+" for sticker packs). It takes a
+ * place in the grid like any reaction; pass null, the default, and no place is made.
+ * [onPack] sends a sticker from the packs by its id; it is null where the server has no "packs" cap
+ * (`BattleViewModel.packSender`), and then there are no pack stickers in the tray and no "+" after them.
+ * [onLine] says one of the player's own lines; it is null where the server has no "lines" cap
+ * (`BattleViewModel.lineSender`), and then the row of lines above the grid is not drawn.
  */
 @Composable
-fun ReactionBar(onReact: (Reaction) -> Unit, modifier: Modifier = Modifier) {
-    val p = AppTheme.palette
+fun ReactionBar(
+    onReact: (Reaction) -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: TraySlot? = null,
+    onLine: ((String) -> Unit)? = null,
+    onPack: ((String) -> Unit)? = null,
+) {
+    val context = LocalContext.current
+    val store = remember(context) { ProfileStore.get(context) }
+    val profile by store.profile.collectAsState()
+    var editing by remember { mutableStateOf(false) }
+    if (editing && onLine != null) LinesSheet(profile.lines, onSave = store::setLines) { editing = false }
+    // The stickers from the packs, and the "+" that adds more: only where the server can carry them.
+    val stickers = if (onPack != null) remember(context) { StickerStore.get(context) } else null
+    val have = stickers?.installed?.collectAsState()?.value.orEmpty()
+    var browsing by remember { mutableStateOf(false) }
+    if (browsing && stickers != null) PacksSheet(stickers) { browsing = false }
+    val plus: TraySlot = { size -> PacksPlus(size) { browsing = true } }
+    ReactionTray(
+        Reaction.recentFirst(profile.recentReactions), onReact, modifier,
+        trailing = if (onPack != null) plus else trailing,
+        lines = profile.lines.takeIf { onLine != null }, onLine = onLine, onEditLines = { editing = true },
+        packs = have, onPack = onPack,
+    )
+}
+
+/** The tray for an already ordered list of reactions (the screenshot tests draw this one). * With [lines] (the player's own, when the server can carry them) a row of chips sits above the grid,
+ * the pencil first ([onEditLines]); a tap on a chip says it ([onLine]). It is not part of the grid.
+ */
+@Composable
+internal fun ReactionTray(
+    reactions: List<Reaction>,
+    onReact: (Reaction) -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: TraySlot? = null,
+    lines: List<String>? = null,
+    onLine: ((String) -> Unit)? = null,
+    onEditLines: () -> Unit = {},
+    packs: List<PackSticker> = emptyList(),
+    onPack: ((String) -> Unit)? = null,
+) {
     val lockedUntil by Takeover.until.collectAsState()
     val locked = rememberTicker() < lockedUntil
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).alpha(if (locked) 0.35f else 1f),
-    ) {
-        Reaction.entries.forEach { reaction ->
-            if (reaction.sticker) {
-                Surface(onClick = { onReact(reaction) }, enabled = !locked, shape = Shapes.S, modifier = Modifier.size(42.dp)) {
-                    ReactionImage(reaction, 42.dp)
-                }
-            } else {
-                Surface(onClick = { onReact(reaction) }, enabled = !locked, shape = CircleShape, color = p.accent, modifier = Modifier.size(42.dp)) {
-                    Box(contentAlignment = Alignment.Center) { ReactionImage(reaction, 30.dp) }
+    val cells = buildList<@Composable (Dp) -> Unit> {
+        reactions.forEach { r -> add { size -> ReactionCell(r, size, locked, onReact) } }
+        // The downloaded stickers come after the built-in ones. The "+" is placed below, where the rows are known.
+        if (onPack != null) packs.forEach { s -> add { size -> PackCell(s, size, locked, onPack) } }
+    }
+    Column(modifier.fillMaxWidth().alpha(if (locked) 0.35f else 1f)) {
+        if (lines != null && onLine != null) LinesRow(lines, enabled = !locked, onLine = onLine, onEdit = onEditLines)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = minOf(TRAY_COLUMNS, (maxWidth / TrayTarget).toInt()).coerceAtLeast(1)
+            val cell = maxWidth / columns
+            val rowsShown = if (columns < TRAY_COLUMNS) 3 else 2
+            // The "+" is the last cell, or, when there are more cells than the rows shown hold, the last one in
+            // view: the rest scroll after it, so it is never half cut off.
+            val all = if (trailing == null) cells else cells.toMutableList().apply { add(minOf(cells.size, columns * rowsShown - 1), trailing) }
+            val rows = all.chunked(columns)
+            Column(
+                modifier = if (rows.size > rowsShown) {
+                    Modifier.heightIn(max = TrayTarget * rowsShown + TrayTarget / 2).verticalScroll(rememberScrollState())
+                } else Modifier,
+            ) {
+                rows.forEach { row ->
+                    Row {
+                        row.forEach { slot -> Box(Modifier.size(cell, TrayTarget), contentAlignment = Alignment.Center) { slot(cell) } }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ReactionCell(reaction: Reaction, width: Dp, locked: Boolean, onReact: (Reaction) -> Unit) {
+    val p = AppTheme.palette
+    // The whole cell is the touch target; the picture inside leaves half a gap on every side.
+    val art = minOf(width - TrayGap, 42.dp)
+    Surface(
+        onClick = { onReact(reaction) }, enabled = !locked, shape = Shapes.S, color = Color.Transparent,
+        modifier = Modifier.size(width, TrayTarget).semantics { contentDescription = reaction.label() },
+    ) {
+        Box(Modifier.padding(TrayGap / 2), contentAlignment = Alignment.Center) {
+            if (reaction.sticker) {
+                ReactionImage(reaction, art)
+            } else {
+                Box(Modifier.size(art).clip(CircleShape).background(p.accent), contentAlignment = Alignment.Center) {
+                    ReactionImage(reaction, art * 0.72f)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PackCell(sticker: PackSticker, width: Dp, locked: Boolean, onPack: (String) -> Unit) {
+    val art = minOf(width - TrayGap, 42.dp)
+    Surface(
+        onClick = { onPack(sticker.id) }, enabled = !locked, shape = Shapes.S, color = Color.Transparent,
+        modifier = Modifier.size(width, TrayTarget).semantics { contentDescription = sticker.name },
+    ) {
+        Box(Modifier.padding(TrayGap / 2), contentAlignment = Alignment.Center) { PackStickerImage(sticker, art) }
+    }
+}
+
+/** What a screen reader says for a reaction. */
+private fun Reaction.label(): String = when (this) {
+    Reaction.KYLIAN -> "Kylian Dictador"
+    Reaction.SIDE_EYE -> "Hmm. Sure."
+    Reaction.SWEAT -> "Phew"
+    Reaction.THINK -> "Thinking"
+    Reaction.HURRY -> "Hurry up"
+    Reaction.THIS_IS_FINE -> "This is fine"
+    else -> name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
 }
 
 /** [shown] while it should stay on screen, or null once it has been there long enough. */

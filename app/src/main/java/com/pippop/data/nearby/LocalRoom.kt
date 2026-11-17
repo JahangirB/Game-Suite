@@ -5,6 +5,8 @@ import com.pippop.data.Avatar
 import com.pippop.data.Difficulty
 import com.pippop.data.GameKind
 import com.pippop.data.Reaction
+import com.pippop.data.ChatLines
+import com.pippop.data.PackKey
 import com.pippop.data.toJson
 import com.pippop.game.golf.GolfLevel
 import com.pippop.game.Generator
@@ -44,6 +46,9 @@ class LocalRoom(
     val game: GameKind = GameKind.SUDOKU,
     private val generate: (Int) -> Generator.Result = { Generator.generate(it) },
 ) {
+    /** What a player last said with one tap: a reaction's key, or [ChatLines.KEY] with its words in [text]. */
+    class Said(val key: String, val seq: Int, val text: String? = null)
+
     class Player(val id: String, val name: String, var avatar: Avatar?) {
         /** The phone this player is on, so it gets this seat back if it joins again. */
         var deviceId: String? = null
@@ -59,7 +64,7 @@ class LocalRoom(
         var left = false
         var connected = true
         var awaySince: Long? = null
-        var emoji: Pair<Reaction, Int>? = null
+        var emoji: Said? = null
         var emojiAt = 0L
         // Ship Battle
         var pendingFleet: List<Ship>? = null
@@ -88,6 +93,15 @@ class LocalRoom(
         var placed = 0
         /** Their app plays Sudoku boards of joined grids. */
         var bigSudoku = false
+        /** Their app plays Sudoku where whoever opened the game picks the level. */
+        var sudokuOpener = false
+        /** Their app shows Memory Pairs cards with the players' own photos ("memory-photos"). */
+        var memoryPhotos = false
+        /** Their photo (a small JPEG as base64) and its id; kept here, never in a room state. Goes with them when they leave. */
+        var face: String? = null
+        var photoId: Int? = null
+        /** When they last set or removed it, for the pace limit. */
+        var faceAt: Long? = null
     }
 
     var status = "waiting"
@@ -156,6 +170,9 @@ class LocalRoom(
     /** Sudoku: how the next round's grids are joined, and how this round's are. */
     var sudokuShape = com.pippop.game.SudokuShape.CLASSIC
         private set
+    /** Sudoku: the level the opener picked for the next round (used while [openerMode]). */
+    var sudokuLevel = Difficulty.MEDIUM
+        private set
     private var roundShape = com.pippop.game.SudokuShape.CLASSIC
     /** A big board's puzzle from the opener's phone: shape, level, puzzle, solution. */
     private var nextBig: NextBig? = null
@@ -174,7 +191,7 @@ class LocalRoom(
 
     /** The players a match started with, in seat order. */
     private var inMatch: List<String> = listOf(HOST, GUEST)
-    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar).also { it.bigSudoku = true }, GUEST to null, P3 to null, P4 to null)
+    val players = mutableMapOf<String, Player?>(HOST to newPlayer(hostName, hostAvatar).also { it.bigSudoku = true; it.sudokuOpener = true; it.memoryPhotos = true }, GUEST to null, P3 to null, P4 to null)
 
     fun playerId(role: String) = players.getValue(role)!!.id
 
@@ -212,15 +229,17 @@ class LocalRoom(
             throw ApiException("This game needs the latest Pip & Pop. Update the app to join.", fatal = true, reason = "update_needed")
         }
         val big = games?.contains(BIG_SUDOKU) == true
-        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { it.value?.bigSudoku = big; return it.key }
+        val opener = games?.contains(SUDOKU_OPENER) == true
+        val photos = games?.contains(MEMORY_PHOTOS) == true
+        players.entries.firstOrNull { it.value?.id == playerId && playerId != null }?.let { it.value?.bigSudoku = big; it.value?.sudokuOpener = opener; it.value?.memoryPhotos = photos; return it.key }
         // The same phone coming back without its player id gets its own seat back, not a second one beside it.
-        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { it.value?.bigSudoku = big; return it.key }
+        if (deviceId != null) players.entries.firstOrNull { it.value?.let { p -> !p.left && p.deviceId == deviceId } == true }?.let { it.value?.bigSudoku = big; it.value?.sudokuOpener = opener; it.value?.memoryPhotos = photos; return it.key }
         if (playerId != null) throw ApiException("You're not in this game.", fatal = true, reason = "not_member")
         val max = game.maxPlayers
         val seat = ROLES.subList(1, max).firstOrNull { players[it]?.left != false }
             ?: throw ApiException(if (max == 2) "This game already has two players." else "This game is full: $max players.", fatal = true, reason = "full")
         if (status == "started") throw ApiException("A game is being played. Join when it ends.", fatal = true, reason = "busy")
-        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId; it.bigSudoku = big }
+        players[seat] = newPlayer(name, avatar).also { it.deviceId = deviceId; it.bigSudoku = big; it.sudokuOpener = opener; it.memoryPhotos = photos }
         // Everyone gets ready again, so the newcomer is part of the next round.
         for (r in seated()) player(r).apply { this.ready = false; difficulty = null }
         if (status == "waiting") status = "lobby"
@@ -266,11 +285,19 @@ class LocalRoom(
     fun setReady(role: String, ready: Boolean, level: Difficulty?, now: Long, big: Pair<String, String>? = null) {
         checkCanReady()
         val me = player(role)
+        val opener = openerMode()
         if (!ready) {
             me.ready = false
             me.difficulty = null
         } else {
-            val chosen = level ?: throw ApiException("Choose a difficulty level.")
+            if (opener && role == openedBy && level != null && level != sudokuLevel) {
+                // The opener's Ready may carry a new level (the result's level buttons): it is the room's, and the others get ready again.
+                sudokuLevel = level
+                nextBig = null
+                for (r in seated()) player(r).ready = false
+            }
+            // Where the opener picks, everyone's Ready is for the opener's level, whatever they tapped.
+            val chosen = (if (opener) sudokuLevel else level) ?: throw ApiException("Choose a difficulty level.")
             if (sudokuShape.big) {
                 present().firstOrNull { !player(it).bigSudoku }?.let { throw ApiException("${player(it).name} needs the latest Pip & Pop for big boards.") }
                 if (role == openedBy) {
@@ -282,14 +309,26 @@ class LocalRoom(
             me.ready = true
             me.difficulty = chosen
         }
-        val levels = present().map { player(it).difficulty }.toSet()
+        val levels = if (opener) setOf(sudokuLevel) else present().map { player(it).difficulty }.toSet()
         val puzzleIn = !sudokuShape.big || nextBig?.let { it.shape == sudokuShape && it.level == levels.firstOrNull() } == true
         if (allReady() && levels.size == 1 && puzzleIn) startRound(now)
         version++
     }
 
+    /**
+     * Sudoku where whoever opened the game picks the level and the others only tap Ready: while every
+     * player in the room has the "sudoku-opener" token. With any app lacking it, taps must match.
+     */
+    internal fun openerMode() = game == GameKind.SUDOKU && inRoom().all { player(it).sudokuOpener }
+
+    /**
+     * Memory Pairs with the players' own photos: every player in the room has the "memory-photos" token. With anyone
+     * lacking it the deck is the animals, whatever was chosen, and no photo is sent. As on the server (room.js).
+     */
+    internal fun memoryPhotosAllowed() = game == GameKind.MEMORY && inRoom().all { player(it).memoryPhotos }
+
     private fun startRound(now: Long) {
-        val level = host.difficulty!!
+        val level = if (openerMode()) sudokuLevel else host.difficulty!!
         val made = nextBig
         val generated = if (sudokuShape.big && made != null) Generator.Result(made.puzzle, made.solution) else generate(level.holes)
         roundShape = if (made != null && sudokuShape.big) made.shape else com.pippop.game.SudokuShape.CLASSIC
@@ -429,11 +468,15 @@ class LocalRoom(
     /** Turn games: ready (or not) for the next round; the starting player moves one seat on. */
     fun setTurnReady(role: String, ready: Boolean, now: Long, random: Random = Random.Default) {
         checkCanReady()
+        if (ready && memoryPhotosOn()) {
+            val missing = memoryPics().count { it == null }
+            if (missing > 0) throw ApiException("Choose $missing more ${if (missing == 1) "photo" else "photos"} to start.")
+        }
         player(role).ready = ready
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard)
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard, memoryPhotosOn())
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
@@ -487,9 +530,21 @@ class LocalRoom(
             GameKind.SUDOKU -> {
                 sudokuTogether = options.optString("mode") == "together"
                 sudokuShape = com.pippop.game.SudokuShape.from(options.optString("shape"))
+                // The level is the opener's to keep when a call (an older app's) leaves it out.
+                Difficulty.entries.firstOrNull { it.key == options.optString("level") }?.let { sudokuLevel = it }
                 nextBig = null
             }
-            GameKind.MEMORY -> memoryCards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
+            GameKind.MEMORY -> {
+                // The deck's pictures are the opener's to keep when a call (an older app's) leaves them out.
+                val photos = if (options.has("deck")) options.optString("deck") == "photos" else memoryDeckPhotos
+                // Only a call that asks for the photos is refused; a deck kept from before (an old phone joined since) stays.
+                if (options.optString("deck") == "photos" && !memoryPhotosAllowed()) throw ApiException("Your photos need the latest Pip & Pop on every phone.")
+                val cards = options.optInt("cards").takeIf { it in com.pippop.game.memory.MemoryMatch.DECKS } ?: com.pippop.game.memory.MemoryMatch.CARDS
+                // Another deck or another size takes the photos away; the opener picks again.
+                if (cards != memoryCards || photos != memoryDeckPhotos) { memoryPicIds.clear(); memoryPicStore.clear() }
+                memoryCards = cards
+                memoryDeckPhotos = photos
+            }
             else -> throw ApiException("This game has no options.")
         }
         for (r in seated()) player(r).ready = false
@@ -693,7 +748,7 @@ class LocalRoom(
     fun setSlidePhoto(role: String, photo: String?) {
         if (game != GameKind.SLIDE) throw ApiException("Only Slide Race has a photo.")
         if (role != openedBy) throw ApiException("Only whoever opened the game can pick the photo.")
-        if (status == "started") throw ApiException("The photo can only change between matches.")
+        if (status == "started") throw ApiException("The photo can only change between games.")
         slidePhoto = photo?.takeIf { it.isNotEmpty() }?.also {
             if (it.length > MAX_PHOTO || !it.all { c -> c.isLetterOrDigit() || c == '+' || c == '/' || c == '=' }) throw ApiException("That photo is too big.")
         }
@@ -701,6 +756,81 @@ class LocalRoom(
         for (r in seated()) player(r).ready = false
         version++
     }
+
+    private var faceSeq = 0
+
+    /** Memory Pairs: the opener chose the players' photos for the deck (kept while the room is not allowed them; see [memoryPhotosOn]). */
+    var memoryDeckPhotos = false
+        private set
+
+    /** Memory Pairs: the photos of the deck by id, kept here and never in a room state; the ids of the places, in [memoryPicIds]. */
+    private val memoryPicStore = mutableMapOf<Int, String>()
+    private val memoryPicIds = mutableMapOf<Int, Int>()
+    private var memSeq = 0
+    private var memoryPicAt: Long? = null
+
+    /** How many photos this room holds in memory (for tests: it must follow the ids). */
+    internal val memoryPicsKept get() = memoryPicStore.size
+
+    /** Whether the deck is the players' photos now: chosen, and allowed ([memoryPhotosAllowed]). */
+    internal fun memoryPhotosOn() = game == GameKind.MEMORY && memoryDeckPhotos && memoryPhotosAllowed()
+
+    /** The photo ids of the open deck, one per pair (null where none yet); empty unless the deck is the photos. */
+    internal fun memoryPics(): List<Int?> =
+        if (game != GameKind.MEMORY || !memoryDeckPhotos) emptyList() else List(memoryCards / 2) { memoryPicIds[it] }
+
+    /**
+     * The opener ([role]) sets the photo for place [slot] (a JPEG as base64, at most [MAX_MEMORY_PIC] characters) or
+     * empties it with null or an empty string; between games only, and only while the deck is the photos and
+     * everyone has the token. Everyone gets ready again. As on the server (memorypics.js).
+     */
+    fun setMemoryPic(role: String, slot: Int?, photo: String?, now: Long = System.currentTimeMillis()) {
+        if (game != GameKind.MEMORY) throw ApiException("Only Memory Pairs has photos.")
+        if (role != openedBy) throw ApiException("Only whoever opened the game can pick the photos.")
+        if (status == "started") throw ApiException("The photos can only change between games.")
+        if (!memoryPhotosAllowed() || !memoryDeckPhotos) throw ApiException("Your photos need the latest Pip & Pop on every phone.")
+        if (slot == null || slot !in 0 until memoryCards / 2) throw ApiException("That deck has no such place.")
+        if (!photo.isNullOrEmpty()) {
+            if (photo.length > MAX_MEMORY_PIC) throw ApiException("That photo is too big.")
+            if (!isJpegBase64(photo)) throw ApiException("That photo is not usable.")
+        }
+        if (memoryPicAt?.let { now - it < MEMORY_PIC_INTERVAL_MS } == true) throw ApiException("Slow down a little.")
+        memoryPicAt = now
+        memoryPicIds.remove(slot)?.let { memoryPicStore.remove(it) }
+        if (!photo.isNullOrEmpty()) {
+            memoryPicStore[++memSeq] = photo
+            memoryPicIds[slot] = memSeq
+        }
+        for (r in seated()) player(r).ready = false
+        version++
+    }
+
+    /** The deck's photo with this [id], or null: only while the photos are in use in the room. As on the server. */
+    fun memoryPic(id: Int): String? = if (status != "closed" && memoryPhotosAllowed() && id in memoryPics()) memoryPicStore[id] else null
+
+    /**
+     * [role] sets their own photo (a JPEG as base64, at most [MAX_FACE] characters), or removes it with null or an empty
+     * string. A new photo gets a new id, so phones fetch it again once. As on the server (faces.js).
+     */
+    fun setFace(role: String, photo: String?, now: Long = System.currentTimeMillis()) {
+        val me = players[role] ?: throw ApiException("You are not in this game.")
+        if (photo.isNullOrEmpty()) {
+            if (me.faceAt?.let { now - it < FACE_INTERVAL_MS } == true) throw ApiException("Slow down a little.")
+            me.face = null
+            me.photoId = null
+        } else {
+            if (photo.length > MAX_FACE) throw ApiException("That photo is too big.")
+            if (!isJpegBase64(photo)) throw ApiException("That photo is not usable.")
+            if (me.faceAt?.let { now - it < FACE_INTERVAL_MS } == true) throw ApiException("Slow down a little.")
+            me.face = photo
+            me.photoId = ++faceSeq
+        }
+        me.faceAt = now
+        version++
+    }
+
+    /** The photo with this [id], or null: only a photo of someone still in the room. As on the server. */
+    fun face(id: Int): String? = players.values.firstOrNull { it != null && !it.left && it.photoId == id }?.face
 
     /** Mini Golf: how many islands every hole of the next game has. */
     var golfLevel = GolfLevel.EASY
@@ -1167,14 +1297,36 @@ class LocalRoom(
         return true
     }
 
-    fun sendEmoji(role: String, reaction: Reaction, now: Long) {
+    /** A reaction sent on its own. */
+    fun sendEmoji(role: String, reaction: Reaction, now: Long) = say(role, reaction.key, null, reaction.takesOverMs, now)
+
+    /**
+     * A line of the player's own, shown like a reaction under the key [ChatLines.KEY] with its words in the text.
+     * [text] is cleaned as the other two servers clean it ([ChatLines.clean]); one that is empty then is refused.
+     */
+    fun sendLine(role: String, text: String, now: Long) {
+        val line = ChatLines.clean(text)
+        if (line.isEmpty()) throw ApiException("Write something first.")
+        say(role, ChatLines.KEY, line, 0, now)
+    }
+
+    /**
+     * A sticker from the downloadable packs, shown like a reaction under the key `p:<id>` ([PackKey]). A key of any
+     * other shape is refused as an unknown reaction. It takes nothing over, and has the same pace limit.
+     */
+    fun sendPack(role: String, key: String, now: Long) {
+        if (PackKey.idOf(key) == null) throw ApiException("Unknown reaction.")
+        say(role, key, null, 0, now)
+    }
+
+    private fun say(role: String, key: String, text: String?, takesOverMs: Long, now: Long) {
         if (inRoom().size < 2) throw ApiException("Nobody to send it to yet.")
         val player = players.getValue(role)!!
         if (now < takenOverUntil) throw ApiException("Kylian Dictador has the floor.")
         if (now - player.emojiAt < EMOJI_INTERVAL_MS) throw ApiException("Slow down a little.")
-        if (reaction.takesOverMs > 0) takenOverUntil = now + reaction.takesOverMs
+        if (takesOverMs > 0) takenOverUntil = now + takesOverMs
         emojiSeq++
-        player.emoji = reaction to emojiSeq
+        player.emoji = Said(key, emojiSeq, text)
         player.emojiAt = now
         version++
     }
@@ -1200,9 +1352,18 @@ class LocalRoom(
 
     fun leave(role: String, now: Long = System.currentTimeMillis()) {
         dropOut(role, "forfeit", now)
+        // The opener's photos go with them: the deck is the animals again.
+        if (game == GameKind.MEMORY && role == openedBy) {
+            memoryPicStore.clear()
+            memoryPicIds.clear()
+            memoryDeckPhotos = false
+        }
         if (role == HOST) {
             status = "closed"
             host.left = true
+            // The room has ended: its photos go with it.
+            memoryPicStore.clear()
+            memoryPicIds.clear()
         } else if (status == "finished" || status == "started") {
             players[role]?.left = true
         } else {
@@ -1256,11 +1417,19 @@ class LocalRoom(
                 it.awaySince = p.awaySince
                 it.emoji = p.emoji
                 it.emojiAt = p.emojiAt
+                it.bigSudoku = p.bigSudoku
+                it.sudokuOpener = p.sudokuOpener
+                it.memoryPhotos = p.memoryPhotos
+                it.face = p.face
+                it.photoId = p.photoId
+                it.faceAt = p.faceAt
                 it.at = if (r == role) next else p.at
             }
         }
         fresh.version = version + 1
         fresh.emojiSeq = emojiSeq
+        fresh.faceSeq = faceSeq
+        fresh.memSeq = memSeq
         fresh.round = round
         fresh.startPushedRound = startPushedRound
         fresh.openedBy = role
@@ -1398,6 +1567,12 @@ class LocalRoom(
             .put("version", version)
             .put("role", role)
             .put("game", game.key)
+            // What this phone's room can do; an app shows a control only when its cap is here.
+            .put("caps", org.json.JSONArray(CAPS))
+            // Sudoku: the opener picks the level while everyone in the room understands it.
+            .put("sudokuOpener", openerMode())
+            // Memory Pairs: every player in the room has the "memory-photos" token, so the deck may be their photos.
+            .put("memoryPhotos", memoryPhotosAllowed())
             .put("status", shown)
             .put("difficulty", difficulty?.key ?: JSONObject.NULL)
             // Sudoku: how the round's grids are joined (its puzzle is size x size).
@@ -1425,11 +1600,18 @@ class LocalRoom(
                     GameKind.SLIDE -> JSONObject().put("level", slideLevel.key)
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
-                    GameKind.MEMORY -> JSONObject().put("cards", memoryCards)
+                    GameKind.MEMORY -> JSONObject().put("cards", memoryCards).apply {
+                        // The deck's pictures and the photos' ids only where everyone has the token (an old room's are just the cards).
+                        if (memoryPhotosAllowed()) {
+                            put("deck", if (memoryDeckPhotos) "photos" else "animals")
+                            if (memoryDeckPhotos) put("photos", org.json.JSONArray(memoryPics().map { it ?: JSONObject.NULL }))
+                        }
+                    }
                     GameKind.CODE -> codeRules.toJson()
                     GameKind.DOTS -> JSONObject().put("board", dotsBoard)
                     GameKind.DRAW -> JSONObject().put("mode", drawMode)
                     GameKind.SUDOKU -> JSONObject().put("mode", if (sudokuTogether) "together" else "race").put("shape", sudokuShape.key)
+                        .apply { if (openerMode()) put("level", sudokuLevel.key) }
                     else -> JSONObject.NULL
                 },
             )
@@ -1465,6 +1647,10 @@ class LocalRoom(
         // Everyone else's mark shows as 'o', 'p', 'q', in the order of the view's "others".
         val seats = others(role).mapIndexed { i, r -> MARKS.getValue(r) to "opq"[i] }.toMap()
         val json = turnMatch?.view(MARKS.getValue(role), seats) ?: JSONObject()
+        // A phone without the "memory-photos" token never sees a photo card: it gets the pair's plain animal.
+        if (game == GameKind.MEMORY && !player(role).memoryPhotos) json.optJSONArray("faces")?.let { a ->
+            json.put("faces", org.json.JSONArray((0 until a.length()).map { i -> if (a.isNull(i)) JSONObject.NULL else com.pippop.game.memory.CardFace.from(a.getString(i))?.copy(pair = null)?.key ?: a.getString(i) }))
+        }
         val playing = shown == "playing"
         return json.put("turn", if (playing) (if (turn == role) "me" else "opponent") else JSONObject.NULL)
             .put("turnName", if (playing) turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)
@@ -1491,7 +1677,9 @@ class LocalRoom(
     private fun playerView(p: Player, includeProgress: Boolean, now: Long): JSONObject = JSONObject()
         .put("name", p.name)
         .put("avatar", p.avatar?.key ?: JSONObject.NULL)
-        .put("emoji", p.emoji?.let { JSONObject().put("key", it.first.key).put("seq", it.second) } ?: JSONObject.NULL)
+        // The id of their photo (fetched once with "getface"), never the photo itself.
+        .put("photoId", p.photoId ?: JSONObject.NULL)
+        .put("emoji", p.emoji?.let { JSONObject().put("key", it.key).put("seq", it.seq).apply { if (it.text != null) put("text", it.text) } } ?: JSONObject.NULL)
         .put("ready", p.ready)
         .put("difficulty", p.difficulty?.key ?: JSONObject.NULL)
         .put("progress", if (includeProgress) p.progress else JSONObject.NULL)
@@ -1529,6 +1717,32 @@ class LocalRoom(
         const val COOP_LIVES_BIG = 5
         /** What an app that plays big Sudoku boards adds to the games it says it knows. */
         const val BIG_SUDOKU = "sudoku-big"
+        /** What an app that plays Sudoku where the opener picks the level adds to the games it says it knows. */
+        const val SUDOKU_OPENER = "sudoku-opener"
+
+        /** What a phone hosting a room can do, sent in every room state; an app shows a control only when its cap is here. */
+        const val LINES = "lines"
+        const val PACKS = PackKey.CAP
+        const val FACES = "faces"
+        /** What an app that shows Memory Pairs cards with the players' photos adds to the games it says it knows, and a cap. */
+        const val MEMORY_PHOTOS = "memory-photos"
+        val CAPS = listOf(SUDOKU_OPENER, LINES, PACKS, FACES, MEMORY_PHOTOS)
+        /** The most base64 characters one Memory photo may take (the server's MEMPIC_MAX): 160 x 160 JPEGs are 6,000 to 12,000. */
+        const val MAX_MEMORY_PIC = 16_000
+        /** The least time between two Memory photos in a room (the server's MEMPIC_INTERVAL_MS). */
+        const val MEMORY_PIC_INTERVAL_MS = 150L
+        /** The most base64 characters a player's photo may take (the server's FACE_MAX). */
+        const val MAX_FACE = 12_000
+        /** The least time between one player's photo changes (the server's FACE_INTERVAL_MS). */
+        const val FACE_INTERVAL_MS = 2000L
+
+        /** Whether [s] is padded base64 of a JPEG: it starts FF D8 FF and ends FF D9. */
+        fun isJpegBase64(s: String): Boolean {
+            if (s.length % 4 != 0 || !s.all { it.isLetterOrDigit() && it.code < 128 || it == '+' || it == '/' || it == '=' }) return false
+            val bytes = try { java.util.Base64.getDecoder().decode(s) } catch (e: IllegalArgumentException) { return false }
+            return bytes.size >= 8 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() &&
+                bytes[bytes.size - 2] == 0xFF.toByte() && bytes[bytes.size - 1] == 0xD9.toByte()
+        }
         val MARKS = mapOf(HOST to 'h', GUEST to 'g', P3 to '3', P4 to '4')
         const val COUNTDOWN_MS = 5000L
         const val FORFEIT_MS = 45_000L

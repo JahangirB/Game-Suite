@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,7 +42,7 @@ fun ConnectionBanners(state: BattleUiState, onBack: () -> Unit, modifier: Modifi
     if (state.reconnecting) {
         Banner(modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppTheme.palette.primary)
+                PipPopLoader(Modifier.size(width = 36.dp, height = 22.dp))
                 Spacer(Modifier.width(Space.M))
                 Column {
                     BannerTitle("Reconnecting…")

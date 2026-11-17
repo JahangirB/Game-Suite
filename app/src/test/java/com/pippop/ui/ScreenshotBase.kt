@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.pippop.data.ColourTheme
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.PipPopTheme
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -30,11 +31,11 @@ abstract class ScreenshotBase {
     val compose = createComposeRule()
 
     /** Renders [content] on the app background and saves it as `<name>-light|dark.png`. */
-    protected fun shot(name: String, dark: Boolean, content: @Composable () -> Unit) {
+    protected fun shot(name: String, dark: Boolean, colourTheme: ColourTheme = ColourTheme.LAVENDER, content: @Composable () -> Unit) {
         // Animations would never settle (the result loops, bobbing tokens); step the clock instead.
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            PipPopTheme(darkTheme = dark) {
+            PipPopTheme(darkTheme = dark, colourTheme = colourTheme) {
                 Box(Modifier.fillMaxSize().background(AppTheme.palette.background)) { content() }
             }
         }

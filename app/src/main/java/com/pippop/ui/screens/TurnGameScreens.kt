@@ -14,16 +14,23 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.material3.FilterChip
 
 import com.pippop.game.memory.MemoryMatch
 import com.pippop.game.memory.CardFace
+import com.pippop.data.MemoryPhotos
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import com.pippop.ui.theme.readableOn
+import com.pippop.ui.Buzz
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
+import com.pippop.ui.rememberHaptics
+import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.textFill
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Board
@@ -49,6 +56,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -93,6 +101,7 @@ import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -109,6 +118,7 @@ import com.pippop.game.dots.Dots
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
 import com.pippop.ui.SoloC4UiState
+import com.pippop.ui.startWith
 import com.pippop.ui.SoloConnectFourViewModel
 import com.pippop.ui.SoloDotsUiState
 import com.pippop.ui.SoloDotsViewModel
@@ -135,7 +145,6 @@ fun markColor(mark: Char): Color = when (mark) {
     'q' -> Pieces.Blue
     else -> Color.Gray
 }
-private val BoardBlue = Board.ConnectBlue
 private val TheirLine = GameColors.TheirLine
 
 // ---- Connect Four -------------------------------------------------------------------------
@@ -148,6 +157,7 @@ private val TheirLine = GameColors.TheirLine
 @Composable
 fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: ((Int) -> Unit)?, modifier: Modifier = Modifier, replay: Int = 0) {
     val p = AppTheme.palette
+    val BoardBlue = LocalLooks.current.frame.color
     // [replay] going up drops the last disc again: the dock's "Last move".
     val fall = remember(lastCell, board, replay) { Animatable(if (lastCell == null) 1f else 0f) }
     // It speeds up as it falls, then bounces once in its hole.
@@ -159,17 +169,26 @@ fun ConnectFourBoard(board: String, winLine: List<Int>, lastCell: Int?, onDrop: 
             1f at 470
         })
     }
+    val haptics = rememberHaptics()
     // The disc rattles down the slot and clacks into its hole as it lands.
     SoundOnChange(lastCell) {
-        val v = if (board.getOrNull(lastCell ?: -1) == 'm') 1f else Sfx.OTHERS
-        play(Sound.C4_DROP, v)
+        val others = board.getOrNull(lastCell ?: -1) != 'm'
+        val v = if (others) Sfx.OTHERS else 1f
+        play(Sound.C4_DROP, v, others = others)
         delay(320)
-        play(Sound.C4_LAND, v)
+        play(Sound.C4_LAND, v, others = others)
     }
     val glow by loopingFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), still = 1f, label = "winGlow")
     // Four in a row: once the last disc has landed, a line is drawn through the four (0 to 1)
     // and a burst plays at its end (0 to 1).
     val still = LocalReduceMotion.current
+    // The line's notes play as it is drawn (once per win: not when the finished board is shown again).
+    SoundOnChange(winLine.takeIf { it.size >= 2 }) {
+        val others = board.getOrNull(winLine.first()) != 'm'
+        delay(470)
+        play(Sound.C4_FOUR, if (others) Sfx.OTHERS else 1f, others = others)
+        if (!others) haptics.play(Buzz.LINE_DONE)
+    }
     val line = remember(winLine) { Animatable(0f) }
     val sparks = remember(winLine) { Animatable(0f) }
     LaunchedEffect(winLine) {
@@ -320,6 +339,15 @@ fun TttBoard(
     val p = AppTheme.palette
     val ink = rememberMarkInk(lastCell, replay)
     SoundOnChange(lastCell) { tttSound(board.getOrNull(lastCell ?: -1)) }
+    val haptics = rememberHaptics()
+    // A small board is won (not drawn): the stamp lands just after the mark that won it.
+    SoundOnChange(boards.count { it == 'm' || it == 'o' }.takeIf { it > 0 }) {
+        val others = board.getOrNull(lastCell ?: -1) != 'm'
+        delay(150)
+        play(Sound.TTT_BOARD_WON, if (others) Sfx.OTHERS else 1f, others = others)
+        // The board that wins the whole game has the win buzz coming: the small one would cut it off.
+        if (!others && winLine.isEmpty()) haptics.play(Buzz.LINE_DONE)
+    }
     val pulse by loopingFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), still = 1f, label = "targetPulse")
     val tap = if (onMark == null) Modifier else Modifier.pointerInput(onMark) {
         detectTapGestures { at ->
@@ -420,14 +448,11 @@ private fun ClassicTttBoard(board: String, winLine: List<Int>, lastCell: Int?, o
 /** Tic-Tac-Toe's mode: the host picks normal 3 × 3 or Ultimate; everyone else sees which. */
 @Composable
 fun TttModeCard(room: RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Which game?") {
-        val modes = listOf(false to "Ultimate: nine boards in one", true to "Normal: one 3 × 3 board")
-        if (room.setsOptions) {
-            OptionGroup(modes, room.tttClassic, enabled = !busy, onPick = onPick)
-        } else {
-            Text(modes.first { it.first == room.tttClassic }.second + ", picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Which game?", busy) { enabled ->
+        OptionRow(
+            "Game", listOf(false to "Ultimate", true to "Normal"), room.tttClassic, onPick, enabled = enabled,
+            note = if (room.tttClassic) "One 3 × 3 board." else "Nine boards in one.",
+        )
     }
 }
 
@@ -487,7 +512,7 @@ fun DotsBoard(
         }
     }
     val labels = rememberTextMeasurer()
-    SoundOnChange(lastLine) { play(Sound.MARK, if (lines.getOrNull(lastLine ?: -1) == 'm') 1f else Sfx.OTHERS) }
+    SoundOnChange(lastLine) { lines.getOrNull(lastLine ?: -1).let { who -> play(Sound.MARK, if (who == 'm') 1f else Sfx.OTHERS, others = who != 'm') } }
     // A box closed: a stamp and a chime, and the same player goes again.
     SoundOnChange(boxes.count { it != '.' }.takeIf { it > 0 }) { play(Sound.DOTS_BOX) }
     // Under the finger now, and the line chosen by the last tap: a tap lights up the nearest free
@@ -633,17 +658,25 @@ internal fun dotsAspect(g: DotsShape) = (g.w * 0.84f + 0.16f * g.w) / (g.h * 0.8
  * a flip. With [onFlip] set, tapping a face-down card flips it.
  */
 @Composable
-fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier) {
+fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?, pending: Int? = null, modifier: Modifier = Modifier, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     // Two face-up cards nobody owns are a missed pair: the rules leave them up until the next
     // flip, but after a look they turn back here, so nobody waits on the next player.
     val missed = faces.indices.filter { faces[it] != null && owners.getOrNull(it) == '.' }.takeIf { it.size == 2 }
     var hidden by remember { mutableStateOf<List<Int>?>(null) }
     SoundOnChange(faces.count { it != null }.takeIf { it > 0 }) { play(Sound.CARD_FLIP) }
     SoundOnChange(owners.count { it != '.' }.takeIf { it > 0 }) { play(Sound.MEMORY_MATCH) }
+    // The soft double flip plays as the pair turns back, once per miss: not for a pair that was
+    // already showing when this board appeared (rotating, coming back to the game).
+    val sfx = rememberSfx()
+    val alreadyMissed = remember { booleanArrayOf(missed != null) }
     LaunchedEffect(missed) {
-        if (missed == null) return@LaunchedEffect
+        if (missed == null) {
+            alreadyMissed[0] = false
+            return@LaunchedEffect
+        }
         delay(MISSED_LOOK_MS)
         hidden = missed
+        if (alreadyMissed[0]) alreadyMissed[0] = false else sfx.play(Sound.MEMORY_MISS)
     }
     val shownFaces = if (missed != null && missed == hidden) faces.mapIndexed { i, f -> if (i in missed) null else f } else faces
     val cols = MemoryMatch.columns(faces.size)
@@ -654,11 +687,21 @@ fun MemoryBoard(faces: List<CardFace?>, owners: String, onFlip: ((Int) -> Unit)?
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (col in 0 until cols) {
                     val i = row * cols + col
-                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending, wobble = missed?.takeIf { i in it })
+                    MemoryCard(shownFaces.getOrNull(i), owners.getOrNull(i) ?: '.', onFlip?.let { { it(i) } }, Modifier.weight(1f), turning = i == pending, wobble = missed?.takeIf { i in it }, photoOf = photoOf)
                 }
             }
         }
     }
+}
+
+/**
+ * A pair's photo as a picture, for a deck of the players' photos: the photo the room names for the pair, once it has
+ * arrived and been decoded (a lookup, never a decode: that was done off the main thread); null until then, and the card
+ * shows the pair's plain animal.
+ */
+internal fun memoryPhotoOf(room: RoomState, state: com.pippop.ui.BattleUiState): (CardFace) -> ImageBitmap? {
+    if (!room.memoryPhotosOn) return { null }
+    return { face -> face.pair?.let { room.memoryPhotoIds.getOrNull(it) }?.let { state.memoryPics[it] }?.let(MemoryPhotos::peek) }
 }
 
 /** How long a missed pair stays face up for everyone to see. */
@@ -671,7 +714,7 @@ private const val MISSED_LOOK_MS = 1400L
  * matched when the board appeared is simply in its place. [wobble] non-null shakes a missed card.
  */
 @Composable
-private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false, wobble: Any? = null) {
+private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modifier: Modifier, turning: Boolean = false, wobble: Any? = null, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     val p = AppTheme.palette
     // Remember the last picture so the card still shows it while turning back.
     var shown by remember { mutableStateOf(face) }
@@ -707,7 +750,12 @@ private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modi
     ) {
         // Only the picture and its card fade, never the edge that says whose pair it is.
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = fade }.background(if (shown?.gold == true) Pieces.Gold else p.card), contentAlignment = Alignment.Center) {
-            shown?.let { AvatarImage(it.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f)) }
+            shown?.let { f ->
+                // A photos deck: the pair's photo once it has arrived, else the plain animal of the pair.
+                val photo = photoOf(f)
+                if (photo != null) Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().padding(3.dp).clip(Shapes.S))
+                else AvatarImage(f.avatar, Modifier.fillMaxWidth(0.78f).aspectRatio(1f))
+            }
         }
     }
     Box(
@@ -741,30 +789,9 @@ private fun MemoryCard(face: CardFace?, owner: Char, onFlip: (() -> Unit)?, modi
                     .clip(Shapes.M),
             ) {
                 if (turn < 90f) {
-                    // The back: stripes, a frame and a star on Memory amber.
-                    Canvas(Modifier.fillMaxSize().background(GameKind.MEMORY.color).border(2.dp, p.ink, Shapes.M)) {
-                        val w = size.width
-                        val h = size.height
-                        val step = w * 0.22f
-                        var x = -h
-                        while (x < w) {
-                            drawLine(Color.White.copy(alpha = 0.18f), Offset(x, h), Offset(x + h, 0f), step * 0.45f)
-                            x += step
-                        }
-                        val m = w * 0.1f
-                        drawRoundRect(Color.White.copy(alpha = 0.6f), Offset(m, m), Size(w - 2 * m, h - 2 * m), CornerRadius(w * 0.1f), style = Stroke(w * 0.025f))
-                        val c = Offset(w / 2, h / 2)
-                        drawCircle(GameKind.MEMORY.color.darker(0.18f), w * 0.27f, c)
-                        val star = Path()
-                        for (k in 0 until 10) {
-                            val r = if (k % 2 == 0) w * 0.2f else w * 0.09f
-                            val a = (-PI / 2 + k * PI / 5).toFloat()
-                            val pt = Offset(c.x + r * cos(a), c.y + r * sin(a))
-                            if (k == 0) star.moveTo(pt.x, pt.y) else star.lineTo(pt.x, pt.y)
-                        }
-                        star.close()
-                        drawPath(star, Color.White)
-                    }
+                    // The back: the pattern this player chose (stripes on Memory amber to start), a frame and a star.
+                    val back = LocalLooks.current.cardBack
+                    Canvas(Modifier.fillMaxSize().border(2.dp, p.ink, Shapes.M)) { drawMemoryBack(back) }
                 } else {
                     face(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f })
                 }
@@ -782,7 +809,7 @@ private const val MATCH_FLY_MS = 400
 
 /** The pairs each player has found, as small pictures under the chips. */
 @Composable
-private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pair<String, Char>>) {
+private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pair<String, Char>>, photoOf: (CardFace) -> ImageBitmap? = { null }) {
     val p = AppTheme.palette
     @Composable
     fun line(label: String, mark: Char, color: Color) {
@@ -790,7 +817,7 @@ private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pai
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(64.dp))
             if (found.isEmpty()) Text("none yet", color = p.muted, fontSize = TextSize.Label)
-            found.forEach { CardPicture(it, 24.dp) }
+            found.forEach { CardPicture(it, 24.dp, photoOf(it)) }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -800,67 +827,62 @@ private fun FoundPairs(faces: List<CardFace?>, owners: String, players: List<Pai
 
 // ---- Shared pieces -----------------------------------------------------------------------
 
+/**
+ * What a turn banner says: "Your turn" and, on your first two turns of the game only, what to do
+ * (the text after "Your turn: ", capitalised). Any other line comes back whole. Turns are counted
+ * by whose turn it is ([myTurn]), never by the wording, so "A pair! Go again" or a roll after a
+ * six is the same turn. [LocalTurnHints] shares the count between a game's banners.
+ */
+@Composable
+internal fun turnWords(text: String, myTurn: Boolean): Pair<String, String?> =
+    turnWords(text, myTurn, LocalTurnHints.current ?: remember { TurnHints() })
+
+internal fun turnWords(text: String, myTurn: Boolean, hints: TurnHints): Pair<String, String?> {
+    val turn = hints.note(myTurn)
+    if (!myTurn || !text.startsWith("$YOUR_TURN:")) return text to null
+    val hint = text.removePrefix("$YOUR_TURN:").trim().takeIf { it.isNotEmpty() && TurnHints.showsHint(turn) }
+    return YOUR_TURN to hint?.replaceFirstChar { it.uppercase() }
+}
+
+private const val YOUR_TURN = "Your turn"
+
 @Composable
 internal fun TurnLine(text: String, highlight: Boolean, color: Color = AppTheme.palette.primary) {
     val p = AppTheme.palette
+    val (title, hint) = turnWords(text, highlight)
     // When the turn is yours the line becomes a banner in the game's colour and pops in, so it
-    // can't be missed; otherwise it sits quietly in grey.
+    // can't be missed; otherwise it sits quietly in grey. "Your turn" stays big on one line and
+    // what to do sits small under it for your first turns. The fill is the same with or without
+    // the hint, and dark enough for the small text.
+    val fill = if (highlight) textFill(color) else p.accent
     Surface(
-        color = if (highlight) color else p.accent,
+        color = fill,
         shape = Shapes.L,
         border = BorderStroke(if (highlight) 3.dp else 2.dp, p.ink),
         modifier = Modifier.fillMaxWidth().enterFrom(highlight.takeIf { it }, scaleFrom = 0.9f, durationMs = 220),
     ) {
-        Text(
-            (if (highlight) "● " else "") + text,
-            color = if (highlight) readableOn(color) else p.text,
-            fontWeight = FontWeight.Bold,
-            fontSize = if (highlight) TextSize.Title else TextSize.BodyL,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = if (highlight) 14.dp else 12.dp),
-        )
-    }
-}
-
-/** Get ready for a turn game: in the lobby and for a rematch. */
-@Composable
-fun TurnReadyCard(room: RoomState, busy: Boolean, onReady: () -> Unit) {
-    val p = AppTheme.palette
-    val others = room.present
-    val waiting = others.filter { !it.ready }
-    AppCard(if (room.round == 0) "Ready to play?" else "Rematch") {
-        PrimaryButton(if (room.me.ready) "Cancel" else "Ready", onReady, enabled = others.isNotEmpty(), loading = busy)
-        Text(
-            when {
-                others.isEmpty() && room.others.isNotEmpty() -> "${room.others[0].name} has left. Leave to start a new game."
-                others.isEmpty() -> "Waiting for someone to join."
-                room.me.ready && waiting.isEmpty() -> "Starting…"
-                room.me.ready -> "Waiting for " + waiting.joinToString(" and ") { it.name } + "…"
-                waiting.size < others.size -> others.filter { it.ready }.joinToString(" and ") { it.name } +
-                    (if (others.size - waiting.size == 1) " is" else " are") + " ready. Tap Ready to start."
-                room.game == GameKind.WORDS -> "The race starts when everyone is ready: same word, same moment."
-                room.game == GameKind.DRAW -> "It starts when everyone is ready. You take turns drawing."
-                room.game == GameKind.NUMBERS -> "Everyone gets the same new puzzle. The first to solve it wins."
-                room.game == GameKind.SLIDE -> "Same shuffle for everyone; the first to put it in order wins."
-                room.game == GameKind.BINGO -> "A card each; the first full line of called numbers wins."
-                room.game == GameKind.GOLF -> "Nine holes, taking turns; the fewest strokes wins."
-                room.game == GameKind.BLOCKS -> "Lay your pieces corner to corner; the most squares wins."
-                room.game == GameKind.CODE -> "Each of you hides a code for the other; fewest guesses wins."
-                room.game == GameKind.GRID -> "Same letters for everyone, two minutes on the clock."
-                room.game == GameKind.HOCKEY -> "Live air hockey, first to 7. Best nearby, where the phones talk directly."
-                else -> "It starts when you are both ready. Who goes first swaps every game."
-            },
-            color = if (waiting.size < others.size && !room.me.ready) p.good else p.muted,
-            fontSize = TextSize.Body,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Column(
+            Modifier.semantics(mergeDescendants = true) {}
+                .padding(horizontal = 12.dp, vertical = if (hint != null) 9.dp else if (highlight) 14.dp else 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                (if (highlight) "● " else "") + title,
+                color = if (highlight) readableOn(fill) else p.text,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (highlight) TextSize.Title else TextSize.BodyL,
+                textAlign = TextAlign.Center,
+            )
+            if (hint != null) {
+                Text(hint, color = readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 
 /** The menu of a game on your own: a fresh game, the rules, sound, and back home. */
-internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?) =
-    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, leaveLabel = "Home")
+internal fun soloMenu(game: GameKind, onHome: () -> Unit, onRules: () -> Unit, onNew: (() -> Unit)?, onChange: (() -> Unit)? = null, onScorecard: (() -> Unit)? = null) =
+    GameMenu(game, onRules = onRules, onLeave = onHome, onNewGame = onNew, onChangeMode = onChange, leaveLabel = "Home", changeLabel = "Change setup", onScorecard = onScorecard)
 
 // ---- Against your partner -----------------------------------------------------------------
 
@@ -878,18 +900,18 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val canMove = myTurn && !finished && !state.firing
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(game) { showRules = false }
+    if (showRules) RulesSheet(game) { showRules = false }
     // The dock's Last move / Last line plays the last move again; Pairs lists who found what.
     var replay by remember { mutableIntStateOf(0) }
     var showPairs by remember { mutableStateOf(false) }
     if (showPairs) InfoSheet("Pairs found", onDismiss = { showPairs = false }) {
-        FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] })
+        FoundPairs(turns.faces, turns.owners ?: "", listOf("You" to 'm') + room.others.mapIndexed { i, o -> o.name to "opq"[i] }, photoOf = memoryPhotoOf(room, state))
     }
 
     // Boxes or pairs each player has, for the games that keep score.
     val owned = turns.boxes ?: turns.owners
     fun score(mark: Char): String? = owned?.let { o -> o.count { it == mark }.let { if (game == GameKind.MEMORY) it / 2 else it } }
-        ?.let { if (game == GameKind.MEMORY) "$it pairs" else "$it boxes" }
+        ?.let { if (game == GameKind.MEMORY) "$it ${if (it == 1) "pair" else "pairs"}" else "$it ${if (it == 1) "box" else "boxes"}" }
     val (myLabel, theirLabel) = if (game == GameKind.TTT) "X" to "O" else "Red" to "Yellow"
     // Each other player's mark on the board: 'o', 'p', 'q' in seat order.
     fun markOf(player: PlayerInfo, isMe: Boolean) = if (isMe) 'm' else "opq"[room.others.indexOf(player).coerceAtLeast(0)]
@@ -918,7 +940,8 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             },
         ),
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -961,7 +984,7 @@ fun TurnGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                     replay = replay,
                     shape = DotsShape.from(turns.dotsBoard),
                 )
-                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size)
+                GameKind.MEMORY -> MemoryBoard(turns.faces, turns.owners ?: ".".repeat(turns.faces.size), onFlip = if (canMove) vm::flipCard else null, pending = state.pendingCard, modifier = size, photoOf = memoryPhotoOf(room, state))
                 GameKind.TTT -> TttBoard(
                     board = turns.board ?: ".".repeat(81),
                     boards = turns.smallBoards ?: ".".repeat(9),
@@ -1016,15 +1039,18 @@ internal fun memoryAspect(cards: Int): Float {
 
 /** A small card picture: the animal, on gold for the gold cards. */
 @Composable
-private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size).clip(Shapes.S).background(if (face.gold) Pieces.Gold else Color.Transparent)) { AvatarImage(face.avatar, Modifier.size(size)) }
+private fun CardPicture(face: CardFace, size: androidx.compose.ui.unit.Dp, photo: ImageBitmap? = null) {
+    Box(Modifier.size(size).clip(Shapes.S).background(if (face.gold && photo == null) Pieces.Gold else Color.Transparent)) {
+        if (photo != null) Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size))
+        else AvatarImage(face.avatar, Modifier.size(size))
+    }
 }
 
 // ---- On your own --------------------------------------------------------------------------
 
 /** The result popup of a game against the computer: "me", "computer" or "draw". */
 @Composable
-internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome) {
+internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, onAgain: () -> Unit, onHome: () -> Unit, finishLabel: String = "Home", onFinish: () -> Unit = onHome, extra: @Composable ColumnScope.() -> Unit = {}) {
     ResultPopup(
         game = game,
         outcome = when (result) {
@@ -1040,28 +1066,32 @@ internal fun BoxScope.SoloPopup(game: GameKind, result: String, detail: String, 
         detail = detail,
         finish = PopupAction(finishLabel, onFinish),
         again = PopupAction("Play again", onAgain),
+        extra = extra,
     )
 }
 
 /** Connect Four against the computer. */
 @Composable
 fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, onHome: () -> Unit) {
-    val p = AppTheme.palette
-    var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.CONNECT4) { showRules = false }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     val level = state.level
+    if (level == null) { BackToHome(onHome); return }
+    var showRules by remember { mutableStateOf(false) }
+    if (showRules) RulesSheet(GameKind.CONNECT4) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.CONNECT4, "New game", vm::startWith) { changing = false }
     val result = state.result
     GameFrame(
         title = "Connect Four",
-        subtitle = level?.let { "Against the computer · ${it.label}" } ?: "Against the computer",
-        players = if (level == null) emptyList() else listOf(
+        subtitle = "Against the computer · ${level.label}",
+        players = listOf(
             ChipPlayer("You", null, MyDisc, "Red", active = state.myTurn && result == null),
             ChipPlayer("Computer", null, TheirDisc, level.label, active = !state.myTurn && result == null),
         ),
         glow = GameKind.CONNECT4.color,
-        menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, if (level != null) ({ vm.changeLevel() }) else null),
-        scrollable = level == null,
-        popup = if (level == null || result == null) null else popupContent {
+        menu = soloMenu(GameKind.CONNECT4, onHome, { showRules = true }, vm::rematch, { changing = true }),
+        resultUnder = true,
+        popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.CONNECT4, result,
                 when (result) {
@@ -1069,27 +1099,20 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
                     "computer" -> "The computer got four in a row."
                     else -> "The board is full and nobody got four."
                 },
-                onAgain = vm::rematch, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::rematch, onHome = onHome, finishLabel = "Change level", onFinish = { changing = true },
             )
         },
     ) {
-        if (level == null) {
-            AppCard("Choose the computer's level") {
-                Text("Line up four of your discs across, down or diagonally before the computer does.", color = p.muted, fontSize = TextSize.Body)
-                C4Level.entries.forEach { PrimaryButton(it.label, { vm.start(it) }) }
-            }
-        } else {
-            TurnLine(
-                when {
-                    result != null -> "Game over"
-                    state.myTurn -> "Your turn: slide to a column and let go"
-                    else -> "The computer is thinking…"
-                },
-                state.myTurn && result == null, GameKind.CONNECT4.color,
-            )
-            BoardArea(1f) { size ->
-                ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && result == null) vm::drop else null, modifier = size)
-            }
+        if (result == null) TurnLine(
+            when {
+                result != null -> "Game over"
+                state.myTurn -> "Your turn: slide to a column and let go"
+                else -> "The computer is thinking…"
+            },
+            state.myTurn && result == null, GameKind.CONNECT4.color,
+        )
+        BoardArea(1f) { size ->
+            ConnectFourBoard(state.board, state.winLine, state.lastCell, onDrop = if (state.myTurn && result == null) vm::drop else null, modifier = size)
         }
     }
 }
@@ -1099,7 +1122,9 @@ fun SoloConnectFourScreen(state: SoloC4UiState, vm: SoloConnectFourViewModel, on
 fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DOTS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DOTS) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.DOTS, "New game", vm::startWith) { changing = false }
     val result = state.result
     val playing = result == null
     val mine = state.boxes.count { it == 'm' }
@@ -1112,13 +1137,14 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             ChipPlayer("Computer", null, TheirDisc, "$theirs boxes", active = !state.myTurn && playing),
         ),
         glow = GameKind.DOTS.color,
-        menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.DOTS, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
-            SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = vm::newGame, onHome = onHome)
+            SoloPopup(GameKind.DOTS, result, "You $mine boxes, the computer $theirs.", onAgain = { vm.newGame() }, onHome = onHome)
         },
     ) {
         val again = state.myTurn && state.lastLine != null && state.lines[state.lastLine] == 'm'
-        TurnLine(
+        if (playing) TurnLine(
             when {
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is drawing…"
@@ -1128,14 +1154,6 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
             state.myTurn && playing,
             if (again && playing) p.good else GameKind.DOTS.color,
         )
-        // Before the first line: the board to play on.
-        if (state.lines.none { it != '.' && it != ' ' }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                DotsShape.ALL.forEach { b ->
-                    FilterChip(selected = state.board == b.key, onClick = { vm.newGame(b.key) }, label = { Text(DotsShape.label(b.key)) })
-                }
-            }
-        }
         BoardArea(dotsAspect(DotsShape.from(state.board))) { size ->
             DotsBoard(state.lines, state.boxes, state.lastLine, emptyMap(), onLine = if (state.myTurn && playing) vm::drawLine else null, modifier = size, shape = DotsShape.from(state.board))
         }
@@ -1146,7 +1164,9 @@ fun SoloDotsScreen(state: SoloDotsUiState, vm: SoloDotsViewModel, onHome: () -> 
 @Composable
 fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Unit) {
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.TTT) { showRules = false }
+    if (showRules) RulesSheet(GameKind.TTT) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.TTT, "New game", vm::startWith) { changing = false }
     val result = state.result
     val playing = result == null
     val pos = state.position
@@ -1158,7 +1178,8 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             ChipPlayer("Computer", null, TheirDisc, if (pos.classic) "O" else "O · ${pos.boards.count { it == 'o' }} boards", active = !state.myTurn && playing),
         ),
         glow = GameKind.TTT.color,
-        menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }),
+        menu = soloMenu(GameKind.TTT, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             SoloPopup(
                 GameKind.TTT, result,
@@ -1171,7 +1192,7 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             )
         },
     ) {
-        TurnLine(
+        if (playing) TurnLine(
             when {
                 !playing -> "Game over"
                 !state.myTurn -> "The computer is thinking…"
@@ -1182,13 +1203,6 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
             state.myTurn && playing,
             GameKind.TTT.color,
         )
-        // Normal or Ultimate: switching starts a new game.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(true to "Normal 3 × 3", false to "Ultimate").forEach { (classic, label) ->
-                if (pos.classic == classic) PrimaryButton(label, {}, Modifier.weight(1f))
-                else SecondaryButton(label, { vm.newGame(classic) }, Modifier.weight(1f))
-            }
-        }
         BoardArea(1f) { size ->
             TttBoard(
                 board = pos.cells,
@@ -1209,20 +1223,23 @@ fun SoloTttScreen(state: SoloTttUiState, vm: SoloTttViewModel, onHome: () -> Uni
 fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.MEMORY) { showRules = false }
+    if (showRules) RulesSheet(GameKind.MEMORY) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.MEMORY, "New game", vm::startWith) { changing = false }
     val finished = state.finishedMs
     GameFrame(
         title = "Memory Pairs",
         subtitle = "On your own",
         players = emptyList(),
         glow = GameKind.MEMORY.color,
-        menu = soloMenu(GameKind.MEMORY, onHome, { showRules = true }, vm::newGame),
+        menu = soloMenu(GameKind.MEMORY, onHome, { showRules = true }, { vm.newGame() }, { changing = true }),
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text("${state.flips} flips", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
                 state.bestFlips?.let { Text("Best: $it", color = p.muted, fontSize = TextSize.Body) }
             }
         },
+        resultUnder = true,
         popup = if (finished == null) null else popupContent {
             ResultPopup(
                 game = GameKind.MEMORY,
@@ -1231,7 +1248,7 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
                 detail = "${state.flips} flips in ${formatDuration(finished)}",
                 scores = listOfNotNull(state.bestFlips?.let { "Best: $it flips" }),
                 finish = PopupAction("Home", onHome),
-                again = PopupAction("Play again", vm::newGame),
+                again = PopupAction("Play again", { vm.newGame() }),
             )
         },
     ) {
@@ -1239,12 +1256,6 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
             Text("Found", color = p.muted, fontSize = TextSize.Body, modifier = Modifier.width(52.dp))
             val found = state.faces.indices.filter { state.found[it] != '.' }.mapNotNull { state.faces[it] }.distinct()
             if (found.isEmpty() && state.flips > 0) Text("Find all ${state.cards / 2} pairs in as few flips as you can.", color = p.muted, fontSize = TextSize.Body)
-            // Before the first flip: the deck size.
-            if (state.flips == 0) {
-                MemoryMatch.DECKS.forEach { n ->
-                    FilterChip(selected = state.cards == n, onClick = { vm.newGame(n) }, label = { Text("$n cards") }, modifier = Modifier.padding(end = 6.dp))
-                }
-            }
             found.forEach { CardPicture(it, 24.dp) }
             Spacer(Modifier.width(4.dp))
         }
@@ -1256,33 +1267,39 @@ fun SoloMemoryScreen(state: SoloMemoryUiState, vm: SoloMemoryViewModel, onHome: 
 
 /** An X (yours) or an O (theirs) chalked on a Tic-Tac-Toe board. */
 private fun Sfx.tttSound(mark: Char?) {
-    if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS)
+    if (mark == 'm') play(Sound.TTT_X) else play(Sound.TTT_O, Sfx.OTHERS, others = true)
 }
 
-/** Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. */
+/**
+ * Memory Pairs' deck: 16, 24 or 36 cards, picked by whoever opened the game. Where the server has the cap and every player has
+ * the token ([RoomState.memoryPhotosOffered], and [photos] is given), the card also says "Setup" and holds a Pictures row,
+ * Animals or Your photos, with the photos picker under it. Otherwise it is as it always was.
+ */
 @Composable
-fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Deck") {
-        if (room.setsOptions) {
-            OptionGroup(MemoryMatch.DECKS.map { it to "$it cards" }, room.memoryCards, enabled = !busy, onPick = onPick)
-            Text("Bigger decks bring in more pictures and a longer game.", color = p.muted, fontSize = TextSize.Label)
-        } else {
-            Text("${room.memoryCards} cards, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
+fun MemoryDeckCard(room: RoomState, busy: Boolean, onPick: (Int) -> Unit, photos: MemoryPhotosPanel? = null) {
+    if (photos == null || !room.memoryPhotosOffered) {
+        OptionsCard(room, "Deck", busy) { enabled ->
+            OptionRow("Cards", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled, note = "Bigger decks bring in more pictures and a longer game.")
         }
+        return
+    }
+    OptionsCard(room, "Setup", busy) { enabled ->
+        OptionRow("Deck", MemoryMatch.DECKS.map { it to "$it" }, room.memoryCards, onPick, enabled = enabled && photos.picking == null)
+        OptionRow(
+            "Pictures", listOf(false to "Animals", true to "Your photos"), room.memoryDeckPhotos, photos.onDeck, enabled = enabled && photos.picking == null,
+            note = if (room.memoryDeckPhotos) null else "The animals bring in more pictures as the deck grows.",
+        )
+        if (room.memoryDeckPhotos) MemoryPhotoPicker(room, photos, enabled)
     }
 }
 
 /** Dots & Boxes' board, picked by whoever opened the game. */
 @Composable
 fun DotsBoardCard(room: RoomState, busy: Boolean, onPick: (String) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Board") {
-        if (room.setsOptions) {
-            OptionGroup(DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, room.dotsBoard, enabled = !busy, onPick = onPick)
-            Text("Bigger boards make longer chains. The heart has gaps where there are no dots.", color = p.muted, fontSize = TextSize.Label)
-        } else {
-            Text("${DotsShape.label(room.dotsBoard)}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Board", busy) { enabled ->
+        OptionRow(
+            "Board", DotsShape.ALL.map { it.key to DotsShape.label(it.key) }, room.dotsBoard, onPick, enabled = enabled, perRow = 2,
+            note = "Bigger boards make longer chains. The heart has gaps where there are no dots.",
+        )
     }
 }

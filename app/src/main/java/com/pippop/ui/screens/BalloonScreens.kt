@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sfx
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.Sound
@@ -30,7 +31,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -321,11 +321,11 @@ private fun PickWord(prompt: String, onPick: (String) -> Unit) {
     val p = AppTheme.palette
     var word by rememberSaveable { mutableStateOf("") }
     AppCard(prompt) {
-        OutlinedTextField(
+        ToyField(
             value = word,
             onValueChange = { v -> word = v.filter { it.isLetter() }.take(12) },
             singleLine = true,
-            label = { Text("Secret word (3 to 12 letters)") },
+            label = "Secret word (3 to 12 letters)",
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
             modifier = Modifier.fillMaxWidth(),
@@ -348,7 +348,7 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BALLOON) { showRules = false }
     var showUsed by remember { mutableStateOf(false) }
     if (showUsed) InfoSheet("Used letters", onDismiss = { showUsed = false }) {
         val inWord = view.guessed.filter { it in view.pattern }.sorted()
@@ -381,7 +381,8 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         tools = listOf(DockTool("Used letters", GameIcons.Sort, badge = view.guessed.size) { showUsed = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.BALLOON,
@@ -407,17 +408,18 @@ fun BalloonGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> 
         when {
             view.phase == "pick" && view.picker == 'm' && !finished -> PickWord("Your turn to pick a word", vm::pickBalloonWord)
             view.phase == "pick" -> TurnLine("${name(view.picker)} is picking a secret word…", false)
-            else -> BalloonRound(view, myTurn && !state.firing, if (view.picker == 'm') "Your word: they're guessing" else if (myTurn) "Your turn: pick a letter" else "$turnName is guessing…", vm::guessBalloonLetter)
+            else -> BalloonRound(view, myTurn && !state.firing, finished, if (view.picker == 'm') "Your word: they're guessing" else if (myTurn) "Your turn: pick a letter" else "$turnName is guessing…", vm::guessBalloonLetter)
         }
     }
 }
 
 @Composable
-private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, line: String, onLetter: (Char) -> Unit) {
-    TurnLine(line, canGuess, GameKind.BALLOON.color)
+private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, over: Boolean, line: String, onLetter: (Char) -> Unit) {
+    // Over: the banner and the keys leave, the balloons and the word stay.
+    if (!over) TurnLine(line, canGuess, GameKind.BALLOON.color)
     BalloonRow(view.balloons, view.misses)
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { WordTiles(view.pattern, view.word) }
-    LetterKeys(view.guessed, view.word ?: view.pattern, canGuess, onLetter)
+    if (!over) LetterKeys(view.guessed, view.word ?: view.pattern, canGuess, onLetter)
 }
 
 // ---- On your own ------------------------------------------------------------------------------
@@ -426,15 +428,18 @@ private fun ColumnScope.BalloonRound(view: BalloonView, canGuess: Boolean, line:
 fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BALLOON) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BALLOON) { showRules = false }
     val result = state.result
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.BALLOON, "New game", vm::startWith) { changing = false }
     GameFrame(
         title = "Balloon Words",
         subtitle = "On your own" + if (state.streak > 0) " · streak ${state.streak}" else "",
         players = emptyList(),
         glow = GameKind.BALLOON.color,
-        menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) vm::setup else null),
+        menu = soloMenu(GameKind.BALLOON, onHome, { showRules = true }, if (state.started) (if (state.youGuess) vm::guessTheirs else vm::setup) else null, if (state.started) ({ changing = true }) else null),
         scrollable = !state.started,
+        resultUnder = true,
         popup = if (result == null) null else popupContent {
             val won = (result == "found") == state.youGuess
             ResultPopup(
@@ -447,25 +452,22 @@ fun SoloBalloonScreen(state: SoloBalloonUiState, vm: SoloBalloonViewModel, onHom
                     else -> "The computer found it"
                 },
                 detail = "The word was ${state.word}.",
-                finish = PopupAction("Change", vm::setup),
-                again = PopupAction("Next word", vm::guessTheirs),
+                finish = PopupAction("Change", { changing = true }),
+                again = PopupAction("Next word", if (state.youGuess) vm::guessTheirs else vm::setup),
             )
         },
     ) {
         if (!state.started) {
-            AppCard("Guess the computer's word") {
-                Text("Pick letters before the seven balloons pop.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Play", vm::guessTheirs, Modifier.fillMaxWidth())
-            }
-            PickWord("Or give the computer one of yours", vm::giveYours)
+            // "Computer guesses" was chosen in the sheet: the word is the one thing left to give.
+            PickWord("Give the computer a word to guess", vm::giveYours)
             state.message?.let { Text(it, color = p.bad, fontSize = TextSize.Body) }
         } else {
-            TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)
+            if (result == null) TurnLine(if (state.youGuess) "Pick a letter" else "The computer is guessing your word…", state.youGuess && result == null, GameKind.BALLOON.color)
             BalloonRow(7, state.misses)
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 WordTiles(state.pattern, if (state.youGuess && result == null) null else state.word)
             }
-            LetterKeys(state.guessed, state.word, state.youGuess && result == null, vm::guess)
+            if (result == null) LetterKeys(state.guessed, state.word, state.youGuess, vm::guess)
         }
     }
 }

@@ -27,6 +27,12 @@ interface BattleBackend {
     suspend fun sync(code: String, playerId: String, board: String?, version: Int?): JSONObject
     suspend fun emoji(code: String, playerId: String, reaction: Reaction): JSONObject
 
+    /** Says one of the player's own lines ([ChatLines]) like a reaction. Only to a server with the "lines" cap. */
+    suspend fun line(code: String, playerId: String, text: String): JSONObject = throw ApiException("Lines need the latest Pip & Pop.")
+
+    /** Sends the sticker [id] from the downloadable packs like a reaction (`p:<id>`, [PackKey]). Only to a server with the "packs" cap. */
+    suspend fun sticker(code: String, playerId: String, id: String): JSONObject = throw ApiException("Stickers need the latest Pip & Pop.")
+
     /** Ship Battle: ready with [fleet] (or not ready). */
     suspend fun readyShips(code: String, playerId: String, ready: Boolean, fleet: List<Ship>): JSONObject
 
@@ -73,6 +79,21 @@ interface BattleBackend {
     /** Slide Race: the photo being slid (base64 JPEG), or null. */
     suspend fun slidePhoto(code: String, playerId: String): String? = null
 
+    /** Your own photo for the others in the room (base64 JPEG, at most [Faces.MAX_BASE64] characters), or null to remove it. */
+    suspend fun setFace(code: String, playerId: String, photo: String?): JSONObject = throw ApiException("Photos need the latest Pip & Pop.")
+
+    /** The photo of the room's player whose room state said [id], or null. Fetched once per id. */
+    suspend fun face(code: String, playerId: String, id: Int): String? = null
+
+    /**
+     * Memory Pairs with photos: the opener sets the photo for place [slot] of the deck (base64 JPEG, at most
+     * [MemoryPhotos.MAX_BASE64] characters), or null to empty it. Only to a server with the "memory-photos" cap.
+     */
+    suspend fun setMemoryPic(code: String, playerId: String, slot: Int, photo: String?): JSONObject = throw ApiException("Your photos need the latest Pip & Pop.")
+
+    /** The deck photo whose id the room state carried, or null. Fetched once per id. */
+    suspend fun memoryPic(code: String, playerId: String, id: Int): String? = null
+
     /** Draw & Guess: the drawer takes back the last line. */
     suspend fun undoStroke(code: String, playerId: String): JSONObject = throw ApiException("Undo needs the latest Pip & Pop.")
 
@@ -116,8 +137,8 @@ interface BattleBackend {
 
     companion object {
         /** The games this app can play, sent when joining so a server can ask older apps to update. */
-        /** The games this app knows, and "sudoku-big": it plays Sudoku boards of joined grids. */
-        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU
+        /** The games this app knows, "sudoku-big" (it plays Sudoku boards of joined grids) and "sudoku-opener" (whoever opens Sudoku picks the level) and "memory-photos" (it shows Memory Pairs cards with the players' photos). */
+        val SUPPORTED_GAMES: String = GameKind.entries.joinToString(",") { it.key } + "," + com.pippop.data.nearby.LocalRoom.BIG_SUDOKU + "," + com.pippop.data.nearby.LocalRoom.SUDOKU_OPENER + "," + com.pippop.data.nearby.LocalRoom.MEMORY_PHOTOS
 
         /** Apps Script links poll; anything else is a Cloudflare server with a live connection. */
         fun forUrl(url: String, password: String): BattleBackend =

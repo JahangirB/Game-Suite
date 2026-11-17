@@ -2,11 +2,14 @@ package com.pippop.ui.screens
 
 import androidx.compose.ui.geometry.CornerRadius
 import com.pippop.ui.theme.Space
+import com.pippop.ui.Buzz
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import kotlinx.coroutines.delay
 import com.pippop.ui.theme.loopingFloat
 import com.pippop.ui.theme.TextSize
+import com.pippop.ui.theme.readableOn
+import com.pippop.ui.theme.textFill
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Board
@@ -90,6 +93,7 @@ import com.pippop.ui.art.drawSeaArt
 import com.pippop.ui.art.drawShipArt
 import com.pippop.ui.art.drawShotArt
 import com.pippop.ui.art.shipKinds
+import com.pippop.ui.rememberHaptics
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.OpponentColor
 
@@ -151,10 +155,15 @@ fun ShipsSea(
         blast.animateTo(1f, tween(BLAST_MS, easing = LinearEasing))
     }
     // The cannon, then a blast or a splash as the shot lands; a creak and bubbles when a ship goes down.
+    // Your own hit on their sea buzzes with the blast; their shots at you (this sea is not [enemy]) do not.
+    val haptics = rememberHaptics()
     SoundOnChange(lastShot) {
         play(Sound.SHIPS_FIRE)
         delay(250)
         play(if (lastShot?.hit == true) Sound.SHIPS_HIT else Sound.SHIPS_MISS)
+        // The shot that sinks the last ship ends the game: its win buzz follows, so no hit buzz cuts it off.
+        val lastShip = ships.isNotEmpty() && ships.all { it in sunk }
+        if (enemy && lastShot?.hit == true && !lastShip) haptics.play(Buzz.HIT)
     }
     SoundOnChange(sunk.size.takeIf { it > 0 }) {
         delay(700)
@@ -220,7 +229,7 @@ fun ShipsSea(
         lastShot?.takeIf { blast.value < 1f }?.let { boom(it, blast.value, cell) }
         lastShot?.let {
             drawCircle(
-                p.primary,
+                p.me,
                 radius = cell * 0.45f,
                 center = Offset((it.x + 0.5f) * cell, (it.y + 0.5f) * cell),
                 style = Stroke(width = cell * 0.08f),
@@ -228,8 +237,8 @@ fun ShipsSea(
         }
         pending?.let { (x, y) ->
             val center = Offset((x + 0.5f) * cell, (y + 0.5f) * cell)
-            drawCircle(p.primary, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
-            drawCircle(p.primary, radius = cell * 0.1f, center = center)
+            drawCircle(p.me, radius = cell * 0.38f, center = center, style = Stroke(width = cell * 0.08f))
+            drawCircle(p.me, radius = cell * 0.1f, center = center)
         }
     }
 }
@@ -332,21 +341,17 @@ fun FleetCard(
     opponent: PlayerInfo?,
     busy: Boolean,
     onShuffle: () -> Unit,
-    onReady: () -> Unit,
     onMove: (List<Ship>) -> Unit = {},
 ) {
     val p = AppTheme.palette
     AppCard("Your fleet") {
         FleetEditor(fleet, if (ready || busy) null else onMove)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SecondaryButton("Shuffle", onShuffle, Modifier.weight(1f), enabled = !ready && !busy)
-            PrimaryButton(if (ready) "Cancel" else "Ready", onReady, Modifier.weight(1f), enabled = opponent != null, loading = busy)
-        }
+        SecondaryButton("Shuffle", onShuffle, Modifier.fillMaxWidth(), enabled = !ready && !busy)
         Text(
             when {
                 opponent == null -> "Waiting for someone to join."
                 ready && opponent.ready -> "Both fleets are in. Starting…"
-                ready -> "Waiting for ${opponent.name}…"
+                ready -> "Your fleet is in."
                 opponent.ready -> "${opponent.name} is ready. Place your fleet and tap Ready."
                 else -> "Tap a ship, then where it goes. Turn rotates it. Tap Ready when you're happy."
             },
@@ -371,13 +376,13 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
     val skins = skinsTool { showSkins = true }
     var replay by remember { mutableIntStateOf(0) }
     val players = listOfNotNull(
-        ChipPlayer("You", room.me.avatar, p.primary, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
+        ChipPlayer("You", room.me.avatar, p.me, "${room.me.progress ?: 0}% of fleet hit", visibleReaction(state.myReaction, now), active = myTurn),
         opponent?.let {
             ChipPlayer(
                 it.name, it.avatar, OpponentColor,
@@ -397,7 +402,7 @@ fun ShipsGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         tools = listOf(skins, DockTool("Last shot", GameIcons.Eye, enabled = ships.lastShotByMe != null) { replay++ }),
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -473,24 +478,30 @@ private fun ColumnScope.SeaPair(
 }
 
 @Composable
-private fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = false) {
+internal fun TurnBanner(myTurn: Boolean, opponentName: String, over: Boolean = false) {
     val p = AppTheme.palette
+    val line = when {
+        over -> "Game over"
+        myTurn -> "Your turn: tap the enemy sea to fire"
+        else -> "$opponentName is aiming…"
+    }
+    val (title, hint) = turnWords(line, myTurn)
+    val fill = if (myTurn) textFill(p.me) else p.accent
     Surface(
-        color = if (myTurn) p.primary else p.accent,
+        color = fill,
         shape = Shapes.M,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            when {
-                over -> "Game over"
-                myTurn -> "Your turn: tap the enemy sea to fire"
-                else -> "$opponentName is aiming…"
-            },
-            color = if (myTurn) p.onPrimary else p.text,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(12.dp),
-        )
+        Column(Modifier.semantics(mergeDescendants = true) {}.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                title,
+                color = if (myTurn) readableOn(fill) else p.text,
+                fontWeight = if (myTurn) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = if (myTurn) TextSize.Title else TextSize.BodyL,
+                textAlign = TextAlign.Center,
+            )
+            if (hint != null) Text(hint, color = readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        }
     }
 }
 
@@ -502,7 +513,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
     // Whenever the game changes, make sure the computer plays if it's its turn.
     LaunchedEffect(game) { vm.keepPlaying() }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SHIPS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SHIPS) { showRules = false }
     var showSkins by remember { mutableStateOf(false) }
     SkinsWindow(showSkins) { showSkins = false }
     GameFrame(
@@ -511,7 +522,7 @@ fun SoloShipsScreen(state: SoloShipsUiState, vm: SoloShipsViewModel, onHome: () 
         swipeToFocus = game != null,
         focusWhen = game?.let { it.myTurn && it.winner == null } == true,
         players = if (game == null) emptyList() else listOf(
-            ChipPlayer("You", null, p.primary, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
+            ChipPlayer("You", null, p.me, "${game.myProgress}% of fleet hit", active = game.myTurn && game.winner == null),
             ChipPlayer("Computer", null, OpponentColor, "${game.theirProgress}% of fleet hit", active = !game.myTurn && game.winner == null),
         ),
         glow = GameKind.SHIPS.color,
@@ -694,7 +705,7 @@ fun FleetEditor(fleet: List<Ship>, onChange: ((List<Ship>) -> Unit)?, modifier: 
                     holding?.takeIf { drag == null }?.let { ship ->
                         val w = (if (ship.horizontal) ship.len else 1) * cell
                         val h = (if (ship.horizontal) 1 else ship.len) * cell
-                        drawRoundRect(p.primary, Offset(ship.x * cell, ship.y * cell), Size(w, h), CornerRadius(cell * 0.25f), style = Stroke(cell * 0.12f))
+                        drawRoundRect(p.me, Offset(ship.x * cell, ship.y * cell), Size(w, h), CornerRadius(cell * 0.25f), style = Stroke(cell * 0.12f))
                     }
                 }
             }

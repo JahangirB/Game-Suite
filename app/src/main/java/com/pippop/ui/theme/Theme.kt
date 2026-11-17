@@ -10,11 +10,13 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.material3.Typography
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.pippop.R
+import com.pippop.data.ColourTheme
 import com.pippop.data.ThemeMode
 
 /**
@@ -32,6 +34,12 @@ data class SudokuPalette(
     val onPrimary: Color,
     /** The brand colour as text and thin lines: deep enough to read on light surfaces. */
     val primaryText: Color,
+    /**
+     * You, the player: the same coral in every colourway, so your pieces and marks stay apart from
+     * the opponent's orange and from the sea, and boards look the same. [meText] is its text form.
+     */
+    val me: Color,
+    val meText: Color,
     val accent: Color,
     val good: Color,
     val bad: Color,
@@ -69,6 +77,8 @@ val LightPalette = SudokuPalette(
     // Ink on coral is 5.3:1; white on coral was 2.8:1.
     onPrimary = Color(0xFF2B2440),
     primaryText = Color(0xFFC02F2F),
+    me = Color(0xFFFF6B6B),
+    meText = Color(0xFFC02F2F),
     accent = Color(0xFFF4F0FF),
     good = Color(0xFF047857),
     bad = Color(0xFFC42B30),
@@ -99,6 +109,8 @@ val DarkPalette = SudokuPalette(
     primary = Color(0xFFFF7B7B),
     onPrimary = Color(0xFF2B0D12),
     primaryText = Color(0xFFFF7B7B),
+    me = Color(0xFFFF7B7B),
+    meText = Color(0xFFFF7B7B),
     accent = Color(0xFF2F2850),
     good = Color(0xFF4CCB8B),
     bad = Color(0xFFFF6B7D),
@@ -122,6 +134,89 @@ val DarkPalette = SudokuPalette(
     wrong = Color(0xFFFF6B7D),
     note = Color(0xFFA49CC4),
 )
+
+/**
+ * The other colourways. Light: the page, the main colour, its text form, the soft fill, the thin
+ * line and the two soft board highlights change; ink, cards and everything a game paints stay.
+ */
+private val MintLight = LightPalette.copy(
+    background = Color(0xFFDDF5EA), primary = Color(0xFF2FBF8F), primaryText = Color(0xFF0B6E4F), accent = Color(0xFFEAFBF3),
+    hairline = Color(0xFFBFE5D3), cellPeer = Color(0xFFEAFBF3), cellSameDigit = Color(0xFFC9EEDD),
+)
+private val PeachLight = LightPalette.copy(
+    background = Color(0xFFFFE9DC), primary = Color(0xFFFF8A5B), primaryText = Color(0xFFB8431A), accent = Color(0xFFFFF3EB),
+    hairline = Color(0xFFF3CDB8), cellPeer = Color(0xFFFFF3EB), cellSameDigit = Color(0xFFFFDCC8),
+)
+private val SkyLight = LightPalette.copy(
+    background = Color(0xFFDDEEFF), primary = Color(0xFF5AA9FF), primaryText = Color(0xFF1B5FB3), accent = Color(0xFFEDF6FF),
+    hairline = Color(0xFFBCD8F5), cellPeer = Color(0xFFEDF6FF), cellSameDigit = Color(0xFFCFE6FC),
+)
+
+/** The hue of [c] in degrees (0 for a grey). */
+private fun hueOf(c: Color): Float {
+    val max = maxOf(c.red, c.green, c.blue)
+    val d = max - minOf(c.red, c.green, c.blue)
+    if (d == 0f) return 0f
+    return 60f * when (max) {
+        c.red -> ((c.green - c.blue) / d).mod(6f)
+        c.green -> (c.blue - c.red) / d + 2f
+        else -> (c.red - c.green) / d + 4f
+    }
+}
+
+/** [c] with its hue turned by [degrees]; saturation and brightness stay. */
+private fun rotateHue(c: Color, degrees: Float): Color {
+    val max = maxOf(c.red, c.green, c.blue)
+    val s = if (max == 0f) 0f else (max - minOf(c.red, c.green, c.blue)) / max
+    val nh = ((hueOf(c) + degrees) % 360f + 360f) % 360f
+    fun channel(n: Float): Float {
+        val k = (n + nh / 60f) % 6f
+        return max - max * s * maxOf(0f, minOf(k, 4f - k, 1f))
+    }
+    return Color(channel(5f), channel(3f), channel(1f), c.alpha)
+}
+
+private fun toLinear(v: Float) = if (v <= 0.04045f) v / 12.92f else Math.pow(((v + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+private fun toSrgb(v: Float) = if (v <= 0.0031308f) v * 12.92f else (1.055 * Math.pow(v.toDouble(), 1 / 2.4) - 0.055).toFloat()
+
+/** [c] scaled so its relative luminance equals [like]'s: a turned hue must not also turn lighter or darker. */
+private fun sameBrightness(c: Color, like: Color): Color {
+    val l = c.luminance()
+    if (l <= 0f) return c
+    val k = like.luminance() / l
+    fun ch(v: Float) = toSrgb((toLinear(v) * k).coerceIn(0f, 1f))
+    return Color(ch(c.red), ch(c.green), ch(c.blue), c.alpha)
+}
+
+/**
+ * The dark version of a colourway: "the same shift" as its light one, made of two moves on
+ * [DarkPalette]. (1) The tinted surfaces (page, soft fill, thin line, the two soft board
+ * highlights) turn by the hue distance between the light page colours: lavender to this
+ * colourway's, then are scaled to the very luminance the lavender one had (a hue turn alone makes
+ * greens and yellows much brighter). (2) The main colour is the light one (it is already bright enough on dark), with
+ * its text form the same colour, as in DarkPalette. Ink, cards, text and the games' colours stay.
+ */
+private fun darkOf(light: SudokuPalette): SudokuPalette {
+    val turn = hueOf(light.background) - hueOf(LightPalette.background)
+    fun t(c: Color) = sameBrightness(rotateHue(c, turn), c)
+    return DarkPalette.copy(
+        background = t(DarkPalette.background), accent = t(DarkPalette.accent), hairline = t(DarkPalette.hairline),
+        cellPeer = t(DarkPalette.cellPeer), cellSameDigit = t(DarkPalette.cellSameDigit),
+        primary = light.primary, primaryText = light.primary,
+    )
+}
+
+/** All eight palettes: the colourway, light or dark. Lavender is [LightPalette] and [DarkPalette] unchanged. */
+fun paletteFor(theme: ColourTheme, dark: Boolean): SudokuPalette = when (theme) {
+    ColourTheme.LAVENDER -> if (dark) DarkPalette else LightPalette
+    ColourTheme.MINT -> if (dark) MintDark else MintLight
+    ColourTheme.PEACH -> if (dark) PeachDark else PeachLight
+    ColourTheme.SKY -> if (dark) SkyDark else SkyLight
+}
+
+private val MintDark = darkOf(MintLight)
+private val PeachDark = darkOf(PeachLight)
+private val SkyDark = darkOf(SkyLight)
 
 /** Body text: Figtree. */
 val BodyFont = FontFamily(
@@ -164,8 +259,8 @@ fun isDark(mode: ThemeMode) = when (mode) {
 }
 
 @Composable
-fun PipPopTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
-    val p = if (darkTheme) DarkPalette else LightPalette
+fun PipPopTheme(darkTheme: Boolean, colourTheme: ColourTheme = ColourTheme.LAVENDER, content: @Composable () -> Unit) {
+    val p = paletteFor(colourTheme, darkTheme)
     val scheme = if (darkTheme) {
         darkColorScheme(
             primary = p.primary, onPrimary = p.onPrimary, background = p.background, onBackground = p.text,

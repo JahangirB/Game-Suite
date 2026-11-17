@@ -63,7 +63,8 @@ object LineHeight {
 /** Letter spacing for game codes, so each character stands apart. */
 object Tracking {
     val Code = 6.sp
-    val CodeSmall = 4.sp
+    /** The room code in its big box. */
+    val CodeLarge = 10.sp
 }
 
 /**
@@ -81,6 +82,12 @@ object Space {
     val XL = 20.dp
     val XXL = 24.dp
     val XXXL = 32.dp
+}
+
+/** Widths that cap a piece of content, so it doesn't stretch on a tablet or in landscape. */
+object Size {
+    /** The widest a dialog card gets. */
+    val DialogMax = 480.dp
 }
 
 /**
@@ -121,9 +128,13 @@ object Board {
     /** Dominoes: the table and the tiles. */
     val Felt = Color(0xFF2E7D5B)
     val Bone = Color(0xFFFFFBF2)
+    /** Dominoes: the maple tile. */
+    val Maple = Color(0xFFE2B77E)
     /** Dominoes: the small brass pin in the middle of a tile, and the wooden rim round the table. */
     val Brass = Color(0xFFC9A24B)
     val Wood = Color(0xFF8A5A33)
+    /** A silver cup: a month that ended level. */
+    val Silver = Color(0xFFC9CED6)
     /** A soft gold for "this one" highlights: a playable tile, a target, a winning line. */
     val Glow = Color(0xFFFFD23F)
     val GlowSoft = Color(0xFFFFE08A)

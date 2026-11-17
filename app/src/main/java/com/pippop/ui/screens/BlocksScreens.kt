@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
 
 import com.pippop.ui.theme.loopingFloat
@@ -154,7 +157,7 @@ internal fun BlocksBoard(
             // Falling from above, a little bigger, its shadow growing as it nears the board.
             val k = 1f - land.value
             val grow = 1f + 0.25f * k
-            val color = view.lastWho?.let { markColor(it) } ?: p.primary
+            val color = view.lastWho?.let { markColor(it) } ?: p.me
             val cx = view.lastCells.map { it.first + 0.5f }.average().toFloat() * c
             val cy = view.lastCells.map { it.second + 0.5f }.average().toFloat() * c
             for ((x, y) in view.lastCells) {
@@ -315,9 +318,10 @@ fun ColumnScope.BlocksPlay(
     turns: Int = 0,
     flips: Int = 0,
     inlineTools: Boolean = true,
+    over: Boolean = false,
 ) {
     val hintsOn = ProfileStore.get(LocalContext.current).profile.collectAsState().value.blocksHints && canPlay
-    BlocksPlayBody(view, canPlay, hintsOn, onPlace, turns, flips, inlineTools)
+    BlocksPlayBody(view, canPlay, hintsOn, onPlace, turns, flips, inlineTools, over = over)
 }
 
 /** [BlocksPlay] with "Where can I go?" ([hintsOn]) given, and a piece and spot to start from (for pictures). */
@@ -332,6 +336,8 @@ internal fun ColumnScope.BlocksPlayBody(
     inlineTools: Boolean = true,
     startPiece: Int? = null,
     startTarget: Pair<Int, Int>? = null,
+    /** The game is over: only the board stays; the verdict, the tray and Place leave. */
+    over: Boolean = false,
 ) {
     val p = AppTheme.palette
     val mine = view.left['m'].orEmpty()
@@ -391,6 +397,7 @@ internal fun ColumnScope.BlocksPlayBody(
             onDrop = { if (!okNow()) putBack() }, onDragging = { dragging = it }, spots = if (cells == null) spots else emptySet(),
         )
     }
+    if (over) return
     // The verdict on the piece in hand, always two lines tall so the board doesn't jump.
     val verdict = when {
         cells == null -> if (chosen == null) "Pick a piece" else "Drag the piece onto the board"
@@ -454,7 +461,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
     var flipTaps by remember { mutableIntStateOf(0) }
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BLOCKS) { showRules = false }
     fun letterOf(index: Int) = "opq"[index]
     val turnName = turns.turnName ?: room.opponent?.name
     val names = listOf('m' to "You") + room.others.mapIndexed { i, o -> letterOf(i) to o.name }
@@ -473,13 +480,14 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
         glow = GameKind.BLOCKS.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
         myTurn = myTurn,
-        tools = listOf(
+        tools = if (finished) emptyList() else listOf(
             DockTool("Turn", GameIcons.Rotate, anytime = false) { turnTaps++ },
             DockTool("Flip", GameIcons.Flip, anytime = false) { flipTaps++ },
         ),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.BLOCKS,
@@ -496,7 +504,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             )
         },
     ) {
-        TurnLine(
+        if (!finished) TurnLine(
             when {
                 finished -> "Game over"
                 myTurn -> if (view.left['m'].orEmpty().size == Blocks.PIECES.size) "Cover your ringed start square" else "Your turn: touch your colour only at a corner"
@@ -504,7 +512,7 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
             },
             myTurn, GameKind.BLOCKS.color,
         )
-        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock, turns = turnTaps, flips = flipTaps, inlineTools = false)
+        BlocksPlay(view, myTurn && !state.firing, vm::placeBlock, turns = turnTaps, flips = flipTaps, inlineTools = false, over = finished)
     }
 }
 
@@ -514,56 +522,53 @@ fun BlocksGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
 fun SoloBlocksScreen(state: SoloBlocksUiState, vm: SoloBlocksViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.BLOCKS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.BLOCKS) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.BLOCKS, "New game", vm::startWith) { changing = false }
     val names = listOf('m' to "You") + (1..state.opponents).map { "opq"[it - 1] to "CPU $it" }
     GameFrame(
         title = "Corner Blocks",
         subtitle = "Against ${state.opponents} computer${if (state.opponents > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.BLOCKS.color,
-        menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, if (view != null) vm::start else null),
-        scrollable = view == null,
-        popup = if (view == null || state.result == null) null else popupContent {
+        menu = soloMenu(GameKind.BLOCKS, onHome, { showRules = true }, vm::start, { changing = true }),
+        resultUnder = true,
+        popup = if (state.result == null) null else popupContent {
             SoloPopup(
                 GameKind.BLOCKS, state.result, blocksScores(view, names).joinToString(" · "),
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = { changing = true },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Corner Blocks") {
-                Text("Lay your 21 pieces. Your first covers your start square; after that each piece must touch yours only corner to corner. Most squares placed wins.", color = p.muted, fontSize = TextSize.Body)
-                BlocksHintsSwitch()
-                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (n in 1..3) {
-                        if (state.opponents == n) PrimaryButton("$n", {}, Modifier.weight(1f)) else SecondaryButton("$n", { vm.setOpponents(n) }, Modifier.weight(1f))
-                    }
-                }
-                Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
-                        if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))
-                    }
-                }
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            val myTurn = state.turn == 'm' && state.result == null
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TurnLine(
-                    when {
-                        state.result != null -> "Game over"
-                        myTurn -> "Your turn"
-                        else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is placing…"
-                    },
-                    myTurn, GameKind.BLOCKS.color,
-                )
-            }
-            Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
-            BlocksPlay(view, myTurn, vm::place)
+        val myTurn = state.turn == 'm' && state.result == null
+        if (state.result == null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            TurnLine(
+                when {
+                    state.result != null -> "Game over"
+                    myTurn -> "Your turn"
+                    else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is placing…"
+                },
+                myTurn, GameKind.BLOCKS.color,
+            )
         }
+        if (state.result == null) Text(blocksScores(view, names).joinToString("  "), color = p.muted, fontSize = TextSize.Body)
+        BlocksPlay(view, myTurn, vm::place, over = state.result != null)
+    }
+}
+
+/** The lobby's and the Change sheet's "Help" card: [BlocksHintsSwitch] as an [OptionRow]. It is each player's own, so it is never greyed. */
+@Composable
+fun BlocksHelpCard() {
+    val store = ProfileStore.get(LocalContext.current)
+    val on = store.profile.collectAsState().value.blocksHints
+    AppCard("Help") {
+        OptionRow(
+            "Hints", listOf(true to "On", false to "Off"), on, store::setBlocksHints,
+            note = "Where can I go? Light the corners your pieces can build from; grey the pieces that fit nowhere.",
+        )
     }
 }
 
@@ -573,11 +578,11 @@ fun BlocksHintsSwitch() {
     val p = AppTheme.palette
     val store = ProfileStore.get(LocalContext.current)
     val on = store.profile.collectAsState().value.blocksHints
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = on, role = Role.Switch, onValueChange = store::setBlocksHints)) {
         Column(Modifier.weight(1f)) {
             Text("Where can I go?", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
             Text("Light the corners your pieces can build from; grey the pieces that fit nowhere.", color = p.muted, fontSize = TextSize.Label)
         }
-        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setBlocksHints)
+        ToySwitch(checked = on, onCheckedChange = null)
     }
 }

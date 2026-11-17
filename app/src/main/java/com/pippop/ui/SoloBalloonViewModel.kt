@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.balloon.BalloonMatch
@@ -78,6 +81,7 @@ class SoloBalloonViewModel : ViewModel() {
         }
         // The streak counts words you find in a row, or words the computer couldn't find.
         val won = (result == "found" && s.youGuess) || (result == "popped" && !s.youGuess)
+        if (result != null) SoloRecordStore.current?.recordRun(GameKind.BALLOON, "", SoloMetric.SOLVED_IN_ROW, won)
         _state.update {
             it.copy(
                 guessed = guessed, misses = misses, result = result, message = null,

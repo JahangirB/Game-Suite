@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import com.pippop.game.numbers.NumberCross
 import com.pippop.game.numbers.NumberCrossGenerator
@@ -40,8 +43,6 @@ class SoloNumbersViewModel : ViewModel() {
 
     fun again() = start(_state.value.level)
 
-    fun changeLevel() = _state.update { it.copy(puzzle = null, finishedMs = null) }
-
     fun select(k: Int) = _state.update { it.copy(selected = if (it.selected == k) null else k) }
 
     /** Puts [value] in the picked blank ("" empties it), then picks the next empty one. */
@@ -54,6 +55,7 @@ class SoloNumbersViewModel : ViewModel() {
         val next = if (value == "") k else (1..entries.size).map { (k + it) % entries.size }.firstOrNull { entries[it] == "" }
         val done = NumberCross.isSolved(puzzle, entries)
         val time = System.currentTimeMillis() - s.startedAt
+        if (done) SoloRecordStore.current?.record(GameKind.NUMBERS, s.level.key, SoloMetric.TIME, time)
         _state.update {
             it.copy(
                 entries = entries, selected = if (done) null else next,

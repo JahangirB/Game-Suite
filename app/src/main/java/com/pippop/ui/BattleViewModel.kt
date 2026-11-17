@@ -1,9 +1,14 @@
 package com.pippop.ui
 
+import com.pippop.ui.screens.Tone
 import com.pippop.ui.screens.TALLY_ME
+import com.pippop.ui.screens.inMatch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pippop.data.Avatar
+import com.pippop.data.BrokenRecord
+import com.pippop.data.Records
 import com.pippop.data.ApiException
 import com.pippop.data.BattleBackend
 import com.pippop.data.Difficulty
@@ -43,9 +48,18 @@ import com.pippop.data.Hello
 import com.pippop.data.SavedPartner
 import com.pippop.data.Invite
 import com.pippop.data.ProfileStore
+import com.pippop.data.ChatLines
+import com.pippop.data.Faces
+import com.pippop.data.MemoryPhotos
+import com.pippop.data.PackKey
+import com.pippop.data.PackReceiver
+import com.pippop.data.PackShown
+import com.pippop.data.PackSticker
+import com.pippop.data.StickerStore
 import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.MatchRecord
+import com.pippop.data.GameFacts
 import com.pippop.data.ScoreStore
 import com.pippop.data.RoomStatus
 import com.pippop.data.TurnsView
@@ -67,7 +81,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -81,18 +97,19 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Online goes through the host's server; nearby connects two phones directly, no internet. */
 enum class BattleMode { ONLINE, NEARBY }
 
-/** A reaction on screen and when it appeared. */
-data class ShownReaction(val reaction: Reaction, val at: Long)
+/**
+ * A reaction on screen and when it appeared. A [line] a player wrote, or the name of a [pack] sticker that was
+ * slow to arrive, is shown in a bubble and has no reaction; a sticker from the downloadable packs is [pack].
+ */
+data class ShownReaction(val reaction: Reaction?, val at: Long, val line: String? = null, val pack: PackSticker? = null, val seq: Int = 0)
 
 /**
  * Kylian Dictador taking the game over, on this phone's clock. [until] is when his song ends:
- * every reaction bar reads it, and nothing else can be sent until then. [shown] is a takeover
- * that isn't a reaction from someone else, such as his card played in Colour Clash: the app
- * shows it over whatever game is open, on every phone, the player's own included.
+ * every reaction bar reads it, and nothing else can be sent until then. Only his reaction does this;
+ * his card in Colour Clash is just eight cards.
  */
 object Takeover {
     val until = MutableStateFlow(0L)
-    val shown = MutableStateFlow<ShownReaction?>(null)
 
     fun locked(now: Long = System.currentTimeMillis()) = now < until.value
 
@@ -100,19 +117,26 @@ object Takeover {
     fun takeOver(reaction: Reaction, at: Long) {
         if (reaction.takesOverMs > 0) until.value = maxOf(until.value, at + reaction.takesOverMs)
     }
-
-    /** Shows [reaction] over the game now and takes the game over with it; its sound is the caller's to play. */
-    fun show(reaction: Reaction, at: Long = System.currentTimeMillis()) {
-        takeOver(reaction, at)
-        shown.value = ShownReaction(reaction, at)
-    }
 }
+
+/** Memory Pairs: the opener's photos being made and sent to the room, for the lobby's "3 of 8 sent". [thumbs] are the photos made so far, by place. */
+data class MemoryPicking(val total: Int, val sent: Int = 0, val thumbs: Map<Int, String> = emptyMap(), val failed: Int = 0)
+
+/**
+ * Who an invitation came from, as the notification says. [isInvite] is false for "your turn", which has no invitation to decline.
+ */
+data class InviteFrom(val device: String?, val name: String, val avatar: Avatar?, val isInvite: Boolean = true)
+
+/** An invitation for [game], held until the player adds it to the shelf or says "Not now". */
+data class PendingInvite(val code: String, val game: GameKind, val from: InviteFrom)
 
 data class BattleUiState(
     val hostCode: String = Invite.randomCode(),
     val joinCode: String = "",
     val busy: Boolean = false,
     val message: String? = null,
+    /** What kind of news [message] is, for its mark. */
+    val messageTone: Tone = Tone.Neutral,
     val mode: BattleMode = BattleMode.ONLINE,
     /** The game to open when hosting. */
     val hostGame: GameKind = GameKind.SUDOKU,
@@ -128,6 +152,12 @@ data class BattleUiState(
     /** Each other player's latest reaction, by name, for their chip. */
     val otherReactions: Map<String, ShownReaction> = emptyMap(),
     val myReaction: ShownReaction? = null,
+    /** The photos of the room's other players, fetched once each, by the id the room state carries ([Faces]). */
+    val faces: Map<Int, String> = emptyMap(),
+    /** Memory Pairs: the deck's photos, fetched once each, by the id the room state carries per pair ([MemoryPhotos]). */
+    val memoryPics: Map<Int, String> = emptyMap(),
+    /** Memory Pairs: the opener's photos being sent, or null. */
+    val memoryPicking: MemoryPicking? = null,
     /** Ship Battle: the fleet you will be ready with (shuffle until you like it). */
     val fleetDraft: List<Ship> = Fleet.random(),
     /** A move or shot is on its way; it already shows where the rules allow (see [playMove]). */
@@ -167,6 +197,11 @@ data class BattleUiState(
     val problem: Problem? = null,
     /** Wins since connecting, by name ("You" for this phone): the result's "Tonight" line. */
     val tally: Map<String, Int> = emptyMap(),
+    /** A record the latest result broke, with the round it was for (so a later game never shows it): the card's gold line. */
+    val record: BrokenRecord? = null,
+    val recordRound: Int = -1,
+    /** An invitation to a game that is not on this phone's shelf, waiting for "Add and join" or "Not now". */
+    val pendingInvite: PendingInvite? = null,
 ) {
     /** Like the server status, but switches to PLAYING the moment the shared start time passes. */
     fun phase(serverNow: Long): RoomStatus? {
@@ -213,6 +248,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var strokesClears = 0
     private var recordedRound = -1
 
+    /** The game and round last noted as played (for the home's recent games), so each start counts once. */
+    private var notedStart: Pair<GameKind, Int>? = null
+
     /** The round last added to the Scoreboard, so each match counts once. */
     private var scoredRound = -1
     private var lastSentBoard: String? = null
@@ -227,6 +265,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
     private var sessionServer: Pair<String, String>? = null
 
     init {
+        // A photo chosen or removed while in a room reaches the others at once (where the server has the cap).
+        viewModelScope.launch {
+            store.profile.map { it.face }.distinctUntilChanged().collect { _state.value.room?.let(::syncFaces) }
+        }
         // A declined invitation shows on screen too when the app is open.
         viewModelScope.launch {
             Push.events.collect { event ->
@@ -270,7 +312,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             // Timed on a second call, once the connection is set up: about what each move waits.
             val start = System.currentTimeMillis()
             server.ping()
-            showMessage("Connected to the $kind server. Round trip: ${System.currentTimeMillis() - start} ms.")
+            showMessage("Connected to the $kind server. Round trip: ${System.currentTimeMillis() - start} ms.", Tone.Good)
         } finally {
             server.close()
         }
@@ -361,22 +403,60 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             val json = openPartnerRoom(b, partner.code, me, partner.myPlayerId, game)
             try {
                 PushApi(partner.serverUrl, partner.password).invite(me.deviceId, to, partner.code, game)
-                showMessage("Invitation sent to ${partner.name}.")
+                showMessage("Invitation sent to ${partner.name}.", Tone.Good)
                 store.notificationsNeeded()
             } catch (e: Exception) {
                 // The room is open either way; the partner can still tap Play.
-                showMessage(e.message ?: "Could not send the invitation.")
+                showMessage(e.message ?: "Could not send the invitation.", Tone.Bad)
             }
             json
         }
     }
 
-    /** "Play" on an invitation: join the partner's room with the code from the notification. */
-    fun acceptInvite(code: String, game: GameKind) {
+    /**
+     * "Play" on an invitation: join the partner's room with the code from the notification. A game that is not on the
+     * shelf waits for "Add and join" ([confirmInvite]) or "Not now" ([declineInvite]) before anything is joined.
+     */
+    fun acceptInvite(code: String, game: GameKind, from: InviteFrom = InviteFrom(null, "Your partner", null)) {
         // Invitations work both ways: offer notifications so the next one reaches this phone too.
         store.notificationsNeeded()
         // Tapping "your turn" while already in that room needs nothing more.
         if (_state.value.room?.code == code) return
+        if (game !in store.profile.value.shelf) {
+            _state.update { it.copy(pendingInvite = PendingInvite(code, game, from)) }
+            return
+        }
+        joinInvite(code, game)
+    }
+
+    /** "Add and join": the game goes on the shelf and the invitation carries on as it would have. */
+    fun confirmInvite() {
+        val pending = _state.value.pendingInvite ?: return
+        _state.update { it.copy(pendingInvite = null) }
+        store.addToShelf(pending.game)
+        joinInvite(pending.code, pending.game)
+    }
+
+    /** "Not now": an invitation is declined as its Decline button does (the partner hears you can't play); a turn is just left. */
+    fun declineInvite() {
+        val pending = _state.value.pendingInvite ?: return
+        _state.update { it.copy(pendingInvite = null) }
+        val profile = store.profile.value
+        val server = profile.partner ?: return
+        val to = pending.from.device ?: return
+        if (!pending.from.isInvite) return
+        viewModelScope.launch {
+            try {
+                PushApi(server.serverUrl, server.password).reply(profile.deviceId, to, accepted = false, code = pending.code)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Nothing to do: the inviter will simply not see you join.
+            }
+        }
+    }
+
+    private fun joinInvite(code: String, game: GameKind) {
         val partner = store.profile.value.partner
         if (partner == null) {
             _state.update { it.copy(joinCode = code) }
@@ -459,12 +539,13 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         loadedRound = -1
         recordedRound = -1
         scoredRound = -1
+        notedStart = null
         lastSentBoard = null
         bestRoundTripMs = Long.MAX_VALUE
         lastVersion = -1
         lastOpponentEmojiSeq = -1
         talliedRound = -1
-        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap()) }
+        _state.update { it.copy(mode = mode, opponentReaction = null, myReaction = null, tally = emptyMap(), record = null, recordRound = -1) }
         val room = applyResponse(json, sentAt, record = false)
         // Joining a finished room must not count its old result again.
         if (room.status == RoomStatus.FINISHED) {
@@ -510,9 +591,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             }
         }
     }
@@ -550,7 +631,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             GameKind.NUMBERS -> readyNumbers()
             GameKind.GRID -> readyGrid()
             GameKind.SLIDE -> readySlide()
-            GameKind.SUDOKU -> chooseLevel(room.me.difficulty ?: room.difficulty ?: Difficulty.MEDIUM)
+            GameKind.SUDOKU -> if (room.picksByOpener) readySudoku() else chooseLevel(room.me.difficulty ?: room.difficulty ?: Difficulty.MEDIUM)
             else -> readyTurns()
         }
     }
@@ -583,9 +664,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             }
         }
     }
@@ -621,6 +702,45 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sendReady(room.copy(me = me)) { b, id -> b.ready(room.code, id, !cancel, level) }
     }
 
+    /**
+     * Sudoku where whoever opened the game picks ([RoomState.sudokuOpener]): the Ready button. Whoever
+     * opened it is ready for the level they chose (on a board of joined grids their phone makes the
+     * puzzle and sends it); everyone else is just ready.
+     */
+    fun readySudoku() {
+        val room = _state.value.room ?: return
+        val ready = !room.me.ready
+        val level = room.sudokuLevel ?: Difficulty.MEDIUM
+        val shape = room.sudokuShape
+        val shown = room.copy(me = room.me.copy(ready = ready, difficulty = if (ready && room.setsOptions) level else room.me.difficulty))
+        if (ready && room.setsOptions && shape.big) {
+            sendReady(shown) { b, id ->
+                val made = withContext(Dispatchers.Default) { com.pippop.game.BigGenerator.generate(shape, level.holes) }
+                b.readyBig(room.code, id, true, level, made.puzzle to made.solution)
+            }
+        } else {
+            sendReady(shown) { b, id -> b.ready(room.code, id, ready, if (room.setsOptions) level else null) }
+        }
+    }
+
+    /** Sudoku, where the opener picks: the level for the next round; everyone gets ready again. */
+    fun setSudokuLevel(level: Difficulty) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.sudokuLevel == level) return
+        sendReady(room.copy(sudokuLevel = level, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, sudokuOptions(room, level = level))
+        }
+    }
+
+    /** Sudoku's options as sent: Race or Together, the board and, where the opener picks, the level. */
+    private fun sudokuOptions(room: RoomState, together: Boolean = room.sudokuTogether, shape: com.pippop.game.SudokuShape = room.sudokuShape, level: Difficulty? = room.sudokuLevel) =
+        JSONObject().put("mode", if (together) "together" else "race").put("shape", shape.key).apply { if (room.sudokuOpener && level != null) put("level", level.key) }
+
+    /** A line from another player arrives: `line_sent`, a little quieter, silent while Their moves is off. */
+    private fun playLineSent() {
+        sfx.play(Sound.LINE_SENT, Sfx.OTHERS, others = true)
+    }
+
     /** Sends a quick reaction; it shows next to your name on both phones. */
     fun react(reaction: Reaction) {
         val room = _state.value.room ?: return
@@ -629,6 +749,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val now = System.currentTimeMillis()
         if (Takeover.locked(now)) return
         Takeover.takeOver(reaction, now)
+        store.noteReactionSent(reaction)
         _state.update { it.copy(myReaction = ShownReaction(reaction, now)) }
         viewModelScope.launch {
             try {
@@ -638,6 +759,106 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 // A lost reaction is not worth an error message.
+            }
+        }
+    }
+
+    /**
+     * What a reaction tray does with a tap on one of the player's lines: [afterSend] runs once it is sent
+     * (the tray closes). Null where the server has no "lines" cap, so the tray shows no lines and text
+     * is never sent to a server that would not understand it.
+     */
+    fun lineSender(afterSend: () -> Unit = {}): ((String) -> Unit)? {
+        val room = _state.value.room ?: return null
+        if (ChatLines.CAP !in room.caps) return null
+        return { text -> sendLine(text); afterSend() }
+    }
+
+    /** Says [text] (one of the player's lines) next to your name on every phone. Only to a server with the "lines" cap. */
+    fun sendLine(text: String) {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (ChatLines.CAP !in room.caps) return
+        val line = ChatLines.clean(text)
+        if (line.isEmpty()) return
+        val now = System.currentTimeMillis()
+        if (Takeover.locked(now)) return
+        _state.update { it.copy(myReaction = ShownReaction(null, now, line)) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.line(room.code, id, line), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A lost line is not worth an error message.
+            }
+        }
+    }
+
+    /** The stickers kept on this phone; where a sticker someone sent is fetched when this phone does not have it. */
+    private val packStore by lazy { StickerStore.get(getApplication()) }
+    private val packReceiver by lazy { PackReceiver(packStore) }
+
+    /**
+     * What a reaction tray does with a tap on a downloaded sticker: [afterSend] runs once it is sent (the tray
+     * closes). Null where the server has no "packs" cap, so the tray has no "+" and no pack stickers, and a
+     * `p:` key is never sent to a server that would not understand it.
+     */
+    fun packSender(afterSend: () -> Unit = {}): ((String) -> Unit)? {
+        val room = _state.value.room ?: return null
+        if (PackKey.CAP !in room.caps) return null
+        return { id -> sendPack(id); afterSend() }
+    }
+
+    /** Sends the downloaded sticker [id] ([PackKey]) next to your name on every phone. Only to a server with the "packs" cap. */
+    fun sendPack(id: String) {
+        val room = _state.value.room ?: return
+        val me = playerId ?: return
+        val b = backend ?: return
+        if (PackKey.CAP !in room.caps || !PackKey.validId(id)) return
+        val sticker = packStore.get(id) ?: return
+        val now = System.currentTimeMillis()
+        if (Takeover.locked(now)) return
+        _state.update { it.copy(myReaction = ShownReaction(null, now, pack = sticker)) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.sticker(room.code, me, id), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A lost sticker is not worth an error message.
+            }
+        }
+    }
+
+    /**
+     * A sticker [id] from [name]: shown once this phone has it, or as its name in a bubble if that takes
+     * more than two seconds or fails ([PackReceiver]).
+     */
+    private fun showPack(name: String, id: String, seq: Int) {
+        viewModelScope.launch {
+            val got = try {
+                packReceiver.receive(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                PackShown.Name(id)
+            }
+            val at = System.currentTimeMillis()
+            val shown = when (got) {
+                is PackShown.Sticker -> ShownReaction(null, at, pack = got.sticker, seq = seq)
+                is PackShown.Name -> ShownReaction(null, at, line = got.name, seq = seq)
+            }
+            _state.update { s ->
+                // A reaction that came after this one has already been shown: this late one must not cover it.
+                if ((s.otherReactions[name]?.seq ?: -1) > seq) s
+                else s.copy(
+                    opponentReaction = if ((s.opponentReaction?.seq ?: -1) > seq) s.opponentReaction else shown,
+                    otherReactions = s.otherReactions + (name to shown),
+                )
             }
         }
     }
@@ -681,10 +902,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(shown, before)
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(shown, before)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 readying = false
             }
@@ -869,12 +1090,122 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sendReady(room.copy(codeRules = rules, me = room.me.copy(ready = false))) { b, id -> b.setOptions(room.code, id, rules.toJson()) }
     }
 
-    /** Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. */
+    /**
+     * Memory Pairs: whoever opened the game picks the deck size (16, 24 or 36); everyone gets ready again. A new size
+     * takes the photos away (the server says so in its next state), where the deck is the photos.
+     */
     fun setMemoryCards(cards: Int) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.memoryCards == cards) return
-        sendReady(room.copy(memoryCards = cards, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("cards", cards))
+        sendReady(room.copy(memoryCards = cards, memoryPhotoIds = emptyList(), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("cards", cards).apply { if (room.memoryPhotosOffered) put("deck", if (room.memoryDeckPhotos) "photos" else "animals") })
+        }
+    }
+
+    /** Memory Pairs: whoever opened the game picks the animals or "Your photos" (only where [RoomState.memoryPhotosOffered]); everyone gets ready again. */
+    fun setMemoryPhotosDeck(photos: Boolean) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || !room.memoryPhotosOffered || room.memoryDeckPhotos == photos || _state.value.memoryPicking != null) return
+        sendReady(room.copy(memoryDeckPhotos = photos, memoryPhotoIds = emptyList(), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("cards", room.memoryCards).put("deck", if (photos) "photos" else "animals"))
+        }
+    }
+
+    /**
+     * Memory Pairs: the opener's chosen [uris] are each cropped square, made small and sent once, one after the other
+     * ([MemoryPhotos.plan] says where each goes; [onlyMissing] fills the empty places, else the set is replaced).
+     * The lobby shows "3 of 8 sent" from [BattleUiState.memoryPicking]; a photo that cannot be read is skipped and said so.
+     */
+    fun sendMemoryPhotos(uris: List<android.net.Uri>, onlyMissing: Boolean) {
+        val room = _state.value.room ?: return
+        val me = playerId ?: return
+        val b = backend ?: return
+        if (!room.setsOptions || !room.memoryPhotosOn || _state.value.memoryPicking != null) return
+        val plan = MemoryPhotos.plan(room.memoryPairs, room.memoryPhotoIds, uris.size, onlyMissing)
+        if (plan.isEmpty()) return
+        _state.update { it.copy(memoryPicking = MemoryPicking(plan.size)) }
+        memoryJob = viewModelScope.launch {
+            val made = mutableMapOf<Int, String>()
+            var failed = 0
+            var error: String? = null
+            try {
+                for ((slot, from) in plan) {
+                    val photo = from?.let { MemoryPhotos.fromUri(getApplication(), uris[it]) }
+                    if (from != null && photo == null) {
+                        failed++
+                        _state.update { s -> s.copy(memoryPicking = s.memoryPicking?.copy(sent = s.memoryPicking.sent + 1, failed = failed)) }
+                        continue
+                    }
+                    // Decoded once here, off the main thread, so the thumbnail can be drawn at once.
+                    if (photo != null) kotlinx.coroutines.withContext(Dispatchers.Default) { MemoryPhotos.decode(photo) }
+                    try {
+                        sendMemoryPic(b, room.code, me, slot, photo)
+                    } catch (e: ApiException) {
+                        // The server's pace limit: wait a moment and try this one again.
+                        if (e.message?.contains("Slow down") != true) throw e
+                        delay(MemoryPhotos.SEND_GAP_MS * 2)
+                        sendMemoryPic(b, room.code, me, slot, photo)
+                    }
+                    if (photo != null) made[slot] = photo
+                    _state.update { s -> s.copy(memoryPicking = s.memoryPicking?.copy(sent = s.memoryPicking.sent + 1, thumbs = made.toMap())) }
+                    delay(MemoryPhotos.SEND_GAP_MS)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                error = e.message
+            } catch (e: IOException) {
+                error = "Network problem, try again."
+            }
+            // The photos this phone made need no fetching: the ids the room now holds for them are matched here.
+            val ids = _state.value.room?.memoryPhotoIds.orEmpty()
+            _state.update { s ->
+                val mine = made.mapNotNull { (slot, photo) -> ids.getOrNull(slot)?.let { id -> id to photo } }.toMap()
+                memoryPicsAsked.addAll(mine.keys)
+                s.copy(memoryPicking = null, memoryPics = s.memoryPics + mine)
+            }
+            _state.value.room?.let(::syncMemoryPics)
+            when {
+                error != null -> showMessage(error, Tone.Bad)
+                failed > 0 -> showMessage(if (failed == 1) "One photo could not be read." else "$failed photos could not be read.", Tone.Bad)
+            }
+        }
+    }
+
+    /** The photos being sent (see [sendMemoryPhotos]); cancelled when the session ends. */
+    private var memoryJob: Job? = null
+
+    private suspend fun sendMemoryPic(b: BattleBackend, code: String, me: String, slot: Int, photo: String?) {
+        applyResponse(b.setMemoryPic(code, me, slot, photo), null)
+    }
+
+    /** Photo ids of the deck asked for in this session, so each is fetched once. */
+    private val memoryPicsAsked = mutableSetOf<Int>()
+
+    /**
+     * Where the deck is the players' photos, each photo the room state names is fetched once by its id, decoded off the
+     * main thread and checked before it is kept; a missing or unreadable one is left, and its cards show the plain animal.
+     */
+    private fun syncMemoryPics(room: RoomState) {
+        // While this phone is sending, its own photos are not fetched back: they are matched to their ids at the end.
+        if (!room.memoryPhotosOn || _state.value.memoryPicking != null) return
+        val b = backend ?: return
+        val me = playerId ?: return
+        val ids = room.memoryPhotoIds.filterNotNull().toSet()
+        if (_state.value.memoryPics.keys.any { it !in ids }) _state.update { s -> s.copy(memoryPics = s.memoryPics.filterKeys { it in ids }) }
+        for (id in MemoryPhotos.toFetch(room.memoryPhotoIds, memoryPicsAsked)) {
+            viewModelScope.launch {
+                val photo = try {
+                    b.memoryPic(room.code, me, id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                if (photo != null && kotlinx.coroutines.withContext(Dispatchers.Default) { MemoryPhotos.decode(photo) } != null) {
+                    _state.update { it.copy(memoryPics = it.memoryPics + (id to photo)) }
+                }
+            }
         }
     }
 
@@ -913,10 +1244,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(guess, room)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false, pendingCard = null) }
             }
@@ -966,9 +1297,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false) }
             }
@@ -1041,7 +1372,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 strokesClears = room.draw?.clears ?: 0
-                showMessage("Could not clear the drawing, try again.")
+                showMessage("Could not clear the drawing, try again.", Tone.Bad)
             }
         }
     }
@@ -1067,7 +1398,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 strokesClears = room.draw?.clears ?: 0
-                showMessage("Could not undo, try again.")
+                showMessage("Could not undo, try again.", Tone.Bad)
             }
         }
     }
@@ -1092,9 +1423,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             }
         }
     }
@@ -1120,9 +1451,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     haptics.play(Buzz.NOT_ALLOWED)
                     sfx.play(Sound.ERROR)
                 }
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false, pendingShot = null) }
             }
@@ -1144,7 +1475,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.sudokuTogether == together) return
         sendReady(room.copy(sudokuTogether = together, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("mode", if (together) "together" else "race").put("shape", room.sudokuShape.key))
+            b.setOptions(room.code, id, sudokuOptions(room, together = together))
         }
     }
 
@@ -1153,7 +1484,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.sudokuShape == shape) return
         sendReady(room.copy(sudokuShape = shape, me = room.me.copy(ready = false))) { b, id ->
-            b.setOptions(room.code, id, JSONObject().put("mode", if (room.sudokuTogether) "together" else "race").put("shape", shape.key))
+            b.setOptions(room.code, id, sudokuOptions(room, shape = shape))
         }
     }
 
@@ -1272,7 +1603,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        showMessage("Couldn't send the score; it goes with the next goal.")
+                        showMessage("Couldn't send the score; it goes with the next goal.", Tone.Bad)
                         reported = -1 to -1
                     }
                 }
@@ -1369,10 +1700,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ApiException) {
                 undo(shown, room)
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
                 undo(shown, room)
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             }
         }
     }
@@ -1391,9 +1722,9 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal) endSession(e.message) else showMessage(e.message)
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem, try again.")
+                showMessage("Network problem, try again.", Tone.Bad)
             } finally {
                 _state.update { it.copy(firing = false) }
             }
@@ -1428,6 +1759,75 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val photo = runCatching { b.slidePhoto(room.code, id) }.getOrNull()
             _state.update { if (it.slidePhotoId == want) it.copy(slidePhoto = photo) else it }
+        }
+    }
+
+    /** Photos asked for in this session, so each id is fetched once. */
+    private val facesAsked = mutableSetOf<Int>()
+
+    /** What this phone last told the room's server about your own photo. */
+    private var faceSent: Faces.Sent? = null
+
+    /**
+     * Your photo goes to the room's server, and the others' photos are fetched, only where the room lists the
+     * cap "faces" (see [Faces.share]). Each photo is fetched once per id; a missing or unreadable one is left, and
+     * that player shows as their animal.
+     */
+    private fun syncFaces(room: RoomState) {
+        if (Faces.CAP !in room.caps) return
+        val b = backend ?: return
+        val me = playerId ?: return
+        when (val a = Faces.share(room.caps, room.code, store.profile.value.face, room.me.photoId, faceSent)) {
+            Faces.Share.Nothing -> Unit
+            is Faces.Share.Send -> sendFace(room.code, a.photo)
+            Faces.Share.Remove -> sendFace(room.code, null)
+        }
+        val ids = room.others.mapNotNull { it.photoId }.toSet()
+        if (_state.value.faces.keys.any { it !in ids }) _state.update { s -> s.copy(faces = s.faces.filterKeys { it in ids }) }
+        for (id in ids) {
+            if (!facesAsked.add(id)) continue
+            viewModelScope.launch {
+                val photo = try {
+                    b.face(room.code, me, id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                // Decoding is work, and the photo came from another phone: off the main thread, and checked first.
+                if (photo != null && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Faces.decode(photo) } != null) {
+                    _state.update { it.copy(faces = it.faces + (id to photo)) }
+                    _state.value.room?.let { keepPartnerFace(it) }
+                }
+            }
+        }
+        keepPartnerFace(room)
+    }
+
+    private fun sendFace(code: String, photo: String?) {
+        val me = playerId ?: return
+        val b = backend ?: return
+        val sent = Faces.Sent(code, photo)
+        faceSent = sent
+        viewModelScope.launch {
+            try {
+                applyResponse(b.setFace(code, me, photo), null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // No error message (the others see the animal), but the next room update tries again.
+                if (faceSent == sent) faceSent = null
+            }
+        }
+    }
+
+    /** The saved partner's last photo, kept with them for the scoreboard and the cups once their photo has arrived. */
+    private fun keepPartnerFace(room: RoomState) {
+        val partner = store.profile.value.partner ?: return
+        when (val a = Faces.partnerFace(partner, room.others, room.caps, _state.value.faces)) {
+            Faces.PartnerFace.Keep -> Unit
+            Faces.PartnerFace.Clear -> store.setPartnerFace(null)
+            is Faces.PartnerFace.Set -> store.setPartnerFace(a.photo)
         }
     }
 
@@ -1590,7 +1990,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             launch {
                 b.pushes?.collect { json ->
                     if (json.optString("type") == "error") {
-                        if (json.optBoolean("fatal")) endSession(json.optString("error")) else showMessage(json.optString("error"))
+                        if (json.optBoolean("fatal")) endSession(json.optString("error")) else showMessage(json.optString("error"), Tone.Bad)
                     } else if (json.optString("type") == "live") {
                         onLive(json.optJSONObject("data") ?: return@collect)
                     } else if (json.optString("type") == "stroke") {
@@ -1660,7 +2060,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: ApiException) {
-            if (e.fatal) endSession(e.message) else showMessage(e.message)
+            if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
         } catch (e: IOException) {
             _state.update { it.copy(reconnecting = true) }
             delay(1000)
@@ -1700,6 +2100,8 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             haptics.play(Buzz.YOUR_TURN)
             sfx.play(Sound.YOUR_TURN)
         }
+        // Someone else came, went or tapped Ready (a reconnect blip is none of these).
+        roomSounds(before, room).forEach { sfx.play(it, Sfx.OTHERS, others = true) }
         val offset = sentAt?.let { clockOffset(room.serverTime, it) } ?: _state.value.clockOffsetMs
         lastVersion = json.optInt("version", -1)
         if (room.others.map { it.progress } != _state.value.room?.others?.map { it.progress }) {
@@ -1716,14 +2118,20 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             other.emoji?.takeIf { lastOpponentEmojiSeq >= 0 && it.seq > lastOpponentEmojiSeq }?.let { other.name to it }
         }
         lastOpponentEmojiSeq = maxOf(lastOpponentEmojiSeq, room.others.maxOfOrNull { it.emoji?.seq ?: 0 } ?: 0)
-        fresh.maxByOrNull { it.second.seq }?.second?.reaction?.let { reaction ->
-            Takeover.takeOver(reaction, now)
-            reaction.sound?.let { sfx.play(it) }
+        fresh.maxByOrNull { it.second.seq }?.second?.let { e ->
+            e.reaction?.let { reaction ->
+                Takeover.takeOver(reaction, now)
+                reaction.sound?.let { sfx.play(it) }
+            }
+            if (e.line != null) playLineSent()
         }
+        // A pack sticker is shown once this phone has it (see showPack); the rest show at once.
+        fresh.forEach { (name, e) -> e.pack?.let { showPack(name, it, e.seq) } }
+        val instant = fresh.filter { it.second.pack == null }
         _state.update { s ->
             var next = s.copy(room = room, clockOffsetMs = offset)
-            fresh.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now)) }
-            if (fresh.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + fresh.map { (name, e) -> name to ShownReaction(e.reaction, now) })
+            instant.maxByOrNull { it.second.seq }?.let { (_, e) -> next = next.copy(opponentReaction = ShownReaction(e.reaction, now, e.line, seq = e.seq)) }
+            if (instant.isNotEmpty()) next = next.copy(otherReactions = next.otherReactions + instant.map { (name, e) -> name to ShownReaction(e.reaction, now, e.line, seq = e.seq) })
             if (room.game == GameKind.WORDS && room.round != next.wordRound) next = next.copy(wordInput = "", wordRound = room.round)
             room.draw?.let { next = next.copy(drawStrokes = mergeStrokes(room.round, it, s.drawStrokes)) }
             room.slide?.takeIf { it.start != null && room.round != next.slideRound }?.let { sl ->
@@ -1754,7 +2162,14 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         rememberPartner(room)
         if (room.game == GameKind.HOCKEY && room.atGame) syncHockey(room)
         if (room.game == GameKind.SLIDE) fetchSlidePhoto(room)
+        syncFaces(room)
+        syncMemoryPics(room)
         countForTonight(room)
+        // A game starting (its countdown, or playing if it has none) is noted once per round, for you being in it.
+        if (room.atGame && room.inMatch && notedStart != room.game to room.round) {
+            notedStart = room.game to room.round
+            store.noteGamePlayed(room.game)
+        }
         // A match counts for the players who were in it, not for someone waiting in the menu.
         if (record && room.atGame && room.status == RoomStatus.FINISHED && room.winner != null && room.round != recordedRound) {
             recordedRound = room.round
@@ -1771,7 +2186,16 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
                 "opponent" -> if (room.together) null else room.winnerName ?: room.opponent?.name
                 else -> null
             }
-            ScoreStore.get(getApplication()).add(MatchRecord(System.currentTimeMillis(), room.game, room.others.map { it.name }, winner))
+            val facts = GameFacts.of(room)
+            val scores = ScoreStore.get(getApplication())
+            val result = MatchRecord(
+                System.currentTimeMillis(), room.game, room.others.map { it.name }, winner,
+                durationMs = facts.durationMs, myScore = facts.mine, theirScore = facts.theirs, winnerCount = facts.count,
+            )
+            // A record is judged against what was kept BEFORE this result: so first, then add.
+            val broke = if (Records.canSet(room)) Records.againstPartner(scores.records.value, result) else null
+            scores.add(result)
+            _state.update { it.copy(record = broke, recordRound = room.round) }
         }
         return room
     }
@@ -1798,6 +2222,7 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val opponent = room.opponent?.takeIf { !it.left } ?: return
         val old = store.profile.value.partner
         val partner = SavedPartner(
+            face = Faces.carryOver(old, opponent.name, opponent.deviceId),
             serverUrl = url,
             password = password,
             code = room.code,
@@ -1826,10 +2251,15 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         sessionServer = null
         loadedRound = -1
         lastVersion = -1
+        facesAsked.clear()
+        memoryPicsAsked.clear()
+        memoryJob?.cancel()
+        memoryJob = null
+        faceSent = null
         _state.update {
             it.copy(
                 room = null, board = null, selected = null, notesMode = false, reconnecting = false,
-                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null,
+                message = message, opponentReaction = null, otherReactions = emptyMap(), myReaction = null, faces = emptyMap(), memoryPics = emptyMap(), memoryPicking = null,
                 hostCode = store.profile.value.partner?.code ?: Invite.randomCode(),
             )
         }
@@ -1846,18 +2276,18 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                if (e.fatal && _state.value.room != null) endSession(e.message) else showMessage(e.message)
+                if (e.fatal && _state.value.room != null) endSession(e.message) else showMessage(e.message, Tone.Bad)
             } catch (e: IOException) {
-                showMessage("Network problem: ${e.message ?: "no connection"}")
+                showMessage("Network problem: ${e.message ?: "no connection"}", Tone.Bad)
             } catch (e: Exception) {
-                showMessage(e.message ?: "That didn't work. Try again in a moment.")
+                showMessage(e.message ?: "That didn't work. Try again in a moment.", Tone.Bad)
             } finally {
                 _state.update { it.copy(busy = false) }
             }
         }
     }
 
-    private fun showMessage(message: String?) = _state.update { it.copy(message = message) }
+    private fun showMessage(message: String?, tone: Tone = Tone.Neutral) = _state.update { it.copy(message = message, messageTone = tone) }
 
     override fun onCleared() {
         // The app is closing: tell the server so the opponent is not left waiting.

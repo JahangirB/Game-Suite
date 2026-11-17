@@ -20,7 +20,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -111,10 +110,10 @@ private fun Welcome(onNext: () -> Unit) {
 @Composable
 private fun AboutYou(profile: Profile, app: AppViewModel, onNext: () -> Unit) {
     Title("About you", "What should others see?", "Your name and picture show on the other phones during games.")
-    OutlinedTextField(
+    ToyField(
         value = profile.name,
         onValueChange = app::setName,
-        label = { Text("Your name") },
+        label = "Your name",
         singleLine = true,
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
         modifier = Modifier.fillMaxWidth(),

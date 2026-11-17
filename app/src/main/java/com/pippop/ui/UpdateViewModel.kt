@@ -1,5 +1,6 @@
 package com.pippop.ui
 
+import com.pippop.ui.screens.Tone
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -25,6 +26,7 @@ data class UpdateUiState(
     /** Android needs the user to allow this app to install updates. */
     val needsPermission: Boolean = false,
     val message: String? = null,
+    val messageTone: Tone = Tone.Neutral,
 ) {
     val showOffer get() = available != null && !dismissed
 }
@@ -45,7 +47,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.checking) return
         // Builds made outside CI don't know which repository to update from.
         if (BuildConfig.UPDATE_BASE_URL.isEmpty()) {
-            if (manual) _state.update { it.copy(message = "This build doesn't update itself.") }
+            if (manual) _state.update { it.copy(message = "This build doesn't update itself.", messageTone = Tone.Warning) }
             return
         }
         viewModelScope.launch {
@@ -56,14 +58,14 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                     if (latest.isNewer) {
                         it.copy(available = latest, dismissed = false)
                     } else {
-                        it.copy(available = null, message = if (manual) "You have the latest version." else null)
+                        it.copy(available = null, message = if (manual) "You have the latest version." else null, messageTone = Tone.Good)
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // A failed automatic check is silent; the game works offline.
-                if (manual) _state.update { it.copy(message = "Could not check for updates. Are you online?") }
+                if (manual) _state.update { it.copy(message = "Could not check for updates. Are you online?", messageTone = Tone.Bad) }
             } finally {
                 _state.update { it.copy(checking = false) }
             }
@@ -90,7 +92,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(message = "Update failed: ${e.message ?: "network problem"}") }
+                _state.update { it.copy(message = "Update failed: ${e.message ?: "network problem"}", messageTone = Tone.Bad) }
             } finally {
                 _state.update { it.copy(downloading = false) }
             }

@@ -47,7 +47,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -186,14 +185,14 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val localNow = rememberTicker()
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.DRAW) { showRules = false }
+    if (showRules) RulesSheet(GameKind.DRAW) { showRules = false }
     val drawing = draw.drawing == true
     val playing = phase == RoomStatus.PLAYING
     // Who draws: you, or the player the server names (the only other one with two players).
     fun draws(player: com.pippop.data.PlayerInfo, isMe: Boolean) =
         if (isMe) drawing else !drawing && (draw.drawerName == null || draw.drawerName == player.name)
     val players = battleChips(
-        room, state, localNow, p.primary,
+        room, state, localNow, p.me,
         detail = { player, isMe ->
             val pts = draw.scores.firstOrNull { if (isMe) it.me else it.name == player.name }?.points
             listOfNotNull(pts?.let { "$it pts" }, if (!playing) null else if (draws(player, isMe)) "Drawing" else "Guessing").joinToString(" · ").ifEmpty { null }
@@ -229,12 +228,13 @@ fun DrawGuessScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         // Undo only while you draw; the sketchbook any time.
         myTurn = drawing && playing,
-        tools = listOf(
-            DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
+        tools = listOfNotNull(
+            if (finished) null else DockTool("Undo", GameIcons.Undo, anytime = false, enabled = state.drawStrokes.isNotEmpty(), onClick = vm::undoDrawing),
             DockTool("Sketchbook", GameIcons.Book, badge = 0) { showSketchbook = true },
         ),
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             // A team game: the score decides the picture, not a winner.
@@ -320,7 +320,7 @@ internal fun WordClock(fraction: Float?, seconds: Long?, content: @Composable ()
                 track.addRoundRect(RoundRect(Rect(Offset(w / 2, w / 2), Size(size.width - w, size.height - w)), CornerRadius(size.height / 2)))
                 drawPath(track, p.ink.copy(alpha = 0.15f), style = Stroke(w))
                 val f = left()
-                val color = if (f > 0.25f) p.primary else if (f > 0.125f) p.warning else p.bad
+                val color = if (f > 0.25f) p.me else if (f > 0.125f) p.warning else p.bad
                 measure.setPath(track, false)
                 run.rewind()
                 measure.getSegment(0f, measure.length * f, run, true)
@@ -433,10 +433,10 @@ private fun ColumnScope.GuesserView(draw: DrawView, strokes: List<DrawStroke>, v
     }
     BoardArea(1f) { size -> PadWithStamp(draw, strokes, 0, 1, null, size) }
     if (!draw.gotIt) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        ToyField(
             value = guess,
             onValueChange = { guess = it.take(30) },
-            placeholder = { Text("What is it?") },
+            placeholder = "What is it?",
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { send() }),
@@ -546,17 +546,11 @@ private fun SketchbookSheet(book: Sketchbook, last: com.pippop.data.DrawTurnResu
 /** Draw & Guess: the team game or the guess race, picked by whoever opened the game. */
 @Composable
 fun DrawModeCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (Boolean) -> Unit) {
-    val p = AppTheme.palette
-    AppCard("Mode") {
-        if (room.setsOptions) {
-            OptionGroup(listOf(false to "Team", true to "Race for 4"), room.drawRace, enabled = !busy, onPick = onPick)
-        } else {
-            Text(if (room.drawRace) "Guess race, picked by whoever opened the game." else "Team game, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text(
-            if (room.drawRace) "One draws, everyone else guesses at once: 80, 60, 40 for the first right guesses, and the drawer 20 for each."
+    OptionsCard(room, "Mode", busy) { enabled ->
+        OptionRow(
+            "Mode", listOf(false to "Team", true to "Race for 4"), room.drawRace, onPick, enabled = enabled,
+            note = if (room.drawRace) "One draws, everyone else guesses at once: 80, 60, 40 for the first right guesses, and the drawer 20 for each."
             else "Take turns drawing; every right guess adds the seconds left to your team score.",
-            color = p.muted, fontSize = TextSize.Label,
         )
     }
 }

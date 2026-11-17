@@ -358,7 +358,7 @@ private fun clash(): List<TutorialStep> {
         TutorialStep("Match the top card", "Play a card of the same colour, or the same number or symbol.", table("r5", listOf("r2", "b5", "g7", "y1"))),
         TutorialStep("Action cards", "Skip misses the next player, reverse turns the order round, +2 makes them draw two.", table("rS", listOf("rR", "rD", "b5"))),
         TutorialStep("Wilds go on anything", "You name the colour. +4 also makes the next player draw four.", table("W", listOf("b2", "F"), named = 'b')),
-        TutorialStep("Kylian Dictador", "One in each colour. The next player draws eight and misses their turn, and his song plays on every phone.", table("b4", listOf("bK", "r1"))),
+        TutorialStep("Kylian Dictador", "One in each colour. The next player draws eight and misses their turn.", table("b4", listOf("bK", "r1"))),
         TutorialStep("Can't play? Draw", "Tap the pile. Play the card if it fits, or keep it.", table("g3", listOf("r8", "y6"))),
         TutorialStep("Play your last card", "Everyone starts with seven. The first to empty their hand wins.", table("b2", listOf("b9"))),
     )
@@ -449,7 +449,7 @@ private fun golf(): List<TutorialStep> {
         TutorialStep("Swipe, pinch, slide", "Swipe to turn round your ball and pinch to see the whole hole. Slide up the bar on the right and let go to shoot.", map(one, Pt(0.5, 2.3), null), aspect),
         TutorialStep("Roll or jump", "Low on the bar rolls; high jumps, over walls and the gaps between islands. Fall in the sea and you're back on the tee.", map(stickers, Pt(0.3, 2.7), Pt(0.6, 1.5)), aspect),
         TutorialStep("Sticker spots", "Kylian takes your next turn, the fire sends you back to the tee, Stonks throws you up the course, portals swap ends, and Hmm. Sure. hides your aim line.", map(stickers, Pt(0.2, 0.75), null), aspect),
-        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in by then: picked up, plus one.", map(stickers, Pt(0.24, 0.3), null), aspect),
+        TutorialStep("Fewest strokes wins", "Once someone is in, the rest get three more shots. Not in when the hole ends? You score your strokes plus 5.", map(stickers, Pt(0.24, 0.3), null), aspect),
     )
 }
 

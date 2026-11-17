@@ -6,12 +6,10 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -27,8 +25,16 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pippop.data.RoomStatus
+import com.pippop.ui.screens.ToastHost
+import com.pippop.ui.screens.Tone
+import com.pippop.ui.screens.ToastVisuals
 import com.pippop.ui.screens.LocalTutorialHost
 import com.pippop.ui.screens.LeaveSheet
+import com.pippop.ui.screens.FaceBook
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
+import com.pippop.ui.screens.LocalFaces
 import com.pippop.ui.screens.LocalSlidePhoto
 import com.pippop.ui.screens.ScoreboardScreen
 import com.pippop.ui.screens.LocalRoomControls
@@ -39,12 +45,16 @@ import com.pippop.ui.screens.inMatch
 import com.pippop.ui.screens.modeLabel
 import com.pippop.ui.screens.TutorialHost
 import com.pippop.ui.screens.TutorialLayer
-import com.pippop.ui.screens.ArrangeGamesScreen
 import com.pippop.ui.screens.FirstRunScreen
 import com.pippop.ui.screens.ConnectKind
 import com.pippop.ui.screens.ConnectSheet
 import com.pippop.ui.screens.ConnectionBanners
 import com.pippop.ui.screens.LocalMatchSession
+import com.pippop.ui.screens.LocalTonight
+import com.pippop.ui.screens.LocalRecord
+import com.pippop.ui.screens.LocalTurnHints
+import com.pippop.ui.screens.TurnHints
+import com.pippop.ui.screens.tonightScore
 import com.pippop.ui.screens.MatchSession
 import com.pippop.data.PlayMode
 import android.content.Intent
@@ -53,7 +63,6 @@ import android.provider.Settings
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import com.pippop.ui.screens.SoloConnectFourScreen
 import com.pippop.ui.screens.SoloDotsScreen
 import com.pippop.ui.screens.SoloMemoryScreen
@@ -96,19 +105,61 @@ import com.pippop.ui.screens.SoloShipsScreen
 import com.pippop.data.GameKind
 import com.pippop.ui.screens.UpdateDialog
 import com.pippop.ui.art.ReactionBurst
-import com.pippop.ui.art.StickerBurst
 import com.pippop.ui.screens.LocalShipLook
 import com.pippop.ui.screens.LocalBuiltInShips
 import com.pippop.ui.screens.BuiltInShips
 import com.pippop.ui.art.ShipLook
 import com.pippop.data.SkinStore
+import com.pippop.ui.screens.PrimaryButton
+import com.pippop.ui.screens.SecondaryButton
+import com.pippop.ui.screens.ToyDialog
+import com.pippop.data.MonthEnd
+import com.pippop.data.ScoreStore
+import com.pippop.ui.screens.TrophyMomentDialog
+import com.pippop.ui.screens.ToySheet
+import com.pippop.ui.screens.GamePageScreen
+import com.pippop.ui.screens.LocalOpenStore
+import com.pippop.ui.screens.StoreFilter
+import com.pippop.ui.screens.StoreScreen
+import com.pippop.ui.screens.PartnerPick
+import com.pippop.ui.screens.PickGate
+import com.pippop.ui.screens.PartnerPickSheet
+import com.pippop.ui.screens.roomPick
+import com.pippop.ui.screens.backInStoreToast
+import com.pippop.ui.screens.onShelfToast
 import com.pippop.ui.theme.AppTheme
+import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.LocalReduceMotion
 import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
 import kotlinx.coroutines.launch
 
-private enum class Dest { HOME, PROFILE, ARRANGE, SCORES, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+
+/** The screen of a game's solo play (Draw & Guess has none). */
+private fun soloDest(game: GameKind) = when (game) {
+    GameKind.SHIPS -> Dest.SHIPS
+    GameKind.CONNECT4 -> Dest.CONNECT4
+    GameKind.DOTS -> Dest.DOTS
+    GameKind.MEMORY -> Dest.MEMORY
+    GameKind.WORDS -> Dest.WORDS
+    GameKind.TTT -> Dest.TTT
+    GameKind.DOMINOES -> Dest.DOMINOES
+    GameKind.NUMBERS -> Dest.NUMBERS
+    GameKind.HOCKEY -> Dest.HOCKEY
+    GameKind.CLASH -> Dest.CLASH
+    GameKind.LUDO -> Dest.LUDO
+    GameKind.GRID -> Dest.GRID
+    GameKind.BALLOON -> Dest.BALLOON
+    GameKind.CODE -> Dest.CODE
+    GameKind.SLIDE -> Dest.SLIDE
+    GameKind.BINGO -> Dest.BINGO
+    GameKind.GOLF -> Dest.GOLF
+    GameKind.BLOCKS -> Dest.BLOCKS
+    // Draw & Guess needs two players; its sheet offers no solo game.
+    GameKind.DRAW -> Dest.HOME
+    GameKind.SUDOKU -> Dest.SOLO
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,6 +210,26 @@ fun PipPopApp(
     val bingoState by bingo.state.collectAsStateWithLifecycle()
     val golfState by golf.state.collectAsStateWithLifecycle()
     val blocksState by blocks.state.collectAsStateWithLifecycle()
+    // The games alone that were started and not finished: their sheet offers to carry on.
+    val unfinished = buildSet {
+        if (connectFourState.level != null && connectFourState.result == null) add(GameKind.CONNECT4)
+        if (dotsState.result == null && dotsState.lines.any { it != '.' && it != ' ' }) add(GameKind.DOTS)
+        if (memoryState.flips > 0 && memoryState.finishedMs == null) add(GameKind.MEMORY)
+        if (wordsState.daily != null && !wordsState.done) add(GameKind.WORDS)
+        if (tttState.result == null && tttState.lastCell != null) add(GameKind.TTT)
+        if (dominoesState.view != null && dominoesState.result == null) add(GameKind.DOMINOES)
+        if (numbersState.puzzle != null && numbersState.finishedMs == null) add(GameKind.NUMBERS)
+        if (hockeyState.level != null && hockeyState.result == null) add(GameKind.HOCKEY)
+        if (clashState.view != null && clashState.result == null) add(GameKind.CLASH)
+        if (ludoState.view != null && ludoState.result == null) add(GameKind.LUDO)
+        if (gridState.started && !gridState.over) add(GameKind.GRID)
+        if (balloonState.started && balloonState.result == null) add(GameKind.BALLOON)
+        if (codeState.started && !codeState.done) add(GameKind.CODE)
+        if (slideState.level != null && slideState.finishedMs == null) add(GameKind.SLIDE)
+        if (bingoState.computers > 0 && bingoState.winner == null) add(GameKind.BINGO)
+        if (golfState.view != null && golfState.result == null) add(GameKind.GOLF)
+        if (blocksState.view != null && blocksState.result == null) add(GameKind.BLOCKS)
+    }
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
     // The home's connect sheet: a nearby room, or joining an online one.
@@ -166,10 +237,28 @@ fun PipPopApp(
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     // Leaving the room altogether (from the home, while connected).
     var confirmDisconnect by rememberSaveable { mutableStateOf(false) }
+    // The Game Store: its Choices, the game whose page is open (null: the list), what "Play" does when it was opened from a room's sheet,
+    // and a game the Store asked the home to open the start sheet of.
+    var storeFilter by rememberSaveable { mutableStateOf(StoreFilter.ALL) }
+    var storeGame by rememberSaveable { mutableStateOf<GameKind?>(null) }
+    var storeRoomPick by remember { mutableStateOf<((GameKind) -> Unit)?>(null) }
+    // A game picked in the Store while a game is under way: it ends (and counts as a loss), so ask first.
+    var confirmSwitch by remember { mutableStateOf<GameKind?>(null) }
+    var playRequest by remember { mutableStateOf<GameKind?>(null) }
+    val openStore: (((GameKind) -> Unit)?) -> Unit = { roomPick ->
+        app.markShelfNoteShown()
+        storeRoomPick = roomPick
+        storeGame = null
+        dest = Dest.STORE
+    }
+
+    // A partner's pick that is not on the shelf: asked about in a sheet over the home (see PickGate).
+    val pickGate = rememberSaveable(saver = PickGate.Saver) { PickGate() }
+    val pick = roomPick(battleState.room, profile.shelf)
 
     LaunchedEffect(battleState.message) {
         battleState.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(ToastVisuals(it, battleState.messageTone))
             battle.dismissMessage()
         }
     }
@@ -181,7 +270,7 @@ fun PipPopApp(
 
     LaunchedEffect(updateState.message) {
         updateState.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(ToastVisuals(it, updateState.messageTone))
             updates.dismissMessage()
         }
     }
@@ -242,14 +331,28 @@ fun PipPopApp(
         if (dest == Dest.SOLO) solo.pause()
         goHome()
     }
+    // In the Store, back goes from a game's page to the list, and from the list to where it was opened.
+    BackHandler(enabled = dest == Dest.STORE) {
+        if (storeGame != null) storeGame = null else dest = Dest.HOME
+    }
     // While the animation plays, back does nothing instead of piling a second one on top.
     BackHandler(enabled = transition.busy) {}
 
     val tutorials = remember { TutorialHost() }
-    CompositionLocalProvider(LocalTutorialHost provides tutorials) {
+    // The photos players chose, for PlayerAvatar to show in place of their animal.
+    val whoIsHere = room?.let { r -> r.me.name to r.others.map { it.name to it.photoId } }
+    // Decoding photos is work: done once per change on a background thread, never while drawing.
+    val myName = profile.name
+    val myFace = profile.face
+    val savedPartner = profile.partner
+    val fetchedFaces = battleState.faces
+    val faceBook by produceState(FaceBook.None, myName, myFace, savedPartner, whoIsHere, fetchedFaces) {
+        value = withContext(Dispatchers.Default) { FaceBook.build(myName, myFace, savedPartner, room, fetchedFaces) }
+    }
+    CompositionLocalProvider(LocalTutorialHost provides tutorials, LocalFaces provides faceBook) {
         Scaffold(
             containerColor = p.background,
-            snackbarHost = { SnackbarHost(snackbar) },
+            snackbarHost = { ToastHost(snackbar) },
         ) { padding ->
             // The IME insets shrink every screen above the keyboard, so a focused field stays visible.
             Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
@@ -258,7 +361,7 @@ fun PipPopApp(
                 val session = room?.takeIf { it.inSession }?.let { r ->
                     MatchSession(
                         tally = battleState.tally,
-                        nextGames = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                        nextGames = profile.shelf.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         onOpenGame = battle::openGame,
                     )
                 }
@@ -272,11 +375,11 @@ fun PipPopApp(
                     RoomControls(
                         room = r,
                         mode = modeLabel(r),
-                        setup = if (hasOptions(r)) ({ RoomOptions(r, battleState.busy, battle) }) else null,
+                        setup = if (hasOptions(r)) ({ RoomOptions(r, battleState.busy, battle, battleState) }) else null,
                         rematch = battle::rematch,
                         newGame = { battle.wantRestart(true) },
                         switchTo = battle::switchGame,
-                        games = profile.gameOrder.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
+                        games = profile.shelf.filter { it != r.game && it.maxPlayers >= r.present.size + 1 },
                         setupOpen = setupOpen,
                         busy = battleState.busy,
                     )
@@ -284,10 +387,66 @@ fun PipPopApp(
                 CompositionLocalProvider(
                     LocalShipLook provides look, LocalBuiltInShips provides BuiltInShips(profile.shipStyle, app::setShipStyle),
                     LocalMatchSession provides session, LocalRoomControls provides controls,
+                    LocalOpenStore provides openStore,
+                    // Tonight's score in a game against one other player, and the turn count for its "Your turn" hint.
+                    LocalTonight provides room?.takeIf { inRoomGame }?.let { tonightScore(it, battleState.tally) },
+                    // The record this round's result broke, for its card's gold line.
+                    LocalRecord provides battleState.record?.takeIf { room?.round == battleState.recordRound },
+                    LocalTurnHints provides remember(room?.game, room?.round) { TurnHints() }.takeIf { inRoomGame },
                     LocalSlidePhoto provides room?.takeIf { it.game == GameKind.SLIDE }?.let { r -> (r.slide?.photoId != null) to battle::setSlidePhoto },
                 ) {
                     when {
                         !profile.firstRunDone && room == null -> FirstRunScreen(profile, app, onDone = app::finishFirstRun)
+                        dest == Dest.STORE -> {
+                            val say: (String) -> Unit = { m -> scope.launch { snackbar.showSnackbar(ToastVisuals(m, Tone.Good)) } }
+                            val roomPick = storeRoomPick.takeIf { room != null }
+                            // "Play" from the Store: in a room, what the sheet it came from would do; otherwise the home opens the game's start sheet.
+                            val start: (GameKind) -> Unit = { g ->
+                                if (roomPick != null) roomPick(g) else playRequest = g
+                                storeGame = null
+                                dest = Dest.HOME
+                            }
+                            val play: (GameKind) -> Unit = { g ->
+                                if (roomPick != null && room?.inMatch == true) confirmSwitch = g else start(g)
+                            }
+                            confirmSwitch?.let { g ->
+                                val who = room?.present?.singleOrNull()?.name ?: "Everyone else"
+                                ToyDialog(
+                                    title = "Switch to ${g.label}?",
+                                    body = "This game ends and counts as a loss. $who gets an invite to join you.",
+                                    onDismiss = { confirmSwitch = null },
+                                ) {
+                                    SecondaryButton("Stay", { confirmSwitch = null }, Modifier.weight(1f))
+                                    PrimaryButton("Switch", { confirmSwitch = null; start(g) }, Modifier.weight(1f))
+                                }
+                            }
+                            val page = storeGame
+                            if (page == null) {
+                                StoreScreen(
+                                    shelf = profile.shelf, filter = storeFilter, onFilter = { storeFilter = it },
+                                    onBack = { dest = Dest.HOME },
+                                    onGet = { g -> app.addToShelf(g); say(onShelfToast(g)) },
+                                    onOpenPage = { storeGame = it },
+                                    onOpen = play,
+                                    roomSeats = room?.takeIf { roomPick != null }?.let { it.present.size + 1 }, roomGame = room?.game,
+                                )
+                            } else {
+                                GamePageScreen(
+                                    kind = page, onShelf = page in profile.shelf, onBack = { storeGame = null },
+                                    onAdd = { app.addToShelf(page); say(onShelfToast(page)) },
+                                    onRemove = {
+                                        val place = profile.shelf.indexOf(page)
+                                        app.removeFromShelf(page)
+                                        snackbar.currentSnackbarData?.dismiss()
+                                        scope.launch {
+                                            if (snackbar.showSnackbar(ToastVisuals(backInStoreToast(page), Tone.Good, "Undo")) == SnackbarResult.ActionPerformed) app.restoreToShelf(page, place)
+                                        }
+                                    },
+                                    onPlay = { play(page) },
+                                    roomSeats = room?.takeIf { roomPick != null }?.let { it.present.size + 1 }, roomGame = room?.game,
+                                )
+                            }
+                        }
                         inRoomGame && room != null && (room.status == RoomStatus.WAITING || room.status == RoomStatus.LOBBY) ->
                             LobbyScreen(battleState, profile, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.SHIPS -> ShipsGameScreen(battleState, battle, onLeave = requestLeave)
@@ -333,69 +492,80 @@ fun PipPopApp(
                             onBack = { dest = Dest.HOME },
                         )
                         dest == Dest.SCORES -> ScoreboardScreen(onBack = { dest = Dest.HOME })
-                        dest == Dest.ARRANGE -> ArrangeGamesScreen(profile.gameOrder, app::setGameOrder, onBack = { dest = Dest.HOME })
                         else -> HomeScreen(
                             solo = soloState,
                             profile = profile,
                             onContinue = {
+                                app.noteGamePlayed(GameKind.SUDOKU)
                                 solo.resume()
                                 go(Dest.SOLO)
                             },
-                            onNewGame = { level, shape ->
-                                solo.startNew(level, shape)
-                                go(Dest.SOLO)
-                            },
                             onProfile = { dest = Dest.PROFILE },
-                            onSolo = { game ->
-                                go(when (game) {
-                                    GameKind.SHIPS -> Dest.SHIPS
-                                    GameKind.CONNECT4 -> Dest.CONNECT4
-                                    GameKind.DOTS -> Dest.DOTS
-                                    GameKind.MEMORY -> Dest.MEMORY
-                                    GameKind.WORDS -> Dest.WORDS
-                                    GameKind.TTT -> Dest.TTT
-                                    GameKind.DOMINOES -> Dest.DOMINOES
-                                    GameKind.NUMBERS -> Dest.NUMBERS
-                                    GameKind.HOCKEY -> Dest.HOCKEY
-                                    GameKind.CLASH -> Dest.CLASH
-                                    GameKind.LUDO -> Dest.LUDO
-                                    GameKind.GRID -> Dest.GRID
-                                    GameKind.BALLOON -> Dest.BALLOON
-                                    GameKind.CODE -> Dest.CODE
-                                    GameKind.SLIDE -> Dest.SLIDE
-                                    GameKind.BINGO -> Dest.BINGO
-                                    GameKind.GOLF -> Dest.GOLF
-                                    GameKind.BLOCKS -> Dest.BLOCKS
-                                    // Draw & Guess needs two players; its sheet offers no solo game.
-                                    GameKind.DRAW -> Dest.HOME
-                                    GameKind.SUDOKU -> Dest.SOLO
-                                })
+                            onSoloSetup = app::setSoloSetup,
+                            soloUnfinished = unfinished,
+                            // Back to a game that was left unfinished: nothing starts.
+                            onContinueSolo = { game -> go(soloDest(game)) },
+                            onSolo = { game, setup ->
+                                // Draw & Guess has no solo game, so it never starts here.
+                                if (game != GameKind.DRAW) app.noteGamePlayed(game)
+                                // The game starts with the setup the sheet stated: no screen asks again.
+                                when (game) {
+                                    GameKind.SUDOKU -> solo.startWith(setup)
+                                    GameKind.SHIPS -> Unit
+                                    GameKind.CONNECT4 -> connectFour.startWith(setup)
+                                    GameKind.DOTS -> dots.startWith(setup)
+                                    GameKind.MEMORY -> memory.startWith(setup)
+                                    GameKind.WORDS -> words.startWith(setup)
+                                    GameKind.TTT -> ttt.startWith(setup)
+                                    GameKind.DOMINOES -> dominoes.startWith(setup)
+                                    GameKind.NUMBERS -> numbers.startWith(setup)
+                                    GameKind.HOCKEY -> hockey.startWith(setup)
+                                    GameKind.CLASH -> clash.startWith(setup)
+                                    GameKind.LUDO -> ludo.startWith(setup)
+                                    GameKind.GRID -> grid.startWith(setup)
+                                    GameKind.BALLOON -> balloon.startWith(setup)
+                                    GameKind.CODE -> codeBreaker.startWith(setup)
+                                    GameKind.SLIDE -> slide.startWith(setup)
+                                    GameKind.BINGO -> bingo.startWith(setup)
+                                    GameKind.GOLF -> golf.startWith(setup)
+                                    GameKind.BLOCKS -> blocks.startWith(setup)
+                                    GameKind.DRAW -> Unit
+                                }
+                                go(soloDest(game))
                             },
-                            onArrange = { dest = Dest.ARRANGE },
+                            onRemoveFromShelf = app::removeFromShelf,
+                            onMoveOnShelf = app::moveOnShelf,
+                            onRestoreToShelf = app::restoreToShelf,
+                            onOpenStore = { openStore(null) },
+                            onShelfNoteSeen = app::markShelfNoteShown,
+                            playRequest = playRequest,
+                            onPlayRequestHandled = { playRequest = null },
                             onScores = { dest = Dest.SCORES },
                             partnerBusy = battleState.busy,
                             onPlayWithPartner = battle::playWithPartner,
                             onInvitePartner = battle::invitePartner,
                             onPlayMode = app::setPlayMode,
                             connected = room != null,
-                            onConnectNearby = { connectSheet = ConnectKind.NEARBY },
-                            onStartRoom = { connectSheet = ConnectKind.HOST_ONLINE },
-                            onJoinRoom = { connectSheet = ConnectKind.JOIN_ONLINE },
+                            onConnect = { connectSheet = if (profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.ONLINE },
                             room = room,
                             nearby = battleState.mode == BattleMode.NEARBY,
-                            onOpenGame = battle::openGame,
+                            // "Join" on a game that is not on the shelf asks first (the sheet).
+                            onOpenGame = { g -> if (!pickGate.askAgain(pick, g)) battle.openGame(g) },
                             onLeaveRoom = { confirmDisconnect = true },
                             onNotificationsAnswered = app::notificationsAnswered,
                             onTutorialSeen = app::tutorialSeen,
+                            onMessage = { m -> scope.launch { snackbar.showSnackbar(ToastVisuals(m, Tone.Neutral)) } },
+                            onUndoable = { m, undo ->
+                                // Only the latest removal can be undone: an earlier toast goes first.
+                                snackbar.currentSnackbarData?.dismiss()
+                                scope.launch { if (snackbar.showSnackbar(ToastVisuals(m, Tone.Good, "Undo")) == SnackbarResult.ActionPerformed) undo() }
+                            },
                             tiles = tiles,
                         )
                     }
                 }
                 // A reaction from your opponent plays large over the battle screen.
                 if (inRoomGame) ReactionBurst(battleState.opponentReaction)
-                // Kylian's card in Colour Clash takes over every phone, in a battle or solo.
-                val takeover by Takeover.shown.collectAsStateWithLifecycle()
-                takeover?.let { StickerBurst(it) }
                 if (inRoomGame) ConnectionBanners(battleState, onBack = requestLeave, modifier = Modifier.align(Alignment.TopCenter), onRestart = battle::wantRestart)
                 // A game's tutorial, over everything, in the same safe area as every screen.
                 TutorialLayer(tutorials)
@@ -403,41 +573,45 @@ fun PipPopApp(
                 transition.Layer(Modifier.fillMaxSize())
             }
         }
+
+    // The partner's game is not on the shelf: asked before an invitation is accepted, or before following them into the room's game.
+    val invite = battleState.pendingInvite
+    if (invite != null) {
+        PartnerPickSheet(
+            PartnerPick(invite.from.name, invite.from.avatar, invite.game),
+            onAdd = battle::confirmInvite, onNotNow = battle::declineInvite,
+        )
+    } else {
+        pickGate.Sheet(room, profile.shelf, active = dest == Dest.HOME, onAddToShelf = app::addToShelf, onJoin = battle::openGame)
     }
 
     battleState.problem?.let { problem ->
         val context = LocalContext.current
-        AlertDialog(
-            onDismissRequest = battle::dismissProblem,
-            containerColor = p.card,
-            title = { Text(problem.title, color = p.text) },
-            text = { Text(problem.why, color = p.muted) },
-            confirmButton = {
-                val fix = problem.fix
-                if (fix != null) {
-                    TextButton(onClick = {
-                        battle.dismissProblem()
-                        when (fix) {
-                            Fix.BLUETOOTH -> context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                            Fix.PERMISSION -> context.startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
-                            )
-                            Fix.GO_OFFLINE -> {
-                                app.setPlayMode(PlayMode.OFFLINE)
-                                connectSheet = ConnectKind.NEARBY
-                            }
-                            Fix.EDIT_CODE -> connectSheet = if (battleState.mode == BattleMode.NEARBY || profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.JOIN_ONLINE
+        ToyDialog(title = problem.title, body = problem.why, onDismiss = battle::dismissProblem) {
+            SecondaryButton(if (problem.fix == null) "OK" else "Not now", battle::dismissProblem, Modifier.weight(1f))
+            val fix = problem.fix
+            if (fix != null) {
+                PrimaryButton(fix.label, {
+                    battle.dismissProblem()
+                    when (fix) {
+                        Fix.BLUETOOTH -> context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                        Fix.PERMISSION -> context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                        )
+                        Fix.GO_OFFLINE -> {
+                            app.setPlayMode(PlayMode.OFFLINE)
+                            connectSheet = ConnectKind.NEARBY
                         }
-                    }) { Text(fix.label, color = p.primary) }
-                }
-            },
-            dismissButton = { TextButton(onClick = battle::dismissProblem) { Text(if (problem.fix == null) "OK" else "Not now", color = p.muted) } },
-        )
+                        Fix.EDIT_CODE -> connectSheet = if (battleState.mode == BattleMode.NEARBY || profile.playMode == PlayMode.OFFLINE) ConnectKind.NEARBY else ConnectKind.JOIN_ONLINE
+                    }
+                }, Modifier.weight(1f))
+            }
+        }
     }
 
     connectSheet?.let { kind ->
-        ModalBottomSheet(onDismissRequest = { connectSheet = null }, containerColor = p.card) {
-            ConnectSheet(kind, battleState, battle)
+        ToySheet(onDismiss = { connectSheet = null }) {
+            ConnectSheet(kind, battleState, battle, profile, onOpenProfile = { connectSheet = null; dest = Dest.PROFILE })
         }
     }
 
@@ -446,20 +620,36 @@ fun PipPopApp(
         UpdateDialog(updateState, onUpdate = updates::update, onAllow = updates::allowInstalls, onLater = updates::dismiss)
     }
 
+    // The month's cup, once, when the app opens on the home after a month with games has ended. It waits for
+    // anything else in the way (the first-run screens, a room or invitation, an error, the update offer, the
+    // connect sheet) and never shows over a game: those are other screens, not the home.
+    val scoreContext = LocalContext.current
+    // The month is read again each time the app comes to the front, so one resumed after the month turned over still shows it.
+    var thisMonth by remember { mutableStateOf(java.time.YearMonth.now()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { thisMonth = java.time.YearMonth.now() }
+    val cup = remember(thisMonth) { MonthEnd.toShow(ScoreStore.get(scoreContext).records.value, System.currentTimeMillis(), profile.cupShown) }
+    var cupDone by remember(thisMonth) { mutableStateOf(false) }
+    if (cup != null && !cupDone && profile.firstRunDone && room == null && !battleState.busy && dest == Dest.HOME && battleState.problem == null &&
+        connectSheet == null && !(updateState.showOffer || updateState.needsPermission)
+    ) {
+        TrophyMomentDialog(cup, thisMonth, profile.avatar, profile.partner?.takeIf { it.name == cup.partner }?.avatar) {
+            cupDone = true
+            app.setCupShown(cup.month)
+        }
+    }
+
     if (confirmDisconnect && room != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDisconnect = false },
-            containerColor = p.card,
-            title = { Text("Leave the room?", color = p.text) },
-            text = { Text("You'll disconnect. A game you're in ends for everyone in it.", color = p.muted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDisconnect = false
-                    battle.leave()
-                }) { Text("Leave", color = p.bad) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Stay", color = p.primary) } },
-        )
+        ToyDialog(
+            title = "Leave the room?",
+            body = "You'll disconnect. A game you're in ends for everyone in it.",
+            onDismiss = { confirmDisconnect = false },
+        ) {
+            SecondaryButton("Stay", { confirmDisconnect = false }, Modifier.weight(1f))
+            PrimaryButton("Leave", {
+                confirmDisconnect = false
+                battle.leave()
+            }, Modifier.weight(1f), container = p.bad, content = readableOn(p.bad))
+        }
     }
 
     if (confirmLeave && room != null) {
@@ -475,5 +665,6 @@ fun PipPopApp(
                 if (room.inSession) battle.backToGames() else battle.leave()
             },
         )
+    }
     }
 }

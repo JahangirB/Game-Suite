@@ -6,8 +6,10 @@ import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import com.pippop.R
+import com.pippop.data.Profile
 import com.pippop.data.ProfileStore
 import com.pippop.data.Reaction
 import kotlin.random.Random
@@ -75,6 +77,22 @@ enum class Sound(val res: Int, val volume: Float, val varied: Boolean = false) {
     GOLF_CUP(R.raw.sfx_golf_cup, 0.65f),
     GOLF_SPLASH(R.raw.sfx_golf_splash, 0.6f),
     GOLF_DROP(R.raw.sfx_golf_drop, 0.5f),
+    // Between the Boards: next to the sounds they are most like.
+    SUDOKU_UNIT_DONE(R.raw.sfx_sudoku_unit_done, 0.65f),
+    C4_FOUR(R.raw.sfx_c4_four, 0.65f),
+    TTT_BOARD_WON(R.raw.sfx_ttt_board_won, 0.65f),
+    MEMORY_MISS(R.raw.sfx_memory_miss, 0.45f),
+    SLIDE_HOME(R.raw.sfx_slide_home, 0.45f, varied = true),
+    BINGO_ONE_AWAY(R.raw.sfx_bingo_one_away, 0.65f),
+    DOMINO_KNOCK(R.raw.sfx_domino_knock, 0.65f),
+    CLASH_LAST_CARD(R.raw.sfx_clash_last_card, 0.65f),
+    PLAYER_JOIN(R.raw.sfx_player_join, 0.45f),
+    PLAYER_LEAVE(R.raw.sfx_player_leave, 0.45f),
+    READY(R.raw.sfx_ready, 0.45f),
+    SCORE_UP(R.raw.sfx_score_up, 0.65f),
+    RECORD(R.raw.sfx_record, 0.9f),
+    TROPHY(R.raw.sfx_trophy, 0.9f),
+    LINE_SENT(R.raw.sfx_line_sent, 0.45f),
     /** A sticker's song, 11 s; kept at 32 kHz mono so it loads with the rest and starts at once. */
     KYLIAN_DICTADOR(R.raw.sfx_kylian_dictador, 0.9f),
 }
@@ -86,26 +104,31 @@ val Reaction.sound: Sound?
         else -> null
     }
 
-/**
- * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound switch (in
- * the profile) turns them off: the phone's silent or vibrate mode doesn't, and the media volume
- * sets how loud they are. Every sound goes with something on screen (and most with a buzz), so
- * with Sound off nothing is missed.
- */
-class Sfx private constructor(context: Context) {
-    private val store = ProfileStore.get(context)
-    private val attributes =
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-    private val pool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributes).build()
-    private val loaded = Sound.entries.associateWith { pool.load(context, it.res, 1) }
+/** Where a finished level and pitch go: the SoundPool in the app, a fake in tests. */
+internal fun interface SoundOut {
+    fun play(sound: Sound, level: Float, rate: Float)
+}
 
-    /** Plays [sound]; [volume] below 1 for other players' events, which sound a little quieter. */
-    fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f) {
-        if (!store.profile.value.sound) return
-        val id = loaded[sound] ?: return
-        val level = (sound.volume * volume).coerceIn(0f, 1f)
+/**
+ * Plays [Sound]s through one small SoundPool, loaded once. Only the app's own Sound setting (in
+ * the profile: Off, Quiet, Normal, Loud) changes them: the phone's silent or vibrate mode doesn't,
+ * and the media volume sets the top. Every sound goes with something on screen (and most with a
+ * buzz), so with Sound off nothing is missed.
+ */
+class Sfx internal constructor(private val settings: () -> Profile, private val out: SoundOut) {
+    private constructor(context: Context, store: ProfileStore) : this({ store.profile.value }, SoundPoolOut(context))
+
+    /**
+     * Plays [sound] at the profile's loudness; [volume] below 1 for other players' events, which
+     * sound a little quieter, and [others] true for those: they are silent while Their moves is off.
+     */
+    fun play(sound: Sound, volume: Float = 1f, pitch: Float = 1f, others: Boolean = false) {
+        val profile = settings()
+        if (others && !profile.othersMoves) return
+        val level = (profile.loudness.level(sound.volume) * volume).coerceIn(0f, 1f)
+        if (level <= 0f) return
         val rate = (pitch * if (sound.varied) 0.95f + Random.nextFloat() * 0.1f else 1f).coerceIn(0.5f, 2f)
-        pool.play(id, level, level, 1, 0, rate)
+        out.play(sound, level, rate)
     }
 
     companion object {
@@ -116,16 +139,32 @@ class Sfx private constructor(context: Context) {
         private var instance: Sfx? = null
 
         fun get(context: Context): Sfx = instance ?: synchronized(this) {
-            instance ?: Sfx(context.applicationContext).also { instance = it }
+            instance ?: Sfx(context.applicationContext, ProfileStore.get(context)).also { instance = it }
         }
     }
 }
 
+private class SoundPoolOut(context: Context) : SoundOut {
+    private val attributes =
+        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+    private val pool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributes).build()
+    private val loaded = Sound.entries.associateWith { pool.load(context, it.res, 1) }
+
+    override fun play(sound: Sound, level: Float, rate: Float) {
+        val id = loaded[sound] ?: return
+        pool.play(id, level, level, 1, 0, rate)
+    }
+}
+
+/** Where a test puts its own [Sfx] (with a fake player); null in the app, which uses the real one. */
+internal val LocalSfx = staticCompositionLocalOf<Sfx?> { null }
+
 /** The app's [Sfx], for a screen. */
 @Composable
 fun rememberSfx(): Sfx {
+    val given = LocalSfx.current
     val context = LocalContext.current
-    return remember { Sfx.get(context) }
+    return given ?: remember { Sfx.get(context) }
 }
 
 private object Unseen
@@ -145,3 +184,21 @@ fun SoundOnChange(key: Any?, block: suspend Sfx.() -> Unit) {
         if (!first && key != null) sfx.block()
     }
 }
+
+private val shownOnce = HashSet<Any>()
+
+/**
+ * Plays [block] when [key] is first shown in this run of the app: for a moment that is made once (a record line, a score
+ * going up) and must not play again when its screen is rebuilt by a rotation, a theme change or coming back to it. Put
+ * something in [key] that tells this moment from the next of its kind.
+ */
+@Composable
+fun SoundOnce(key: Any, block: suspend Sfx.() -> Unit) {
+    val sfx = rememberSfx()
+    LaunchedEffect(key) {
+        if (synchronized(shownOnce) { shownOnce.add(key) }) sfx.block()
+    }
+}
+
+/** Forgets what [SoundOnce] has played: for tests. */
+internal fun resetSoundOnce() = synchronized(shownOnce) { shownOnce.clear() }

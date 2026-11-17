@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -26,12 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -62,6 +61,7 @@ import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
 import com.pippop.ui.theme.Shapes
 import com.pippop.ui.theme.Space
+import com.pippop.ui.theme.SudokuPalette
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.textFill
@@ -107,15 +107,16 @@ class GameMenu(
     val onOpen: (Boolean) -> Unit = {},
     /** Show the "Marks on tiles and pegs" switch (Word Race, Code Breaker). */
     val showLetterMarks: Boolean = false,
+    /** What the row that changes the mode says ("Change setup" for a game on your own). */
+    val changeLabel: String = "Change mode",
+    /** Mini Golf's full scorecard; a null action leaves the row out. */
+    val onScorecard: (() -> Unit)? = null,
 )
 
 /** The menu as a sheet over the game: everything in one list. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
-    val p = AppTheme.palette
-    val store = ProfileStore.get(LocalContext.current)
-    val profile by store.profile.collectAsState()
     LaunchedEffect(Unit) { menu.onOpen(true) }
     val close = {
         menu.onOpen(false)
@@ -126,28 +127,48 @@ fun GameMenuSheet(menu: GameMenu, onDismiss: () -> Unit) {
         close()
         action()
     }
-    ModalBottomSheet(onDismissRequest = close, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L).verticalScroll(rememberScrollState())) {
-            Text(menu.game.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Space.S))
-            MenuRow("Resume", onClick = close)
-            menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
-            menu.onChangeMode?.let { MenuRow("Change mode", detail = menu.mode, onClick = then(it)) }
-            MenuRow("Rules", onClick = then(menu.onRules))
-            MenuRow("Sound", onClick = { store.setSound(!profile.sound) }) {
-                Switch(
-                    checked = profile.sound, onCheckedChange = store::setSound,
-                    colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-                )
-            }
-            if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", onClick = { store.setLetterMarks(!profile.letterMarks) }) {
-                Switch(
-                    checked = profile.letterMarks, onCheckedChange = store::setLetterMarks,
-                    colors = SwitchDefaults.colors(checkedTrackColor = p.primary, checkedThumbColor = p.onPrimary),
-                )
-            }
-            menu.onSwitchGame?.let { MenuRow("Switch game", onClick = then(it)) }
-            MenuRow(menu.leaveLabel, color = p.bad, last = true, onClick = then(menu.onLeave))
+    // Looks takes the menu's place in the same sheet, so a game on your own stays paused while you choose.
+    var choosingLooks by remember { mutableStateOf(false) }
+    // Back returns from Looks to the menu before it closes anything.
+    BackHandler(choosingLooks) { choosingLooks = false }
+    ToySheet(onDismiss = close, skipPartiallyExpanded = true) {
+        if (choosingLooks) LooksSheetBody(menu.game) else GameMenuRows(menu, close, ::then, onLooks = { choosingLooks = true })
+    }
+}
+
+/** The Looks sheet's content for [game], reading and keeping the choice on this phone; it shows at once. */
+@Composable
+internal fun LooksSheetBody(game: GameKind) {
+    val store = ProfileStore.get(LocalContext.current)
+    val profile by store.profile.collectAsState()
+    LooksSheetContent(
+        game, Looks(profile.cardBack, profile.frame, profile.tile),
+        onCardBack = store::setCardBack, onFrame = store::setFrame, onTile = store::setTile,
+    )
+}
+
+/** The rows of the menu sheet; each row closes the menu first (through [then]), then acts. */
+@Composable
+internal fun GameMenuRows(menu: GameMenu, close: () -> Unit, then: (() -> Unit) -> () -> Unit, onLooks: (() -> Unit)? = null) {
+    val p = AppTheme.palette
+    val store = ProfileStore.get(LocalContext.current)
+    val profile by store.profile.collectAsState()
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L).verticalScroll(rememberScrollState())) {
+        Text(menu.game.label, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Space.S))
+        MenuRow("Resume", onClick = close)
+        menu.onNewGame?.let { MenuRow("New game", onClick = then(it)) }
+        menu.onChangeMode?.let { MenuRow(menu.changeLabel, detail = menu.mode, onClick = then(it)) }
+        menu.onScorecard?.let { MenuRow("Scorecard", onClick = then(it)) }
+        MenuRow("Rules", onClick = then(menu.onRules))
+        if (onLooks != null && menu.game.hasLooks()) MenuRow("Looks", onClick = onLooks)
+        MenuRow("Sound", checked = profile.sound, onClick = { store.setSound(!profile.sound) }) {
+            ToySwitch(profile.sound, null)
         }
+        if (menu.showLetterMarks) MenuRow("Marks on tiles and pegs", checked = profile.letterMarks, onClick = { store.setLetterMarks(!profile.letterMarks) }) {
+            ToySwitch(profile.letterMarks, null)
+        }
+        menu.onSwitchGame?.let { MenuRow("Switch game", onClick = then(it)) }
+        MenuRow(menu.leaveLabel, color = p.bad, last = true, onClick = then(menu.onLeave))
     }
 }
 
@@ -157,13 +178,20 @@ private fun MenuRow(
     detail: String? = null,
     color: Color = AppTheme.palette.text,
     last: Boolean = false,
+    checked: Boolean? = null,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = AppTheme.palette
     Column {
         Row(
-            Modifier.fillMaxWidth().clip(Shapes.M).clickable(onClick = onClick).padding(horizontal = Space.S, vertical = 14.dp),
+            Modifier.fillMaxWidth().clip(Shapes.M)
+                .then(
+                    // A switch row is one switch for a screen reader: the row toggles, the switch only shows.
+                    if (checked != null) Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = { onClick() })
+                    else Modifier.clickable(onClick = onClick),
+                )
+                .padding(horizontal = Space.S, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, color = color, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -204,11 +232,11 @@ val RoomState.inMatch get() = status == RoomStatus.COUNTDOWN || status == RoomSt
  * match (and restart it), Switch game invites them to another one.
  */
 @Composable
-fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLetterMarks: Boolean = false): GameMenu {
+fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLetterMarks: Boolean = false, onScorecard: (() -> Unit)? = null): GameMenu {
     val controls = LocalRoomControls.current
     var switching by remember { mutableStateOf(false) }
     if (switching && controls != null) SwitchGameSheet(controls, onDismiss = { switching = false })
-    if (controls == null) return GameMenu(game, onRules, onLeave, showLetterMarks = showLetterMarks)
+    if (controls == null) return GameMenu(game, onRules, onLeave, showLetterMarks = showLetterMarks, onScorecard = onScorecard)
     val room = controls.room
     val partner = room.present.isNotEmpty()
     return GameMenu(
@@ -229,6 +257,7 @@ fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLet
         onSwitchGame = if (room.inSession && partner) ({ switching = true }) else null,
         leaveLabel = if (room.inSession) "Leave game" else "Leave",
         showLetterMarks = showLetterMarks,
+        onScorecard = onScorecard,
     )
 }
 
@@ -240,7 +269,7 @@ fun battleMenu(game: GameKind, onRules: () -> Unit, onLeave: () -> Unit, showLet
 @Composable
 fun SwitchGameSheet(controls: RoomControls, onDismiss: () -> Unit) {
     val p = AppTheme.palette
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             Text("Switch game", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             val partner = controls.room.present.singleOrNull()?.name ?: "Everyone else"
@@ -251,6 +280,9 @@ fun SwitchGameSheet(controls: RoomControls, onDismiss: () -> Unit) {
             GameShelf(controls.games) {
                 onDismiss()
                 controls.switchTo(it)
+            }
+            LocalOpenStore.current?.let { open ->
+                SecondaryButton("Game Store", { onDismiss(); open(controls.switchTo) }, Modifier.fillMaxWidth())
             }
         }
     }
@@ -289,25 +321,32 @@ fun GameShelf(games: List<GameKind>, perRow: Int = 4, onPick: (GameKind) -> Unit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupSheet(game: GameKind, controls: RoomControls, onDismiss: () -> Unit) {
+    if (controls.setup == null) return
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true, containerColor = AppTheme.palette.background) {
+        SetupSheetContent(game, controls, onDismiss)
+    }
+}
+
+/** What the Change sheet holds: the game's [OptionRow] cards and the button under them. */
+@Composable
+internal fun SetupSheetContent(game: GameKind, controls: RoomControls, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     val setup = controls.setup ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.background, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
-            verticalArrangement = Arrangement.spacedBy(Space.M),
-        ) {
-            Text("${game.label} setup", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-            setup()
-            val room = controls.room
-            val partner = room.present.singleOrNull()?.name ?: "everyone"
-            if (room.status == RoomStatus.FINISHED && !room.me.ready && room.present.isNotEmpty()) {
-                PrimaryButton("Ask $partner to play this", {
-                    onDismiss()
-                    controls.rematch()
-                }, loading = controls.busy)
-            } else {
-                SecondaryButton("Done", onDismiss)
-            }
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
+        verticalArrangement = Arrangement.spacedBy(Space.M),
+    ) {
+        Text("${game.label} setup", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+        setup()
+        val room = controls.room
+        val partner = room.present.singleOrNull()?.name ?: "everyone"
+        if (room.status == RoomStatus.FINISHED && !room.me.ready && room.present.isNotEmpty()) {
+            PrimaryButton("Ask $partner to play this", {
+                onDismiss()
+                controls.rematch()
+            }, loading = controls.busy)
+        } else {
+            SecondaryButton("Done", onDismiss)
         }
     }
 }
@@ -345,6 +384,9 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
         othersReady -> "Rematch: " + (if (present.size == 1) "${present[0].name} is ready" else "they're ready")
         else -> "Rematch"
     }
+    // Green once the others are ready; its words take white or ink, whichever reads (4.5:1 or more).
+    val fill = if (counting || othersReady) p.good else p.primary
+    val ink = rematchInk(p, counting || othersReady)
     Surface(
         onClick = {
             when {
@@ -354,7 +396,7 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
             }
         },
         enabled = enabled,
-        color = if (counting || othersReady) p.good else p.primary,
+        color = fill,
         shape = Shapes.L,
         border = BorderStroke(2.dp, p.ink),
         modifier = Modifier.fillMaxWidth().pressedEdge(p.ink, 16.dp),
@@ -362,19 +404,19 @@ fun RematchButton(room: RoomState, onRematch: () -> Unit, enabled: Boolean = tru
         Row(Modifier.padding(horizontal = Space.M, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             ReadyFaces(room)
             Spacer(Modifier.width(Space.M))
-            Text(label, color = p.onPrimary, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(label, color = ink, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
     }
 }
 
 /** Your face and everyone else's, overlapping, each with a light: green when ready. */
 @Composable
-private fun ReadyFaces(room: RoomState) {
+internal fun ReadyFaces(room: RoomState) {
     val faces: List<Pair<PlayerInfo, Boolean>> = listOf(room.me to true) + room.present.map { it to false }
     Box(Modifier.width((26 + 18 * (faces.size - 1)).dp).height(30.dp)) {
         faces.forEachIndexed { i, (player, mine) ->
             Box(Modifier.padding(start = (18 * i).dp)) {
-                PlayerAvatar(if (mine) "You" else player.name, if (mine) AppTheme.palette.primary else AppTheme.palette.accent, size = 26, avatar = player.avatar)
+                PlayerAvatar(if (mine) "You" else player.name, if (mine) AppTheme.palette.me else AppTheme.palette.accent, size = 26, avatar = player.avatar)
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(top = 18.dp, start = 18.dp).size(10.dp).clip(CircleShape)
                         .background(if (player.ready) AppTheme.palette.good else AppTheme.palette.hairline).border(1.5.dp, AppTheme.palette.ink, CircleShape),
@@ -411,7 +453,7 @@ fun hasOptions(room: RoomState) = when (room.game) {
 
 /** The options for [room]'s next round, as the lobby shows them. */
 @Composable
-fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewModel) {
+fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewModel, state: com.pippop.ui.BattleUiState? = null) {
     when (room.game) {
         GameKind.DOMINOES -> DominoOptionsCard(room, busy, vm::setDominoOptions)
         GameKind.NUMBERS -> NumbersLevelCard(room, busy, vm::setNumberLevel)
@@ -419,16 +461,16 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.SLIDE -> SlideLevelCard(room, busy, vm::setSlideLevel)
         GameKind.TTT -> TttModeCard(room, busy, vm::setTttClassic)
         GameKind.GOLF -> if (room.golfLevel != null) GolfLevelCard(room, busy, vm::setGolfLevel)
-        GameKind.BLOCKS -> AppCard("Help") { BlocksHintsSwitch() }
-        GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards)
+        GameKind.BLOCKS -> BlocksHelpCard()
+        GameKind.MEMORY -> MemoryDeckCard(room, busy, vm::setMemoryCards, state?.let { MemoryPhotosPanel(it.memoryPics, it.memoryPicking, vm::setMemoryPhotosDeck, vm::sendMemoryPhotos) })
         GameKind.CODE -> CodeRulesCard(room, busy, vm::setCodeRules)
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)
-        GameKind.SUDOKU -> if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
+        GameKind.SUDOKU -> if (room.picksByOpener) SudokuOpenerCard(room, busy, vm::setSudokuLevel, vm::setSudokuTogether, vm::setSudokuShape) else if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
         else -> Unit
     }
     when (room.game) {
-        GameKind.SUDOKU -> AppCard("Level") {
+        GameKind.SUDOKU -> if (!room.picksByOpener) AppCard("Level") {
             Text("Tap a level: the next round starts when you both pick the same one.", color = AppTheme.palette.muted, fontSize = TextSize.Body)
             LevelPicker(room, busy, onPick = vm::chooseLevel)
         }
@@ -465,7 +507,7 @@ fun LeaveSheet(room: RoomState, onStay: () -> Unit, onPause: () -> Unit, onLeave
     val p = AppTheme.palette
     val partner = room.present.singleOrNull()?.name ?: "Everyone else"
     val canPause = room.inSession && room.inMatch && room.present.isNotEmpty()
-    ModalBottomSheet(onDismissRequest = onStay, containerColor = p.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ToySheet(onDismiss = onStay, skipPartiallyExpanded = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.L).padding(bottom = Space.L), verticalArrangement = Arrangement.spacedBy(Space.M)) {
             Text(if (room.inMatch) "Leave the game?" else "Leave?", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             PrimaryButton("Keep playing", onStay)
@@ -492,7 +534,7 @@ fun LeaveSheet(room: RoomState, onStay: () -> Unit, onPause: () -> Unit, onLeave
 @Composable
 fun InfoSheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val p = AppTheme.palette
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.card) {
+    ToySheet(onDismiss = onDismiss) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.L).padding(bottom = Space.L),
             verticalArrangement = Arrangement.spacedBy(Space.M),
@@ -525,3 +567,7 @@ fun LetterTiles(title: String, letters: List<Char>, fill: Color, ink: Color = Ap
         }
     }
 }
+
+/** The Rematch button's text colour: on green (the others ready) white or ink, whichever reads better. */
+internal fun rematchInk(p: SudokuPalette, othersReady: Boolean): Color =
+    if (othersReady) readableOn(p.good) else p.onPrimary

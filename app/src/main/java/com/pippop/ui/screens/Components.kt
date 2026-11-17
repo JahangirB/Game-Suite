@@ -1,5 +1,9 @@
 package com.pippop.ui.screens
 
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.style.TextOverflow
 import com.pippop.ui.Sound
 import com.pippop.ui.rememberSfx
 import androidx.compose.runtime.DisposableEffect
@@ -27,6 +31,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,7 +42,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -58,6 +62,7 @@ import com.pippop.data.Difficulty
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.AvatarImage
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.ShownReactionImage
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.fillMaxSize
@@ -111,6 +116,7 @@ private fun ToyButton(
                 disabledContentColor = content.copy(alpha = 0.8f),
             ),
             elevation = null,
+            contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxSize().offset(y = if (pressed) 3.dp else 0.dp),
         ) { body() }
     }
@@ -125,10 +131,18 @@ fun PrimaryButton(
     loading: Boolean = false,
     container: Color = AppTheme.palette.primary,
     content: Color = AppTheme.palette.onPrimary,
+    /** A small picture before the text (a partner's face). */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     ToyButton(onClick, modifier, enabled && !loading, container, content) {
         if (loading) {
-            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = content)
+            PipPopLoader(Modifier.size(width = 40.dp, height = 24.dp), color = content, color2 = content.copy(alpha = 0.7f))
+        } else if (leading != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                leading()
+                Spacer(Modifier.width(8.dp))
+                Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
         } else {
             Text(text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
         }
@@ -197,18 +211,12 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * A choice among a few [options] (value to label): the chosen one is the main button, the
- * rest secondary. Without [enabled] nothing can be picked.
- */
+/** A choice among a few [options] (value to label), as [Choices] (stacked full width when a label is long). Without [enabled] nothing can be picked. */
 @Composable
 fun <T> OptionGroup(options: List<Pair<T, String>>, selected: T, enabled: Boolean, onPick: (T) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S)) {
-        options.forEach { (value, label) ->
-            if (value == selected) PrimaryButton(label, {}, Modifier.fillMaxWidth(), enabled = enabled)
-            else SecondaryButton(label, { onPick(value) }, Modifier.fillMaxWidth(), enabled = enabled)
-        }
-    }
+    // Long labels need the full width, so they stack; short ones sit side by side.
+    val long = options.any { (_, l) -> l.length > 12 || " · " in l || ":" in l }
+    Choices(options, selected, onPick, enabled = enabled, perRow = if (long) 1 else null)
 }
 
 @Composable
@@ -221,7 +229,7 @@ fun ScreenTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text)
         }
-        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).semantics { heading() })
         actions()
     }
 }
@@ -231,9 +239,18 @@ fun ScreenTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
  * [mark] adds their seat's shape in a small badge, so players aren't told apart by colour alone.
  */
 @Composable
-fun PlayerAvatar(name: String, color: Color, size: Int = 40, avatar: Avatar? = null, mark: Mark? = null) {
+fun PlayerAvatar(
+    name: String, color: Color, size: Int = 40, avatar: Avatar? = null, mark: Mark? = null,
+    /** The player's own photo ("Use a photo"); by default the one [LocalFaces] has for [name]. Without one the animal (or letter) shows. */
+    face: androidx.compose.ui.graphics.ImageBitmap? = LocalFaces.current.of(name),
+) {
     Box(Modifier.size(size.dp)) {
-        if (avatar != null) {
+        if (face != null) {
+            androidx.compose.foundation.Image(
+                face, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(size.dp).clip(CircleShape).border(1.5.dp, AppTheme.palette.ink, CircleShape),
+            )
+        } else if (avatar != null) {
             AvatarImage(avatar, Modifier.size(size.dp))
         } else {
             Box(
@@ -272,6 +289,8 @@ fun ProgressRow(
     showAvatar: Boolean = false,
     avatar: Avatar? = null,
     reaction: ShownReaction? = null,
+    /** This is your own row: your line is read as "You said" and is not announced. */
+    mine: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         if (showAvatar) {
@@ -279,9 +298,8 @@ fun ProgressRow(
             Spacer(Modifier.width(10.dp))
         }
         Box(Modifier.weight(1f)) { ProgressBar(label, percent, color, trailing) }
-        if (reaction != null) {
-            ReactionImage(reaction.reaction, 34.dp, Modifier.padding(start = 8.dp), startedAt = reaction.at)
-        }
+        if (reaction != null) ShownReactionImage(reaction, 34.dp, Modifier.padding(start = 8.dp))
+        if (reaction?.line != null) Bubble(reaction.line, label, Modifier.widthIn(max = 160.dp).padding(start = 8.dp), mine = mine)
     }
 }
 

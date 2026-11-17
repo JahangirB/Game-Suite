@@ -27,5 +27,15 @@ enum class Reaction(val key: String, val emoji: String, val sticker: Boolean = f
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key }
+
+        /**
+         * The tray's order: the reactions sent last first, then the rest as listed here.
+         * [recentKeys] is what the phone stored; keys that are not reactions (now or ever) and
+         * repeats are ignored, so a stale value is harmless.
+         */
+        fun recentFirst(recentKeys: List<String>): List<Reaction> {
+            val used = recentKeys.mapNotNull { from(it) }.distinct()
+            return used + entries.filter { it !in used }
+        }
     }
 }

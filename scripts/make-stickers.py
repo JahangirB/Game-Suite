@@ -15,10 +15,15 @@ app/src/main/java/com/pippop/ui/art/StickerArt.kt, where ui/art/Stickers.kt pain
   inside it moves together.
 - A fill that is a gradient becomes its average colour.
 
+It also writes the downloadable stickers: each drawing in scripts/art/packs/ becomes
+stickers/<id>.json (the same shapes, as JSON; see stickers/README.md for the format and limits).
+The id is the file's name. Its entry in stickers/index.json is written by hand.
+
     pip install svgelements fonttools brotli
     python3 scripts/make-stickers.py
 """
 
+import json
 import math
 import os
 import re
@@ -32,6 +37,11 @@ from svgelements import Circle, Ellipse, Matrix, Path, Polygon, Polyline, Rect
 HERE = os.path.dirname(os.path.abspath(__file__))
 ART = os.path.join(HERE, 'art')
 OUT = os.path.join(HERE, '..', 'app', 'src', 'main', 'java', 'com', 'pippop', 'ui', 'art', 'StickerArt.kt')
+PACKS = os.path.join(ART, 'packs')
+PACK_OUT = os.path.join(HERE, '..', 'stickers')
+# What stickers/README.md promises; the app refuses a file over these (data/StickerPacks.kt).
+MAX_BYTES = 100_000
+MAX_PARTS = 400
 STICKERS = {
     'KYLIAN': 'kylian-dictador.svg',
     'SIDE_EYE': 'side-eye.svg',
@@ -142,6 +152,7 @@ def flatten(svg_file):
     defs = {el.get('id'): el for d in root.iter(SVG + 'defs') for el in d.iter() if el.get('id')}
     gradients = {k: v for k, v in defs.items() if tag(v) in ('linearGradient', 'radialGradient')}
     backdrop = None
+    spec = [None]
     parts = []
     groups = [0]
 
@@ -170,6 +181,7 @@ def flatten(svg_file):
         if el.get('id') == 'backdrop':
             nonlocal backdrop
             backdrop = make_backdrop(paint.get('fill'), gradients)
+            spec[0] = backdrop_spec(paint.get('fill'), gradients)
             return
         scale = math.sqrt(abs(matrix.a * matrix.d - matrix.b * matrix.c))
         if t == 'text':
@@ -190,6 +202,7 @@ def flatten(svg_file):
                       paint.get('stroke-linejoin') == 'round', anim, group))
 
     walk(root, Matrix(), {}, None, 0)
+    flatten.backdrop_spec = spec[0]
     return backdrop, parts
 
 
@@ -208,15 +221,25 @@ def text_outlines(el, paint, classes):
     return [(d, argb(paint.get('fill', '#000'), 1, {}), 'null', 1, False)]
 
 
-def make_backdrop(fill, gradients):
+def backdrop_spec(fill, gradients):
+    """The backdrop as (kind, colours, numbers): kind is solid, linear or radial."""
     m = re.match(r'url\(#(.+)\)', fill or '')
     if not m:
-        return f'Backdrop.solid({argb(fill, 1, {})})'
+        return 'solid', [argb(fill, 1, {})], []
     g = gradients[m.group(1)]
-    colours = ', '.join(argb(c, 1, {}) for _, c in stops(g))
+    colours = [argb(c, 1, {}) for _, c in stops(g)]
     if tag(g) == 'linearGradient':
-        return f'Backdrop.linear(listOf({colours}), {num(g.get("x1"))}f, {num(g.get("y1"))}f, {num(g.get("x2"))}f, {num(g.get("y2"))}f)'
-    return f'Backdrop.radial(listOf({colours}), {num(g.get("cx"))}f, {num(g.get("cy"))}f, {num(g.get("r"))}f)'
+        return 'linear', colours, [num(g.get(k)) for k in ('x1', 'y1', 'x2', 'y2')]
+    return 'radial', colours, [num(g.get(k)) for k in ('cx', 'cy', 'r')]
+
+
+def make_backdrop(fill, gradients):
+    kind, colours, n = backdrop_spec(fill, gradients)
+    if kind == 'solid':
+        return f'Backdrop.solid({colours[0]})'
+    if kind == 'linear':
+        return f'Backdrop.linear(listOf({", ".join(colours)}), {n[0]}f, {n[1]}f, {n[2]}f, {n[3]}f)'
+    return f'Backdrop.radial(listOf({", ".join(colours)}), {n[0]}f, {n[1]}f, {n[2]}f)'
 
 
 def kotlin(name, svg_file):
@@ -228,6 +251,50 @@ def kotlin(name, svg_file):
         lines.append(f'            Part("{d}", {fill}, {stroke}, {num(width)}f, {dash}, {str(cap).lower()}, {str(join).lower()}{extra}),')
     lines += ['        ),', '    )']
     return lines
+
+
+def colour_json(v):
+    """'0xAARRGGBBL' as '#AARRGGBB', or None."""
+    return None if v == 'null' else '#' + v[2:10]
+
+
+def pack_json(sticker_id, svg_file, name):
+    """stickers/<id>.json for the drawing in [svg_file]: its shapes in drawing order, as StickerArt holds them."""
+    _, parts = flatten(svg_file)
+    spec = flatten.backdrop_spec
+    out = {'id': sticker_id, 'name': name, 'version': 1}
+    if spec:
+        kind, colours, n = spec
+        keys = {'solid': [], 'linear': ['x1', 'y1', 'x2', 'y2'], 'radial': ['cx', 'cy', 'r']}[kind]
+        out['backdrop'] = {'type': kind, 'colours': [colour_json(c) for c in colours], **{k: float(v) for k, v in zip(keys, n)}}
+    out['parts'] = []
+    for d, fill, stroke, width, dash, cap, join, anim, group in parts:
+        part = {'d': d, 'fill': colour_json(fill), 'stroke': colour_json(stroke), 'width': round(width, 3),
+                'dash': [round(v, 3) for v in dash] if dash else None, 'roundCap': bool(cap), 'roundJoin': bool(join)}
+        if anim:
+            part['anim'] = anim
+            part['group'] = group
+        out['parts'].append(part)
+    return out
+
+
+def write_packs():
+    """Writes stickers/<id>.json for every drawing in scripts/art/packs. Returns the files' names and sizes."""
+    done = []
+    for file in sorted(os.listdir(PACKS)) if os.path.isdir(PACKS) else []:
+        if not file.endswith('.svg'):
+            continue
+        sticker_id = file[:-4]
+        assert re.fullmatch(r'[a-z0-9-]{1,32}', sticker_id), f'{file}: the id must be lower-case letters, digits and hyphens, 1 to 32'
+        name = sticker_id.replace('-', ' ').capitalize()
+        text = json.dumps(pack_json(sticker_id, os.path.join('packs', file), name), separators=(',', ':')) + '\n'
+        assert 0 < len(json.loads(text)['parts']) <= MAX_PARTS, f'{sticker_id}: over {MAX_PARTS} shapes'
+        assert len(text.encode()) <= MAX_BYTES, f'{sticker_id}: over {MAX_BYTES} bytes'
+        out = os.path.join(PACK_OUT, sticker_id + '.json')
+        with open(out, 'w') as f:
+            f.write(text)
+        done.append((os.path.normpath(out), len(text.encode())))
+    return done
 
 
 def main():
@@ -243,6 +310,8 @@ def main():
     with open(OUT, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     print(os.path.normpath(OUT))
+    for out, size in write_packs():
+        print(f'{out} ({size} bytes: put "size": {size} in its stickers/index.json entry)')
 
 
 if __name__ == '__main__':

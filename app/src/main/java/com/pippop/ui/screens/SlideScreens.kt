@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.height
@@ -89,6 +90,20 @@ import kotlin.math.sign
 fun SlideBoard(tiles: List<Int>, size: Int, enabled: Boolean, onTap: (Int) -> Unit, modifier: Modifier = Modifier, photo: androidx.compose.ui.graphics.ImageBitmap? = null) {
     // A tile taps along one square; the last one in place sets off the cascade and chime.
     SoundOnChange(tiles) { play(if (tiles == Slide.solved(size)) Sound.SLIDE_SOLVED else Sound.PIECE_HOP) }
+    // A tile that slides into its right place clicks as it lands (the glide takes 120 ms); the last one has the chime instead.
+    // Only one slide counts: a new shuffle or a jump to another position (many tiles at once) never clicks.
+    val tilesBefore = remember { arrayOf(tiles) }
+    SoundOnChange(tiles) {
+        val before = tilesBefore[0]
+        tilesBefore[0] = tiles
+        val goal = Slide.solved(size)
+        fun home(t: List<Int>) = goal.indices.count { t.getOrNull(it) == goal[it] && goal[it] != 0 }
+        val oneSlide = before.size == tiles.size && tiles.indices.count { before[it] != tiles[it] } == 2
+        if (oneSlide && home(tiles) > home(before) && tiles != goal) {
+            delay(120)
+            play(Sound.SLIDE_HOME)
+        }
+    }
     val p = AppTheme.palette
     // A wooden tray: the frame is Board.Wood, the tiles sit in a darker well.
     Box(modifier.clip(Shapes.L).background(Brush.verticalGradient(listOf(Board.Wood.lighter(0.2f), Board.Wood.darker(0.2f)))).padding(6.dp)) {
@@ -237,15 +252,10 @@ private const val SWIPE_DP = 24
 /** The host's level for the next puzzle; everyone else sees it. */
 @Composable
 fun SlideLevelCard(room: RoomState, busy: Boolean, onPick: (SlideLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.slide?.level ?: SlideLevel.EASY
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(SlideLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-            LocalSlidePhoto.current?.let { (has, set) -> SlidePhotoPicker(has, enabled = !busy, onPhoto = set) }
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow("Level", SlideLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled, perRow = 2, note = "A ${level.label.levelNote()} board.")
+        if (room.setsOptions) LocalSlidePhoto.current?.let { (has, set) -> SlidePhotoPicker(has, enabled = !busy, onPhoto = set) }
     }
 }
 
@@ -261,7 +271,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SLIDE) { showRules = false }
     // The dock's Peek shows the finished board for a moment.
     var peeking by remember { mutableStateOf(false) }
     LaunchedEffect(peeking) {
@@ -282,16 +292,17 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
     GameFrame(
         title = "Slide Race",
         subtitle = "Game ${room.round} · ${slide.level.label}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, now, p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, now, p.me, detail = { player, isMe ->
             if (isMe) "$mine% in place" else "${player.progress ?: 0}% in place"
         }),
         glow = GameKind.SLIDE.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
-        tools = listOf(DockTool("Peek", GameIcons.Eye, enabled = tiles != null && !finished) { peeking = true }),
+        tools = if (finished) emptyList() else listOf(DockTool("Peek", GameIcons.Eye, enabled = tiles != null) { peeking = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trailing = { Text(style = Digits, text = formatDuration(elapsed), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = room.winnerName ?: room.opponent?.name ?: "The other player"
             MatchPopup(
@@ -318,7 +329,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
         } else {
             val playing = phase == RoomStatus.PLAYING
             Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(playing, vm::swipeSlide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
+                if (!finished) TurnLine("Slides: ${state.slideMoves.size} · tap a tile or swipe anywhere", playing, GameKind.SLIDE.color)
                 val photo = remember(state.slidePhoto) { slidePicture(state.slidePhoto) }
                 // When someone finishes, the whole photo fades in for everyone.
                 val reveal by androidx.compose.animation.core.animateFloatAsState(if (finished && photo != null) 1f else 0f, androidx.compose.animation.core.tween(1200), label = "photo")
@@ -334,7 +345,7 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
                 // Your bar from your own tiles; the others' from the progress the server sends.
                 val total = slide.size * slide.size - 1
                 SlideProgressBars(
-                    listOf(SlideBar("You", p.primary, slideHome(tiles, slide.size), total)) +
+                    listOf(SlideBar("You", p.me, slideHome(tiles, slide.size), total)) +
                         room.others.mapIndexed { i, o -> SlideBar(o.name, SeatColors[i % SeatColors.size], slideHomeFromPercent(o.progress ?: 0, slide.size), total) },
                 )
             }
@@ -348,40 +359,35 @@ fun SlideGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Un
 fun SoloSlideScreen(state: SoloSlideUiState, vm: SoloSlideViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.SLIDE) { showRules = false }
+    if (showRules) RulesSheet(GameKind.SLIDE) { showRules = false }
     val level = state.level
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (level == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.SLIDE, "New game", vm::startWith) { changing = false }
     val now = rememberTicker()
     val done = state.finishedMs
     GameFrame(
         title = "Slide Race",
-        subtitle = level?.let { "On your own · ${it.label}" } ?: "On your own",
+        subtitle = "On your own · ${level.label}",
         players = emptyList(),
         glow = GameKind.SLIDE.color,
-        menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, if (level != null) vm::again else null),
-        trailing = { if (level != null) Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
-        scrollable = level == null,
-        popup = if (level == null || done == null) null else popupContent {
+        menu = soloMenu(GameKind.SLIDE, onHome, { showRules = true }, vm::again, { changing = true }),
+        trailing = { Text(style = Digits, text = formatDuration(done ?: (now - state.startedAt)), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
+        resultUnder = true,
+        popup = if (done == null) null else popupContent {
             SoloPopup(
                 GameKind.SLIDE, "me",
                 "Solved in ${formatDuration(done)} with ${state.moves} slides" + (state.best[level]?.let { " · best ${formatDuration(it)}" } ?: ""),
-                onAgain = vm::again, onHome = onHome, finishLabel = "Change level", onFinish = vm::changeLevel,
+                onAgain = vm::again, onHome = onHome, finishLabel = "Change size", onFinish = { changing = true },
             )
         },
     ) {
-        if (level == null) {
-            AppCard("Choose the size") {
-                Text("Slide the tiles back into order, 1 to the last, with the gap at the end. Tap a tile in line with the gap, or swipe anywhere.", color = p.muted, fontSize = TextSize.Body)
-                SlideLevel.entries.forEach { l ->
-                    PrimaryButton(l.label + (state.best[l]?.let { " · best ${formatDuration(it)}" } ?: ""), { vm.start(l) }, Modifier.fillMaxWidth())
-                }
-            }
-        } else {
-            Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TurnLine("Slides: ${state.moves}", done == null, GameKind.SLIDE.color)
-                BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
-                // On your own there is only your bar: your tiles are all the screen knows.
-                SlideProgressBars(listOf(SlideBar("You", p.primary, slideHome(state.tiles, level.size), level.size * level.size - 1)))
-            }
+        Column(Modifier.weight(1f).fillMaxWidth().slideSwipes(done == null, vm::swipe), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (done == null) TurnLine("Slides: ${state.moves}", true, GameKind.SLIDE.color)
+            BoardArea(1f) { size -> SlideBoard(state.tiles, level.size, done == null, vm::tap, size) }
+            // On your own there is only your bar: your tiles are all the screen knows.
+            SlideProgressBars(listOf(SlideBar("You", p.me, slideHome(state.tiles, level.size), level.size * level.size - 1)))
         }
     }
 }

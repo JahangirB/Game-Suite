@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import com.pippop.ui.theme.Mark
 import com.pippop.ui.theme.seatMark
@@ -7,6 +8,7 @@ import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.LineHeight
 import com.pippop.ui.theme.TextSize
 import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.Radius
 import com.pippop.ui.theme.SeatColors
 import androidx.compose.foundation.BorderStroke
@@ -35,11 +37,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -51,6 +51,14 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -68,6 +76,9 @@ import com.pippop.ui.BattleUiState
 import com.pippop.ui.theme.OpponentColor
 import com.pippop.ui.ShownReaction
 import com.pippop.ui.art.ReactionImage
+import com.pippop.ui.art.ShownReactionImage
+import com.pippop.ui.art.GameIcon
+import com.pippop.ui.art.color
 import com.pippop.ui.art.rules
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.DisplayFont
@@ -86,6 +97,8 @@ class ChipPlayer(
     val active: Boolean = false,
     /** The seat's shape on the avatar (you ●, then ▲, ■, ◆). */
     val mark: Mark? = null,
+    /** This is you: your own line is read as "You said" and is not announced. */
+    val mine: Boolean = false,
 )
 
 /**
@@ -95,7 +108,8 @@ class ChipPlayer(
  *
  * The game fits the screen without scrolling: boards take the room left over through
  * [BoardArea]. Only [scrollable] screens (a choice of levels or modes before a game) scroll.
- * [popup] (the result at the end of a match) covers the game but not the dock, which keeps working.
+ * [popup] (the result at the end of a match) covers the game but not the dock, which keeps working;
+ * with [resultUnder] it is a card under the game instead.
  */
 @Composable
 fun GameFrame(
@@ -119,6 +133,12 @@ fun GameFrame(
     tray: @Composable () -> Unit = {},
     scrollable: Boolean = false,
     popup: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * Draws [popup] as a card under the game's content instead of a sheet over it: the screen
+     * drops what only serves play once the game is over, the board moves up and takes what
+     * room is left. Only for games whose board and card fit the screen together.
+     */
+    resultUnder: Boolean = false,
     /**
      * The players can fold into one bar to give the board more room: by a swipe up, the "Hide
      * players" button, or by itself when [focusWhen] turns true (your turn to fire). Tapping
@@ -154,17 +174,23 @@ fun GameFrame(
                 if (!(swipeToFocus && focused)) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
-                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = TextSize.Body)
+                        if (subtitle != null) Text(subtitle, color = p.muted, fontSize = TextSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    trailing()
+                    Box(Modifier.padding(start = 8.dp)) { trailing() }
+                    LocalTonight.current?.let { Box(Modifier.padding(start = 8.dp)) { TonightPill(it) } }
                 }
                 if (players.isNotEmpty() && !(swipeToFocus && focused)) {
                     // Three or four players share the row as smaller chips.
                     val compact = players.size > 2
                     // While someone plays, everyone else's chip dims, so whose turn it is reads at a glance.
                     val someoneActive = players.any { it.active }
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth()) {
-                        players.forEach { PlayerChip(it, glow, Modifier.weight(1f).alpha(if (someoneActive && !it.active) 0.55f else 1f), compact) }
+                    // A line someone just said is a bubble that hangs below their chip, over the board.
+                    val saying = players.any { it.reaction?.line != null }
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp), modifier = Modifier.fillMaxWidth().zIndex(if (saying) 1f else 0f)) {
+                        players.forEachIndexed { i, it ->
+                            val side = if (i == 0) Alignment.Start else if (i == players.lastIndex) Alignment.End else Alignment.CenterHorizontally
+                            PlayerChip(it, glow, Modifier.weight(1f), compact, side, dimmed = someoneActive && !it.active)
+                        }
                     }
                     if (swipeToFocus) {
                         Text(
@@ -174,8 +200,11 @@ fun GameFrame(
                     }
                 }
                 content()
+                if (resultUnder && popup != null) {
+                    Box(Modifier.fillMaxWidth()) { CompositionLocalProvider(LocalResultUnder provides true) { popup() } }
+                }
             }
-            popup?.invoke(this)
+            if (!resultUnder) popup?.invoke(this)
         }
         if (trayVisible) {
             Surface(color = p.card, border = BorderStroke(2.dp, p.ink), shape = Shapes.Top) {
@@ -195,7 +224,7 @@ private const val FOLD_SWIPE_DP = 48
  */
 @Composable
 fun ColumnScope.BoardArea(aspect: Float, weight: Float = 1f, content: @Composable (Modifier) -> Unit) {
-    BoxWithConstraints(Modifier.weight(weight).fillMaxWidth(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.weight(weight).fillMaxWidth().testTag("boardArea"), contentAlignment = Alignment.Center) {
         val width = if (maxHeight == Dp.Infinity) maxWidth else minOf(maxWidth, maxHeight * aspect)
         content(Modifier.width(width).height(width / aspect))
     }
@@ -224,21 +253,56 @@ private fun FoldedPlayers(players: List<ChipPlayer>, glow: Color, onOpen: () -> 
 }
 
 @Composable
-private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, compact: Boolean = false) {
+private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, compact: Boolean = false, bubbleSide: Alignment.Horizontal = Alignment.Start, dimmed: Boolean = false) {
     val p = AppTheme.palette
     val edge = if (player.active) glow else p.ink
+    // Where the chip is on screen, so a wide bubble can be kept inside it.
+    var left by remember { mutableFloatStateOf(0f) }
+    val root = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.roundToPx() }
+    Box(modifier.onGloballyPositioned { left = it.positionInRoot().x }) {
+    PlayerChipCard(player, glow, edge, compact, Modifier.alpha(if (dimmed) 0.55f else 1f))
+    // A line they said, by their chip: it hangs below the card and may be wider than it.
+    player.reaction?.line?.let { line ->
+        Bubble(
+            line, player.name,
+            // BottomStart is only its height: no height of its own, so it hangs from the chip's bottom edge.
+            Modifier.align(Alignment.BottomStart).layout { m, c ->
+                val margin = 14.dp.roundToPx()
+                val limit = minOf(240.dp.roundToPx(), root - 2 * margin)
+                val placeable = m.measure(androidx.compose.ui.unit.Constraints(maxWidth = limit))
+                layout(c.maxWidth, 0) {
+                    // Which side of the chip it lines up with, then kept inside the screen.
+                    var x = when (bubbleSide) {
+                        Alignment.End -> c.maxWidth - placeable.width
+                        Alignment.CenterHorizontally -> (c.maxWidth - placeable.width) / 2
+                        else -> 0
+                    }
+                    val lo = margin - left.toInt()
+                    x = x.coerceIn(lo, (root - margin - placeable.width - left.toInt()).coerceAtLeast(lo))
+                    placeable.place(x, 4.dp.roundToPx())
+                }
+            },
+            mine = player.mine,
+        )
+    }
+    }
+}
+
+@Composable
+private fun PlayerChipCard(player: ChipPlayer, glow: Color, edge: Color, compact: Boolean, modifier: Modifier) {
+    val p = AppTheme.palette
     Surface(
         color = p.card,
         shape = Shapes.L,
         border = BorderStroke(if (player.active) 3.dp else 2.dp, edge),
-        modifier = modifier.pressedEdge(edge, Radius.L),
+        modifier = modifier.fillMaxWidth().pressedEdge(edge, Radius.L),
     ) {
         if (compact) {
             // Avatar over name and detail, so four fit across a phone.
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.TopEnd) {
                     PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar, mark = player.mark)
-                    if (player.reaction != null) ReactionImage(player.reaction.reaction, 20.dp, startedAt = player.reaction.at)
+                    if (player.reaction != null) ShownReactionImage(player.reaction, 20.dp)
                 }
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
@@ -256,7 +320,7 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
                     Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Label, maxLines = 1)
                 }
             }
-            if (player.reaction != null) ReactionImage(player.reaction.reaction, 28.dp, startedAt = player.reaction.at)
+            if (player.reaction != null) ShownReactionImage(player.reaction, 28.dp)
         }
     }
 }
@@ -275,7 +339,7 @@ fun battleChips(
     active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
     otherColor: (Int) -> Color = { SeatColors[it % SeatColors.size] },
 ): List<ChipPlayer> = listOf(
-    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0)),
+    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0), mine = true),
 ) + room.others.mapIndexed { i, other ->
     // Presence shows in the chip's detail line, not glued onto the name where it truncates.
     val presence = when {
@@ -295,7 +359,7 @@ fun battleChips(
 @Composable
 private fun GameDock(actions: List<DockAction>) {
     val p = AppTheme.palette
-    Column {
+    Column(Modifier.testTag("dock")) {
         Box(Modifier.fillMaxWidth().height(2.dp).background(p.ink))
         Row(
             Modifier.fillMaxWidth().background(p.card).padding(top = 8.dp, bottom = 10.dp),
@@ -331,24 +395,54 @@ private fun GameDock(actions: List<DockAction>) {
     }
 }
 
-/** How to play [kind], from the dock's Rules button. */
+/**
+ * How to play [kind]: a handful of short points, each with a title to find your place by, from the dock's
+ * Rules button and the game's sheet. "Show me how" plays the game's walk-through (where it has one).
+ */
 @Composable
-fun RulesDialog(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
+fun RulesSheet(kind: GameKind, extra: (@Composable () -> Unit)? = null, onDismiss: () -> Unit) {
     val p = AppTheme.palette
     // "Show me how" plays the game's tutorial again, then comes back to the rules.
     var showing by remember { mutableStateOf(false) }
     if (showing) return TutorialDialog(kind) { showing = false }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = p.card,
-        title = { Text(kind.label, color = p.text, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(kind.rules, color = p.text, fontSize = TextSize.BodyL)
+    ToySheet(onDismiss = onDismiss, skipPartiallyExpanded = true) {
+        RulesSheetBody(kind, extra, onShowHow = { showing = true }, onDismiss = onDismiss)
+    }
+}
+
+/** What the rules sheet holds (also drawn by screenshots, where the sheet's own window is not in the root). */
+@Composable
+internal fun RulesSheetBody(kind: GameKind, extra: (@Composable () -> Unit)?, onShowHow: () -> Unit, onDismiss: () -> Unit) {
+    val p = AppTheme.palette
+    run {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Space.XL).padding(bottom = Space.L),
+            verticalArrangement = Arrangement.spacedBy(Space.M),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.M)) {
+                Box(
+                    Modifier.size(36.dp).clip(Shapes.S).background(kind.color).border(2.dp, p.ink, Shapes.S),
+                    contentAlignment = Alignment.Center,
+                ) { GameIcon(kind, Modifier.size(22.dp)) }
+                Text(
+                    "How to play ${kind.label}", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM, modifier = Modifier.weight(1f),
+                )
+            }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.S)) {
+                kind.rules.forEachIndexed { i, point ->
+                    Row {
+                        Text(point.title, color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, modifier = Modifier.width(108.dp))
+                        Text(point.body, color = p.text, fontSize = TextSize.Body, modifier = Modifier.weight(1f))
+                    }
+                    if (i < kind.rules.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+                }
                 extra?.invoke()
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Got it", color = p.primaryText, fontWeight = FontWeight.Bold) } },
-        dismissButton = if (hasTutorial(kind)) ({ TextButton(onClick = { showing = true }) { Text("Show me how", color = p.primaryText) } }) else null,
-    )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.M)) {
+                if (hasTutorial(kind)) SecondaryButton("Show me how", onShowHow, Modifier.weight(1f))
+                PrimaryButton("Got it", onDismiss, Modifier.weight(1f))
+            }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.rememberSfx
@@ -63,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.pippop.ui.theme.Space
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -210,7 +212,7 @@ fun LetterGridBoard(
                 val now = shown
                 val cells = if (live.isNotEmpty()) live else now?.path.orEmpty()
                 if (cells.isEmpty()) return@Canvas
-                val color = if (live.isNotEmpty()) p.primary else when (now?.verdict) {
+                val color = if (live.isNotEmpty()) p.me else when (now?.verdict) {
                     Verdict.GOOD -> p.good
                     Verdict.REPEAT -> Pieces.Yellow
                     else -> p.bad
@@ -334,7 +336,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val finished = room.status == RoomStatus.FINISHED
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GRID) { showRules = false }
     var showWords by remember { mutableStateOf(false) }
     if (showWords) InfoSheet("Your words: ${grid.mine.size}", onDismiss = { showWords = false }) {
         Text(
@@ -349,7 +351,7 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     GameFrame(
         title = "Letter Grid",
         subtitle = "Game ${room.round}" + if (state.reconnecting) " · reconnecting…" else "",
-        players = battleChips(room, state, rememberTicker(), p.primary, detail = { player, isMe ->
+        players = battleChips(room, state, rememberTicker(), p.me, detail = { player, isMe ->
             if (isMe) "${grid.mine.size} words" else "${grid.counts.getOrNull(room.others.indexOf(player)) ?: 0} words"
         }),
         glow = GameKind.GRID.color,
@@ -358,7 +360,8 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         tools = listOf(DockTool("My words", GameIcons.Book, badge = grid.mine.size) { showWords = true }),
         trailing = { Text(if (playing) timeLeft(endsAt, now) else "", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold) },
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.GRID, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: "The other player"),
@@ -383,9 +386,10 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 }
             }
         } else {
-            TurnLine(if (playing) "Find words: drag through touching letters" else "Time's up!", playing, GameKind.GRID.color)
+            if (!finished) TurnLine(if (playing) "Find words: drag through touching letters" else "Time's up!", playing, GameKind.GRID.color)
             BoardArea(1f) { size -> LetterGridBoard(letters, playing, vm::findGridWord, size, found = grid.mine, fuseLeftMs = { endsAt - state.serverNow() }) }
-            FoundWords(grid.mine)
+            // The result lists everyone's words, so the found-words line leaves with the round.
+            if (!finished) FoundWords(grid.mine)
         }
     }
 }
@@ -396,19 +400,23 @@ fun GridGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GRID) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GRID) { showRules = false }
     val now = rememberTicker()
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (!state.started) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.GRID, "New game", vm::startWith) { changing = false }
     val letters = state.letters
     GameFrame(
         title = "Letter Grid",
         subtitle = state.best?.let { "On your own · best $it" } ?: "On your own",
         players = emptyList(),
         glow = GameKind.GRID.color,
-        menu = soloMenu(GameKind.GRID, onHome, { showRules = true }, if (letters != null) vm::start else null),
+        menu = soloMenu(GameKind.GRID, onHome, { showRules = true }, vm::start, { changing = true }),
         trailing = {
             if (letters != null && !state.over && state.timed) Text(timeLeft(state.endsAt, now), style = Digits, color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
         },
-        scrollable = letters == null,
+        resultUnder = true,
         popup = if (!state.over) null else popupContent {
             ResultPopup(
                 game = GameKind.GRID,
@@ -422,15 +430,15 @@ fun SoloGridScreen(state: SoloGridUiState, vm: SoloGridViewModel, onHome: () -> 
         },
     ) {
         if (letters == null) {
-            AppCard("One grid, as many words as you can") {
-                Text("Spell words by dragging through touching letters, sideways or corner to corner. Longer words score more.", color = p.muted, fontSize = TextSize.Body)
-                OptionGroup(listOf(false to "No time limit", true to "2 minutes"), state.timed, enabled = true, onPick = vm::setTimed)
-                PrimaryButton("Start", vm::start, Modifier.fillMaxWidth())
+            // The grid is made a moment after the game is asked for.
+            Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                PipPopLoader(Modifier.size(width = 96.dp, height = 60.dp))
+                Text("Making your grid…", color = p.text, modifier = Modifier.padding(top = Space.L))
             }
         } else {
-            TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
+            if (!state.over) TurnLine(state.message ?: "Score ${state.score}: drag through touching letters", state.message == null && !state.over, if (state.message != null) p.bad else GameKind.GRID.color)
             BoardArea(1f) { size -> LetterGridBoard(letters, !state.over, vm::find, size, found = state.found, fuseLeftMs = if (state.timed) ({ state.endsAt - System.currentTimeMillis() }) else null) }
-            FoundWords(state.found)
+            if (!state.over) FoundWords(state.found)
             if (!state.over) SecondaryButton(if (state.timed) "Finish now" else "I'm done", vm::finish, Modifier.fillMaxWidth())
         }
     }

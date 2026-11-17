@@ -2,6 +2,7 @@ package com.pippop.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,21 +11,35 @@ import kotlinx.coroutines.flow.update
 
 enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
 
+/** The colourway of the Toy Box this phone uses, whether light or dark. Lavender is the original. */
+enum class ColourTheme(val label: String) { LAVENDER("Lavender"), MINT("Mint"), PEACH("Peach"), SKY("Sky") }
+
 /** How this phone meets others: nearby over Bluetooth and Wi‑Fi, or online through a server. */
 enum class PlayMode { OFFLINE, ONLINE }
 
 /** How the ships look in Ship Battle; each player picks their own. */
-enum class ShipStyle(val label: String) { TOY("Toy Harbor"), PIRATE("Pirate Wood") }
+enum class ShipStyle(val label: String) { TOY("Toy Harbour"), PIRATE("Pirate Wood") }
 
+/** The back of Memory Pairs' and Colour Clash's cards; each player picks their own. [STRIPES] is the look from before this could be chosen. */
+enum class CardBackLook(val label: String) { STRIPES("Stripes"), DOTS("Dots"), DIAMONDS("Diamonds"), WAVES("Waves") }
+
+/** Connect Four's frame; each player picks their own. [BLUE] is the look from before this could be chosen. */
+enum class FrameLook(val label: String) { BLUE("Blue"), MINT("Mint"), PLUM("Plum"), SLATE("Slate") }
+
+/** The Dominoes tiles; each player picks their own. [IVORY] is the look from before this could be chosen. */
+enum class TileLook(val label: String) { IVORY("Ivory"), EBONY("Ebony"), MAPLE("Maple") }
+
+/** A game that was played, and when (epoch milliseconds), for the home's "jump back in" row. */
+data class RecentGame(val game: GameKind, val at: Long)
+
+/** Sudoku's wins and best time at one level, as this file kept them before [SoloRecordStore]; read once to bring them across. */
 data class LevelStats(val wins: Int = 0, val bestMs: Long? = null)
 
+/** Games won and lost with others. (Sudoku's solo bests moved to [SoloRecordStore].) */
 data class Stats(
-    val solo: Map<Difficulty, LevelStats> = emptyMap(),
     val battlesWon: Int = 0,
     val battlesLost: Int = 0,
-) {
-    val soloWins get() = solo.values.sumOf { it.wins }
-}
+)
 
 /**
  * The last person you played online with, so one tap reconnects: same server, same
@@ -38,17 +53,22 @@ data class SavedPartner(
     val avatar: Avatar?,
     val deviceId: String?,
     val myPlayerId: String?,
+    /** Their photo when last seen ([Faces], base64 JPEG), kept in a small file so the scoreboard and cups can show it. */
+    val face: String? = null,
 )
 
 /** Everything the player sets up in the profile screen, plus their win statistics. */
 data class Profile(
     val name: String = "",
     val avatar: Avatar? = null,
+    /** This player's own photo ([Faces], base64 JPEG), or null. Kept in a small file on this phone; the animal is [avatar]. */
+    val face: String? = null,
     /** The battle server: a Google Apps Script link or a Cloudflare Worker link. */
     val scriptUrl: String = "",
     /** Only needed for a Cloudflare server whose host set a password. */
     val serverPassword: String = "",
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    val colourTheme: ColourTheme = ColourTheme.LAVENDER,
     val shipStyle: ShipStyle = ShipStyle.TOY,
     val stats: Stats = Stats(),
     val partner: SavedPartner? = null,
@@ -58,20 +78,30 @@ data class Profile(
     val nearbyCode: String = "",
     /** The home's Online/Offline switch, as last set. */
     val playMode: PlayMode = PlayMode.OFFLINE,
-    /** The games in the order this player arranged them on the home. */
-    val gameOrder: List<GameKind> = GameKind.entries,
+    /** The games on this player's shelf, in the order shown on the home. Every other game is in the Store ([storeGames]). */
+    val shelf: List<GameKind> = ProfileStore.DEFAULT_SHELF,
+    /** Whether the one-time note about the Game Store has been shown (or seen). */
+    val shelfNoteShown: Boolean = false,
+    /** Set once, at the shelf migration, on a phone that already had the app: it should see the one-time Game Store note. A new phone never does. */
+    val shelfNoteDue: Boolean = false,
     /** Whether the first-run screens have been seen (or skipped, by someone set up before them). */
     val firstRunDone: Boolean = false,
     /** Buzz for game moments (your turn, a move, a win). */
     val vibration: Boolean = true,
-    /** Sound effects, on or off in the app only (the phone's silent mode doesn't change them). */
-    val sound: Boolean = true,
+    /** How loud the sound effects are, or off; in the app only (the phone's silent mode doesn't change them). */
+    val loudness: Loudness = Loudness.NORMAL,
+    /** Whether other players' moves make their sounds too (a little quieter than your own). */
+    val othersMoves: Boolean = true,
     /** Corner Blocks: show where your pieces can go ("Where can I go?"). */
     val blocksHints: Boolean = true,
     /** Word Race: hard mode (letters found must be used again). */
     val wordsHard: Boolean = false,
     /** Letter games (Word Race, later Code Breaker): a small mark on each result tile besides its colour. */
     val letterMarks: Boolean = true,
+    /** The looks chosen on a game's menu (Looks); kept on this phone only. */
+    val cardBack: CardBackLook = CardBackLook.STRIPES,
+    val frame: FrameLook = FrameLook.BLUE,
+    val tile: TileLook = TileLook.IVORY,
     /** Mini Golf's look: "day", "sunset", "night" or "mixed" (each hole picks one). */
     val golfTime: String = "day",
     /**
@@ -82,10 +112,29 @@ data class Profile(
     val notificationsAsked: Boolean = false,
     /** Games whose tutorial has been seen (it plays the first time a game is opened). */
     val tutorialsSeen: Set<GameKind> = emptySet(),
-)
+    /** The last six different games played, newest first. */
+    val recentGames: List<RecentGame> = emptyList(),
+    /** Keys of the reactions sent, the last first; the reactions tray follows this order. */
+    val recentReactions: List<String> = emptyList(),
+    /** The six lines the player says with one tap ([ChatLines]); an unset one is its default. */
+    val lines: List<String> = ChatLines.DEFAULTS,
+    /** The last solo setup of each game that has one, as picked (see [soloSetup] for what it plays with). */
+    val soloSetups: Map<GameKind, Map<String, String>> = emptyMap(),
+    /** The latest month whose cup has been shown ("a month ends with a moment"), or null before the first. */
+    val cupShown: java.time.YearMonth? = null,
+) {
+    /** What [game] starts with alone: the last setup, with the default for anything not picked yet or no longer known. */
+    fun soloSetup(game: GameKind): Map<String, String> = SoloSetups.resolve(game, soloSetups[game])
+
+    /** Whether any sound plays at all. */
+    val sound: Boolean get() = loudness != Loudness.OFF
+}
 
 /** One instance per process, shared by every view model, backed by SharedPreferences. */
-class ProfileStore private constructor(private val prefs: SharedPreferences) {
+class ProfileStore private constructor(private val prefs: SharedPreferences, private val faceDir: java.io.File?) {
+    private constructor(prefs: SharedPreferences) : this(prefs, null)
+
+    private var lastAudible = Loudness.NORMAL
     private val _profile = MutableStateFlow(load())
     val profile: StateFlow<Profile> = _profile.asStateFlow()
 
@@ -98,6 +147,41 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setAvatar(value: Avatar?) {
         prefs.edit { putString(KEY_AVATAR, value?.key) }
         _profile.update { it.copy(avatar = value) }
+    }
+
+    /** Keeps [photo] (a base64 JPEG from [Faces]) as this player's own photo, or removes it with null. */
+    fun setFace(photo: String?) {
+        writeFace(MINE_FILE, photo)
+        _profile.update { it.copy(face = photo) }
+    }
+
+    /** Keeps the saved partner's latest [photo] (null: removes it). Nothing happens without a saved partner. */
+    fun setPartnerFace(photo: String?) {
+        val partner = _profile.value.partner ?: return
+        if (partner.face == photo) return
+        writeFace(PARTNER_FILE, photo)
+        _profile.update { it.copy(partner = partner.copy(face = photo)) }
+    }
+
+    private fun writeFace(name: String, photo: String?) {
+        val file = faceDir?.let { java.io.File(it, name) } ?: return
+        runCatching {
+            if (photo == null) {
+                file.delete()
+            } else {
+                file.parentFile?.mkdirs()
+                file.writeBytes(Base64.decode(photo, Base64.DEFAULT))
+            }
+        }
+    }
+
+    /** A kept photo as base64, or null when there is none or the file is not a usable JPEG. */
+    private fun readFace(name: String): String? {
+        val file = faceDir?.let { java.io.File(it, name) }?.takeIf { it.isFile && it.length() in 8..MAX_FACE_BYTES } ?: return null
+        return runCatching {
+            val bytes = file.readBytes()
+            if (Faces.isJpeg(bytes)) Base64.encodeToString(bytes, Base64.NO_WRAP).takeIf { it.length <= Faces.MAX_BASE64 } else null
+        }.getOrNull()
     }
 
     fun setServerPassword(value: String) {
@@ -115,6 +199,11 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
     fun setTheme(mode: ThemeMode) {
         prefs.edit { putString(KEY_THEME, mode.name) }
         _profile.update { it.copy(theme = mode) }
+    }
+
+    fun setColourTheme(theme: ColourTheme) {
+        prefs.edit { putString(KEY_COLOUR_THEME, theme.name) }
+        _profile.update { it.copy(colourTheme = theme) }
     }
 
     fun setShipStyle(style: ShipStyle) {
@@ -136,13 +225,90 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 putString(KEY_P_PLAYER, partner.myPlayerId)
             }
         }
+        writeFace(PARTNER_FILE, partner?.face)
         _profile.update { it.copy(partner = partner) }
     }
 
-    /** Saves the home's game order; null puts the games back in the default order. */
-    fun setGameOrder(order: List<GameKind>?) {
-        prefs.edit { if (order == null) remove(KEY_GAME_ORDER) else putString(KEY_GAME_ORDER, order.joinToString(",") { it.key }) }
-        _profile.update { it.copy(gameOrder = orderOf(order?.joinToString(",") { it.key })) }
+    /** Saves the whole shelf (an undone removal puts it back as it was); null puts back the nine a phone starts with. Nothing else is touched. */
+    fun setShelf(games: List<GameKind>?) {
+        val kept = (games ?: DEFAULT_SHELF).distinct()
+        prefs.edit { putString(KEY_SHELF, encodeShelf(kept)) }
+        _profile.update { it.copy(shelf = kept) }
+    }
+
+    /** Puts [game] at the end of the shelf; nothing happens if it is there already. */
+    fun addToShelf(game: GameKind) {
+        val shelf = _profile.value.shelf
+        if (game in shelf) return
+        saveShelf(shelf + game)
+    }
+
+    /** Takes [game] off the shelf (it is back in the Store). Scores, records, saved games and recent games are kept. */
+    fun removeFromShelf(game: GameKind) {
+        val shelf = _profile.value.shelf
+        if (game !in shelf) return
+        saveShelf(shelf - game)
+    }
+
+    /** Moves the game at place [from] on the shelf to place [to]; places outside the shelf do nothing. */
+    fun moveOnShelf(from: Int, to: Int) {
+        val shelf = _profile.value.shelf
+        if (from !in shelf.indices || to !in shelf.indices || from == to) return
+        saveShelf(shelf.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    private fun saveShelf(shelf: List<GameKind>) {
+        prefs.edit { putString(KEY_SHELF, encodeShelf(shelf)) }
+        _profile.update { it.copy(shelf = shelf) }
+    }
+
+    /** Marks the Game Store note as shown, for good. */
+    fun markShelfNoteShown() {
+        prefs.edit { putBoolean(KEY_SHELF_NOTE_SHOWN, true) }
+        _profile.update { it.copy(shelfNoteShown = true) }
+    }
+
+    /** Remembers that [month]'s cup has been shown, so it is not shown again. */
+    fun setCupShown(month: java.time.YearMonth) {
+        prefs.edit { putString(KEY_CUP_SHOWN, month.toString()) }
+        _profile.update { it.copy(cupShown = month) }
+    }
+
+    /** A game has started: it goes to the front of [Profile.recentGames], once, and only six are kept. */
+    fun noteGamePlayed(game: GameKind, at: Long = System.currentTimeMillis()) {
+        val recent = (listOf(RecentGame(game, at)) + _profile.value.recentGames.filter { it.game != game }).take(MAX_RECENT)
+        prefs.edit { putString(KEY_RECENT, recent.joinToString(",") { "${it.game.key}:${it.at}" }) }
+        _profile.update { it.copy(recentGames = recent) }
+    }
+
+    /** Puts [reaction] first in the tray's order (the ones sent last come first). */
+    fun noteReactionSent(reaction: Reaction) {
+        val keys = (listOf(reaction.key) + _profile.value.recentReactions.filter { it != reaction.key }).take(MAX_RECENT_REACTIONS)
+        prefs.edit { putString(KEY_RECENT_REACTIONS, keys.joinToString(",")) }
+        _profile.update { it.copy(recentReactions = keys) }
+    }
+
+    /** Keeps [lines] as the player's six lines: each cleaned (24 characters at most), an empty one back to its default. */
+    fun setLines(lines: List<String>) {
+        val kept = ChatLines.resolve(lines)
+        prefs.edit { putString(KEY_LINES, ChatLines.encode(kept)) }
+        _profile.update { it.copy(lines = kept) }
+    }
+
+    /** Drops only the recent games that match [entries] exactly (game and time); a later real play of the same game stays. */
+    fun removeRecent(entries: Collection<RecentGame>) {
+        if (entries.isEmpty()) return
+        val recent = _profile.value.recentGames.filter { it !in entries }
+        prefs.edit { putString(KEY_RECENT, recent.joinToString(",") { "${it.game.key}:${it.at}" }) }
+        _profile.update { it.copy(recentGames = recent) }
+    }
+
+    /** The preview's sample recent games, as [setSampleRecent] saved them. */
+    fun sampleRecent(): List<RecentGame> = recentOf(prefs.getString(KEY_SAMPLE_RECENT, null))
+
+    /** Remembers which recent games the preview's Fill added (none: forgets). Preview only. */
+    fun setSampleRecent(entries: List<RecentGame>) {
+        prefs.edit { if (entries.isEmpty()) remove(KEY_SAMPLE_RECENT) else putString(KEY_SAMPLE_RECENT, entries.joinToString(",") { "${it.game.key}:${it.at}" }) }
     }
 
     /** An invitation went out or came in: from now on the home offers to turn on notifications. */
@@ -161,6 +327,29 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         val seen = _profile.value.tutorialsSeen + kind
         prefs.edit { putString(KEY_TUTORIALS, seen.joinToString(",") { it.key }) }
         _profile.update { it.copy(tutorialsSeen = seen) }
+    }
+
+    /** Remembers how [game] was last set up to play alone. */
+    fun setSoloSetup(game: GameKind, values: Map<String, String>) {
+        if (SoloSetups.spec(game) == null) return
+        val setup = SoloSetups.resolve(game, values)
+        prefs.edit { putString(KEY_SOLO_PREFIX + game.key, SoloSetups.encode(setup)) }
+        _profile.update { it.copy(soloSetups = it.soloSetups + (game to setup)) }
+    }
+
+    fun setCardBack(look: CardBackLook) {
+        prefs.edit { putString(KEY_LOOK_CARD_BACK, look.name) }
+        _profile.update { it.copy(cardBack = look) }
+    }
+
+    fun setFrame(look: FrameLook) {
+        prefs.edit { putString(KEY_LOOK_FRAME, look.name) }
+        _profile.update { it.copy(frame = look) }
+    }
+
+    fun setTile(look: TileLook) {
+        prefs.edit { putString(KEY_LOOK_TILE, look.name) }
+        _profile.update { it.copy(tile = look) }
     }
 
     fun setGolfTime(time: String) {
@@ -183,9 +372,18 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(blocksHints = on) }
     }
 
-    fun setSound(on: Boolean) {
-        prefs.edit { putBoolean(KEY_SOUND, on) }
-        _profile.update { it.copy(sound = on) }
+    fun setLoudness(value: Loudness) {
+        if (value != Loudness.OFF) lastAudible = value
+        prefs.edit { putString(KEY_LOUDNESS, value.name) }
+        _profile.update { it.copy(loudness = value) }
+    }
+
+    /** The game menu's on/off: off, or back to the last level that was on (Normal if none). */
+    fun setSound(on: Boolean) = setLoudness(if (on) lastAudible else Loudness.OFF)
+
+    fun setOthersMoves(on: Boolean) {
+        prefs.edit { putBoolean(KEY_OTHERS_MOVES, on) }
+        _profile.update { it.copy(othersMoves = on) }
     }
 
     fun setVibration(on: Boolean) {
@@ -208,18 +406,6 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         _profile.update { it.copy(nearbyCode = code) }
     }
 
-    fun recordSoloWin(difficulty: Difficulty, timeMs: Long) {
-        val old = _profile.value.stats.solo[difficulty] ?: LevelStats()
-        val best = old.bestMs?.let { minOf(it, timeMs) } ?: timeMs
-        prefs.edit {
-            putInt("wins_${difficulty.key}", old.wins + 1)
-            putLong("best_${difficulty.key}", best)
-        }
-        _profile.update {
-            it.copy(stats = it.stats.copy(solo = it.stats.solo + (difficulty to LevelStats(old.wins + 1, best))))
-        }
-    }
-
     fun recordBattle(won: Boolean) {
         val stats = _profile.value.stats
         val key = if (won) KEY_BATTLES_WON else KEY_BATTLES_LOST
@@ -232,13 +418,23 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         }
     }
 
-    private fun load(): Profile {
-        val solo = Difficulty.entries.associateWith {
-            LevelStats(
-                wins = prefs.getInt("wins_${it.key}", 0),
-                bestMs = if (prefs.contains("best_${it.key}")) prefs.getLong("best_${it.key}", 0) else null,
-            )
+    /**
+     * The one-time move to the shelf. When the shelf key is missing (every phone, new or existing, the first time this version opens)
+     * the shelf becomes the nine. The old "game_order" and "put_away" keys are left in place and never read again (so is "arranged_once",
+     * which the Arrange screen used to set). Running it again changes nothing.
+     */
+    internal fun migrateShelf() {
+        if (prefs.contains(KEY_SHELF)) return
+        // A phone with anything saved already had the app; a brand-new one has an empty file at this point.
+        val existing = prefs.all.isNotEmpty()
+        prefs.edit {
+            putString(KEY_SHELF, encodeShelf(DEFAULT_SHELF))
+            if (existing) putBoolean(KEY_SHELF_NOTE_DUE, true)
         }
+    }
+
+    private fun load(): Profile {
+        migrateShelf()
         val deviceId = prefs.getString(KEY_DEVICE, null) ?: java.util.UUID.randomUUID().toString().also {
             prefs.edit { putString(KEY_DEVICE, it) }
         }
@@ -251,6 +447,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
                 avatar = Avatar.from(prefs.getString(KEY_P_AVATAR, null)),
                 deviceId = prefs.getString(KEY_P_DEVICE, null),
                 myPlayerId = prefs.getString(KEY_P_PLAYER, null),
+                face = readFace(PARTNER_FILE),
             )
         }
         return Profile(
@@ -258,26 +455,43 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
             deviceId = deviceId,
             name = prefs.getString(KEY_NAME, "").orEmpty(),
             avatar = Avatar.from(prefs.getString(KEY_AVATAR, null)),
+            face = readFace(MINE_FILE),
             scriptUrl = prefs.getString(KEY_URL, "").orEmpty(),
             serverPassword = prefs.getString(KEY_PASSWORD, "").orEmpty(),
             theme = runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, "").orEmpty()) }
                 .getOrDefault(ThemeMode.SYSTEM),
+            colourTheme = runCatching { ColourTheme.valueOf(prefs.getString(KEY_COLOUR_THEME, "").orEmpty()) }
+                .getOrDefault(ColourTheme.LAVENDER),
             shipStyle = runCatching { ShipStyle.valueOf(prefs.getString(KEY_SHIP_STYLE, "").orEmpty()) }
                 .getOrDefault(ShipStyle.TOY),
-            stats = Stats(solo, prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
+            stats = Stats(prefs.getInt(KEY_BATTLES_WON, 0), prefs.getInt(KEY_BATTLES_LOST, 0)),
             nearbyCode = prefs.getString(KEY_NEARBY_CODE, "").orEmpty(),
-            gameOrder = orderOf(prefs.getString(KEY_GAME_ORDER, null)),
+            shelf = shelfOf(prefs.getString(KEY_SHELF, null)),
+            shelfNoteShown = prefs.getBoolean(KEY_SHELF_NOTE_SHOWN, false),
+            shelfNoteDue = prefs.getBoolean(KEY_SHELF_NOTE_DUE, false),
             // Someone who set a name before the first-run screens existed has nothing to learn there.
             firstRunDone = prefs.getBoolean(KEY_FIRST_RUN_DONE, prefs.getString(KEY_NAME, "").orEmpty().isNotBlank()),
             vibration = prefs.getBoolean(KEY_VIBRATION, true),
-            sound = prefs.getBoolean(KEY_SOUND, true),
+            loudness = loudnessOf(prefs).also { if (it != Loudness.OFF) lastAudible = it },
+            othersMoves = prefs.getBoolean(KEY_OTHERS_MOVES, true),
             blocksHints = prefs.getBoolean(KEY_BLOCKS_HINTS, true),
             wordsHard = prefs.getBoolean(KEY_WORDS_HARD, false),
             letterMarks = prefs.getBoolean(KEY_LETTER_MARKS, true),
+            // An unknown value (a newer app's, or damage) is the look from before the choice existed.
+            cardBack = runCatching { CardBackLook.valueOf(prefs.getString(KEY_LOOK_CARD_BACK, "").orEmpty()) }.getOrDefault(CardBackLook.STRIPES),
+            frame = runCatching { FrameLook.valueOf(prefs.getString(KEY_LOOK_FRAME, "").orEmpty()) }.getOrDefault(FrameLook.BLUE),
+            tile = runCatching { TileLook.valueOf(prefs.getString(KEY_LOOK_TILE, "").orEmpty()) }.getOrDefault(TileLook.IVORY),
             golfTime = prefs.getString(KEY_GOLF_TIME, "day") ?: "day",
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
+            recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
+            recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
+            lines = ChatLines.decode(prefs.getString(KEY_LINES, null)),
+            soloSetups = GameKind.entries.mapNotNull { game ->
+                prefs.getString(KEY_SOLO_PREFIX + game.key, null)?.let { game to SoloSetups.resolve(game, SoloSetups.decode(it)) }
+            }.filter { it.second.isNotEmpty() }.toMap(),
+            cupShown = runCatching { java.time.YearMonth.parse(prefs.getString(KEY_CUP_SHOWN, null)) }.getOrNull(),
             // Before the switch existed, someone with a server link played online.
             playMode = runCatching { PlayMode.valueOf(prefs.getString(KEY_PLAY_MODE, "").orEmpty()) }.getOrElse {
                 if (prefs.getString(KEY_URL, "").orEmpty().startsWith("https://")) PlayMode.ONLINE else PlayMode.OFFLINE
@@ -287,10 +501,19 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
 
     companion object {
         const val MAX_NAME = 16
+        /** The photos are kept as files in this folder of the app's private storage: your own, and the saved partner's. */
+        private const val FACE_DIR = "faces"
+        private const val MINE_FILE = "me.jpg"
+        private const val PARTNER_FILE = "partner.jpg"
+        private const val MAX_FACE_BYTES = 12_000L
+        const val MAX_RECENT = 6
+        /** More than any tray holds, so keys of reactions added later still keep their place. */
+        const val MAX_RECENT_REACTIONS = 40
         // These two keys predate the profile screen; keep them so saved settings carry over.
         private const val KEY_URL = "script_url"
         private const val KEY_NAME = "player_name"
         private const val KEY_THEME = "theme"
+        private const val KEY_COLOUR_THEME = "colour_theme"
         private const val KEY_SHIP_STYLE = "ship_style"
         private const val KEY_AVATAR = "avatar"
         private const val KEY_DEVICE = "device_id"
@@ -305,33 +528,103 @@ class ProfileStore private constructor(private val prefs: SharedPreferences) {
         private const val KEY_PASSWORD = "server_password"
         private const val KEY_NEARBY_CODE = "nearby_code"
         private const val KEY_PLAY_MODE = "play_mode"
-        private const val KEY_GAME_ORDER = "game_order"
+        // The old arrange screen's keys ("game_order", "put_away") are no longer read or written, and are left in place.
+        private const val KEY_SHELF = "shelf"
+        private const val KEY_SHELF_NOTE_SHOWN = "shelf_note_shown"
+        private const val KEY_SHELF_NOTE_DUE = "shelf_note_due"
         private const val KEY_FIRST_RUN_DONE = "first_run_done"
         private const val KEY_VIBRATION = "vibration"
+        /** The old on/off sound setting: read once to make [KEY_LOUDNESS], never written or removed. */
         private const val KEY_SOUND = "sound"
+        private const val KEY_LOUDNESS = "sound_loudness"
+        private const val KEY_OTHERS_MOVES = "sound_others_moves"
         private const val KEY_BLOCKS_HINTS = "blocks_hints"
         private const val KEY_WORDS_HARD = "words_hard"
         private const val KEY_LETTER_MARKS = "letter_marks"
         private const val KEY_GOLF_TIME = "golf_time"
+        private const val KEY_LOOK_CARD_BACK = "look_card_back"
+        private const val KEY_LOOK_FRAME = "look_frame"
+        private const val KEY_LOOK_TILE = "look_tile"
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"
+        private const val KEY_RECENT = "recent_games"
+        /** Reaction keys, the one sent last first: the order of the reactions tray. */
+        private const val KEY_RECENT_REACTIONS = "recent_reactions"
+        /** The player's six lines, one per line of text. */
+        private const val KEY_LINES = "chat_lines"
+        /** Preview app only: the recent games its Fill added, so Clear takes out just those. */
+        private const val KEY_SAMPLE_RECENT = "preview_sample_recent"
+        /** The last month whose trophy moment was shown, as "2026-10". */
+        private const val KEY_CUP_SHOWN = "cup_shown_month"
+        /** A game's last solo setup is kept under this and the game's key. */
+        private const val KEY_SOLO_PREFIX = "solo_setup_"
 
-        /** The saved order, with games added since (or not known any more) put right. */
-        fun orderOf(saved: String?): List<GameKind> {
-            val known = saved.orEmpty().split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.distinct()
-            return known + (GameKind.entries - known.toSet())
+        /**
+         * The saved loudness. Before it existed, sound was on or off (`sound`): on becomes Normal,
+         * off becomes Off, written to the new key the first time. The old key stays as it was, and
+         * once the new one is there it alone decides, so running this again changes nothing.
+         */
+        internal fun loudnessOf(prefs: SharedPreferences): Loudness {
+            val saved = prefs.getString(KEY_LOUDNESS, null)?.let { s -> Loudness.entries.firstOrNull { it.name == s } }
+            if (saved != null) return saved
+            val migrated = if (prefs.getBoolean(KEY_SOUND, true)) Loudness.NORMAL else Loudness.OFF
+            prefs.edit { putString(KEY_LOUDNESS, migrated.name) }
+            return migrated
         }
+
+        /** Recent games from "key:millis" pairs, newest first; anything unreadable is left out. */
+        fun recentOf(saved: String?): List<RecentGame> =
+            saved.orEmpty().split(",").mapNotNull { pair ->
+                val (key, at) = pair.split(":").takeIf { it.size == 2 } ?: return@mapNotNull null
+                val game = GameKind.entries.firstOrNull { it.key == key } ?: return@mapNotNull null
+                RecentGame(game, at.toLongOrNull() ?: return@mapNotNull null)
+            }.sortedByDescending { it.at }.distinctBy { it.game }.take(MAX_RECENT)
+
+        /** The nine games every phone starts with, in this order. */
+        val DEFAULT_SHELF: List<GameKind> = listOf(
+            GameKind.SUDOKU, GameKind.SHIPS, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT,
+            GameKind.DOMINOES, GameKind.CLASH, GameKind.LUDO, GameKind.GOLF,
+        )
+
+        /** The games in the Store: every game not on [shelf], in the catalogue's own order. */
+        fun storeGames(shelf: List<GameKind>): List<GameKind> = GameKind.entries - shelf.toSet()
+
+        private fun encodeShelf(shelf: List<GameKind>) = shelf.joinToString(",") { it.key }
+
+        /** The saved shelf: unknown keys and repeats are left out; a missing value is the nine. Games are never added back. */
+        fun shelfOf(saved: String?): List<GameKind> =
+            if (saved == null) DEFAULT_SHELF
+            else saved.split(",").mapNotNull { key -> GameKind.entries.firstOrNull { it.key == key } }.distinct()
+
         private const val KEY_BATTLES_WON = "battles_won"
         private const val KEY_BATTLES_LOST = "battles_lost"
+
+        /**
+         * Sudoku's bests as older versions wrote them here (`wins_<level>`, `best_<level>`). Nothing
+         * writes these keys any more and nothing removes them: [SoloRecordStore] copies them across.
+         */
+        fun oldSudokuBests(context: Context): Map<Difficulty, LevelStats> = oldSudokuBests(
+            context.getSharedPreferences(FILE, Context.MODE_PRIVATE),
+        )
+
+        internal fun oldSudokuBests(prefs: SharedPreferences): Map<Difficulty, LevelStats> = Difficulty.entries.associateWith {
+            LevelStats(
+                wins = prefs.getInt("wins_${it.key}", 0),
+                bestMs = if (prefs.contains("best_${it.key}")) prefs.getLong("best_${it.key}", 0) else null,
+            )
+        }
+
+        // The file keeps the app's first name: renaming it would lose everyone's profile.
+        private const val FILE = "arcade_sudoku"
 
         @Volatile
         private var instance: ProfileStore? = null
 
         fun get(context: Context): ProfileStore = instance ?: synchronized(this) {
             instance ?: ProfileStore(
-                // The file keeps the app's first name: renaming it would lose everyone's profile.
-                context.applicationContext.getSharedPreferences("arcade_sudoku", Context.MODE_PRIVATE),
+                context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE),
+                java.io.File(context.applicationContext.filesDir, FACE_DIR),
             ).also { instance = it }
         }
     }

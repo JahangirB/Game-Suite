@@ -1,5 +1,6 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,14 +16,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,7 +44,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pippop.data.GameKind
-import com.pippop.data.Reaction
 import com.pippop.data.RoomState
 import com.pippop.data.RoomStatus
 import com.pippop.game.golf.Box
@@ -58,15 +61,14 @@ import com.pippop.ui.SoloGolfUiState
 import com.pippop.ui.SoloGolfViewModel
 import com.pippop.ui.Sfx
 import com.pippop.ui.Sound
-import com.pippop.ui.Takeover
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
 import com.pippop.ui.rememberSfx
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.GameColors
 import com.pippop.ui.theme.Shapes
+import com.pippop.ui.theme.Space
 import com.pippop.ui.theme.TextSize
-import kotlinx.coroutines.delay
 import kotlin.math.hypot
 
 private val Grass = GameColors.Grass
@@ -146,7 +148,11 @@ fun GolfMap(hole: Hole, balls: Map<Char, Pt?>, modifier: Modifier = Modifier) {
  * looked already seen, and the ball jumped to where it stopped without rolling there.)
  */
 @Composable
-fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onShoot: (ShotKind, Double, Double) -> Unit, modifier: Modifier = Modifier) {
+fun GolfPlay(
+    view: GolfView, current: Char?, canShoot: Boolean, game: Any, onShoot: (ShotKind, Double, Double) -> Unit, modifier: Modifier = Modifier,
+    /** The 3D course; a test swaps it for one that has no WebView. */
+    course: @Composable (Golf3DState, Golf3DShot?, (ShotKind, Double, Double) -> Unit, (String) -> Unit, Modifier) -> Unit = { st, sh, shoot, event, mod -> Golf3D(st, sh, shoot, event, mod) },
+) {
     val sfx = rememberSfx()
     val last = view.last
     // Shots already played when the screen opened (or the game started) don't play again.
@@ -160,17 +166,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         // The shooter's phone said where it stopped; end there whatever this phone worked out.
         val frames = if (worked.hazard == null && !worked.holed) worked.frames.dropLast(1) + Frame(last.to.x, last.to.y, 0.0) else worked.frames
         shot = Golf3DShot("$game-${last.seq}", "$game-${last.hole}", hole, last.who, markColor(last.who), worked.copy(frames = frames), last.hole + 1)
-        sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()))
-    }
-    // Nobody shoots while Kylian has the game.
-    val lockedUntil by Takeover.until.collectAsState()
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(lockedUntil) {
-        now = System.currentTimeMillis()
-        if (lockedUntil > now) {
-            delay(lockedUntil - now)
-            now = System.currentTimeMillis()
-        }
+        sfx.play(Sound.GOLF_PUTT, (if (last.who == 'm') 1f else Sfx.OTHERS) * (0.6f + 0.4f * last.power.toFloat()), others = last.who != 'm')
     }
     val hole = view.holeAt(view.hole.coerceIn(0, view.holes - 1))
     // Every ball still out; one not hit yet is on the tee, shown when it's that player's turn
@@ -185,27 +181,28 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
         hole = hole,
         balls = balls + listOfNotNull(waiting),
         turn = current,
-        canShoot = canShoot && view.done['m'] != true && now >= lockedUntil,
+        canShoot = canShoot && view.done['m'] != true,
         noGuide = mine != null && hole.zoneAt(mine)?.type == ZoneType.EYES,
         number = view.hole + 1,
         meDone = view.done['m'] == true,
         timeOfDay = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current).profile.collectAsState().value.golfTime,
     )
-    Golf3D(
+    course(
         state, shot, onShoot,
-        onEvent = { what ->
-            val v = if (shot?.who == 'm') 1f else Sfx.OTHERS
+        { what ->
+            val others = shot?.who != 'm'
+            val v = if (others) Sfx.OTHERS else 1f
             when (what) {
-                "wall", "stonks", "portal" -> sfx.play(Sound.GOLF_WALL, v)
-                "land" -> sfx.play(Sound.GOLF_PUTT, v * 0.5f)
-                "drop" -> sfx.play(Sound.GOLF_DROP, v)
-                "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v)
+                "wall", "stonks", "portal" -> sfx.play(Sound.GOLF_WALL, v, others = others)
+                "land" -> sfx.play(Sound.GOLF_PUTT, v * 0.5f, others = others)
+                "drop" -> sfx.play(Sound.GOLF_DROP, v, others = others)
+                "sea", "water", "fire" -> sfx.play(Sound.GOLF_SPLASH, v, others = others)
                 "holed" -> sfx.play(Sound.GOLF_CUP)
                 "kylian" -> {
-                    // Kylian Dictador takes the next turn, and nobody shoots while his song plays;
-                    // his statue comes down in the 3D view. The song is as loud as your ball is near
-                    // him (full on your own shot, or once you've finished and are watching).
-                    Takeover.takeOver(Reaction.KYLIAN, System.currentTimeMillis())
+                    // His statue comes down in the 3D view and his song plays: a picture and a sound,
+                    // they never hold anyone's shot (the rules skip the player who landed there).
+                    // The song is as loud as your ball is near him (full on your own shot, or once
+                    // you've finished and are watching).
                     val played = shot
                     val volume = if (played == null || played.who == 'm' || view.done['m'] == true) 1f
                     else kylianVolume(hypot((view.balls['m'] ?: hole.tee).x - played.shot.end.x, (view.balls['m'] ?: hole.tee).y - played.shot.end.y))
@@ -213,7 +210,7 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
                 }
             }
         },
-        modifier = modifier.clip(Shapes.M),
+        modifier.clip(Shapes.M),
     )
 }
 
@@ -224,14 +221,23 @@ fun GolfPlay(view: GolfView, current: Char?, canShoot: Boolean, game: Any, onSho
 internal fun kylianVolume(distance: Double): Float = (1.0 / (1.0 + (distance / 0.6) * (distance / 0.6))).coerceIn(0.06, 1.0).toFloat()
 
 /** "Hole 3 of 9 · par 3" and everyone's total so far. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>) {
+internal fun GolfHeader(view: GolfView, names: List<Pair<Char, String>>, totals: Boolean = false) {
     val p = AppTheme.palette
     val hole = view.holeAt()
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    // A flow, not a row: with three computers the players' totals wrap to a second line instead of breaking mid-name.
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.M), verticalArrangement = Arrangement.spacedBy(Space.XS)) {
         Text("Hole ${view.hole + 1} of ${view.holes} · par ${hole.par}", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-        Text(names.joinToString("  ") { (m, n) -> "$n ${view.total(m)}" }, color = p.muted, fontSize = TextSize.Body)
+        // Online, the players' chips carry the totals; on your own there are no chips, so they are here.
+        if (totals) names.forEach { (m, n) -> Text("$n ${golfTotals(view, m)}", color = p.muted, fontSize = TextSize.Body) }
     }
+}
+
+/** [who]'s total strokes, and for you how many on this hole: "12 · 3 on this hole". */
+internal fun golfTotals(view: GolfView, who: Char): String {
+    val here = view.strokes[who]?.getOrNull(view.hole) ?: 0
+    return "${view.total(who)} · $here on this hole"
 }
 
 /** One hole of a scorecard: the strokes taken so far ([strokes], null before the hole), how far from par once it is finished ([vsPar]). */
@@ -252,7 +258,7 @@ private fun vsParText(vs: Int) = if (vs > 0) "+$vs" else if (vs == 0) "E" else "
  * green, bad ones (over par) red, level ones plain; [ringed] marks the hole being played.
  */
 @Composable
-private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, ringed: Boolean, modifier: Modifier = Modifier) {
+private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, ringed: Boolean, modifier: Modifier = Modifier, penalty: Boolean = false) {
     val p = AppTheme.palette
     Column(
         modifier
@@ -263,7 +269,8 @@ private fun ScoreCell(number: Int, top: String, bottom: String, tone: Color, rin
             .clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("$number", color = p.muted, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
+        // "+5": the ball was still out when the hole ended (the strokes below already include it).
+        Text(if (penalty) "$number +${Golf.UNFINISHED_PENALTY}" else "$number", color = if (penalty) p.text else p.muted, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
         Text(top, color = tone, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         Text(bottom, color = tone, fontSize = TextSize.Micro, maxLines = 1, softWrap = false)
     }
@@ -287,7 +294,7 @@ private fun ScoreRow(view: GolfView, who: Char?, modifier: Modifier = Modifier) 
                     s.vsPar > 0 -> p.bad
                     else -> p.text
                 }
-                ScoreCell(i + 1, s.strokes?.toString() ?: "–", s.vsPar?.let(::vsParText) ?: " ", tone, ringed, cell)
+                ScoreCell(i + 1, s.strokes?.toString() ?: "–", s.vsPar?.let(::vsParText) ?: " ", tone, ringed, cell, penalty = i in view.unfinished[who].orEmpty())
             }
         }
     }
@@ -302,35 +309,42 @@ private fun scoreSpeech(view: GolfView, who: Char) = (0 until view.holes).mapNot
         s.vsPar == 0 -> ", par"
         s.vsPar < 0 -> ", ${-s.vsPar} under par"
         else -> ", ${s.vsPar} over par"
-    }
+    } + if (i in view.unfinished[who].orEmpty()) ", not in, ${Golf.UNFINISHED_PENALTY} added" else ""
 }.joinToString("; ")
 
 /**
- * A strip under the header with your strokes on each of the nine holes (the hole you're on
- * ringed, under par green with a minus, over par red with a plus). Tap it for the full card
- * with everyone's strokes ([names]: just you when you play alone).
+ * The full card: par, then each player's nine holes, with a note under anyone picked up on a hole.
+ * [compact] (the result, where the card sits above the buttons) starts as just the par and each
+ * player's total, with "Show scorecard" one tap away to open the nine holes.
  */
 @Composable
-internal fun GolfScoreStrip(view: GolfView, names: List<Pair<Char, String>>) {
+internal fun GolfScorecard(view: GolfView, names: List<Pair<Char, String>>, compact: Boolean = false) {
     val p = AppTheme.palette
-    var open by remember { mutableStateOf(false) }
-    if (open) InfoSheet("Scorecard", onDismiss = { open = false }) {
+    var open by remember { mutableStateOf(!compact) }
+    Column(verticalArrangement = Arrangement.spacedBy(Space.M)) {
         val par = (0 until view.holes).sumOf { view.holeAt(it).par }
-        Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
-        Text("Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-        ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
+        if (!compact) Text("Par $par · under par is green with a minus, over par is red with a plus.", color = p.muted, fontSize = TextSize.Body)
+        Text(if (compact) "Par $par" else "Par", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
+        if (open) ScoreRow(view, null, Modifier.semantics { contentDescription = "Pars: " + (0 until view.holes).joinToString(", ") { view.holeAt(it).par.toString() } })
         names.forEach { (m, n) ->
             val t = view.total(m)
             Text("$n · $t", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-            ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
+            if (open) ScoreRow(view, m, Modifier.semantics { contentDescription = scoreSpeech(view, m) })
+            unfinishedNote(view, m)?.let { Text(it, color = p.muted, fontSize = TextSize.Body) }
+        }
+        if (compact) {
+            Text(
+                if (open) "Hide scorecard" else "Show scorecard", color = p.primaryText, fontSize = TextSize.Body, fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { open = !open }.wrapContentHeight(Alignment.CenterVertically),
+            )
         }
     }
-    LayoutBox(
-        Modifier.fillMaxWidth().clip(Shapes.M).background(p.card)
-            .clickable(onClickLabel = "Open the full scorecard", role = Role.Button) { open = true }
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "Scorecard, hole ${view.hole + 1} of ${view.holes}. ${scoreSpeech(view, 'm')}" },
-    ) { ScoreRow(view, 'm') }
+}
+
+/** The full scorecard in a sheet: the game menu's "Scorecard". */
+@Composable
+internal fun GolfScorecardSheet(view: GolfView, names: List<Pair<Char, String>>, onDismiss: () -> Unit) {
+    InfoSheet("Scorecard", onDismiss = onDismiss) { GolfScorecard(view, names) }
 }
 
 /**
@@ -355,13 +369,19 @@ private fun yourShot(view: GolfView) = when (val left = view.left['m']) {
     else -> "Your shot: $left left to get in"
 }
 
+/** "Not in (+5): hole 3" or "holes 3, 7": the holes [who] was picked up on, or null when there were none. */
+private fun unfinishedNote(view: GolfView, who: Char): String? {
+    val holes = view.unfinished[who].orEmpty().filter { it < view.holes }.sorted()
+    return if (holes.isEmpty()) null else "Not in (+${Golf.UNFINISHED_PENALTY}): hole${if (holes.size > 1) "s" else ""} ${holes.joinToString(", ") { "${it + 1}" }}"
+}
+
 /** Scores per player for the result popup: total and against par. */
 private fun golfScores(view: GolfView, names: List<Pair<Char, String>>): List<String> {
     val par = (0 until view.holes).sumOf { view.holeAt(it).par }
     return names.map { (m, n) ->
         val t = view.total(m)
         val vs = t - par
-        "$n $t (${if (vs > 0) "+$vs" else if (vs == 0) "par" else "$vs"})"
+        "$n $t (${if (vs > 0) "+$vs" else if (vs == 0) "par" else "$vs"})" + (unfinishedNote(view, m)?.let { " ($it)" } ?: "")
     }
 }
 
@@ -378,13 +398,15 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val myTurn = turns.turn == "me" && !finished
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GOLF) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GOLF) { showRules = false }
+    var showCard by remember { mutableStateOf(false) }
     fun letterOf(index: Int) = "opq"[index]
     val turnName = turns.turnName ?: room.opponent?.name
     val current = if (myTurn) 'm' else room.others.indexOfFirst { it.name == turnName }.takeIf { it >= 0 }?.let(::letterOf)
     val names = listOf('m' to "You") + room.others.mapIndexed { i, o -> letterOf(i) to o.name }
     // The dock's Map: the hole from above, with every ball on it.
     var showMap by remember { mutableStateOf(false) }
+    if (showCard) GolfScorecardSheet(view, names) { showCard = false }
     if (showMap) InfoSheet("Hole ${view.hole + 1} from above", onDismiss = { showMap = false }) {
         val hole = view.holeAt(view.hole.coerceIn(0, view.holes - 1))
         GolfMap(hole, view.balls.filterKeys { view.done[it] != true }, Modifier.fillMaxWidth().aspectRatio(1f))
@@ -397,17 +419,17 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
             room, state, now, MyDisc,
             detail = { player, isMe ->
                 val mark = if (isMe) 'm' else letterOf(room.others.indexOf(player).coerceAtLeast(0))
-                "${view.strokes[mark]?.getOrNull(view.hole) ?: 0} this hole"
+                golfTotals(view, mark)
             },
             active = { player, isMe -> !finished && if (isMe) myTurn else turns.turn == "opponent" && player.name == turnName },
             otherColor = { i -> markColor(letterOf(i)) },
         ),
         glow = GameKind.GOLF.color,
-        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
+        menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave, onScorecard = { showCard = true }),
         tools = listOf(DockTool("Map", GameIcons.Map) { showMap = true }),
         onReact = if (room.opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.GOLF,
@@ -421,11 +443,11 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
                 },
                 onRematch = vm::readyTurns, onFinish = onLeave,
                 scores = golfScores(view, names),
+                extra = { GolfScorecard(view, names, compact = true) },
             )
         },
     ) {
         GolfHeader(view, names)
-        GolfScoreStrip(view, names)
         GolfCountdown(view, names)
         TurnLine(
             when {
@@ -443,15 +465,12 @@ fun GolfGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
 /** Mini Golf's level: whoever opened the game picks how many islands every hole has; everyone else sees it. */
 @Composable
 fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.golfLevel ?: return
-    AppCard("Which holes?") {
-        if (room.setsOptions) {
-            OptionGroup(GolfLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-        } else {
-            Text("${level.label}, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
-        Text("All nine holes are this kind, new from the 1,000 each game.", color = p.muted, fontSize = TextSize.Body)
+    OptionsCard(room, "Which holes?", busy) { enabled ->
+        OptionRow(
+            "Holes", GolfLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled,
+            note = "${level.label.levelNote()}. All nine holes are this kind, new from the 1,000 each game.",
+        )
         GolfTimePicker()
     }
 }
@@ -462,72 +481,52 @@ fun GolfLevelCard(room: RoomState, busy: Boolean, onPick: (GolfLevel) -> Unit) {
 fun SoloGolfScreen(state: SoloGolfUiState, vm: SoloGolfViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.GOLF) { showRules = false }
+    if (showRules) RulesSheet(GameKind.GOLF) { showRules = false }
     val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.GOLF, "New game", vm::startWith) { changing = false }
     val names = listOf('m' to "You") + (1..state.computers).map { "opq"[it - 1] to "CPU $it" }
+    var showCard by remember { mutableStateOf(false) }
+    if (showCard) GolfScorecardSheet(view, names) { showCard = false }
     GameFrame(
         title = "Mini Golf",
         subtitle = if (state.computers == 0) "On your own" + (state.best?.let { " · best $it" } ?: "") else "Against ${state.computers} computer${if (state.computers > 1) "s" else ""}",
         players = emptyList(),
         glow = GameKind.GOLF.color,
-        menu = soloMenu(GameKind.GOLF, onHome, { showRules = true }, if (view != null) vm::start else null),
-        scrollable = view == null,
-        popup = if (view == null || state.result == null) null else popupContent {
+        menu = soloMenu(GameKind.GOLF, onHome, { showRules = true }, vm::start, { changing = true }, onScorecard = { showCard = true }),
+        popup = if (state.result == null) null else popupContent {
             SoloPopup(
                 GameKind.GOLF, state.result,
                 golfScores(view, names).joinToString(" · "),
-                onAgain = vm::start, onHome = onHome, finishLabel = "Change players", onFinish = vm::changeSetup,
+                onAgain = vm::start, onHome = onHome, finishLabel = "Change setup", onFinish = { changing = true },
+                extra = { GolfScorecard(view, names, compact = true) },
             )
         },
     ) {
-        if (view == null) {
-            AppCard("Nine holes") {
-                Text("Swipe to turn, pinch to zoom, and slide up the bar on the right to shoot: low rolls, high jumps over gaps and walls. Fewest strokes over nine holes wins.", color = p.muted, fontSize = TextSize.Body)
-                Text("Holes", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                OptionGroup(GolfLevel.entries.map { it to it.label }, state.level, enabled = true, onPick = vm::setLevel)
-                GolfTimePicker()
-                Text("Computers", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (n in 0..3) {
-                        val label = if (n == 0) "None" else "$n"
-                        if (state.computers == n) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setComputers(n) }, Modifier.weight(1f))
-                    }
-                }
-                if (state.computers > 0) {
-                    Text("How good", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Easy", "Medium", "Hard").forEachIndexed { i, label ->
-                            if (state.skill == i) PrimaryButton(label, {}, Modifier.weight(1f)) else SecondaryButton(label, { vm.setSkill(i) }, Modifier.weight(1f))
-                        }
-                    }
-                }
-                PrimaryButton("Tee off", vm::start, Modifier.fillMaxWidth())
-            }
-        } else {
-            GolfHeader(view, names)
-            GolfScoreStrip(view, names)
-            GolfCountdown(view, names)
-            val myTurn = state.turn == 'm' && state.result == null
-            TurnLine(
-                when {
-                    state.result != null -> "Round over"
-                    myTurn -> yourShot(view)
-                    else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is shooting…"
-                },
-                myTurn, GameKind.GOLF.color,
-            )
-            GolfPlay(view, state.turn, myTurn, state.game, vm::shoot, Modifier.weight(1f).fillMaxWidth())
-        }
+        GolfHeader(view, names, totals = true)
+        GolfCountdown(view, names)
+        val myTurn = state.turn == 'm' && state.result == null
+        TurnLine(
+            when {
+                state.result != null -> "Round over"
+                myTurn -> yourShot(view)
+                else -> "${names.firstOrNull { it.first == state.turn }?.second ?: "The computer"} is shooting…"
+            },
+            myTurn, GameKind.GOLF.color,
+        )
+        GolfPlay(view, state.turn, myTurn, state.game, vm::shoot, Modifier.weight(1f).fillMaxWidth())
     }
 }
 
 /** Mini Golf's look, on this phone: day, sunset, night, or mixed (each hole picks one). Only the look changes. */
 @Composable
 fun GolfTimePicker() {
-    val p = AppTheme.palette
     val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
     val time = store.profile.collectAsState().value.golfTime
-    Text("Time of day", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold)
-    OptionGroup(listOf("day" to "Day", "sunset" to "Sunset", "night" to "Night", "mixed" to "Mixed"), time, enabled = true, onPick = store::setGolfTime)
-    Text("At night the balls glow and leave a streak; the cup's rim shines gold. Nothing about the rules changes.", color = p.muted, fontSize = TextSize.Label)
+    OptionRow(
+        "Time of day", listOf("day" to "Day", "sunset" to "Sunset", "night" to "Night", "mixed" to "Mixed"), time, store::setGolfTime, perRow = 2,
+        note = "At night the balls glow and leave a streak; the cup's rim shines gold. Nothing about the rules changes.",
+    )
 }

@@ -11,14 +11,41 @@ export const CARDS = 16;
 export const DECKS = [16, 24, 36];
 const FACES = ['fox', 'cat', 'dog', 'panda', 'owl', 'frog', 'tiger', 'unicorn', 'robot', 'alien', 'lion', 'penguin'];
 
+/** The deck's pictures: the animals, or (cap and token 'memory-photos') the players' own photos, one per pair. */
+export const DECK_KINDS = ['animals', 'photos'];
+/** Pairs in a deck of [cards] cards: how many photos 'Your photos' needs. */
+export const pairsOf = (cards) => cards / 2;
+
 export const cleanOptions = (o) => ({ cards: DECKS.includes(Number(o?.cards)) ? Number(o.cards) : CARDS });
+/** Which pictures the deck uses; 'animals' unless the options say 'photos' (the room decides whether that is allowed). */
+export const cleanDeck = (o) => (o?.deck === 'photos' ? 'photos' : 'animals');
+
+/** The photo ids of the open deck, one per pair (null where none yet); empty unless the room's deck is the photos. */
+export function memoryPics(room) {
+  if (room.game !== 'memory' || cleanDeck(room.options) !== 'photos') return [];
+  const pairs = pairsOf(cleanOptions(room.options).cards);
+  return Array.from({ length: pairs }, (_, i) => room.memoryPics?.[i] ?? null);
+}
+
+/** Whether every place of the photos deck has its photo. */
+export const memoryPicsComplete = (room) => memoryPics(room).every((id) => id != null);
+
+/** The animal a phone without photos shows for a photo card 'p<n>' (the plain face the app uses; gold from the 13th); other faces as they are. */
+export const animalFor = (face) => {
+  const m = typeof face === 'string' ? /^p(\d{1,2})$/.exec(face) : null;
+  if (!m) return face;
+  const n = Number(m[1]);
+  return FACES[n % FACES.length] + (n >= FACES.length ? '*' : '');
+};
 
 export function start(random = Math.random, marks = [], options = {}) {
-  const cards = cleanOptions(options).cards;
-  // Plain animals first; gold ones only once the plain ones run out.
+  const { cards } = cleanOptions(options);
+  const kind = cleanDeck(options);
+  // Plain animals first; gold ones only once the plain ones run out. With the players' photos each pair is 'p<n>',
+  // n the pair's place in the room's list of photos; a phone shows the photo when it has it, else a plain animal.
   const plain = [...FACES].sort(() => random() - 0.5);
   const gold = FACES.map((f) => f + '*').sort(() => random() - 0.5);
-  const faces = [...plain, ...gold].slice(0, cards / 2);
+  const faces = kind === 'photos' ? Array.from({ length: pairsOf(cards) }, (_, i) => 'p' + i) : [...plain, ...gold].slice(0, cards / 2);
   const deck = [...faces, ...faces];
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));

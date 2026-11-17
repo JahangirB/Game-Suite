@@ -8,12 +8,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.pippop.game.golf.GolfView
 import com.pippop.game.golf.Pt
-import com.pippop.ui.screens.GolfScoreStrip
+import com.pippop.ui.screens.GolfScorecard
 import org.junit.Test
 
 /**
- * Mini Golf mid-round: the fifth hole of nine, the scorecard strip across the top. Only the 2D
- * strip is drawn (the 3D course can't render here). Without a course list the game plays the
+ * Mini Golf mid-round: the fifth hole of nine, the scorecard (the strip across the top is gone). Only the 2D
+ * card is drawn (the 3D course can't render here). Without a course list the game plays the
  * three built-in holes in turn, pars 4, 5, 6, 4, 5, 6..., so your 3, 5 and 8 are one under,
  * level and two over on the first three, 4 is level on the fourth, and 2 is under way on the fifth.
  */
@@ -28,7 +28,7 @@ class ScreenshotGolfTest : ScreenshotBase() {
             last = null,
         )
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            GolfScoreStrip(view, listOf('m' to "You", 'o' to "Ben"))
+            GolfScorecard(view, listOf('m' to "You", 'o' to "Ben"))
         }
     }
 

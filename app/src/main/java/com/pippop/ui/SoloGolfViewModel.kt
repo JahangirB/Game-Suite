@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.golf.Courses
@@ -49,12 +52,6 @@ class SoloGolfViewModel : ViewModel() {
 
     fun setLevel(level: GolfLevel) = _state.update { it.copy(level = level) }
 
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val m = GolfMatch("mopq".take(_state.value.computers + 1).toList(), Courses.pick(_state.value.level))
@@ -85,6 +82,11 @@ class SoloGolfViewModel : ViewModel() {
         val move = JSONObject().put("kind", kind.key).put("angle", angle).put("power", power).put("x", rest.x).put("y", rest.y)
             .put("holed", shot.holed).put("skip", shot.skip)
         val result = m.play(mark, move)
+        if (result.over) {
+            // Strokes over the nine holes, when you play them on your own.
+            val alone = _state.value.computers == 0
+            SoloRecordStore.current?.record(GameKind.GOLF, _state.value.level.key, SoloMetric.STROKES, m.total('m').toLong().takeIf { alone })
+        }
         _state.update {
             val over = result.over
             val total = m.total('m')
@@ -102,8 +104,6 @@ class SoloGolfViewModel : ViewModel() {
             var wait = firstWait
             while (_state.value.result == null && _state.value.turn != 'm') {
                 delay(wait + 500)
-                // While Kylian has the game, everyone waits.
-                while (Takeover.locked()) delay(250)
                 val m = match ?: return@launch
                 val mark = _state.value.turn
                 val hole = Golf.hole(m.course, m.hole)

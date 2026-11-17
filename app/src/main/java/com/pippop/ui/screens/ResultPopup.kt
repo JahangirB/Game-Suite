@@ -61,8 +61,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pippop.data.BrokenRecord
+import com.pippop.data.SoloRecordStore
+import androidx.compose.runtime.collectAsState
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
+import com.pippop.data.ProfileStore
+import androidx.compose.ui.platform.LocalContext
+import com.pippop.ui.theme.SeatColors
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.ResultAnimation
 import com.pippop.ui.art.color
@@ -76,8 +82,8 @@ class PopupAction(val label: String, val onClick: () -> Unit, val enabled: Boole
  * The end of a match, as a sheet over the lower part of the game so the board stays in view:
  * [game]'s own animation for [outcome] above it, then [title], [tonight]'s score, [detail],
  * optional [scores], a [status] line (in green when [statusGood]), what the [next] round will be,
- * [extra], and the buttons: [rematch] (or [again]), [onChange] and [finish]. [games] are others
- * to play next, one tap each. Dragging the handle down (or "See the board") folds it away,
+ * [extra], and the buttons: [rematch] (or [again]), [onChange] and [finish]. [another] is how to pick others
+ * to play next ([another], in a sheet). Dragging the handle down (or "See the board") folds it away,
  * leaving a tab that brings it back.
  */
 @Composable
@@ -95,17 +101,42 @@ fun BoxScope.ResultPopup(
     next: String? = null,
     rematch: (@Composable () -> Unit)? = null,
     onChange: (() -> Unit)? = null,
-    games: List<GameKind> = emptyList(),
-    onOpenGame: (GameKind) -> Unit = {},
+    another: AnotherGame? = null,
     extra: @Composable ColumnScope.() -> Unit = {},
+    /** The card's face: who won ([versus], against other people), else your own face on a win. */
+    winner: ResultWinner? = null,
+    versus: Boolean = false,
+    tally: TonightScore? = null,
+    bump: TallyBump = TallyBump.NONE,
+    /** A record this result set against a partner ([MatchPopup] passes it); alone, the solo store's latest is used. */
+    record: BrokenRecord? = null,
+    /** Which game this result is, for the tally's sound ([MatchPopup] gives the room and round). */
+    scoreKey: Any? = null,
 ) {
     val p = AppTheme.palette
+    // The gold line: a record against your partner, or (playing alone) the game's own best just beaten.
+    val soloBroke = remember { SoloRecordStore.current?.broke }?.collectAsState()?.value?.takeIf { !versus && it.game == game }
+    val shownRecord = record ?: soloBroke
+    val recordText = shownRecord?.let { RecordLines.text(it) }
     var folded by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val sfx = rememberSfx()
     LaunchedEffect(Unit) {
-        haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
+        // A result with a record line has the record buzz instead (see RecordLine): one buzz for the moment.
+        if (recordText == null) haptics.play(if (outcome == Outcome.WIN) Buzz.WIN else Buzz.LOSE)
         sfx.play(when (outcome) { Outcome.WIN -> Sound.WIN; Outcome.LOSE -> Sound.LOSE; else -> Sound.TIE })
+    }
+    var anotherOpen by remember { mutableStateOf(false) }
+    if (anotherOpen && another != null) {
+        AnotherGameSheet(another, onBack = if (LocalResultUnder.current) finish.onClick else null) { anotherOpen = false }
+    }
+    if (LocalResultUnder.current) {
+        val face = winner ?: if (!versus && outcome == Outcome.WIN) soloWinner() else null
+        ResultCard(
+            game, outcome, title, detail, face, tally, bump, finish, again, scores, status, statusGood, next, rematch, onChange,
+            another?.let { { anotherOpen = true } }, extra, recordText, shownRecord, scoreKey,
+        )
+        return
     }
     if (folded) {
         Surface(
@@ -132,12 +163,6 @@ fun BoxScope.ResultPopup(
     )
     BoxWithConstraints(Modifier.matchParentSize()) {
         val room = maxHeight
-        // The game's own little scene, over the board above the sheet.
-        ResultAnimation(
-            game, outcome,
-            Modifier.align(Alignment.TopCenter).padding(top = 12.dp).widthIn(max = 220.dp).fillMaxWidth(0.55f)
-                .graphicsLayer { alpha = enter.value },
-        )
         Surface(
             color = p.card,
             shape = Shapes.Top,
@@ -162,16 +187,21 @@ fun BoxScope.ResultPopup(
                         .clickable { folded = true },
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(width = 44.dp, height = 5.dp).clip(Shapes.Full).background(p.hairline)) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM, modifier = Modifier.weight(1f))
-                    if (tonight != null) {
-                        Text(
-                            tonight, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
-                            modifier = Modifier.clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
+                // The game's own little scene sits beside the title, so it never covers the game's header.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(title, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, lineHeight = LineHeight.DisplayM)
+                        if (tonight != null) {
+                            Text(
+                                tonight, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label,
+                                modifier = Modifier.clip(Shapes.Full).background(p.accent).border(1.5.dp, p.ink, Shapes.Full).padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
                     }
+                    ResultAnimation(game, outcome, Modifier.width(120.dp).graphicsLayer { alpha = enter.value })
                 }
                 if (detail.isNotEmpty()) Text(detail, color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+                if (recordText != null) RecordLine(recordText, soundKey = shownRecord ?: recordText)
                 if (scores.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         scores.forEach {
@@ -196,15 +226,20 @@ fun BoxScope.ResultPopup(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     if (onChange != null) SecondaryButton("Change", onChange, Modifier.weight(1f))
-                    SecondaryButton(finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
+                    SecondaryButton(if (finish.label == "Games") "Back to games" else finish.label, finish.onClick, Modifier.weight(1f), enabled = finish.enabled)
                 }
-                if (games.isNotEmpty()) {
-                    Text("OR PLAY", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold)
-                    GameShelf(games.take(4), onPick = onOpenGame)
-                }
+                if (another != null) SecondaryButton("Another game", { anotherOpen = true }, Modifier.fillMaxWidth())
             }
         }
     }
+}
+
+/** You, for a solo win's card: your face from the profile, in your colour. */
+@Composable
+private fun soloWinner(): ResultWinner {
+    val context = LocalContext.current
+    val avatar = remember { runCatching { ProfileStore.get(context).profile.value.avatar }.getOrNull() }
+    return ResultWinner("You", avatar, AppTheme.palette.me)
 }
 
 /** Gives an inline popup its type for GameFrame's `popup`, e.g. `if (over) popupContent { … } else null`. */
@@ -262,6 +297,7 @@ fun BoxScope.MatchPopup(
     scores: List<String> = emptyList(),
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
+    val record = LocalRecord.current?.takeIf { it.game == game }
     val present = room.present
     val gone = present.isEmpty()
     val status = when {
@@ -273,6 +309,8 @@ fun BoxScope.MatchPopup(
     val controls = LocalRoomControls.current
     if (controls != null && controls.setupOpen.value && !gone) SetupSheet(game, controls) { controls.setupOpen.value = false }
     val rematch = onRematch ?: controls?.rematch
+    val openStore = LocalOpenStore.current
+    val pick: (GameKind) -> Unit = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) ?: Unit }
     ResultPopup(
         game = game,
         outcome = if (room.endReason == "restart") Outcome.TIE else outcome,
@@ -285,9 +323,29 @@ fun BoxScope.MatchPopup(
         tonight = session?.let { tonightLine(it.tally, present.map { o -> o.name }) }?.removePrefix("Tonight: ")?.let { "Tonight $it" },
         next = controls?.mode,
         rematch = if (rematch == null || gone) null else ({ RematchButton(room, rematch, enabled = !gone) }),
-        onChange = if (controls?.setup == null || gone) null else ({ controls.setupOpen.value = true }),
-        games = if (session == null || gone) emptyList() else session.nextGames.filter { it != game },
-        onOpenGame = { g -> controls?.switchTo?.invoke(g) ?: session?.onOpenGame?.invoke(g) },
+        onChange = if (controls?.setup == null || gone || (LocalResultUnder.current && !cardOffersChange(room))) null else ({ controls.setupOpen.value = true }),
+        another = if (session == null || gone) null else AnotherGame(
+            game, session.nextGames, present.size + 1, whoPicks(room), pick,
+        ).also { a -> a.onStore = openStore?.let { open -> { open(pick) } } }.takeIf { it.tiles().isNotEmpty() },
         extra = extra,
+        winner = if (room.endReason == "restart") null else matchWinner(room),
+        versus = true,
+        tally = if (room.endReason == "restart") null else LocalTonight.current,
+        bump = if (room.endReason == "restart") TallyBump.NONE else tallyBump(room),
+        record = record.takeIf { room.endReason != "restart" },
+        scoreKey = "score:${room.code}:${room.round}",
     )
+}
+
+/** Who won, for the card's face: you, or the player the server names; nobody on a tie or when nobody beat you together. */
+@Composable
+private fun matchWinner(room: RoomState): ResultWinner? = when {
+    room.together -> null
+    room.winner == "me" -> ResultWinner("You", room.me.avatar, AppTheme.palette.me)
+    room.winner == "opponent" && !room.together -> {
+        val name = room.winnerName?.split(" & ")?.firstOrNull()
+        val seat = room.others.indexOfFirst { it.name == name }.takeIf { it >= 0 } ?: 0
+        (room.others.getOrNull(seat) ?: room.opponent)?.let { ResultWinner(it.name, it.avatar, SeatColors[seat % SeatColors.size]) }
+    }
+    else -> null
 }

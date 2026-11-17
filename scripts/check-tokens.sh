@@ -12,3 +12,22 @@ if [ -n "$bad" ]; then
   exit 1
 fi
 echo "Design tokens: OK"
+
+# The app's own parts (ui/screens/Toy.kt) stand in for the stock Material ones. Fail when a stock one comes back.
+# A name only counts when whatever is before it is not part of another name (ToyAlertDialog( is fine,
+# androidx.compose.material3.Switch( is not). Comment-only lines are skipped.
+code=$(grep -rn --include='*.kt' '' "$src" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/?\*)' || true)
+stock=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])(OutlinedTextField|FilterChip|CircularProgressIndicator|SnackbarHost|Switch)\(' || true)
+# ModalBottomSheet may appear only in ToySheet.
+sheets=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])ModalBottomSheet\(' | grep -v "^$src/ui/screens/Toy.kt" || true)
+# AlertDialog may not appear at all (ToyDialog is the app's own).
+dialogs=$(printf '%s\n' "$code" | grep -E '(^|[^A-Za-z0-9_])AlertDialog\(' || true)
+bad="$stock
+$sheets
+$dialogs"
+if [ -n "$(printf '%s' "$bad" | tr -d '[:space:]')" ]; then
+  echo "Stock Material parts are back. Use ToyDialog, ToySheet, ToyField, CodeField, Choices, ToySwitch, PipPopLoader or Toast (ui/screens/Toy.kt):"
+  printf '%s\n' "$bad" | grep -v '^$'
+  exit 1
+fi
+echo "Stock parts: OK"

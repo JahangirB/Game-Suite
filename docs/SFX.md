@@ -2,8 +2,9 @@
 
 Every sound Pip & Pop needs, where it plays and what it should sound like.
 
-**Now in the app:** the 55 priority-1 sounds, made from scratch (tones and noise, no
-recordings) by `scripts/make-sounds.py`; run it again after changing a sound. They are
+**Now in the app:** the 55 priority-1 sounds and the 15 added for "Between the Boards" (see
+[Between the Boards](#between-the-boards)), made from scratch (tones and noise, no recordings)
+by `scripts/make-sounds.py`; run it again after changing a sound. They are
 played by `ui/Sfx.kt`, which sets each sound's level. Profile → Sound and touch turns them
 on or off; the phone's silent mode doesn't (the media volume sets how loud). Better recordings can replace any file later: keep
 the same file name.
@@ -30,8 +31,6 @@ the same file name.
   `sfx_kylian_dictador.ogg` (11 s, from the Kylian Dictador song, kept at 32 kHz mono so it
   preloads with the rest and starts at once). These aren't made by `scripts/make-sounds.py`.
   While it plays, the other phones' controls freeze and nobody can send another reaction.
-  Kylian's card in Colour Clash plays the same song, with his sticker, on every phone,
-  the player's own included.
 - Location: `app/src/main/res/raw/sfx_<id>.ogg`. Variants add `_2`, `_3`
   (`sfx_card_slide_2.ogg`).
 - Played through one small `SoundPool` wrapper (see [Wiring](#wiring)), loaded when the app
@@ -61,13 +60,13 @@ have).
 | `countdown_go` | The race starts | Higher tick + spark | 250 | 1 |
 | `timer_warning` | Last 10 s of a timed round (Letter Grid, Draw & Guess) | Soft clock tick, speeds up | 80 | 2 |
 | `reaction` | A reaction pops up | Bubble pop | 120 | 2 |
-| `player_join` | Someone joins the room | Rising "boop-bip" | 250 | 2 |
-| `player_leave` | Someone leaves or drops out | Falling "bip-boop" | 250 | 2 |
-| `ready` | You or a partner taps Ready / Rematch | Light confirm click | 120 | 2 |
+| `player_join` | Someone joins the room | Rising "boop-bip" (built) | 380 | 2 |
+| `player_leave` | Someone leaves the room (not a dropped connection that comes back) | Falling "bip-boop" (built) | 400 | 2 |
+| `ready` | A partner taps Ready / Rematch (not you) | Light confirm click (built) | 140 | 2 |
 | `win` | Result popup, you won | Short fanfare: toy horn + sparkle, about 1.5 s | 1500 | 1 |
 | `lose` | Result popup, you lost | Friendly descending "wah-wah" on a kazoo or toy piano | 1200 | 1 |
 | `tie` | Result popup, a draw | Two even notes, neutral | 700 | 1 |
-| `score_up` | Points added (boxes, pairs, golf strokes counted) | Coin-like blip | 150 | 2 |
+| `score_up` | Tonight's score ticks up on the result (boxes, pairs and strokes are not counted with it) | Coin-like blip (built) | 310 | 2 |
 
 ## Shared by game families
 
@@ -171,7 +170,7 @@ Uses `letter_type`, `letter_drop`, `letter_right`, `letter_close`, `letter_wrong
 |---|---|---|---|---|
 | Uses `card_deal` (tiles dealt), `piece_place` (tile set on the line) | | | | |
 | `domino_draw` | Drawing from the boneyard | Tiles shuffled on the table | 300 | 2 |
-| `domino_pass` | Pass | Knuckle knock on the table | 150 | 2 |
+| `domino_pass` | Pass | Built as `domino_knock` | | 2 |
 | `domino_round` | Round won, points counted | Tiles swept together | 600 | 2 |
 
 ### Number Cross
@@ -293,10 +292,47 @@ Uses `piece_place` (a placed piece lands).
 | `blocks_fit` | The preview turns green (fits) | Very soft tick | 50 | 3 |
 | `blocks_skip` | A player has no move and is skipped | `player_leave`-style descending blip | 250 | 2 |
 
+## Between the Boards
+
+Fifteen sounds for the moments between the moves (step 31), made by `scripts/make-sounds.py` after the
+others and wired where each moment's animation starts, so each plays once for its event and never when a
+screen is shown again (a rotation, a theme change, coming back to it). "Their moves too" (in the profile)
+silences the ones marked **others**; Loudness Off silences all of them. "Mix" is the level in `ui/Sfx.kt`
+(0.45 for ticks, 0.65 for the usual, 0.9 for the big moments); other players' events play at 0.6 of it.
+
+| ID | Plays when | Sound | ms | Mix | Others |
+|---|---|---|---|---|---|
+| `sudoku_unit_done` | A row, column or box is finished, with its gold sweep (replaces `numbers_sum_right` there) | Three rising notes | 480 | 0.65 | no |
+| `c4_four` | The line through four discs is drawn | Four quick rising notes | 485 | 0.65 | when they made the four |
+| `ttt_board_won` | Ultimate: a small board is won (a drawn one is silent) | A stamp | 265 | 0.65 | when they won it |
+| `memory_miss` | A pair that does not match turns back | Soft double flip, lower | 370 | 0.45 | no |
+| `slide_home` | One slide puts a tile in its right place (not the last one: `slide_solved` has that; a new shuffle never clicks) | Small click-ting | 260 | 0.45 | no |
+| `bingo_one_away` | A card is first one away from a line: once for each line on a card | A double heartbeat, twice | 950 | 0.65 | no |
+| `domino_knock` | A player passes | Two knocks on the table | 210 | 0.65 | when they pass |
+| `clash_last_card` | A player is down to one card | Bright two-note ping | 470 | 0.65 | when it is them |
+| `player_join` | Someone else joins the room | Rising "boop-bip" | 380 | 0.45 | yes |
+| `player_leave` | Someone else leaves the room (a dropped connection that comes back is silent) | Falling "bip-boop" | 400 | 0.45 | yes |
+| `ready` | Someone else taps Ready or Rematch | Light confirm click | 140 | 0.45 | yes |
+| `score_up` | Tonight's score ticks up on the result (once for each game, even when a reconnect has started the tally again) | Coin-like blip | 310 | 0.65 | no: their point plays quieter (0.6 of the level) but is the game's result, so "Their moves" off does not silence it |
+| `record` | The record line shows | Four rising notes and a held, wavering fifth | 790 | 0.9 | no |
+| `trophy` | The month's cup shows | A thump and a long shimmering chord | 780 | 0.9 | no |
+| `line_sent` | A line from another player arrives | One rising note | 110 | 0.45 | yes |
+
+`decider` is not here: it waits for the owner (see the plan's "What is not being built").
+
+The files are made the same way as the others (OGG Vorbis, 44.1 kHz mono, peak −1 dBFS, no metadata) and
+the script writes them bit for bit the same each time it runs, whether it makes all the sounds or only some:
+each of the 15 starts its own random stream from its name, and the Ogg stream's serial number is fixed
+(`-fflags +bitexact`). The 15 add about 82 KB. The older 58 files are kept as they were committed: their
+notes come out the same, but the container bytes differ on a rerun (they were written before the serial
+was fixed), so run the script for them only when a sound is changed.
+
 ## Count
 
 111 sounds: 18 for the app and every game, 14 shared by game families, and 79 for single
-games. The 55 at priority 1 give every game its core sounds.
+games. The 55 at priority 1 give every game its core sounds. The 15 for Between the Boards are
+listed above; 11 were already in these tables (`domino_knock` is `domino_pass` renamed), and
+`bingo_one_away`, `record`, `trophy` and `line_sent` are new.
 
 ## Wiring
 

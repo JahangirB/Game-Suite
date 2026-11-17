@@ -1,0 +1,181 @@
+# Between the Boards: checklist
+
+The plan is `PLAN.md`. Tick a line in the same commit that finishes it: `[x]` done, `[-]` not built
+(say why on the line). After a context reset, this file and `git log` say where you are.
+
+Before every push, the three rules of `PLAN.md` section 1 hold:
+
+- nothing goes to the live branch before the owner writes the code word (`git branch --show-current`
+  is the work branch before every push);
+- the preview's release stays a pre-release, and the publishing lines of the `preview` and
+  `release` jobs are untouched;
+- no server is deployed, and every server change keeps today's app working.
+
+## Step 0: before you start
+
+- [x] The live branch's name is known (`git remote show origin | grep 'HEAD branch'`): `ccr-d293cbfe-amy86v`
+- [x] The work branch `between-the-boards` is created from `origin/claude/brave-faraday-w5scs4` and pushed
+- [x] `./gradlew assemblePreview` works in this session (environment set up, SDK installed): session moved onto the "Game-Suite" environment, SDK installed with `setup-android-sdk.sh`
+- [x] Baseline checks run on the untouched branch; result: all green. Design tokens OK; Android unit tests 260 run, 0 failed; Apps Script 17 pass; Cloudflare 150 pass
+- [x] Looked at the targets and read `prototypes/ProtoKit.kt`
+
+## Phase A: the preview app
+
+- [x] **Step 1. The preview app is real**
+  - [x] The "Build" run on the work branch is green, "Publish preview app" included (run 168)
+  - [x] Release `preview` is a pre-release with `PipPopPreview.apk`, `PipPop.apk`, `version.json`
+  - [x] The latest release is still `latest`, unchanged (1.0.163, commit e037637)
+  - [x] "Preview app" card on the profile, shown only in the preview
+  - [x] The owner has the download link and knows invitations are off in the preview
+
+## Phase B: one toy box
+
+- [x] **Step 2. Questions in the app's look** (toy-dialog)
+  - [x] `ToyDialog` in `ui/screens/Toy.kt`; four `AlertDialog`s replaced
+- [x] **Step 3. One sheet** (toy-sheet)
+  - [x] `ToySheet`; all eight sheets use it
+- [x] **Step 4. Fields and the code** (toy-fields, fix-password)
+  - [x] `ToyField`, `CodeField`; all seven `OutlinedTextField`s replaced
+  - [x] "Paste the message instead" is a button
+  - [x] The password field's label is "Password", its explanation is under it
+- [x] **Step 5. The app's own switch and choices** (toy-controls)
+  - [x] `Choices`, `OptionRow`, `ToySwitch`; no `FilterChip` and no Material `Switch` left
+- [x] **Step 6. Pip and Pop while you wait, and messages with a mark** (toy-loader, toy-toast)
+  - [x] `PipPopLoader` in all five places; `Toast` in place of the snackbar
+  - [x] `scripts/check-tokens.sh` fails on stock parts
+- [x] **Step 7. A Rematch you can read** (fix-rematch)
+
+## Phase C: the home
+
+- [x] **Step 8. What the home remembers**
+  - [x] Recent games, put-away games and "arranged once" are stored and tested
+  - [x] The arrange screen has its "Put away" line
+- [x] **Step 9. The home, before you connect**
+  - [x] Every game as its picture, three to a row (home-art)
+  - [x] One line to connect (home-connect)
+  - [x] Jump back in (home-recent)
+  - [x] The "Games" row: Scores, Surprise us, Arrange games; Surprise us works (home-surprise)
+  - [x] More games (home-putaway)
+  - [x] "Hold a game to move it" leaves after the first arrange (fix-hint)
+  - [x] No month strip on the home
+- [x] **Step 10. The home, connected**
+  - [x] A room bar that holds four people (home-roombar)
+  - [x] Seats on every tile; games that don't fit fade and say so (home-fit)
+  - [x] Their face on the game they are in (home-face)
+  - [x] No scores on tiles
+
+## Phase D: a game's sheet, solo, rules
+
+- [x] **Step 11. A game's sheet**
+  - [x] Three facts (sheet-facts)
+  - [x] Solo starts from the sheet, with the last setup remembered, for every game with solo play (sheet-solo)
+  - [x] No level stage left in any solo screen; `LevelDialog` gone; no screen with several main buttons (fix-primary)
+  - [x] No "your best" line and no "you two" strip on the sheet
+- [x] **Step 12. Rules you can find your place in** (rules-points)
+  - [x] All twenty games' rules are four to six titled points, within the limits, tested
+  - [x] `RulesSheet` replaces `RulesDialog`; "Show me how" opens the walk-through
+  - [x] The stock-part exceptions of step 6 are removed
+
+## Phase E: the lobby
+
+- [x] **Step 13. The lobby's frame**
+  - [x] The game's whole picture (lobby-art)
+  - [x] The code steps aside once someone has joined (lobby-code)
+  - [x] Ready stays under your thumb, in every lobby (lobby-ready)
+- [x] **Step 14. The setup as rows of choices** (lobby-rows)
+  - [x] All eleven option cards and the "Change" sheet use `OptionRow`
+- [x] **Step 15. Sudoku: whoever opens it picks the level** (lobby-sudoku)
+  - [x] Apps Script, Cloudflare and Nearby: the new path and today's path both tested
+  - [x] Today's `LevelPicker` still shows in a room where it must
+
+## Phase F: in the game and at its end
+
+- [x] **Step 16. In the game**
+  - [x] Tonight's score in the title row (game-tonight)
+  - [x] "Your turn" on one line; the how-to leaves from the third turn (game-turn)
+- [x] **Step 17. The result goes under the board**
+  - [x] The result is a card under the board wherever it fits (result-under)
+  - [x] The winner's face with a crown (result-faces)
+  - [x] Tonight's score ticks up (result-tally)
+  - [x] Games that kept the sheet, and why: Ship Battle (the result holds the next-fleet editor, and with the card the two seas get too small), Air Hockey and Mini Golf (the board is the whole screen)
+- [x] **Step 18. "Another game", and the loser picks** (result-next)
+
+## Phase G: scores and records
+
+- [x] **Step 19. Remember more about each game**
+  - [x] Results keep time, score and count where a game has them; old lines still load
+  - [x] Solo records for every game with solo play; Sudoku's bests migrated
+  - [x] Test tools in the preview: fill with sample games, clear them
+- [x] **Step 20. The scoreboard**
+  - [x] The month as a race you can see (scores-race)
+  - [x] All time, beside this month (scores-alltime)
+  - [x] Each game's story (scores-story)
+  - [x] Solo records (scores-solo)
+  - [x] Cups worth winning, with readable labels (scores-cups)
+  - [x] The Statistics card and "Battles 0 won · 0 lost" are gone (fix-battles)
+- [x] **Step 21. The month ends with a moment** (scores-monthend)
+  - [x] "Show last month's cup" in the preview's test tools
+- [x] **Step 22. A record gets a line** (result-record)
+
+## Phase H: profile and looks
+
+- [x] **Step 23. The profile**
+  - [x] What you change, first (profile-order)
+  - [x] Off, Quiet, Normal, Loud, and "Their moves"; the old setting migrated (profile-volume)
+- [x] **Step 24. Colour themes** (looks-themes)
+  - [x] Lavender, Mint, Peach, Sky, each light and dark; contrast tested for all eight
+- [x] **Step 25. Card backs, frames and tiles** (looks-table)
+
+## Phase I: reactions
+
+- [x] **Step 26. The whole tray at once** (react-grid)
+- [x] **Step 27. Lines of your own** (react-lines)
+  - [x] Apps Script, Cloudflare and Nearby accept a line; today's app is unaffected; tested
+- [x] **Step 28. Stickers without an app update** (react-packs)
+  - [x] `stickers/` folder, its README, `scripts/make-stickers.py` writes pack stickers
+  - [x] The three servers accept pack keys; a phone without the sticker fetches it
+
+## Phase J: photos
+
+- [x] **Step 29. Your photo as your face** (profile-photo)
+  - [x] Cloudflare and Nearby; the animal is still sent; Apps Script unaffected
+- [x] **Step 30. Memory Pairs with your photos** (looks-photos)
+  - [x] Offered only when the server and every player can; photos kept out of the room object
+
+## Phase K: sound and touch
+
+- [x] **Step 31. New sounds** (sound-moments, sound-people, sound-score)
+  - [x] Fifteen sounds made, in `Sound`, in `docs/SFX.md`, and wired (not `decider`: on hold)
+- [x] **Step 32. Buzzes with a feel** (sound-buzz)
+
+## Phase L: the hand-over
+
+- [x] **Step 33. The last pass**
+  - [x] Every line above is ticked or explained
+  - [x] All checks pass locally; the last CI run on the work branch is green
+  - [x] The `preview` pre-release is from that run; the latest release is still `latest`
+  - [x] Every screenshot looked at in light and dark; the home in all four themes
+  - [x] `README.md` and `docs/UX-PLAN.md` updated
+  - [x] The owner has the report and has been asked for the code word
+
+## Not built
+
+- [-] The month's score on the home: left out by the owner
+- [-] This month's score on each tile: left out by the owner
+- [-] "Your best" on a game's sheet: left out by the owner
+- [-] "How you two stand in this game": left out by the owner
+- [-] "First to three": left out by the owner
+- [-] "The night's winner": left out by the owner
+- [-] The decider: on hold until the owner says what it means without a target (not built; its sound left out too)
+
+## After the owner writes `lubudum`
+
+- [ ] The live branch merged into the work branch if it had moved; all checks green again
+- [ ] The work branch merged into the live branch and pushed (steps kept, not squashed)
+- [ ] The "Build" run on the live branch is green; `latest` is a new release with `PipPop.apk` and `version.json`
+- [ ] The owner knows: the real app will offer the update; Apps Script needs `backend/Code.gs` pasted in; the preview can be uninstalled
+
+## Extra: "Update by itself"
+
+- [x] Built and checked (quiet update while the app is closed, Android 12+)
+- [-] The owner's phone updated itself on its own: dropped by the owner (Play Protect stops installs from outside the Play Store); taken out in the Game Store round, step 1

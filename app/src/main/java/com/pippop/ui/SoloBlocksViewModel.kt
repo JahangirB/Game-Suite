@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.blocks.BlocksMatch
@@ -37,12 +40,6 @@ class SoloBlocksViewModel : ViewModel() {
 
     fun setSkill(n: Int) = _state.update { it.copy(skill = n.coerceIn(0, 2)) }
 
-    fun changeSetup() {
-        thinking?.cancel()
-        match = null
-        _state.update { it.copy(view = null, result = null, turn = 'm') }
-    }
-
     fun start() {
         thinking?.cancel()
         val m = BlocksMatch("mopq".take(_state.value.opponents + 1).toList())
@@ -64,6 +61,7 @@ class SoloBlocksViewModel : ViewModel() {
     private fun play(mark: Char, p: Placement) {
         val m = match ?: return
         val result = m.play(mark, JSONObject().put("piece", p.piece).put("orient", p.orient).put("x", p.x).put("y", p.y))
+        if (result.over) SoloRecordStore.current?.record(GameKind.BLOCKS, _state.value.opponents.toString(), SoloMetric.SQUARES, (viewOf(m).placed['m'] ?: 0).toLong())
         _state.update {
             it.copy(
                 view = viewOf(m),

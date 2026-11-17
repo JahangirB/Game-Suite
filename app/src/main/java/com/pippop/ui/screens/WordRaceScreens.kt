@@ -1,5 +1,8 @@
 package com.pippop.ui.screens
 
+import com.pippop.ui.startWith
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.offset
@@ -312,7 +315,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
     val localNow = rememberTicker()
     var reacting by remember { mutableStateOf(false) }
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.WORDS) { showRules = false }
     var showLetters by remember { mutableStateOf(false) }
     if (showLetters) InfoSheet("Your letters", onDismiss = { showLetters = false }) { WordLetters(words.mine) }
 
@@ -321,7 +324,7 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         done -> "Out of tries"
         else -> "${guesses.size}/${words.tries} tries"
     }
-    val players = battleChips(room, state, localNow, p.primary, detail = { player, isMe ->
+    val players = battleChips(room, state, localNow, p.me, detail = { player, isMe ->
         // Players in hard mode wear a small "Hard" badge.
         (if (player.hard) "Hard · " else "") + if (isMe) {
             status(words.mine, words.meDone)
@@ -340,7 +343,8 @@ fun WordRaceScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Uni
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         tools = listOf(DockTool("Letters", GameIcons.Sort) { showLetters = true }),
         trayVisible = reacting,
-        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }) },
+        tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
+        resultUnder = true,
         popup = if (!finished) null else popupContent {
             val name = opponent?.name ?: "The other player"
             MatchPopup(
@@ -403,8 +407,8 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
         }
     }
     when {
-        // The keyboard stays after the round, showing what each letter turned out to be.
-        finished -> WordKeyboard(words.mine, {}, {}, {})
+        // The keyboard leaves with the round; the card takes its room.
+        finished -> {}
         words.meDone -> AppCard {
             Text(
                 if (words.mine.lastOrNull()?.score == "g".repeat(words.length)) "Solved! Waiting for ${opponent?.name ?: "the other player"}…" else "Out of tries. Waiting for ${opponent?.name ?: "the other player"}…",
@@ -420,23 +424,23 @@ private fun ColumnScope.WordRaceRound(state: BattleUiState, vm: BattleViewModel,
 fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () -> Unit) {
     val p = AppTheme.palette
     var showRules by remember { mutableStateOf(false) }
-    if (showRules) RulesDialog(GameKind.WORDS) { showRules = false }
+    if (showRules) RulesSheet(GameKind.WORDS) { showRules = false }
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
     val daily = state.daily
+    if (daily == null) { BackToHome(onHome); return }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.WORDS, "New game", vm::startWith) { changing = false }
     GameFrame(
         title = "Word Race",
-        subtitle = when (daily) {
-            true -> "Today's word"
-            false -> "Practice"
-            null -> "On your own"
-        },
+        subtitle = if (daily) "Today's word" else "Practice",
         players = emptyList(),
         glow = GameKind.WORDS.color,
         menu = GameMenu(
             GameKind.WORDS, onRules = { showRules = true }, onLeave = onHome, leaveLabel = "Home", showLetterMarks = true,
-            mode = daily?.let { "Daily or practice" }, onChangeMode = if (daily != null) vm::chooseMode else null,
+            mode = "Daily or practice", onChangeMode = { changing = true }, changeLabel = "Change setup",
         ),
-        scrollable = daily == null,
-        popup = if (daily == null || !state.done) null else popupContent {
+        resultUnder = true,
+        popup = if (!state.done) null else popupContent {
             ResultPopup(
                 game = GameKind.WORDS,
                 outcome = if (state.solved) Outcome.WIN else Outcome.LOSE,
@@ -447,17 +451,7 @@ fun SoloWordsScreen(state: SoloWordsUiState, vm: SoloWordsViewModel, onHome: () 
             )
         },
     ) {
-        if (daily == null) {
-            AppCard("Pick a word") {
-                Text("Today's word is the same for everyone and changes every day. Practice gives you as many words as you like.", color = p.muted, fontSize = TextSize.Body)
-                PrimaryButton("Today's word", vm::playDaily)
-                Text("Practice: pick the length of the word.", color = p.muted, fontSize = TextSize.Body)
-                WordLevel.entries.forEach { level -> SecondaryButton(level.label, { vm.playPractice(level) }) }
-                WordsHardSwitch()
-            }
-        } else {
-            SoloWordsRound(state, vm)
-        }
+        SoloWordsRound(state, vm)
     }
 }
 
@@ -466,21 +460,19 @@ private fun ColumnScope.SoloWordsRound(state: SoloWordsUiState, vm: SoloWordsVie
     val p = AppTheme.palette
     BoardArea(0.82f * state.length / 5f) { size -> WordGrid(state.guesses, state.input, Words.TRIES, state.length, size) }
     state.message?.let { Text(it, color = p.bad, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
-    // After the last guess the keyboard stays, showing what each letter turned out to be.
-    WordKeyboard(state.guesses, if (state.done) ({}) else vm::type, if (state.done) ({}) else vm::delete, if (state.done) ({}) else vm::submit)
+    // After the last guess the keyboard leaves and the result takes its room.
+    if (!state.done) WordKeyboard(state.guesses, vm::type, vm::delete, vm::submit)
 }
 
 /** The host's level for Word Race (the length of the word); everyone else sees it. */
 @Composable
 fun WordLevelCard(room: com.pippop.data.RoomState, busy: Boolean, onPick: (WordLevel) -> Unit) {
-    val p = AppTheme.palette
     val level = room.words?.level ?: WordLevel.MEDIUM
-    AppCard("Level") {
-        if (room.setsOptions) {
-            OptionGroup(WordLevel.entries.map { it to it.label }, level, enabled = !busy, onPick = onPick)
-        } else {
-            Text("${level.label}: the length of the word, picked by whoever opened the game.", color = p.muted, fontSize = TextSize.Body)
-        }
+    OptionsCard(room, "Level", busy) { enabled ->
+        OptionRow(
+            "Level", WordLevel.entries.map { it to it.label.levelShort() }, level, onPick, enabled = enabled, perRow = 2,
+            note = "${level.label.levelNote()}: the length of the word.",
+        )
         // Each player's own choice.
         WordsHardSwitch()
     }
@@ -509,11 +501,11 @@ fun WordsHardSwitch() {
     val p = AppTheme.palette
     val store = com.pippop.data.ProfileStore.get(androidx.compose.ui.platform.LocalContext.current)
     val on = store.profile.collectAsState().value.wordsHard
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().toggleable(value = on, role = Role.Switch, onValueChange = store::setWordsHard)) {
         Column(Modifier.weight(1f)) {
             Text("Hard mode", color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold)
             Text("Green letters stay in place, yellow ones must be used. Others see a Hard badge.", color = p.muted, fontSize = TextSize.Label)
         }
-        androidx.compose.material3.Switch(checked = on, onCheckedChange = store::setWordsHard)
+        ToySwitch(checked = on, onCheckedChange = null)
     }
 }

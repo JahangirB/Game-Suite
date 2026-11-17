@@ -1,5 +1,8 @@
 package com.pippop.ui
 
+import com.pippop.data.GameKind
+import com.pippop.data.SoloMetric
+import com.pippop.data.SoloRecordStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pippop.game.hockey.Hockey
@@ -51,17 +54,19 @@ class SoloHockeyViewModel : ViewModel() {
                     else -> null
                 }
                 _state.update { it.copy(frame = f, result = result) }
-                if (result != null) break
+                if (result != null) {
+                    // Goals ahead at the end, in a game you won.
+                    SoloRecordStore.current?.record(
+                        GameKind.HOCKEY, listOf("easy", "medium", "hard")[level.coerceIn(0, 2)], SoloMetric.GOALS_AHEAD,
+                        (f.bottomScore - f.topScore).takeIf { result == "me" }?.toLong(),
+                    )
+                    break
+                }
             }
         }
     }
 
     fun again() = _state.value.level?.let { start(it) } ?: Unit
-
-    fun changeLevel() {
-        loop?.cancel()
-        _state.value = SoloHockeyUiState()
-    }
 
     fun move(x: Float, y: Float) = table.moveBottom(x, y)
 }

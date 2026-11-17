@@ -53,6 +53,9 @@ test('a photo for the race: only the opener, between matches, small, fetched by 
   assert.throws(() => setSlidePhoto(room, 'host', 'not base64!'), /too big/);
   assert.throws(() => setSlidePhoto(room, 'host', 'A'.repeat(50_000)), /too big/);
   setSlidePhoto(room, 'host', 'abcd');
+  room.status = 'started';
+  assert.throws(() => setSlidePhoto(room, 'host', 'abcd'), /between games/);
+  room.status = 'lobby';
   const id = view(room, 'guest', T0).slide.photoId;
   assert.ok(id > 0);
   setSlidePhoto(room, 'host', null);
