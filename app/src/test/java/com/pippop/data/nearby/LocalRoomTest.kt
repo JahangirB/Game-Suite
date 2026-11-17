@@ -3,6 +3,7 @@ package com.pippop.data.nearby
 import com.pippop.data.ApiException
 import com.pippop.data.Avatar
 import com.pippop.data.Difficulty
+import com.pippop.data.GameKind
 import com.pippop.data.Reaction
 import com.pippop.data.RoomStatus
 import com.pippop.data.parseRoom
@@ -12,6 +13,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.json.JSONObject
 import org.junit.Test
 
 class LocalRoomTest {
@@ -199,6 +201,28 @@ class LocalRoomTest {
         assertEquals("closed", room.status)
         val e = assertThrows(ApiException::class.java) { room.join("Bob", null, null) }
         assertTrue(e.fatal)
+    }
+
+    @Test
+    fun kylianDictadorCardGivesEightAndTheNextMoveIsAcceptedAtOnce() {
+        val room = LocalRoom("ABCD", "Alice", Avatar.FOX, GameKind.CLASH)
+        room.join("Bob", Avatar.OWL, null, listOf("clash"))
+        room.setTurnReady(LocalRoom.HOST, true, t0)
+        room.setTurnReady(LocalRoom.GUEST, true, t0)
+        val field = LocalRoom::class.java.getDeclaredField("turnMatch").apply { isAccessible = true }
+        val match = field.get(room) as com.pippop.game.clash.ClashMatch
+        val mover = if (room.view(LocalRoom.HOST, t0).getJSONObject("turns").getString("turn") == "me") LocalRoom.HOST else LocalRoom.GUEST
+        val other = if (mover == LocalRoom.HOST) LocalRoom.GUEST else LocalRoom.HOST
+        val marks = mapOf(LocalRoom.HOST to 'h', LocalRoom.GUEST to 'g')
+        val c = match.colour
+        match.hands.getValue(marks.getValue(mover)).apply { clear(); addAll(listOf("${c}K", "${c}1", "${c}2")) }
+        val before = match.hands.getValue(marks.getValue(other)).size
+        room.move(mover, JSONObject().put("card", 0), t0)
+        assertEquals(before + 8, match.hands.getValue(marks.getValue(other)).size)
+        // With two players the one who drew misses their turn, so the mover goes again, at the very same instant.
+        room.move(mover, JSONObject().put("card", 0), t0)
+        assertEquals(1, match.hands.getValue(marks.getValue(mover)).size)
+        assertEquals("started", room.status)
     }
 }
 

@@ -174,7 +174,7 @@ val GameKind.rules: List<RulePoint>
             "Your turn" to "Play a card that matches the top of the pile by colour or by number or symbol.",
             "Action cards" to "Skip (⦸) skips the next player, reverse (⇄) turns the order round and +2 makes the next player draw two and miss their turn.",
             "Wilds" to "Wilds (★) go on anything and you name the colour. +4 also makes the next player draw four.",
-            "Kylian Dictador" to "One in each colour. The next player draws eight and misses their turn, and his song takes over every phone.",
+            "Kylian Dictador" to "One in each colour. The next player draws eight and misses their turn.",
             "Can't play" to "Draw a card: play it if it fits, or keep it.",
         )
         GameKind.LUDO -> pts(

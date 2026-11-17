@@ -70,7 +70,6 @@ import com.pippop.ui.SoloClashUiState
 import com.pippop.ui.SoloClashViewModel
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
-import com.pippop.ui.Takeover
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.art.color
 import com.pippop.ui.art.drawSticker
@@ -312,11 +311,6 @@ internal fun ColumnScope.ClashTable(
                 val mine = played?.who == 'm'
                 SoundOnChange(played) {
                     play(Sound.CARD_SLIDE, if (mine) 1f else Sfx.OTHERS, others = !mine)
-                    // Kylian Dictador takes over every phone, the player's own too: his sticker and song.
-                    if (played?.card?.let(Clash::isKylian) == true) {
-                        Takeover.show(Reaction.KYLIAN)
-                        play(Sound.KYLIAN_DICTADOR)
-                    }
                 }
                 // Someone is down to one card: a bright ping as their last-but-one card lands (the flight takes MOVE_MS).
                 val onLast = view.counts.filterValues { it == 1 }.keys

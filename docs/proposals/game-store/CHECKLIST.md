@@ -31,8 +31,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 7. Profile**
   - [x] Photo in every own avatar
   - [x] Ship Battle styles only in the game's Skins button
-- [ ] **Step 8. Colour Clash: the dictator card just gives +8**
-  - [ ] No lock, no animation; +8 to the next player; tested in all servers and on the phone
+- [x] **Step 8. Colour Clash: the dictator card just gives +8**
+  - [x] No lock, no animation; +8 to the next player; tested in all servers and on the phone
+    (the lock lived only on the phone; Apps Script has no Colour Clash)
 - [ ] **Step 9. Mini Golf: the Kylian statue blocks only the player who landed there**
   - [ ] Bug reproduced by a test, then fixed, in Cloudflare, nearby, solo and the screen's locks
 - [ ] **Step 10. Mini Golf: an unfinished hole costs 5**

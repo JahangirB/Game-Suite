@@ -105,25 +105,17 @@ data class ShownReaction(val reaction: Reaction?, val at: Long, val line: String
 
 /**
  * Kylian Dictador taking the game over, on this phone's clock. [until] is when his song ends:
- * every reaction bar reads it, and nothing else can be sent until then. [shown] is a takeover
- * that isn't a reaction from someone else, such as his card played in Colour Clash: the app
- * shows it over whatever game is open, on every phone, the player's own included.
+ * every reaction bar reads it, and nothing else can be sent until then. Only his reaction does this;
+ * his card in Colour Clash is just eight cards.
  */
 object Takeover {
     val until = MutableStateFlow(0L)
-    val shown = MutableStateFlow<ShownReaction?>(null)
 
     fun locked(now: Long = System.currentTimeMillis()) = now < until.value
 
     /** Starts [reaction]'s takeover at [at], if it has one. */
     fun takeOver(reaction: Reaction, at: Long) {
         if (reaction.takesOverMs > 0) until.value = maxOf(until.value, at + reaction.takesOverMs)
-    }
-
-    /** Shows [reaction] over the game now and takes the game over with it; its sound is the caller's to play. */
-    fun show(reaction: Reaction, at: Long = System.currentTimeMillis()) {
-        takeOver(reaction, at)
-        shown.value = ShownReaction(reaction, at)
     }
 }
 

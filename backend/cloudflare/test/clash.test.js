@@ -89,3 +89,31 @@ test('first to empty their hand wins, in a room of three', () => {
   assert.equal(v.endReason, 'out');
   assert.equal(view(room, mover === 'host' ? 'guest' : 'host', T0).turns.counts.o !== undefined, true);
 });
+
+test('Kylian Dictador in a room: +8 for the next player, and the next move is accepted at once', () => {
+  const room = createRoom('CLSH', 'Alice', T0, uuid, null, null, 'clash');
+  setConnected(room, 'host', true, T0);
+  for (const name of ['Bob', 'Cat']) setConnected(room, joinRoom(room, name, null, T0, uuid, null, null, ['clash']), true, T0);
+  for (const r of ['host', 'guest', 'p3']) setTurnReady(room, r, true, T0);
+  const marks = { host: 'h', guest: 'g', p3: '3' };
+  const roles = ['host', 'guest', 'p3'];
+  const mover = room.turn;
+  const victim = roles[(roles.indexOf(mover) + 1) % 3];
+  const third = roles[(roles.indexOf(mover) + 2) % 3];
+  const s = room.turnState;
+  const c = s.colour;
+  s.hands[marks[mover]] = [c + 'K', c + '1', c + '2'];
+  s.hands[marks[third]] = [c + '3', c + '4'];
+  const before = s.hands[marks[victim]].length;
+  makeMove(room, mover, { card: 0 }, T0);
+  assert.equal(s.hands[marks[victim]].length, before + 8);
+  // The victim misses their turn (as with any draw card); the third player moves at the very same instant.
+  assert.equal(room.turn, third);
+  assert.equal(room.takenOverUntil || 0, 0, 'no take-over is set');
+  const v = view(room, third, T0);
+  assert.equal(v.turns.turn, 'me');
+  assert.equal(JSON.stringify(v).includes('takeover'), false);
+  makeMove(room, third, { card: 0 }, T0);
+  assert.equal(room.status, 'started');
+  assert.equal(s.hands[marks[third]].length, 1);
+});

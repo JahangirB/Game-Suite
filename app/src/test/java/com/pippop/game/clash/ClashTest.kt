@@ -84,4 +84,18 @@ class ClashTest {
         m.play('h', JSONObject().put("card", 0).put("colour", "g"))
         assertEquals('g', m.colour)
     }
+
+    @Test
+    fun theNextMoveAfterTheDictatorIsAcceptedAtOnce() {
+        val m = ClashMatch(listOf('h', 'g', '3'), Random(1))
+        val c = m.colour
+        m.hands.getValue('h').apply { clear(); addAll(listOf("${c}K", "${c}1", "${c}2")) }
+        m.hands.getValue('3').apply { clear(); addAll(listOf("${c}3", "${c}4")) }
+        val before = m.hands.getValue('g').size
+        assertEquals('3', m.play('h', JSONObject().put("card", 0)).turn)
+        assertEquals(before + 8, m.hands.getValue('g').size)
+        // Nothing waits: the player after the one who drew plays straight away.
+        assertEquals('h', m.play('3', JSONObject().put("card", 0)).turn)
+        assertEquals(1, m.hands.getValue('3').size)
+    }
 }
