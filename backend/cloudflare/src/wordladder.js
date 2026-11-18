@@ -5,15 +5,14 @@
 // legal move loses. With a turn timer, a turn that runs out passes to the other player.
 //
 // Picks must be in the ladder list (ladder.js); moves may be any real word of that length (the
-// Word Race list plus the Letter Grid list), so players aren't punished for words like CORD.
+// Word Race lists), so players aren't punished for words like CORD.
 // Same rules as the app's LadderMatch.kt; test/wordladder.test.js and the app's test share
 // app/src/test/resources/wordladder-cases.json.
 //
 // state: { length, timer (seconds, 0 = off), marks, picks: { h: 'COLD'|null, g: ... }, chain: [],
 //          startOwner, targetOwner, turn, turnEndsAt (ms, 0 = none), over, winner, reason }
 
-import { ALLOWED, ANSWERS } from './wordlists.js';
-import { GRID_WORDS } from './gridwords.js';
+import { isWord } from './words.js';
 import { blocklist, isLadderWord, pathExists } from './ladder.js';
 
 export const LENGTHS = [4, 5, 6];
@@ -25,20 +24,8 @@ export function cleanOptions(o) {
   return { length: LENGTHS.includes(length) ? length : 5, timer: TIMERS.includes(timer) ? timer : 0 };
 }
 
-let valid = null;
-/** Every real word of 4 to 6 letters a move may use (not blocklisted), UPPERCASE. Built on first use. */
-function validWords() {
-  if (!valid) {
-    valid = new Set();
-    for (const list of [ALLOWED, ANSWERS, GRID_WORDS]) {
-      for (const w of list.split(' ')) if (w.length >= 4 && w.length <= 6) valid.add(w.toUpperCase());
-    }
-    for (const w of blocklist) valid.delete(w);
-  }
-  return valid;
-}
-
-export const isRealWord = (word) => validWords().has(word);
+/** A real word a move may use: 4 to 6 letters (UPPERCASE), not blocklisted, in the Word Race lists. */
+export const isRealWord = (word) => word.length >= 4 && word.length <= 6 && !blocklist.has(word) && isWord(word.toLowerCase());
 
 const other = (state, mark) => state.marks.find((m) => m !== mark);
 
@@ -72,7 +59,7 @@ function endIfStuck(state) {
   state.winner = other(state, state.turn);
   state.reason = 'stuck';
   state.turnEndsAt = 0;
-  return { again: false, over: true, winner: state.winner, reason: 'stuck' };
+  return { again: false, over: true, winner: state.winner, reason: 'stuck', turn: null };
 }
 
 /**
@@ -81,18 +68,19 @@ function endIfStuck(state) {
  * Returns { revealed, over, winner, reason }.
  */
 export function setPick(state, mark, move, random = Math.random, now = 0) {
+  if (!state.marks.includes(mark)) throw new Error("You're not in this game.");
   if (state.chain.length) throw new Error('The game has started.');
   const word = String(move?.word ?? '').toUpperCase();
   if (word.length !== state.length) throw new Error(`Pick a ${state.length}-letter word.`);
   if (!isLadderWord(word) || blocklist.has(word)) throw new Error('Not a word we can use. Pick another.');
   const rival = state.picks[other(state, mark)];
   if (rival) {
-    if (rival === word) throw new Error('Pick a different word.');
+    if (rival === word) throw new Error('Pick another word.');
     // The reason names only the sender's own word, so it never gives the other pick away.
     if (!pathExists(word, rival)) throw new Error(`No way from ${word} to the other word yet. Pick another.`);
   }
   state.picks[mark] = word;
-  if (!rival) return { revealed: false, over: false, winner: null, reason: null };
+  if (!rival) return { revealed: false, over: false, winner: null, reason: null, turn: null };
   const startOwner = random() < 0.5 ? state.marks[0] : state.marks[1];
   state.startOwner = startOwner;
   state.targetOwner = other(state, startOwner);
@@ -100,7 +88,7 @@ export function setPick(state, mark, move, random = Math.random, now = 0) {
   state.turn = state.targetOwner;
   state.turnEndsAt = turnEnd(state, now);
   const stuck = endIfStuck(state);
-  return { revealed: true, over: false, winner: null, reason: null, ...stuck };
+  return { revealed: true, over: false, winner: null, reason: null, turn: state.turn, ...stuck };
 }
 
 /** `mark` changes one letter: { word }. Returns { again, over, winner, reason ('target' or 'stuck') }. */
@@ -120,11 +108,11 @@ export function play(state, mark, move, now = 0) {
     state.winner = mark;
     state.reason = 'target';
     state.turnEndsAt = 0;
-    return { again: false, over: true, winner: mark, reason: 'target' };
+    return { again: false, over: true, winner: mark, reason: 'target', turn: null };
   }
   state.turn = other(state, mark);
   state.turnEndsAt = turnEnd(state, now);
-  return endIfStuck(state) ?? { again: false, over: false, winner: null, reason: null };
+  return endIfStuck(state) ?? { again: false, over: false, winner: null, reason: null, turn: state.turn };
 }
 
 /** Call when the clock reaches `turnEndsAt`: the turn passes. Returns { passed, turn }. */

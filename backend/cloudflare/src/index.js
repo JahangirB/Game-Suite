@@ -8,7 +8,7 @@
 //
 // Each room is one Durable Object, so a room's state lives in one place and every
 // change is pushed to both players at once. Messages are JSON:
-//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'face' | 'getface' | 'mempic' | 'getmempic' | 'game' | 'menu' | 'sync' | 'leave', ... }
+//   app -> server  { id, type: 'ready' | 'board' | 'fire' | 'move' | 'pick' | 'options' | 'score' | 'live' | 'guess' | 'stroke' | 'clear' | 'emoji' | 'face' | 'getface' | 'mempic' | 'getmempic' | 'game' | 'menu' | 'sync' | 'leave', ... }
 //                  ('game' { game } opens a game in the same room; 'menu' goes back to the menu)
 //   server -> app  { type: 'state', re?, serverTime, ...room view }   (re = id it answers)
 //                  { type: 'error', re?, error, fatal }
@@ -22,7 +22,7 @@ import { createPushSender, serviceAccountText } from './push.js';
 import {
   GameError, checkTimers, createRoom, joinRoom, leave, nextDeadline, normalizeCode,
   fire, sendEmoji, setConnected, setReady, setShipsReady, submitBoard, view,
-  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, setSlidePhoto, drawGuess, guessWord, makeMove, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart, coopPlace, coopCursor,
+  GAMES, TURN_GAMES, addStroke, clearDrawing, undoStroke, setSlidePhoto, drawGuess, guessWord, makeMove, pickWord, seated, setDrawReady, setNumbersReady, submitNumbers, setHockeyReady, hockeyScore, setGridReady, findWord, setCodeReady, codeMove, setSlideReady, slideMoves, setBingoReady, claimBingo, setOptions, setTurnReady, setWordsReady, openGame, toMenu, setPaused, wantRestart, coopPlace, coopCursor,
 } from './room.js';
 
 const API_VERSION = 1;
@@ -148,6 +148,7 @@ export class Room extends DurableObject {
     const room = this.room;
     if (room.status !== 'started' || !this.env.DIRECTORY) return;
     const next = room.players[room.turn];
+    if (!next) return;
     const mover = room.players[moverRole];
     if (next.connected || !next.deviceId || !mover?.deviceId) return;
     try {
@@ -219,6 +220,9 @@ export class Room extends DurableObject {
           break;
         case 'move':
           makeMove(this.room, role, msg.move, now);
+          break;
+        case 'pick':
+          pickWord(this.room, role, msg.word, now);
           break;
         case 'options':
           setOptions(this.room, role, msg.options);
@@ -328,7 +332,8 @@ export class Room extends DurableObject {
       await this.save();
       this.send(ws, role, { re: msg.id });
       this.broadcast(ws);
-      if (msg.type === 'move') await this.notifyTurn(role);
+      // A pick that reveals the words tells the first mover it is their turn.
+      if (msg.type === 'move' || msg.type === 'pick') await this.notifyTurn(role);
     } catch (err) {
       ws.send(JSON.stringify({ type: 'error', re: msg.id, error: err.message, fatal: !!err.fatal, reason: err.reason || null }));
     }

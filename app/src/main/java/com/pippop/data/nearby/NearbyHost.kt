@@ -114,6 +114,9 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
     override suspend fun move(code: String, playerId: String, move: JSONObject) =
         local { move(LocalRoom.HOST, move, now()) }
 
+    override suspend fun pick(code: String, playerId: String, word: String) =
+        local { pickWord(LocalRoom.HOST, word, now()) }
+
     override suspend fun setOptions(code: String, playerId: String, options: JSONObject) =
         local { setOptions(LocalRoom.HOST, options) }
 
@@ -327,6 +330,7 @@ class NearbyHost(context: Context, private val hostName: String, private val hos
                 "score" -> r.hockeyScore(role!!, msg.optJSONArray("score")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty(), now)
                 "fire" -> r.fire(role!!, msg.optInt("x", -1), msg.optInt("y", -1), now)
                 "move" -> r.move(role!!, msg.optJSONObject("move") ?: JSONObject(), now)
+                "pick" -> r.pickWord(role!!, msg.optString("word"), now)
                 "options" -> r.setOptions(role!!, msg.optJSONObject("options") ?: JSONObject())
                 "guess" -> if (r.game == GameKind.DRAW) {
                     r.drawGuess(role!!, msg.optString("word"), now)

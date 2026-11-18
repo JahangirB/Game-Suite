@@ -34,6 +34,9 @@ interface TurnMatch {
     /** Plays [move] for [mark]; throws IllegalArgumentException for a move that isn't allowed. */
     fun play(mark: Char, move: JSONObject): TurnResult
 
+    /** As [play], for a game with a clock (Word Ladder's turn timer): [now] in milliseconds. */
+    fun play(mark: Char, move: JSONObject, now: Long): TurnResult = play(mark, move)
+
     /**
      * The round as [mark] sees it: the same JSON the server sends under "turns". [seats] maps
      * each other player's mark to the letter they show as ('o', 'p', 'q'); empty means 'o'.
@@ -56,6 +59,8 @@ interface TurnMatch {
             dotsBoard: String = "4x4",
             /** Memory Pairs: the cards are pairs of the players' photos ("p0", "p1" …), not animals. */
             memoryPhotos: Boolean = false,
+            /** Word Ladder: the word length and the turn timer. */
+            ladder: com.pippop.game.words.LadderOptions = com.pippop.game.words.LadderOptions(),
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -67,6 +72,7 @@ interface TurnMatch {
             GameKind.DOTS -> DotsMatch(com.pippop.game.dots.DotsShape.from(dotsBoard))
             GameKind.MEMORY -> MemoryMatch(random, memoryCards, memoryPhotos)
             GameKind.TTT -> TttMatch(tttClassic)
+            GameKind.LADDER -> com.pippop.game.words.LadderMatch(ladder, marks) { random.nextDouble() }
             else -> C4Match()
         }
 

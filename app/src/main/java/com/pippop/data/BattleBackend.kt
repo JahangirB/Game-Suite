@@ -42,6 +42,9 @@ interface BattleBackend {
     /** Turn games: play [move] ({"col": n} in Connect Four). Readiness goes through [ready]. */
     suspend fun move(code: String, playerId: String, move: JSONObject): JSONObject
 
+    /** Word Ladder: secretly picks [word]. Only to a server with the Word Ladder game (the app asks for it through the room's game list). */
+    suspend fun pick(code: String, playerId: String, word: String): JSONObject = throw ApiException("Word Ladder needs the latest Pip & Pop.")
+
     /** Number Cross: ready (or not); the host's Ready carries the next [puzzle], built on their phone. */
     suspend fun readyNumbers(code: String, playerId: String, ready: Boolean, puzzle: JSONObject?): JSONObject
 

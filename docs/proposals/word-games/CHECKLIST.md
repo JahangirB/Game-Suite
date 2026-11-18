@@ -15,8 +15,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 2. Word Ladder rules** (Opus check)
   - [x] Picks, random start, path check, one-letter moves, no repeats, win, no move, timer
   - [x] Same test cases pass in Kotlin and Cloudflare
-- [ ] **Step 3. Word Ladder online and nearby** (Opus check)
-  - [ ] Full game in rooms and nearby; picks secret until the flip; rematch and leave
+- [x] **Step 3. Word Ladder online and nearby** (Opus check)
+  - [x] Full game in rooms and nearby; picks secret until the flip; rematch and leave
 - [ ] **Step 4. Word Ladder screens**
   - [ ] Setup, pick, flip, ladder, wrong move, result, rules, tutorial; card and result art
   - [ ] Screenshots light and dark; a test plays through the screen

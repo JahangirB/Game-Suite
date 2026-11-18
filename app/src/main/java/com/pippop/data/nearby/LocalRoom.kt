@@ -124,6 +124,7 @@ class LocalRoom(
     // Turn games
     private var firstTurn: String? = null
     private var turnMatch: TurnMatch? = null
+    private var ladderOptions = com.pippop.game.words.LadderOptions()
     /** The host's Dominoes rules for the next match. */
     var options = DominoOptions()
         private set
@@ -472,15 +473,17 @@ class LocalRoom(
             val missing = memoryPics().count { it == null }
             if (missing > 0) throw ApiException("Choose $missing more ${if (missing == 1) "photo" else "photos"} to start.")
         }
+        if (ready && game == GameKind.LADDER && !com.pippop.game.words.WordLadder.loaded) throw ApiException("Still getting the words ready. Try again in a moment.")
         player(role).ready = ready
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard, memoryPhotosOn())
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard, memoryPhotosOn(), ladderOptions)
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
-            turn = starter
+            // Word Ladder has no turn until both words are picked; its coin flip decides who moves first.
+            turn = if (game == GameKind.LADDER) null else starter
             turnMatch = match
             beginMatch(now)
         }
@@ -491,9 +494,10 @@ class LocalRoom(
     fun move(role: String, move: JSONObject, now: Long) {
         val match = turnMatch
         if (!game.turnBased || status != "started" || match == null) throw ApiException("The game is not running.")
-        if (turn != role) throw ApiException("It's not your turn.")
+        // Word Ladder checks the turn itself (it also says when the words are not both in yet).
+        if (game != GameKind.LADDER && turn != role) throw ApiException("It's not your turn.")
         val result = try {
-            match.play(MARKS.getValue(role), move)
+            match.play(MARKS.getValue(role), move, now)
         } catch (e: IllegalArgumentException) {
             throw ApiException(e.message ?: "That move isn't allowed.")
         }
@@ -505,6 +509,29 @@ class LocalRoom(
             turn = roleOfMark(result.turn)
         } else if (!result.again) {
             turn = nextOf(role, playing())
+        }
+        version++
+    }
+
+    /**
+     * Word Ladder: [role] secretly picks [word]. The other phone's pick is in no view until both
+     * are in; then the coin flip sets who moves first (the room's turn follows the ladder's own).
+     */
+    fun pickWord(role: String, word: String, now: Long) {
+        val match = turnMatch as? com.pippop.game.words.LadderMatch
+        if (game != GameKind.LADDER || status != "started" || match == null) throw ApiException("The game is not running.")
+        if (role !in playing()) throw ApiException("You're not in this game.")
+        val result = try {
+            match.setPick(MARKS.getValue(role), word, now)
+        } catch (e: IllegalArgumentException) {
+            throw ApiException(e.message ?: "That word isn't allowed.")
+        }
+        if (result.over) {
+            val winnerRole = MARKS.entries.firstOrNull { it.value == result.winner }?.key
+            winnerRole?.let { players.getValue(it)!!.finishedAt = now }
+            endMatch(winnerRole, result.reason ?: "won")
+        } else if (match.revealed) {
+            turn = match.turn?.let { roleOfMark(it) }
         }
         version++
     }
@@ -524,6 +551,7 @@ class LocalRoom(
             GameKind.SLIDE -> slideLevel = SlideLevel.from(options.optString("level"))
             GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
             GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
+            GameKind.LADDER -> ladderOptions = com.pippop.game.words.LadderOptions.clean(options.optInt("length"), options.optInt("timer"))
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
             GameKind.DRAW -> drawMode = if (options.optString("mode") == "race") "race" else "team"
@@ -1512,6 +1540,14 @@ class LocalRoom(
             return true
         }
         if (now < start) return false
+        // Word Ladder's turn timer: a turn that runs out passes to the other player.
+        if (game == GameKind.LADDER) (turnMatch as? com.pippop.game.words.LadderMatch)?.let { m ->
+            if (m.tick(now)) {
+                turn = m.turn?.let { roleOfMark(it) }
+                version++
+                return true
+            }
+        }
         if (game == GameKind.BINGO && now >= start + Bingo.ROUND_MS) {
             endMatch(null, "draw")
             version++
@@ -1600,6 +1636,7 @@ class LocalRoom(
                     GameKind.SLIDE -> JSONObject().put("level", slideLevel.key)
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
+                    GameKind.LADDER -> JSONObject().put("length", ladderOptions.length).put("timer", ladderOptions.timer)
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards).apply {
                         // The deck's pictures and the photos' ids only where everyone has the token (an old room's are just the cards).
                         if (memoryPhotosAllowed()) {
@@ -1651,6 +1688,8 @@ class LocalRoom(
         if (game == GameKind.MEMORY && !player(role).memoryPhotos) json.optJSONArray("faces")?.let { a ->
             json.put("faces", org.json.JSONArray((0 until a.length()).map { i -> if (a.isNull(i)) JSONObject.NULL else com.pippop.game.memory.CardFace.from(a.getString(i))?.copy(pair = null)?.key ?: a.getString(i) }))
         }
+        // Word Ladder's own view already says whose turn it is (and nobody's while the words are picked).
+        if (game == GameKind.LADDER) return json.put("turnName", if (shown == "playing") turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)
         val playing = shown == "playing"
         return json.put("turn", if (playing) (if (turn == role) "me" else "opponent") else JSONObject.NULL)
             .put("turnName", if (playing) turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)

@@ -80,13 +80,13 @@ val STORE_CATEGORIES: Map<StoreFilter, Set<GameKind>> = mapOf(
         GameKind.SUDOKU, GameKind.NUMBERS, GameKind.CODE, GameKind.SLIDE, GameKind.MEMORY,
         GameKind.BLOCKS, GameKind.CONNECT4, GameKind.DOTS, GameKind.SHIPS,
     ),
-    StoreFilter.WORDS to setOf(GameKind.WORDS, GameKind.GRID, GameKind.BALLOON, GameKind.DRAW),
+    StoreFilter.WORDS to setOf(GameKind.WORDS, GameKind.GRID, GameKind.BALLOON, GameKind.DRAW, GameKind.LADDER),
     StoreFilter.PARTY to setOf(
         GameKind.DRAW, GameKind.BINGO, GameKind.LUDO, GameKind.CLASH, GameKind.DOMINOES, GameKind.GOLF, GameKind.DOTS, GameKind.MEMORY,
     ),
     StoreFilter.QUICK to setOf(
         GameKind.CONNECT4, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT, GameKind.NUMBERS, GameKind.HOCKEY,
-        GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE, GameKind.GRID, GameKind.BINGO,
+        GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE, GameKind.GRID, GameKind.BINGO, GameKind.LADDER,
     ),
 )
 

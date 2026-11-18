@@ -77,6 +77,8 @@ private val Scenes: Map<GameKind, Pen.() -> Unit> = mapOf(
     GameKind.BINGO to Pen::bingo,
     GameKind.GOLF to Pen::golf,
     GameKind.BLOCKS to Pen::blocks,
+    // Word Ladder's own picture comes with its screens (a later step); until then it borrows Word Race's.
+    GameKind.LADDER to Pen::words,
 )
 
 // ---- The first ten games --------------------------------------------------------------------

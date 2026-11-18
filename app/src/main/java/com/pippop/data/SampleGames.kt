@@ -29,7 +29,8 @@ object SampleGames {
             List(n) {
                 val game = GameKind.entries[rnd.nextInt(GameKind.entries.size)]
                 val roll = rnd.nextInt(10)
-                val winner = when { roll < 5 -> MatchRecord.ME; roll < 9 -> PARTNER; else -> null }
+                // A ladder game always has a winner: it can't end in a draw.
+                val winner = when { roll < 5 -> MatchRecord.ME; roll < 9 || game == GameKind.LADDER -> PARTNER; else -> null }
                 val facts = factsFor(game, winner, rnd)
                 MatchRecord(
                     at = from + (rnd.nextDouble() * (to - from)).toLong(), game = game, others = listOf(PARTNER), winner = winner,
@@ -52,6 +53,7 @@ object SampleGames {
             GameKind.CONNECT4 -> GameFacts(durationMs = minutes(2, 6), count = if (tie) null else 7 + rnd.nextInt(10))
             GameKind.DOTS -> pair(9 + rnd.nextInt(4), 4 + rnd.nextInt(3)).let { (a, b) -> GameFacts(durationMs = minutes(5, 12), mine = a, theirs = b) }
             GameKind.MEMORY -> pair(5 + rnd.nextInt(3), 2 + rnd.nextInt(2)).let { (a, b) -> GameFacts(durationMs = minutes(3, 7), mine = a, theirs = b) }
+            GameKind.LADDER -> GameFacts(durationMs = minutes(2, 6), count = if (tie) null else 3 + rnd.nextInt(5))
             GameKind.WORDS -> GameFacts(durationMs = minutes(2, 6), count = if (tie) null else 2 + rnd.nextInt(5))
             GameKind.DRAW -> GameFacts(durationMs = minutes(6, 12), mine = 3 + rnd.nextInt(6))
             GameKind.TTT -> GameFacts(durationMs = minutes(1, 4))

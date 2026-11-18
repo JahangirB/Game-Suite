@@ -1076,6 +1076,46 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Word Ladder: whoever opened the game picks the word length (4, 5 or 6) and the turn timer (0, 30 or 60 seconds); everyone gets ready again. */
+    fun setLadderOptions(options: com.pippop.game.words.LadderOptions) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.ladderOptions == options) return
+        sendReady(room.copy(ladderOptions = options, me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(room.code, id, JSONObject().put("length", options.length).put("timer", options.timer))
+        }
+    }
+
+    /** Word Ladder: change one letter of the last word into [word] (UPPERCASE or not). The server says why not. */
+    fun ladderMove(word: String) = playMove(JSONObject().put("word", word.uppercase()))
+
+    /** Word Ladder: secretly pick [word] (the server checks it and keeps it from the other phone until both are in). */
+    fun ladderPick(word: String) {
+        val s = _state.value
+        val room = s.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (s.firing || room.game != GameKind.LADDER) return
+        _state.update { it.copy(firing = true) }
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.pick(room.code, id, word.uppercase()), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                if (!e.fatal) {
+                    haptics.play(Buzz.NOT_ALLOWED)
+                    sfx.play(Sound.ERROR)
+                }
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
+            } catch (e: IOException) {
+                showMessage("Network problem, try again.", Tone.Bad)
+            } finally {
+                _state.update { it.copy(firing = false) }
+            }
+        }
+    }
+
     /** Dots & Boxes: whoever opened the game picks the board; everyone gets ready again. */
     fun setDotsBoard(board: String) {
         val room = _state.value.room ?: return

@@ -19,5 +19,7 @@ class PipPopApplication : Application() {
         com.pippop.data.SoloRecordStore.init(this)
         // Letter Grid's longer list loads in the background.
         Thread { GridWords.load(this) }.start()
+        // Word Ladder's list loads in the background; a ladder game waits for it.
+        Thread { com.pippop.game.words.WordLadder.load(this) }.start()
     }
 }

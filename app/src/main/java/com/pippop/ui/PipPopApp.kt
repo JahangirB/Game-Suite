@@ -157,7 +157,7 @@ private fun soloDest(game: GameKind) = when (game) {
     GameKind.GOLF -> Dest.GOLF
     GameKind.BLOCKS -> Dest.BLOCKS
     // Draw & Guess needs two players; its sheet offers no solo game.
-    GameKind.DRAW -> Dest.HOME
+    GameKind.DRAW, GameKind.LADDER -> Dest.HOME
     GameKind.SUDOKU -> Dest.SOLO
 }
 
@@ -511,7 +511,7 @@ fun PipPopApp(
                                 // The game starts with the setup the sheet stated: no screen asks again.
                                 when (game) {
                                     GameKind.SUDOKU -> solo.startWith(setup)
-                                    GameKind.SHIPS -> Unit
+                                    GameKind.SHIPS, GameKind.LADDER -> Unit
                                     GameKind.CONNECT4 -> connectFour.startWith(setup)
                                     GameKind.DOTS -> dots.startWith(setup)
                                     GameKind.MEMORY -> memory.startWith(setup)

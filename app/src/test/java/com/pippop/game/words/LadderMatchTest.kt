@@ -47,7 +47,7 @@ class LadderMatchTest {
                 }
                 "tick" -> {
                     assertEquals(at, s.getBoolean("passed"), match.tick(now))
-                    assertEquals(at, s.getString("turn")[0], match.turn)
+                    assertEquals(at, if (s.isNull("turn")) null else s.getString("turn")[0], match.turn)
                 }
                 else -> {
                     val mark = s.getString("mark")[0]

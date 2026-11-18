@@ -52,7 +52,7 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.CONNECT4 -> if (win) a.c4Win() else a.c4Lose()
                     GameKind.DOTS -> if (win) a.dotsWin() else a.dotsLose()
                     GameKind.MEMORY -> if (win) a.memoryWin() else a.memoryLose()
-                    GameKind.WORDS -> if (win) a.wordsWin() else a.wordsLose()
+                    GameKind.WORDS, GameKind.LADDER -> if (win) a.wordsWin() else a.wordsLose()
                     GameKind.DRAW -> if (win) a.drawWin() else a.drawLose()
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()

@@ -35,6 +35,15 @@ for (const c of cases) {
   });
 }
 
+test('word ladder: a mark that is not in the game cannot pick', () => {
+  const state = start(Math.random, ['h', 'g'], { length: 4 });
+  assert.throws(() => setPick(state, '3', { word: 'COLD' }, () => 0.1), /not in this game/);
+  setPick(state, 'h', { word: 'COLD' }, () => 0.1);
+  assert.throws(() => setPick(state, '3', { word: 'TOLL' }, () => 0.1), /not in this game/);
+  assert.equal(setPick(state, 'g', { word: 'TOLL' }, () => 0.1).revealed, true);
+  assert.deepEqual(state.chain, ['COLD']);
+});
+
 test('word ladder: options, moves and the real-word list', () => {
   assert.deepEqual(cleanOptions({ length: 6, timer: 60 }), { length: 6, timer: 60 });
   assert.deepEqual(cleanOptions({ length: 9, timer: 5 }), { length: 5, timer: 0 });

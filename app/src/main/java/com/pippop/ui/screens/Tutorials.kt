@@ -146,6 +146,7 @@ fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.CONNECT4 -> connectFour()
     GameKind.DOTS -> dots()
     GameKind.MEMORY -> memory()
+    GameKind.LADDER -> null
     GameKind.WORDS -> words()
     GameKind.DRAW -> draw()
     GameKind.TTT -> ttt()

@@ -18,6 +18,7 @@ val GameKind.color: Color
         GameKind.DOTS -> Color(0xFF7B6CF0)
         GameKind.MEMORY -> Color(0xFFF2A33A)
         GameKind.WORDS -> Color(0xFF20A47B)
+        GameKind.LADDER -> Color(0xFF6C8EF5)
         GameKind.DRAW -> Color(0xFFE0569B)
         GameKind.TTT -> Color(0xFF4F46E5)
         GameKind.DOMINOES -> Color(0xFF8B5E34)
@@ -43,6 +44,7 @@ val GameKind.tagline: String
         GameKind.DOTS -> "Close a box, go again"
         GameKind.MEMORY -> "Find the pairs"
         GameKind.WORDS -> "Same word, who finds it first?"
+        GameKind.LADDER -> "Change one letter at a time"
         GameKind.DRAW -> "One draws, one guesses, as a team"
         GameKind.TTT -> "Three in a row, or nine boards"
         GameKind.DOMINOES -> "Match the ends, play out your hand"
@@ -67,7 +69,7 @@ val GameKind.playersFact: String
 val GameKind.minutes: Int
     get() = when (this) {
         GameKind.CONNECT4, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT, GameKind.NUMBERS, GameKind.HOCKEY,
-        GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE -> 5
+        GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE, GameKind.LADDER -> 5
         GameKind.GRID, GameKind.BINGO -> 3
         GameKind.SUDOKU, GameKind.SHIPS, GameKind.DOTS, GameKind.CLASH, GameKind.DRAW -> 10
         GameKind.DOMINOES, GameKind.GOLF, GameKind.BLOCKS -> 15
@@ -133,6 +135,12 @@ val GameKind.rules: List<RulePoint>
             "Length" to "The level sets the length: easy 4 letters, medium 5, hard 6, expert 7 or 8.",
             "Race" to "Everyone gets the same word and sees the others' colours, never their letters.",
             "Winning" to "Fewest tries wins; on a tie, the faster.",
+        )
+        GameKind.LADDER -> pts(
+            "Goal" to "Turn one word into the other, changing one letter at a time. Every step must be a real word.",
+            "Words" to "Each of you secretly picks a word. A coin flip decides whose is the start; the other is the target.",
+            "Moves" to "The owner of the target goes first. No word can be used twice.",
+            "Winning" to "Whoever's move spells the target wins. If you have no move, you lose.",
         )
         GameKind.DRAW -> pts(
             "Goal" to "Play as a team over four turns, taking turns to draw. A right guess adds the seconds left, out of 80, to your team score.",
@@ -352,7 +360,7 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.ring(9, 9, 6, tint, 1.6); p.circle(9, 9, 2.6, tint)
             p.rr(12, 12, 9, 9, 1.5, null, tint, 1.6); p.circle(16.5, 16.5, 2.2, tint)
         }
-        GameKind.WORDS -> {
+        GameKind.WORDS, GameKind.LADDER -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.
             for (i in 0 until 3) p.rr(2.5 + i * 7, 4, 5.5, 6.5, 1.5, if (i == 1) tint else null, tint, 1.6)
             for (i in 0 until 3) p.rr(2.5 + i * 7, 13, 5.5, 6.5, 1.5, tint)

@@ -1,5 +1,6 @@
 package com.pippop.game.words
 
+import com.pippop.game.turns.TurnMatch
 import com.pippop.game.turns.TurnResult
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,6 +26,10 @@ data class LadderOptions(val length: Int = 5, val timer: Int = 0) {
  * unused word. Whoever's move spells the TARGET wins; a player with no legal move loses; a turn
  * that runs out of time passes to the other player. Times are milliseconds, given by the caller.
  *
+ * It is a [TurnMatch] so a nearby room runs it like the other turn games; picks go through
+ * [setPick] (a separate call, as the server's "pick" message). Results carry [TurnResult.turn],
+ * who moves next, so the room's turn follows the ladder's own.
+ *
  * Rule errors are IllegalArgumentException with the reason to show ("Change one letter",
  * "Not a word", "Already used", ...). Needs [WordLadder] (and the Word Race and Letter Grid lists)
  * to be loaded.
@@ -33,7 +38,7 @@ class LadderMatch(
     options: LadderOptions = LadderOptions(),
     val marks: List<Char> = listOf('h', 'g'),
     private val random: () -> Double = { Random.nextDouble() },
-) {
+) : TurnMatch {
     val length = options.length
     val timer = options.timer
     private val picks = HashMap<Char, String?>().apply { marks.forEach { put(it, null) } }
@@ -72,7 +77,7 @@ class LadderMatch(
         winner = other(turn!!)
         reason = "stuck"
         turnEndsAt = 0
-        return TurnResult(again = false, over = true, winner = winner, reason = "stuck")
+        return TurnResult(again = false, over = true, winner = winner, reason = "stuck", turn = null)
     }
 
     /**
@@ -80,13 +85,14 @@ class LadderMatch(
      * turn starts at [now]. Returns the result of that (over when the first mover has no move).
      */
     fun setPick(mark: Char, word: String, now: Long = 0): TurnResult {
+        require(mark in marks) { "You're not in this game." }
         require(!revealed) { "The game has started." }
         val w = word.uppercase()
         require(w.length == length) { "Pick a $length-letter word." }
         require(WordLadder.isWord(w) && w !in WordLadder.blocklist) { "Not a word we can use. Pick another." }
         val rival = picks[other(mark)]
         if (rival != null) {
-            require(rival != w) { "Pick a different word." }
+            require(rival != w) { "Pick another word." }
             // Names only the sender's own word, so it never gives the other pick away.
             require(WordLadder.pathExists(w, rival)) { "No way from $w to the other word yet. Pick another." }
         }
@@ -97,7 +103,7 @@ class LadderMatch(
         chain.add(picks.getValue(startOwner!!)!!)
         turn = targetOwner
         turnEndsAt = turnEnd(now)
-        return endIfStuck() ?: TurnResult(again = false)
+        return endIfStuck() ?: TurnResult(again = false, turn = turn)
     }
 
     /** [mark] changes one letter into [word]. */
@@ -120,8 +126,12 @@ class LadderMatch(
         }
         turn = other(mark)
         turnEndsAt = turnEnd(now)
-        return endIfStuck() ?: TurnResult(again = false)
+        return endIfStuck() ?: TurnResult(again = false, turn = turn)
     }
+
+    override fun play(mark: Char, move: JSONObject): TurnResult = play(mark, move.optString("word"), 0)
+
+    override fun play(mark: Char, move: JSONObject, now: Long): TurnResult = play(mark, move.optString("word"), now)
 
     /** Call when the clock reaches [turnEndsAt]: the turn passes. True if it did. */
     fun tick(now: Long): Boolean {
@@ -132,7 +142,7 @@ class LadderMatch(
     }
 
     /** The game as [mark] sees it: the same JSON as view() in wordladder.js. Only [mark]'s own pick before the reveal. */
-    fun view(mark: Char): JSONObject {
+    override fun view(mark: Char, seats: Map<Char, Char>): JSONObject {
         fun me(m: Char?) = if (m == null) JSONObject.NULL else if (m == mark) "me" else "opponent"
         return JSONObject()
             .put("length", length)
@@ -149,5 +159,49 @@ class LadderMatch(
             .put("turnEndsAt", turnEndsAt)
             .put("winner", if (over) me(winner) else JSONObject.NULL)
             .put("reason", reason ?: JSONObject.NULL)
+    }
+}
+
+/**
+ * Word Ladder as one player sees it (the server's and the nearby room's "turns" view). Before both
+ * words are in, [myPick] is the only pick there is: [start], [target] and the owners are null.
+ * [startOwner], [targetOwner], [turn] and [winner] are "me" or "opponent"; [phase] is "picking",
+ * "playing" or "over"; [turnEndsAt] is in server milliseconds, 0 when there is no timer running.
+ */
+data class LadderView(
+    val length: Int,
+    val timer: Int,
+    val phase: String,
+    val myPick: String?,
+    val opponentPicked: Boolean,
+    val start: String?,
+    val target: String?,
+    val startOwner: String?,
+    val targetOwner: String?,
+    val chain: List<String>,
+    val turn: String?,
+    val turnEndsAt: Long,
+    val winner: String?,
+    val reason: String?,
+) {
+    companion object {
+        private fun JSONObject.text(key: String) = if (isNull(key)) null else optString(key)
+
+        fun from(json: JSONObject) = LadderView(
+            length = json.optInt("length", 5),
+            timer = json.optInt("timer", 0),
+            phase = json.optString("phase", "picking"),
+            myPick = json.text("myPick"),
+            opponentPicked = json.optBoolean("opponentPicked"),
+            start = json.text("start"),
+            target = json.text("target"),
+            startOwner = json.text("startOwner"),
+            targetOwner = json.text("targetOwner"),
+            chain = json.optJSONArray("chain")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
+            turn = json.text("turn"),
+            turnEndsAt = json.optLong("turnEndsAt", 0),
+            winner = json.text("winner"),
+            reason = json.text("reason"),
+        )
     }
 }

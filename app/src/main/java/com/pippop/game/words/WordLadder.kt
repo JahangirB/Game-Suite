@@ -1,13 +1,12 @@
 package com.pippop.game.words
 
 import android.content.Context
-import com.pippop.game.grid.GridWords
 
 /**
  * The Word Ladder dictionary (words/ladder.txt): common 4, 5 and 6 letter words, UPPERCASE, the
  * same as the server's (backend/cloudflare/src/ladder.js). Neighbours (words one letter away) are
- * worked out when the list is installed, from "C_LD" style keys, not stored. Not loaded at start:
- * call [load] when a ladder game opens.
+ * worked out when the list is installed, from "C_LD" style keys, not stored. The app loads it on a
+ * background thread at start (PipPopApplication); a nearby ladder game waits until [loaded].
  */
 object WordLadder {
     val LENGTHS = listOf(4, 5, 6)
@@ -38,13 +37,13 @@ object WordLadder {
     fun isWord(word: String) = word in words
 
     /**
-     * A real word a move may use: any word of 4 to 6 letters in the Word Race or Letter Grid
-     * lists (loaded elsewhere: [WordList], [com.pippop.game.grid.GridWords]), not blocklisted.
+     * A real word a move may use: any word of 4 to 6 letters in the Word Race lists (loaded at
+     * start: [WordList]), not blocklisted. The Letter Grid list adds no words.
      */
     fun isRealWord(word: String): Boolean {
         if (word.length !in 4..6 || word in blocklist) return false
         val lower = word.lowercase()
-        return WordList.isWord(lower) || GridWords.isWord(lower)
+        return WordList.isWord(lower)
     }
 
     /** Ladder words that differ from [word] in exactly one letter (none for a word not in the list). */
