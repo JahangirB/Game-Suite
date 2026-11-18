@@ -37,7 +37,7 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Against the clock with a best per size; computer finders
 - [x] **Step 11. In the app**
   - [x] Both in the Game Store with "New"; game pages; scoreboard and records; README
-- [ ] **Step 12. The last pass**
-  - [ ] All checks pass locally; the last CI run is green; the preview is from it
-  - [ ] Every new screen looked at in light and dark
-  - [ ] The owner has the report, the preview link, and the note to deploy Cloudflare
+- [x] **Step 12. The last pass**
+  - [x] All checks pass locally; the last CI run is green; the preview is from it
+  - [x] Every new screen looked at in light and dark
+  - [x] The owner has the report, the preview link, and the note to deploy Cloudflare
