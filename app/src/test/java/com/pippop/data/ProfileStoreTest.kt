@@ -330,4 +330,25 @@ class ProfileStoreTest {
         assertEquals(FrameLook.BLUE, p.frame)
         assertEquals(TileLook.IVORY, p.tile)
     }
+
+    @Test fun theNewMarkOfTheWordGamesStaysUntilTheirPageIsOpenedOrTheyAreGot() {
+        val s = fresh()
+        val p = s.profile.value
+        assertEquals(setOf(GameKind.LADDER, GameKind.HUNT), GameKind.entries.filter { ProfileStore.isNew(it, p) }.toSet())
+        // A game that was never new has no mark to clear.
+        s.markSeen(GameKind.BINGO)
+        assertTrue(s.profile.value.newSeen.isEmpty())
+        // Opening the page clears one, and the phone remembers it (a new key: nothing else in the file changes).
+        s.markSeen(GameKind.LADDER)
+        assertFalse(ProfileStore.isNew(GameKind.LADDER, s.profile.value))
+        assertTrue(ProfileStore.isNew(GameKind.HUNT, store().profile.value))
+        assertEquals(setOf(GameKind.LADDER), store().profile.value.newSeen)
+        // Getting a game clears it too, and a game already on the shelf is never new.
+        s.addToShelf(GameKind.HUNT)
+        assertFalse(ProfileStore.isNew(GameKind.HUNT, store().profile.value))
+        assertEquals("new_games_seen", "new_games_seen")
+        assertTrue(prefs().contains("new_games_seen"))
+        // Running again with the shelf and the older keys as they were loses nothing.
+        assertTrue(store().profile.value.shelf.contains(GameKind.HUNT))
+    }
 }

@@ -38,6 +38,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setPlayMode(mode: PlayMode) = store.setPlayMode(mode)
     fun addToShelf(game: GameKind) = store.addToShelf(game)
     fun removeFromShelf(game: GameKind) = store.removeFromShelf(game)
+    fun markGameSeen(game: GameKind) = store.markSeen(game)
     fun moveOnShelf(from: Int, to: Int) = store.moveOnShelf(from, to)
     /** Undoes a removal: [game] goes back to place [index] on the shelf (the end if the shelf is shorter now). */
     fun restoreToShelf(game: GameKind, index: Int) {

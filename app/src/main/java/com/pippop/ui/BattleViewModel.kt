@@ -558,7 +558,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         // A match you paused stays paused: going to the menu now would give it up.
         if (room.inSession && id != null && !(inMatch && (room.atGame || room.pausedByMe))) {
             val sent = System.currentTimeMillis()
-            applyResponse(if (then != null) newBackend.openGame(room.code, id, then) else newBackend.toMenu(room.code, id), sent, record = false)
+            val answer = try {
+                if (then != null) newBackend.openGame(room.code, id, then) else newBackend.toMenu(room.code, id)
+            } catch (e: ApiException) {
+                throw if (then != null) serverTooOld(e, then, mode == BattleMode.ONLINE) else e
+            }
+            applyResponse(answer, sent, record = false)
         }
     }
 
@@ -570,7 +575,12 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         val id = playerId ?: return@runBusy
         _state.update { it.copy(hostGame = game) }
         val sentAt = System.currentTimeMillis()
-        applyResponse(requireBackend().openGame(room.code, id, game), sentAt)
+        val answer = try {
+            requireBackend().openGame(room.code, id, game)
+        } catch (e: ApiException) {
+            throw serverTooOld(e, game, _state.value.mode == BattleMode.ONLINE)
+        }
+        applyResponse(answer, sentAt)
     }
 
     /**
@@ -2403,3 +2413,10 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         fun displayName(name: String) = name.trim().ifBlank { "Player" }
     }
 }
+
+/**
+ * An online server that does not know [game] says the app is old ("update_needed"): it is the server that is. The player is told
+ * that, in the words used for the games a Google Script link cannot play. Nearby, the same answer is about the other phone's app.
+ */
+internal fun serverTooOld(e: ApiException, game: GameKind, online: Boolean): ApiException =
+    if (online && e.reason == "update_needed") ApiException("${game.label} needs the updated Cloudflare server. Play it nearby, or see \"Choosing a server\" in the README.", reason = "server_old") else e

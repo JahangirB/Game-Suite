@@ -122,7 +122,25 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   four). Cover your start square first; after that your pieces touch only corner to corner.
   Stuck players are skipped; most squares placed wins. Or play one to three computers.
 
-**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes, Memory Pairs, Dominoes, Number Cross, Colour Clash, Ludo, Letter Grid, Balloon Words, Slide Race, Bingo, Mini Golf and Corner Blocks rooms take up to four people, online
+- **Word Ladder:** each of you secretly picks a real word of 4, 5 or 6 letters (Easy, Medium
+  or Hard). A coin flip makes one the start and the other the target. Take turns changing one
+  letter at a time, every step a real word and none used twice; whoever's move spells the
+  target wins, and a player with no move left loses. An optional turn timer (30 or 60 seconds)
+  passes the turn when it runs out. Play your partner online (**needs the updated Cloudflare
+  server**) or nearby, or alone against the computer (Easy, Medium, Hard).
+
+- **Word Hunt:** a race on one shared grid of letters (10×10 up to 16×20) full of hidden
+  words from a theme (Animals, Food, Sport, Nature, Home or Mixed), reading across and down,
+  and backwards from Medium up if you like. Drag a finger across a word from either end, or
+  tap its first and last letters; the first to finish a word keeps it, in their colour and
+  initial, and it scores its length. Each player has one hint (it costs 2 points). Grids wider
+  than 10 zoom with a pinch and a two-finger move, with a small map. The round ends when every word is
+  found or the timer (3, 5 or 8 minutes, or none) runs out; a tie is a draw. Two to four play
+  online (**needs the updated Cloudflare server**) or nearby; alone you race the clock (your
+  best is the fastest time with no timer, or the most points in the time) or one to three
+  computer finders.
+
+**Up to four players.** Sudoku, Word Race, Draw & Guess, Dots & Boxes, Memory Pairs, Dominoes, Number Cross, Colour Clash, Ludo, Letter Grid, Balloon Words, Slide Race, Bingo, Mini Golf, Corner Blocks and Word Hunt rooms take up to four people, online
 (Cloudflare server) or nearby: share the code, or let the others pick your name under Nearby.
 Everyone taps **Ready** to start. In Draw & Guess the drawer goes round the table and everyone
 else guesses; in Dots & Boxes, Memory Pairs and Dominoes turns go round the table. Someone leaving
@@ -146,6 +164,9 @@ are never lost for being away, and the room waits up to a week.
   Words, Party, Quick), tap **Get** and the game is on your shelf at once: nothing is downloaded,
   every game is already inside the app. **Remove** puts a game back in the Store; its scores,
   records and saved games are kept. Phones that already had the app also start from the nine.
+  Word Ladder and Word Hunt start in the Store marked **New**; the mark goes once you open the
+  game's page or get the game. On a server that is older than this version, asking for either
+  one says it needs the updated Cloudflare server (deploy `backend/cloudflare` again).
 - **Hold a card to edit the shelf.** Hold any game card and the cards wiggle. **Drag** a card to
   move it (with TalkBack, use move up and move down), tap the round **×** to remove a game
   (a bar offers **Undo**), and a tap anywhere else ends editing. Holding never opens another screen.
@@ -308,6 +329,7 @@ app simply hides the control.
 | Sudoku: whoever opens it picks the level | yes | yes | yes |
 | Photo faces | no | yes | yes |
 | Memory Pairs with your photos | no | yes | yes |
+| Word Ladder and Word Hunt online | no | yes, with the updated server | yes |
 
 Nearby needs nothing deployed: the host phone's app is the server. To update the others:
 
@@ -495,6 +517,7 @@ Requires Android 8.0 (API 26) or newer.
 | `backend/test/` | Node tests that run `Code.gs` against mocked Apps Script services |
 | `backend/cloudflare/` | Cloudflare Worker: one Durable Object per room (`src/room.js`: Sudoku, Ship Battle and turn-game rules; `src/connect4.js`, `src/dots.js`, `src/memory.js`, `src/words.js`, `src/draw.js`) and a Directory object for invitations (`src/directory.js`, `src/push.js`), with unit and end-to-end tests |
 | `app/src/main/java/com/pippop/data/` | Server clients (`BattleApi` for Apps Script, `CloudflareBattle`), response models, invites, profile, updater |
+| `app/src/main/java/com/pippop/game/words/` | Word Ladder and Word Hunt: the word lists, the grid maker, the rules (also in `backend/cloudflare/src/`) and the computer players |
 | `app/src/main/java/com/pippop/game/ships/` | Ship Battle rules, random fleets and the computer opponent |
 | `app/src/main/java/com/pippop/game/connect4/`, `dots/`, `memory/`, `ttt/`, `dominoes/`, `numbers/`, `hockey/`, `clash/`, `ludo/`, `grid/`, `balloon/`, `code/`, `slide/`, `bingo/`, `golf/`, `blocks/`, `turns/` | Turn games: Connect Four, Dots & Boxes, Memory Pairs, Tic-Tac-Toe and Dominoes rules, the computer opponents, and the shared move interface |
 | `app/src/main/java/com/pippop/ui/art/` | The app's own drawings: avatars, animated reactions and the ship styles |

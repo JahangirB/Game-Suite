@@ -52,7 +52,9 @@ import com.pippop.data.GameKind
 import com.pippop.data.ProfileStore
 import com.pippop.ui.art.GameIcon
 import com.pippop.ui.art.KeyArt
+import com.pippop.ui.art.about
 import com.pippop.ui.art.color
+import com.pippop.ui.art.levelsFact
 import com.pippop.ui.art.minutes
 import com.pippop.ui.art.playersFact
 import com.pippop.ui.art.rules
@@ -82,7 +84,7 @@ val STORE_CATEGORIES: Map<StoreFilter, Set<GameKind>> = mapOf(
     ),
     StoreFilter.WORDS to setOf(GameKind.WORDS, GameKind.GRID, GameKind.BALLOON, GameKind.DRAW, GameKind.LADDER, GameKind.HUNT),
     StoreFilter.PARTY to setOf(
-        GameKind.DRAW, GameKind.BINGO, GameKind.LUDO, GameKind.CLASH, GameKind.DOMINOES, GameKind.GOLF, GameKind.DOTS, GameKind.MEMORY,
+        GameKind.DRAW, GameKind.BINGO, GameKind.LUDO, GameKind.CLASH, GameKind.DOMINOES, GameKind.GOLF, GameKind.DOTS, GameKind.MEMORY, GameKind.HUNT,
     ),
     StoreFilter.QUICK to setOf(
         GameKind.CONNECT4, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT, GameKind.NUMBERS, GameKind.HOCKEY,
@@ -153,6 +155,8 @@ fun StoreScreen(
     /** When opened from a room: how many are in it, and the game it is on. A game with too few seats, or the one open now, can't be opened. */
     roomSeats: Int? = null,
     roomGame: GameKind? = null,
+    /** The games that still show "New" ([ProfileStore.isNew]). */
+    newGames: Set<GameKind> = emptySet(),
 ) {
     val p = AppTheme.palette
     val inStore = storeList(shelf, filter)
@@ -172,7 +176,7 @@ fun StoreScreen(
                 )
             }
             inStore.forEach { kind ->
-                StoreRow(kind, "Get", "Get ${kind.label}", { onOpenPage(kind) }) { onGet(kind) }
+                StoreRow(kind, "Get", "Get ${kind.label}", { onOpenPage(kind) }, isNew = kind in newGames) { onGet(kind) }
             }
             if (shelf.isNotEmpty()) {
                 Text(
@@ -180,7 +184,7 @@ fun StoreScreen(
                     modifier = Modifier.padding(top = Space.S).semantics { heading() },
                 )
                 shelf.forEach { kind ->
-                    StoreRow(kind, "Open", "Open ${kind.label}", { onOpenPage(kind) }, roomReason(kind, roomSeats, roomGame)) { onOpen(kind) }
+                    StoreRow(kind, "Open", "Open ${kind.label}", { onOpenPage(kind) }, roomReason(kind, roomSeats, roomGame), isNew = kind in newGames) { onOpen(kind) }
                 }
             }
         }
@@ -189,7 +193,7 @@ fun StoreScreen(
 
 /** One game in the Store's lists: art, name, line, facts and its button. The text and picture open the game's page; the button is its own target. */
 @Composable
-private fun StoreRow(kind: GameKind, button: String, description: String, onPage: () -> Unit, reason: String? = null, onButton: () -> Unit) {
+private fun StoreRow(kind: GameKind, button: String, description: String, onPage: () -> Unit, reason: String? = null, isNew: Boolean = false, onButton: () -> Unit) {
     val p = AppTheme.palette
     Surface(color = p.card, shape = Shapes.L, border = BorderStroke(1.dp, p.hairline), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(Space.S), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S)) {
@@ -199,7 +203,10 @@ private fun StoreRow(kind: GameKind, button: String, description: String, onPage
             ) {
                 KeyArt(kind, Modifier.width(88.dp).height(54.dp).clip(Shapes.S).border(2.dp, p.ink, Shapes.S))
                 Column(Modifier.weight(1f)) {
-                    Text(kind.label, color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+                        Text(kind.label, color = p.text, fontSize = TextSize.BodyL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (isNew) NewMark()
+                    }
                     Text(kind.tagline, color = p.muted, fontSize = TextSize.Label, lineHeight = LineHeight.Label, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(storeFacts(kind), color = p.text, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
@@ -211,6 +218,16 @@ private fun StoreRow(kind: GameKind, button: String, description: String, onPage
             }
         }
     }
+}
+
+/** The "New" pill beside a new game's name: words, so it is not told by colour alone. */
+@Composable
+internal fun NewMark() {
+    val p = AppTheme.palette
+    Text(
+        "New", color = p.onPrimary, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(Shapes.Full).background(p.primary).border(1.dp, p.ink, Shapes.Full).padding(horizontal = Space.S, vertical = 1.dp),
+    )
 }
 
 /** A pill button of at least 48 dp whose spoken name is [description] ("Get Bingo"), not just its label. */
@@ -245,6 +262,8 @@ fun GamePageScreen(
     onPlay: () -> Unit,
     roomSeats: Int? = null,
     roomGame: GameKind? = null,
+    /** Whether the game still shows "New" (read when the page opens: seeing the page clears it). */
+    isNew: Boolean = false,
 ) {
     val p = AppTheme.palette
     var rules by rememberSaveable(kind) { mutableStateOf(false) }
@@ -257,13 +276,17 @@ fun GamePageScreen(
         ) {
             KeyArt(kind, Modifier.fillMaxWidth().aspectRatio(280f / 170f).clip(Shapes.L).border(2.dp, p.ink, Shapes.L).testTag("store-banner"))
             Column(verticalArrangement = Arrangement.spacedBy(Space.XS)) {
-                Text(
-                    kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
-                    lineHeight = LineHeight.DisplayM, modifier = Modifier.semantics { heading() },
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+                    Text(
+                        kind.label, color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                        lineHeight = LineHeight.DisplayM, modifier = Modifier.semantics { heading() },
+                    )
+                    if (isNew) NewMark()
+                }
                 Text(kind.tagline, color = p.muted, fontSize = TextSize.BodyL)
+                kind.about?.let { Text(it, color = p.text, fontSize = TextSize.Body) }
             }
-            Facts(listOf(kind.playersFact, "About ${kind.minutes} min", "Plays nearby and online"))
+            Facts(listOfNotNull(kind.playersFact, "About ${kind.minutes} min", kind.levelsFact, "Plays nearby and online"))
             Text("How to play", color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             kind.rules.firstOrNull()?.let { first ->
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.M)) {

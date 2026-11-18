@@ -33,7 +33,7 @@ class StoreLogicTest {
 
     @Test fun theFilterShowsOnlyThatKindOfStoreGame() {
         assertEquals(listOf(GameKind.DRAW, GameKind.GRID, GameKind.BALLOON, GameKind.LADDER, GameKind.HUNT).sortedBy { it.ordinal }, storeList(nine, StoreFilter.WORDS))
-        assertEquals(listOf(GameKind.DOTS, GameKind.DRAW, GameKind.BINGO), storeList(nine, StoreFilter.PARTY))
+        assertEquals(listOf(GameKind.DOTS, GameKind.DRAW, GameKind.BINGO, GameKind.HUNT), storeList(nine, StoreFilter.PARTY))
         assertTrue(storeList(nine, StoreFilter.QUICK).all { it.minutes <= 5 && it !in nine })
         // The filters together leave nothing out of "All".
         val all = storeList(nine, StoreFilter.ALL)

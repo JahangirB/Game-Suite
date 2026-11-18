@@ -28,6 +28,10 @@ class StoreHost(start: List<GameKind>, filter: StoreFilter = StoreFilter.ALL, pa
     var filter by mutableStateOf(filter)
     var page by mutableStateOf(page)
     var toast by mutableStateOf(toast)
+    /** The games whose "New" has been seen go, as the profile keeps them. */
+    var seen by mutableStateOf(emptySet<GameKind>())
+    private var pageWasNew = false
+    private fun newOnes() = com.pippop.data.ProfileStore.NEW_GAMES.filter { it !in seen && it !in shelf }.toSet()
     var backed = 0
     val played = mutableListOf<GameKind>()
 
@@ -38,13 +42,13 @@ class StoreHost(start: List<GameKind>, filter: StoreFilter = StoreFilter.ALL, pa
             if (open == null) {
                 StoreScreen(
                     shelf, filter, { filter = it }, onBack = { backed++ },
-                    onGet = { g -> shelf = shelf + g; toast = onShelfToast(g) },
-                    onOpenPage = { page = it }, onOpen = { played += it }, roomSeats = roomSeats, roomGame = roomGame,
+                    onGet = { g -> seen = seen + g; shelf = shelf + g; toast = onShelfToast(g) },
+                    onOpenPage = { pageWasNew = it in newOnes(); seen = seen + it; page = it }, onOpen = { played += it }, roomSeats = roomSeats, roomGame = roomGame, newGames = newOnes(),
                 )
             } else {
                 GamePageScreen(
-                    open, open in shelf, onBack = { page = null },
-                    onAdd = { shelf = shelf + open; toast = onShelfToast(open) },
+                    open, open in shelf, onBack = { page = null }, isNew = pageWasNew,
+                    onAdd = { seen = seen + open; shelf = shelf + open; toast = onShelfToast(open) },
                     onRemove = { shelf = shelf - open; toast = backInStoreToast(open) },
                     onPlay = { played += open }, roomSeats = roomSeats, roomGame = roomGame,
                 )

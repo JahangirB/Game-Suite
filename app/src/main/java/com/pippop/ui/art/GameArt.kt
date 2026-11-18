@@ -95,6 +95,22 @@ data class RulePoint(val title: String, val body: String)
 
 private fun pts(vararg p: Pair<String, String>) = p.map { RulePoint(it.first, it.second) }
 
+/** A longer line for a game's page in the Store, for the games added with one (null for the others, whose tagline says enough). */
+val GameKind.about: String?
+    get() = when (this) {
+        GameKind.LADDER -> "Each of you secretly picks a word. Then take turns changing one letter at a time, every step a real word, until someone spells the other's."
+        GameKind.HUNT -> "Everyone races on one grid of letters to find the hidden words, across and down. Play with up to three others, or alone against the clock or computers."
+        else -> null
+    }
+
+/** What a game's page says about its levels (null where it has none to name). */
+val GameKind.levelsFact: String?
+    get() = when (this) {
+        GameKind.LADDER -> "3 levels: 4, 5 or 6 letters"
+        GameKind.HUNT -> "4 sizes, 6 word themes"
+        else -> null
+    }
+
 /** How to play, as four to six points (the first is the goal), shown from the play sheet and the in-game Rules button. */
 val GameKind.rules: List<RulePoint>
     get() = when (this) {

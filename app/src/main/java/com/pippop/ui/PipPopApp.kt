@@ -107,6 +107,7 @@ import com.pippop.ui.screens.ShipsGameScreen
 import com.pippop.ui.screens.SoloScreen
 import com.pippop.ui.screens.SoloShipsScreen
 import com.pippop.data.GameKind
+import com.pippop.data.ProfileStore
 import com.pippop.ui.screens.UpdateDialog
 import com.pippop.ui.art.ReactionBurst
 import com.pippop.ui.screens.LocalShipLook
@@ -445,10 +446,14 @@ fun PipPopApp(
                                     onOpenPage = { storeGame = it },
                                     onOpen = play,
                                     roomSeats = room?.takeIf { roomPick != null }?.let { it.present.size + 1 }, roomGame = room?.game,
+                                    newGames = ProfileStore.NEW_GAMES.filter { ProfileStore.isNew(it, profile) }.toSet(),
                                 )
                             } else {
+                                // Seeing the page clears "New"; the page keeps showing it as it was when opened.
+                                val wasNew = remember(page) { ProfileStore.isNew(page, profile) }
+                                LaunchedEffect(page) { app.markGameSeen(page) }
                                 GamePageScreen(
-                                    kind = page, onShelf = page in profile.shelf, onBack = { storeGame = null },
+                                    kind = page, onShelf = page in profile.shelf, onBack = { storeGame = null }, isNew = wasNew,
                                     onAdd = { app.addToShelf(page); say(onShelfToast(page)) },
                                     onRemove = {
                                         val place = profile.shelf.indexOf(page)

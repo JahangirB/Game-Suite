@@ -112,6 +112,8 @@ data class Profile(
     val notificationsAsked: Boolean = false,
     /** Games whose tutorial has been seen (it plays the first time a game is opened). */
     val tutorialsSeen: Set<GameKind> = emptySet(),
+    /** The new games (see [ProfileStore.NEW_GAMES]) whose "New" mark this phone has seen go: the page was opened, or the game was got. */
+    val newSeen: Set<GameKind> = emptySet(),
     /** The last six different games played, newest first. */
     val recentGames: List<RecentGame> = emptyList(),
     /** Keys of the reactions sent, the last first; the reactions tray follows this order. */
@@ -236,11 +238,20 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         _profile.update { it.copy(shelf = kept) }
     }
 
-    /** Puts [game] at the end of the shelf; nothing happens if it is there already. */
+    /** Puts [game] at the end of the shelf; nothing happens if it is there already. Getting a game clears its "New". */
     fun addToShelf(game: GameKind) {
+        markSeen(game)
         val shelf = _profile.value.shelf
         if (game in shelf) return
         saveShelf(shelf + game)
+    }
+
+    /** [game]'s page was opened: its "New" mark goes, for good (only the games in [NEW_GAMES] have one). */
+    fun markSeen(game: GameKind) {
+        if (game !in NEW_GAMES || game in _profile.value.newSeen) return
+        val seen = _profile.value.newSeen + game
+        prefs.edit { putString(KEY_NEW_SEEN, seen.joinToString(",") { it.key }) }
+        _profile.update { it.copy(newSeen = seen) }
     }
 
     /** Takes [game] off the shelf (it is back in the Store). Scores, records, saved games and recent games are kept. */
@@ -484,6 +495,7 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             golfTime = prefs.getString(KEY_GOLF_TIME, "day") ?: "day",
             notificationsDue = prefs.getBoolean(KEY_NOTIFY_DUE, false),
             notificationsAsked = prefs.getBoolean(KEY_NOTIFY_ASKED, false),
+            newSeen = prefs.getString(KEY_NEW_SEEN, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
             tutorialsSeen = prefs.getString(KEY_TUTORIALS, "").orEmpty().split(",").mapNotNull { k -> GameKind.entries.firstOrNull { it.key == k } }.toSet(),
             recentGames = recentOf(prefs.getString(KEY_RECENT, null)),
             recentReactions = prefs.getString(KEY_RECENT_REACTIONS, null).orEmpty().split(",").filter { it.isNotBlank() }.distinct().take(MAX_RECENT_REACTIONS),
@@ -548,6 +560,8 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
         private const val KEY_NOTIFY_DUE = "notifications_due"
         private const val KEY_NOTIFY_ASKED = "notifications_asked"
         private const val KEY_TUTORIALS = "tutorials_seen"
+        /** A new key: the games whose "New" mark has been seen go. A phone without it has seen none. */
+        private const val KEY_NEW_SEEN = "new_games_seen"
         private const val KEY_RECENT = "recent_games"
         /** Reaction keys, the one sent last first: the order of the reactions tray. */
         private const val KEY_RECENT_REACTIONS = "recent_reactions"
@@ -586,6 +600,12 @@ class ProfileStore private constructor(private val prefs: SharedPreferences, pri
             GameKind.SUDOKU, GameKind.SHIPS, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT,
             GameKind.DOMINOES, GameKind.CLASH, GameKind.LUDO, GameKind.GOLF,
         )
+
+        /** The games that start in the Store marked "New" (Word Ladder and Word Hunt, added together). */
+        val NEW_GAMES: Set<GameKind> = setOf(GameKind.LADDER, GameKind.HUNT)
+
+        /** Whether [game] shows "New": it is one of [NEW_GAMES], and this phone has neither opened its page nor got it. */
+        fun isNew(game: GameKind, profile: Profile) = game in NEW_GAMES && game !in profile.newSeen && game !in profile.shelf
 
         /** The games in the Store: every game not on [shelf], in the catalogue's own order. */
         fun storeGames(shelf: List<GameKind>): List<GameKind> = GameKind.entries - shelf.toSet()

@@ -35,8 +35,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] The button is gone in solo and with a partner (the README never listed it)
 - [x] **Step 10. Word Hunt solo**
   - [x] Against the clock with a best per size; computer finders
-- [ ] **Step 11. In the app**
-  - [ ] Both in the Game Store with "New"; game pages; scoreboard and records; README
+- [x] **Step 11. In the app**
+  - [x] Both in the Game Store with "New"; game pages; scoreboard and records; README
 - [ ] **Step 12. The last pass**
   - [ ] All checks pass locally; the last CI run is green; the preview is from it
   - [ ] Every new screen looked at in light and dark
