@@ -133,7 +133,6 @@ fun GameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> Unit) {
             DockTool(if (state.notesMode) "Notes: on" else "Notes", GameIcons.Pencil, enabled = playing, onClick = vm::toggleNotes),
             if (together) null else DockTool("Undo", GameIcons.Undo, enabled = playing && board.canUndo, onClick = vm::undo),
             DockTool(if (together) "Erase notes" else "Erase", GameIcons.Eraser, enabled = playing, onClick = vm::erase),
-            DockTool("Fill all", GameIcons.FillAll, enabled = playing) { vm.fillNotes(null) },
         ),
         trailing = {
             Column(horizontalAlignment = Alignment.End) {

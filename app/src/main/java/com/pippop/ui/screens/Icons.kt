@@ -96,6 +96,4 @@ object GameIcons {
             "c-0.39,-0.39 -1.02,-0.39 -1.41,0l-1.83,1.83 3.75,3.75 1.83,-1.83z",
     )
 
-    /** Fill all: a square full of pencil marks. */
-    val FillAll = icon("FillAll", "M4,4h4v4h-4zM10,4h4v4h-4zM16,4h4v4h-4zM4,10h4v4h-4zM10,10h4v4h-4zM16,10h4v4h-4zM4,16h4v4h-4zM10,16h4v4h-4zM16,16h4v4h-4z")
 }
