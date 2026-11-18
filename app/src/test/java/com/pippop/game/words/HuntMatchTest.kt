@@ -66,7 +66,7 @@ class HuntMatchTest {
     private fun runCase(c: JSONObject) {
         val marksJson = c.getJSONArray("marks")
         val marks = List(marksJson.length()) { marksJson.getString(it)[0] }
-        val m = HuntMatch(options(c.getJSONObject("options")), marks, now = c.getLong("now"))
+        val m = HuntMatch(options(c.getJSONObject("options")), marks, startAt = c.getLong("now"))
         val steps = c.getJSONArray("steps")
         for (n in 0 until steps.length()) {
             val s = steps.getJSONObject(n)
@@ -111,7 +111,7 @@ class HuntMatchTest {
                     else {
                         val r = run()
                         val e = s.getJSONObject("expect")
-                        assertEquals(at, e.getInt("score"), r.score)
+                        if (e.has("score")) assertEquals(at, e.getInt("score"), r.score)
                         assertEquals(at, e.getBoolean("over"), r.result.over)
                         if (e.getBoolean("over")) {
                             assertEquals(at, if (e.isNull("winner")) null else e.getString("winner")[0], r.result.winner)
@@ -132,7 +132,10 @@ class HuntMatchTest {
         assertEquals(false, HuntOptions.clean("huge", null, false, null, null).backwards)
         assertEquals(HuntOptions(), HuntOptions.clean("x", "Nope", null, 4, null))
         assertEquals(8, HuntOptions.clean(null, null, null, 8, null).timer)
-        assertThrows(IllegalArgumentException::class.java) { HuntMatch(marks = listOf('h')) }
+        assertThrows(IllegalArgumentException::class.java) { HuntMatch(marks = emptyList()) }
+        assertEquals(1, HuntMatch(marks = listOf('h')).marks.size)
+        assertEquals(HuntOptions.clean("medium", null, null, null, null), HuntOptions(level = HuntLevel.MEDIUM))
+        assertEquals("Wait for the countdown.", assertThrows(IllegalArgumentException::class.java) { HuntMatch(HuntOptions(seed = 3), startAt = 1000).claim('h', 0, 0, 0, 2, 999) }.message)
         assertThrows(IllegalArgumentException::class.java) { HuntMatch(marks = listOf('h', 'g', 'o', 'p', 'q')) }
         assertEquals((0.25 * 0x7fffffff).toInt(), HuntMatch(random = { 0.25 }).options.seed)
     }

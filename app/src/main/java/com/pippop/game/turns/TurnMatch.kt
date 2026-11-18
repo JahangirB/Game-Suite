@@ -61,6 +61,9 @@ interface TurnMatch {
             memoryPhotos: Boolean = false,
             /** Word Ladder: the word length and the turn timer. */
             ladder: com.pippop.game.words.LadderOptions = com.pippop.game.words.LadderOptions(),
+            /** Word Hunt: the rules, and when the round starts (after the countdown). The grid's seed comes from [random]. */
+            hunt: com.pippop.game.words.HuntOptions = com.pippop.game.words.HuntOptions(),
+            huntStartAt: Long = 0,
         ): TurnMatch = when (game) {
             GameKind.DOMINOES -> DominoMatch(marks, options, random)
             GameKind.CLASH -> ClashMatch(marks, random)
@@ -73,6 +76,7 @@ interface TurnMatch {
             GameKind.MEMORY -> MemoryMatch(random, memoryCards, memoryPhotos)
             GameKind.TTT -> TttMatch(tttClassic)
             GameKind.LADDER -> com.pippop.game.words.LadderMatch(ladder, marks) { random.nextDouble() }
+            GameKind.HUNT -> com.pippop.game.words.HuntMatch(hunt, marks, { random.nextDouble() }, huntStartAt)
             else -> C4Match()
         }
 

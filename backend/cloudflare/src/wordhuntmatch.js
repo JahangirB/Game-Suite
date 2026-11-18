@@ -11,7 +11,11 @@
 //  - Rule errors are thrown with the reason to show: "Not a word here", "Already found by <mark>"
 //    (the screen turns the mark into a name) and "Too late".
 //
-// state: { options, marks, grid, claims: { WORD: { mark, at } }, scores, hintsUsed, hints: [{ mark, word, row, col }],
+// Players: 1 to 4 (one is a solo game). The round starts at `startAt` (after a countdown); the timer
+// runs from there. The seed is never taken from a client: cleanOptions drops it, only start() (server
+// code, tests) may be handed one, and no view carries it.
+//
+// state: { options, seed, marks, startAt, grid, claims: { WORD: { mark, at } }, scores, hintsUsed, hints: [{ mark, word, row, col }],
 //          endsAt (ms, 0 = no timer), over, winner, winners, reason ('all' | 'time') }
 
 import { HUNT_LEVELS, makeHuntGrid, mulberry32 } from './wordhunt.js';
@@ -20,7 +24,7 @@ import { huntThemes } from './ladder.js';
 export const LEVELS = Object.keys(HUNT_LEVELS);
 export const TIMERS = [0, 3, 5, 8]; // minutes
 export const HINT_COST = 2;
-export const MIN_PLAYERS = 2;
+export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 4;
 
 /** Anything missing or invalid becomes the default; backwards defaults to off on Easy and on from Medium. */
@@ -29,17 +33,16 @@ export function cleanOptions(o) {
   const theme = huntThemes[o?.theme] ? o.theme : 'Animals';
   const backwards = typeof o?.backwards === 'boolean' ? o.backwards : level !== 'easy';
   const timer = TIMERS.includes(Number(o?.timer)) ? Number(o.timer) : 0;
-  const seed = Number.isInteger(o?.seed) ? o.seed | 0 : null;
-  return { level, theme, backwards, timer, seed };
+  return { level, theme, backwards, timer };
 }
 
-/** `random` makes the seed when options has none; `now` (ms) is when the round starts. */
+/** `random` makes the seed unless server code passes `options.seed`; `startAt` (ms) is when the round starts. */
 export function start(random = Math.random, marks = ['h', 'g'], options = {}, now = 0) {
-  if (marks.length < MIN_PLAYERS || marks.length > MAX_PLAYERS) throw new Error('Word Hunt is for 2 to 4 players.');
+  if (marks.length < MIN_PLAYERS || marks.length > MAX_PLAYERS) throw new Error('Word Hunt is for 1 to 4 players.');
   const o = cleanOptions(options);
-  if (o.seed === null) o.seed = Math.floor(random() * 0x7fffffff);
+  const seed = Number.isInteger(options?.seed) ? options.seed | 0 : Math.floor(random() * 0x7fffffff);
   return {
-    options: o, marks: [...marks], grid: makeHuntGrid(o.theme, o.level, o.backwards, o.seed),
+    options: o, seed, startAt: now, marks: [...marks], grid: makeHuntGrid(o.theme, o.level, o.backwards, seed),
     claims: {}, scores: Object.fromEntries(marks.map((m) => [m, 0])), hintsUsed: Object.fromEntries(marks.map((m) => [m, 0])),
     hints: [], endsAt: o.timer ? now + o.timer * 60000 : 0, over: false, winner: null, winners: [], reason: null,
   };
@@ -67,6 +70,7 @@ const running = { over: false, winner: null, winners: [], reason: null };
 
 function check(state, mark, now) {
   if (!state.marks.includes(mark)) throw new Error("You're not in this game.");
+  if (now < state.startAt) throw new Error('Wait for the countdown.');
   if (!state.over && state.endsAt && now >= state.endsAt) finish(state, 'time');
   if (state.over) throw new Error('Too late');
 }
@@ -103,7 +107,7 @@ export function hint(state, mark, now = 0) {
   const unfound = state.grid.words.filter((w) => !state.claims[w.word]);
   const fresh = unfound.filter((w) => !state.hints.some((h) => h.word === w.word));
   const pool = fresh.length ? fresh : unfound;
-  const w = pool[mulberry32((state.options.seed + state.hints.length * 40503) | 0).below(pool.length)];
+  const w = pool[mulberry32((state.seed + state.hints.length * 40503) | 0).below(pool.length)];
   state.hintsUsed[mark] += 1;
   state.scores[mark] = Math.max(0, state.scores[mark] - HINT_COST);
   state.hints.push({ mark, word: w.word, row: w.row, col: w.col });

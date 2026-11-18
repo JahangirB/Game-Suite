@@ -110,6 +110,11 @@ private fun DrawScope.motif(kind: GameKind, c: Offset, r: Float, m: Color, w: Fl
         }
         GameKind.SHIPS -> translate(c.x, c.y) { drawPath(shape!!, m, style = line) }
         GameKind.LUDO -> translate(c.x, c.y) { drawPath(shape!!, m) }
+        GameKind.HUNT -> {
+            // A grid: two lines each way.
+            seg(-0.2f, -0.6f, -0.2f, 0.6f); seg(0.2f, -0.6f, 0.2f, 0.6f)
+            seg(-0.6f, -0.2f, 0.6f, -0.2f); seg(-0.6f, 0.2f, 0.6f, 0.2f)
+        }
         GameKind.LADDER -> {
             // A ladder: two rails and three rungs.
             seg(-0.35f, -0.65f, -0.35f, 0.65f); seg(0.35f, -0.65f, 0.35f, 0.65f)

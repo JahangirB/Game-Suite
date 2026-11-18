@@ -78,6 +78,7 @@ private val Scenes: Map<GameKind, Pen.() -> Unit> = mapOf(
     GameKind.GOLF to Pen::golf,
     GameKind.BLOCKS to Pen::blocks,
     GameKind.LADDER to Pen::ladder,
+    GameKind.HUNT to Pen::ladder,
 )
 
 // ---- The first ten games --------------------------------------------------------------------

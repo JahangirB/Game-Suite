@@ -69,16 +69,19 @@ test('word hunt rules: the hint is the first letter of an unfound word, from the
 });
 
 test('word hunt rules: moves go through play, options and players are checked', () => {
-  assert.deepEqual(cleanOptions({}), { level: 'easy', theme: 'Animals', backwards: false, timer: 0, seed: null });
+  assert.deepEqual(cleanOptions({}), { level: 'easy', theme: 'Animals', backwards: false, timer: 0 });
   assert.equal(cleanOptions({ level: 'medium' }).backwards, true);
   assert.equal(cleanOptions({ level: 'huge', backwards: false }).backwards, false);
-  assert.deepEqual(cleanOptions({ level: 'x', theme: 'Nope', timer: 4, seed: 2.5 }), { level: 'easy', theme: 'Animals', backwards: false, timer: 0, seed: null });
+  assert.deepEqual(cleanOptions({ level: 'x', theme: 'Nope', timer: 4, seed: 2.5 }), { level: 'easy', theme: 'Animals', backwards: false, timer: 0 });
   assert.equal(cleanOptions({ timer: 8 }).timer, 8);
-  assert.throws(() => start(Math.random, ['h']), /2 to 4/);
-  assert.throws(() => start(Math.random, ['h', 'g', 'o', 'p', 'q']), /2 to 4/);
+  assert.throws(() => start(Math.random, []), /1 to 4/);
+  assert.equal(start(Math.random, ['h']).marks.length, 1);
+  assert.throws(() => claim(start(() => 0.5, ['h', 'g'], { seed: 3 }, 1000), 'h', { r1: 0, c1: 0, r2: 0, c2: 2 }, 999), { message: 'Wait for the countdown.' });
+  assert.throws(() => start(Math.random, ['h', 'g', 'o', 'p', 'q']), /1 to 4/);
   const state = start(() => 0.25, ['h', 'g'], { seed: 3 });
-  assert.equal(state.options.seed, 3);
-  assert.equal(start(() => 0.25, ['h', 'g']).options.seed, Math.floor(0.25 * 0x7fffffff));
+  assert.equal(state.seed, 3);
+  assert.equal(cleanOptions({ seed: 5 }).seed, undefined);
+  assert.equal(start(() => 0.25, ['h', 'g']).seed, Math.floor(0.25 * 0x7fffffff));
   assert.equal(play(state, 'h', { hint: true }).hintsLeft, 0);
   const w = state.grid.words[0];
   const [[a, b], [c, d]] = ends(w);

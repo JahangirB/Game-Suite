@@ -159,7 +159,7 @@ class ProfileStoreTest {
         assertEquals(
             listOf(
                 GameKind.CONNECT4, GameKind.DOTS, GameKind.DRAW, GameKind.NUMBERS, GameKind.HOCKEY, GameKind.GRID,
-                GameKind.BALLOON, GameKind.CODE, GameKind.SLIDE, GameKind.BINGO, GameKind.BLOCKS, GameKind.LADDER,
+                GameKind.BALLOON, GameKind.CODE, GameKind.SLIDE, GameKind.BINGO, GameKind.BLOCKS, GameKind.LADDER, GameKind.HUNT,
             ),
             ProfileStore.storeGames(nine),
         )

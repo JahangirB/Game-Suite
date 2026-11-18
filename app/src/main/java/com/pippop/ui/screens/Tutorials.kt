@@ -147,6 +147,8 @@ fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.DOTS -> dots()
     GameKind.MEMORY -> memory()
     GameKind.LADDER -> ladder()
+    // Word Hunt's tutorial comes with its screens.
+    GameKind.HUNT -> null
     GameKind.WORDS -> words()
     GameKind.DRAW -> draw()
     GameKind.TTT -> ttt()

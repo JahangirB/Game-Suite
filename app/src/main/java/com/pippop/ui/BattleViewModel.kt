@@ -1085,6 +1085,49 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Word Hunt: whoever opened the game picks the level, theme, backwards words and timer; everyone gets ready again. The seed is never sent: the room makes it. */
+    fun setHuntOptions(options: com.pippop.game.words.HuntOptions) {
+        val room = _state.value.room ?: return
+        if (!room.setsOptions || room.huntOptions == options.copy(seed = null)) return
+        sendReady(room.copy(huntOptions = options.copy(seed = null), me = room.me.copy(ready = false))) { b, id ->
+            b.setOptions(
+                room.code, id,
+                JSONObject().put("level", options.level.key).put("theme", options.theme).put("backwards", options.backwards).put("timer", options.timer),
+            )
+        }
+    }
+
+    /** Word Hunt: claim the word between two cells, dragged from either end. The room says "Not a word here", "Already found by <mark>" or "Too late". */
+    fun huntClaim(r1: Int, c1: Int, r2: Int, c2: Int) =
+        huntMove(JSONObject().put("r1", r1).put("c1", c1).put("r2", r2).put("c2", c2))
+
+    /** Word Hunt: spend this player's one hint (the room shows where an unfound word starts, and takes 2 points). */
+    fun huntHint() = huntMove(JSONObject().put("hint", true))
+
+    /** A Word Hunt move is a race, not a turn: it goes out at once, even while an earlier one is still on its way. */
+    private fun huntMove(move: JSONObject) {
+        val room = _state.value.room ?: return
+        val id = playerId ?: return
+        val b = backend ?: return
+        if (room.game != GameKind.HUNT) return
+        viewModelScope.launch {
+            try {
+                val sentAt = System.currentTimeMillis()
+                applyResponse(b.move(room.code, id, move), sentAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                if (!e.fatal) {
+                    haptics.play(Buzz.NOT_ALLOWED)
+                    sfx.play(Sound.ERROR)
+                }
+                if (e.fatal) endSession(e.message) else showMessage(e.message, Tone.Bad)
+            } catch (e: IOException) {
+                showMessage("Network problem, try again.", Tone.Bad)
+            }
+        }
+    }
+
     /** Word Ladder: change one letter of the last word into [word] (UPPERCASE or not). The server says why not. */
     fun ladderMove(word: String) = playMove(JSONObject().put("word", word.uppercase()))
 

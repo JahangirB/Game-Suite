@@ -136,7 +136,7 @@ import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
 import kotlinx.coroutines.launch
 
-private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS, LADDER }
+private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS, LADDER, HUNT }
 
 /** The screen of a game's solo play (Draw & Guess has none). */
 private fun soloDest(game: GameKind) = when (game) {
@@ -161,6 +161,8 @@ private fun soloDest(game: GameKind) = when (game) {
     // Draw & Guess needs two players; its sheet offers no solo game.
     GameKind.DRAW -> Dest.HOME
     GameKind.LADDER -> Dest.LADDER
+    // Word Hunt has no solo game yet.
+    GameKind.HUNT -> Dest.HOME
     GameKind.SUDOKU -> Dest.SOLO
 }
 
@@ -538,6 +540,7 @@ fun PipPopApp(
                                     GameKind.GOLF -> golf.startWith(setup)
                                     GameKind.BLOCKS -> blocks.startWith(setup)
                                     GameKind.LADDER -> ladder.startWith(setup)
+                                    GameKind.HUNT -> Unit
                                     GameKind.DRAW -> Unit
                                 }
                                 go(soloDest(game))

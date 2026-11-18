@@ -54,6 +54,7 @@ object SampleGames {
             GameKind.DOTS -> pair(9 + rnd.nextInt(4), 4 + rnd.nextInt(3)).let { (a, b) -> GameFacts(durationMs = minutes(5, 12), mine = a, theirs = b) }
             GameKind.MEMORY -> pair(5 + rnd.nextInt(3), 2 + rnd.nextInt(2)).let { (a, b) -> GameFacts(durationMs = minutes(3, 7), mine = a, theirs = b) }
             GameKind.LADDER -> GameFacts(durationMs = minutes(2, 6), count = if (tie) null else 3 + rnd.nextInt(5))
+            GameKind.HUNT -> GameFacts(durationMs = minutes(3, 8), mine = 8 + rnd.nextInt(10), theirs = 4 + rnd.nextInt(4))
             GameKind.WORDS -> GameFacts(durationMs = minutes(2, 6), count = if (tie) null else 2 + rnd.nextInt(5))
             GameKind.DRAW -> GameFacts(durationMs = minutes(6, 12), mine = 3 + rnd.nextInt(6))
             GameKind.TTT -> GameFacts(durationMs = minutes(1, 4))

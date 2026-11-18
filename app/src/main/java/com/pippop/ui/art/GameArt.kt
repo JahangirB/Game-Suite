@@ -19,6 +19,7 @@ val GameKind.color: Color
         GameKind.MEMORY -> Color(0xFFF2A33A)
         GameKind.WORDS -> Color(0xFF20A47B)
         GameKind.LADDER -> Color(0xFF6C8EF5)
+        GameKind.HUNT -> Color(0xFF2E9E8F)
         GameKind.DRAW -> Color(0xFFE0569B)
         GameKind.TTT -> Color(0xFF4F46E5)
         GameKind.DOMINOES -> Color(0xFF8B5E34)
@@ -45,6 +46,7 @@ val GameKind.tagline: String
         GameKind.MEMORY -> "Find the pairs"
         GameKind.WORDS -> "Same word, who finds it first?"
         GameKind.LADDER -> "Change one letter at a time"
+        GameKind.HUNT -> "Race to find the hidden words"
         GameKind.DRAW -> "One draws, one guesses, as a team"
         GameKind.TTT -> "Three in a row, or nine boards"
         GameKind.DOMINOES -> "Match the ends, play out your hand"
@@ -71,7 +73,7 @@ val GameKind.minutes: Int
         GameKind.CONNECT4, GameKind.MEMORY, GameKind.WORDS, GameKind.TTT, GameKind.NUMBERS, GameKind.HOCKEY,
         GameKind.SLIDE, GameKind.BALLOON, GameKind.CODE, GameKind.LADDER -> 5
         GameKind.GRID, GameKind.BINGO -> 3
-        GameKind.SUDOKU, GameKind.SHIPS, GameKind.DOTS, GameKind.CLASH, GameKind.DRAW -> 10
+        GameKind.SUDOKU, GameKind.SHIPS, GameKind.DOTS, GameKind.CLASH, GameKind.DRAW, GameKind.HUNT -> 10
         GameKind.DOMINOES, GameKind.GOLF, GameKind.BLOCKS -> 15
         GameKind.LUDO -> 20
     }
@@ -142,6 +144,12 @@ val GameKind.rules: List<RulePoint>
             "Moves" to "The owner of the target goes first. No word can be used twice.",
             "Winning" to "Whoever's move spells the target wins. If you have no move, you lose.",
             "Timer" to "With a turn timer on, a turn that runs out passes to the other player.",
+        )
+        GameKind.HUNT -> pts(
+            "Goal" to "Find the hidden words in the grid before the others do.",
+            "Finding" to "Drag across a word, from either end. Words run across and down, and backwards too when that is on.",
+            "Scoring" to "A word scores its length. The first to find a word keeps it.",
+            "Hint" to "Each player has one hint a round: it shows where a word starts and costs 2 points.",
         )
         GameKind.DRAW -> pts(
             "Goal" to "Play as a team over four turns, taking turns to draw. A right guess adds the seconds left, out of 80, to your team score.",
@@ -365,6 +373,10 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             // Two rows of letter tiles: the top guess part right, the bottom one solved.
             for (i in 0 until 3) p.rr(2.5 + i * 7, 4, 5.5, 6.5, 1.5, if (i == 1) tint else null, tint, 1.6)
             for (i in 0 until 3) p.rr(2.5 + i * 7, 13, 5.5, 6.5, 1.5, tint)
+        }
+        GameKind.HUNT -> {
+            // A grid of nine letter tiles, one row struck through.
+            for (r in 0 until 3) for (c in 0 until 3) p.rr(3 + c * 6.5, 3 + r * 6.5, 5, 5, 1.2, if (r == 1) tint else null, tint, 1.4)
         }
         GameKind.LADDER -> {
             // A ladder: two rails and three rungs, one rung's tile filled where a letter changed.

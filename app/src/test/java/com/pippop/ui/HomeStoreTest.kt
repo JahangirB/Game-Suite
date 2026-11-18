@@ -50,7 +50,7 @@ class HomeStoreTest : ScreenshotBase() {
 
     @Test fun theCardCountsTheStoreGamesAndOpensTheStore() {
         show(Profile(name = "Sam", tutorialsSeen = seenAll))
-        compose.onNodeWithText("Game Store · 12 more games").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Game Store · 13 more games").performScrollTo().assertIsDisplayed().performClick()
         assertEquals(1, store)
         // The old row is gone.
         compose.onNodeWithText("More games", substring = true).assertDoesNotExist()
@@ -64,10 +64,10 @@ class HomeStoreTest : ScreenshotBase() {
 
     @Test fun theCardRestsWhileTheShelfIsEdited() {
         show(Profile(name = "Sam", tutorialsSeen = seenAll))
-        compose.onNodeWithText("Game Store · 12 more games").performScrollTo().assertIsEnabled()
+        compose.onNodeWithText("Game Store · 13 more games").performScrollTo().assertIsEnabled()
         compose.onNodeWithText(GameKind.LUDO.label).performTouchInput { longClick() }
         compose.waitForIdle()
-        compose.onNodeWithText("Game Store · 12 more games").assertIsNotEnabled()
+        compose.onNodeWithText("Game Store · 13 more games").assertIsNotEnabled()
     }
 
     @Test fun theEmptyShelfHasAButtonToTheStore() {

@@ -10,7 +10,7 @@ class GameRulesTest {
     private fun words(s: String) = s.trim().split(Regex("\\s+")).size
 
     @Test fun everyGamesRulesKeepToTheLimits() {
-        assertEquals(21, GameKind.values().size)
+        assertEquals(22, GameKind.values().size)
         for (kind in GameKind.values()) {
             val r = kind.rules
             assertTrue("$kind: ${r.size} points", r.size in 4..6)

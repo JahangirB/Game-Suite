@@ -38,13 +38,14 @@ enum class GameKind(val key: String, val label: String) {
     BINGO("bingo", "Bingo"),
     GOLF("golf", "Mini Golf"),
     BLOCKS("blocks", "Corner Blocks"),
-    LADDER("ladder", "Word Ladder");
+    LADDER("ladder", "Word Ladder"),
+    HUNT("hunt", "Word Hunt");
 
     /** Played in turns with moves, sharing the server's turn rules. */
-    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON || this == GOLF || this == BLOCKS || this == LADDER
+    val turnBased get() = this == CONNECT4 || this == DOTS || this == MEMORY || this == TTT || this == DOMINOES || this == CLASH || this == LUDO || this == BALLOON || this == GOLF || this == BLOCKS || this == LADDER || this == HUNT
 
     /** How many can play: up to four in the race games, Draw & Guess, Dots & Boxes and Memory Pairs; two in the rest. */
-    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE || this == BINGO || this == GOLF || this == BLOCKS) 4 else 2
+    val maxPlayers get() = if (this == SUDOKU || this == WORDS || this == DRAW || this == DOTS || this == MEMORY || this == DOMINOES || this == NUMBERS || this == CLASH || this == LUDO || this == GRID || this == BALLOON || this == SLIDE || this == BINGO || this == GOLF || this == BLOCKS || this == HUNT) 4 else 2
 
     /** Both players just tap Ready to start (no level to agree on, no fleet to place). */
     val readyOnly get() = turnBased || this == WORDS || this == DRAW || this == NUMBERS || this == HOCKEY || this == GRID || this == CODE || this == SLIDE || this == BINGO
@@ -133,6 +134,8 @@ data class TurnsView(
     val blocks: BlocksView? = null,
     /** Word Ladder: the words, the chain and whose move it is. */
     val ladder: com.pippop.game.words.LadderView? = null,
+    /** Word Hunt: the grid, the word list with who found what, scores and hints. */
+    val hunt: com.pippop.game.words.HuntView? = null,
 )
 
 /**
@@ -395,6 +398,8 @@ data class RoomState(
     val golfLevel: GolfLevel? = null,
     /** Word Ladder: the word length and turn timer the opener chose. */
     val ladderOptions: com.pippop.game.words.LadderOptions = com.pippop.game.words.LadderOptions(),
+    /** Word Hunt: the level, theme, backwards and timer the opener chose (never a seed). */
+    val huntOptions: com.pippop.game.words.HuntOptions = com.pippop.game.words.HuntOptions(),
     /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
     val memoryCards: Int = 16,
     /** Draw & Guess: the guess race (everyone else guesses at once) instead of the team game. */
@@ -525,6 +530,7 @@ fun parseRoom(json: JSONObject) = RoomState(
     memoryCards = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.MEMORY }?.optInt("cards", 16) ?: 16,
     golfLevel = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.GOLF }?.let { GolfLevel.from(it.optString("level")) },
     ladderOptions = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.LADDER }?.let { com.pippop.game.words.LadderOptions.clean(it.optInt("length"), it.optInt("timer")) } ?: com.pippop.game.words.LadderOptions(),
+    huntOptions = json.optJSONObject("options")?.takeIf { GameKind.from(json.stringOrNull("game")) == GameKind.HUNT }.let { com.pippop.game.words.HuntOptions.from(it) },
     setsOptions = json.optBoolean("setsOptions", json.getString("role") == "host"),
     caps = json.optJSONArray("caps")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s.isNotEmpty() } } }.orEmpty(),
     sudokuOpener = json.optBoolean("sudokuOpener"),
@@ -694,6 +700,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         golf = if (json.has("golf")) GolfView.from(json) else null,
         blocks = if (json.has("blocks")) BlocksView.from(json) else null,
         ladder = if (json.has("chain") && json.has("phase")) com.pippop.game.words.LadderView.from(json) else null,
+        hunt = if (json.has("words") && json.has("hintsLeft")) com.pippop.game.words.HuntView.from(json) else null,
     )
 }
 

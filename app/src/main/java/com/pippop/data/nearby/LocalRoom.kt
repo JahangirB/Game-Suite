@@ -125,6 +125,8 @@ class LocalRoom(
     private var firstTurn: String? = null
     private var turnMatch: TurnMatch? = null
     private var ladderOptions = com.pippop.game.words.LadderOptions()
+    /** Word Hunt's rules (never a seed: each round makes its own). */
+    private var huntOptions = com.pippop.game.words.HuntOptions()
     /** The host's Dominoes rules for the next match. */
     var options = DominoOptions()
         private set
@@ -478,14 +480,17 @@ class LocalRoom(
         if (allReady()) {
             val roles = present()
             val first = firstTurn?.let { nextOf(it, roles) } ?: if (roles.size == 2) roles[if (random.nextBoolean()) 0 else 1] else roles[random.nextInt(roles.size)]
-            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard, memoryPhotosOn(), ladderOptions)
+            // Word Hunt is a race: a countdown, then everyone claims at once; its clock starts at startAt and each round gets a new seed.
+            val race = game == GameKind.HUNT
+            val startTime = if (race) now + COUNTDOWN_MS else now
+            val match = TurnMatch.start(game, random, roles.map { MARKS.getValue(it) }, options, tttClassic, golfLevel, memoryCards, dotsBoard, memoryPhotosOn(), ladderOptions, huntOptions, startTime)
             // Dominoes picks its own first player (the highest double).
             val starter = match.firstMark?.let { roleOfMark(it) } ?: first
             firstTurn = starter
             // Word Ladder has no turn until both words are picked; its coin flip decides who moves first.
-            turn = if (game == GameKind.LADDER) null else starter
+            turn = if (game == GameKind.LADDER || race) null else starter
             turnMatch = match
-            beginMatch(now)
+            beginMatch(startTime)
         }
         version++
     }
@@ -495,6 +500,7 @@ class LocalRoom(
         val match = turnMatch
         if (!game.turnBased || status != "started" || match == null) throw ApiException("The game is not running.")
         // Word Ladder checks the turn itself (it also says when the words are not both in yet).
+        if (game == GameKind.HUNT) return huntMove(role, move, now)
         if (game != GameKind.LADDER && turn != role) throw ApiException("It's not your turn.")
         val result = try {
             match.play(MARKS.getValue(role), move, now)
@@ -511,6 +517,32 @@ class LocalRoom(
             turn = nextOf(role, playing())
         }
         version++
+    }
+
+    /** Word Hunt: a race, so there is no turn. [move] is {r1, c1, r2, c2} (a claim) or {hint: true}. */
+    private fun huntMove(role: String, move: JSONObject, now: Long) {
+        val match = turnMatch as com.pippop.game.words.HuntMatch
+        if (role !in playing()) throw ApiException("You're not in this game.")
+        // A claim that comes after the time is up ends the round (the host's clock decides, not the phone's).
+        if (match.tick(now)) {
+            finishHunt(match, now)
+            version++
+            return
+        }
+        val result = try {
+            match.play(MARKS.getValue(role), move, now)
+        } catch (e: IllegalArgumentException) {
+            throw ApiException(e.message ?: "That move isn't allowed.")
+        }
+        if (result.over) finishHunt(match, now)
+        version++
+    }
+
+    /** The round is over: the top score wins, a tie for the top is a draw (the results are in the turns view). */
+    private fun finishHunt(match: com.pippop.game.words.HuntMatch, now: Long) {
+        val winnerRole = match.winner?.let { roleOfMark(it) }
+        winnerRole?.let { players.getValue(it)!!.finishedAt = now }
+        endMatch(winnerRole, if (winnerRole != null) match.reason ?: "won" else "draw")
     }
 
     /**
@@ -552,6 +584,7 @@ class LocalRoom(
             GameKind.TTT -> tttClassic = options.optString("mode") == "classic"
             GameKind.GOLF -> golfLevel = GolfLevel.from(options.optString("level"))
             GameKind.LADDER -> ladderOptions = com.pippop.game.words.LadderOptions.clean(options.optInt("length"), options.optInt("timer"))
+            GameKind.HUNT -> huntOptions = com.pippop.game.words.HuntOptions.from(options)
             GameKind.CODE -> codeRules = com.pippop.game.code.CodeRules.from(options)
             GameKind.DOTS -> dotsBoard = com.pippop.game.dots.DotsShape.from(options.optString("board")).key
             GameKind.DRAW -> drawMode = if (options.optString("mode") == "race") "race" else "team"
@@ -1548,6 +1581,14 @@ class LocalRoom(
                 return true
             }
         }
+        // Word Hunt's clock: the round ends when the time is up.
+        if (game == GameKind.HUNT) (turnMatch as? com.pippop.game.words.HuntMatch)?.let { m ->
+            if (m.tick(now)) {
+                finishHunt(m, now)
+                version++
+                return true
+            }
+        }
         if (game == GameKind.BINGO && now >= start + Bingo.ROUND_MS) {
             endMatch(null, "draw")
             version++
@@ -1637,6 +1678,7 @@ class LocalRoom(
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
                     GameKind.LADDER -> JSONObject().put("length", ladderOptions.length).put("timer", ladderOptions.timer)
+                    GameKind.HUNT -> JSONObject().put("level", huntOptions.level.key).put("theme", huntOptions.theme).put("backwards", huntOptions.backwards).put("timer", huntOptions.timer)
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards).apply {
                         // The deck's pictures and the photos' ids only where everyone has the token (an old room's are just the cards).
                         if (memoryPhotosAllowed()) {
@@ -1690,6 +1732,11 @@ class LocalRoom(
         }
         // Word Ladder's own view already says whose turn it is (and nobody's while the words are picked).
         if (game == GameKind.LADDER) return json.put("turnName", if (shown == "playing") turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)
+        // Word Hunt is a race: no turn, and nobody sees the grid until the countdown ends.
+        if (game == GameKind.HUNT) {
+            if (shown == "countdown") json.put("rows", org.json.JSONArray())
+            return json.put("turn", JSONObject.NULL).put("turnName", JSONObject.NULL)
+        }
         val playing = shown == "playing"
         return json.put("turn", if (playing) (if (turn == role) "me" else "opponent") else JSONObject.NULL)
             .put("turnName", if (playing) turn?.let { players[it]?.name } ?: JSONObject.NULL else JSONObject.NULL)
@@ -1801,7 +1848,7 @@ class LocalRoom(
         val OLD_APP_GAMES = listOf("sudoku", "ships")
 
         /** Games whose view hides the round until the countdown ends; see needsStartPush. */
-        private val REVEALED_AT_START = setOf(GameKind.WORDS, GameKind.GRID, GameKind.SLIDE, GameKind.BINGO, GameKind.NUMBERS)
+        private val REVEALED_AT_START = setOf(GameKind.WORDS, GameKind.GRID, GameKind.SLIDE, GameKind.BINGO, GameKind.NUMBERS, GameKind.HUNT)
 
         /** The other player of a two-player game. */
         fun other(role: String) = if (role == HOST) GUEST else HOST

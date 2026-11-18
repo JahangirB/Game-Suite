@@ -23,6 +23,7 @@ import * as bingo from './bingo.js';
 import * as golf from './golf.js';
 import * as blocks from './blocks.js';
 import * as ladder from './wordladder.js';
+import * as hunt from './wordhuntmatch.js';
 
 // Empty cells per level; must match Difficulty in the Android app.
 export const DIFFICULTY_HOLES = { beginner: 30, easy: 38, medium: 46, hard: 50, expert: 54, master: 56 };
@@ -51,11 +52,11 @@ export const ROOM_IDLE_MS = 6 * 60 * 60_000;
 export const TURN_ROOM_IDLE_MS = 7 * 24 * 60 * 60_000;
 const CLOSED_ROOM_MS = 60_000;
 
-export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code', 'slide', 'bingo', 'golf', 'blocks', 'ladder'];
+export const GAMES = ['sudoku', 'ships', 'connect4', 'dots', 'memory', 'words', 'draw', 'ttt', 'dominoes', 'numbers', 'hockey', 'clash', 'ludo', 'grid', 'balloon', 'code', 'slide', 'bingo', 'golf', 'blocks', 'ladder', 'hunt'];
 // Seats in a room, in order. Two-player games use the first two.
 export const ROLES = ['host', 'guest', 'p3', 'p4'];
 // How many can play each game; anything not listed is for two.
-export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4, slide: 4, bingo: 4, golf: 4, blocks: 4 };
+export const MAX_PLAYERS = { sudoku: 4, words: 4, draw: 4, dots: 4, memory: 4, dominoes: 4, numbers: 4, clash: 4, ludo: 4, grid: 4, balloon: 4, slide: 4, bingo: 4, golf: 4, blocks: 4, hunt: 4 };
 // Each seat's one-letter mark on a turn game's board.
 export const MARKS = { host: 'h', guest: 'g', p3: '3', p4: '4' };
 const roleOfMark = (mark) => Object.keys(MARKS).find((r) => MARKS[r] === mark) || null;
@@ -523,7 +524,7 @@ function shipsView(room, role, status) {
 // (start, play, view); the player who starts moves one seat on each round. A player may close
 // the app between moves: turn games are never forfeited for being away, the room just waits.
 
-const TURN_RULES = { connect4, dots, memory, ttt, dominoes, clash, ludo, balloon, golf, blocks, ladder };
+const TURN_RULES = { connect4, dots, memory, ttt, dominoes, clash, ludo, balloon, golf, blocks, ladder, hunt };
 export const TURN_GAMES = Object.keys(TURN_RULES);
 
 /** Ready (or not ready) for the next round of a turn game; it starts when both are ready. */
@@ -537,11 +538,14 @@ export function setTurnReady(room, role, ready, now, random = Math.random) {
   if (allReady(room)) {
     const roles = present(room);
     let first = room.firstTurn ? nextOf(roles, room.firstTurn, roles) : roles[Math.floor(random() * roles.length)];
-    const turnState = TURN_RULES[room.game].start(random, roles.map((r) => MARKS[r]), startOptions(room));
+    // Word Hunt is a race: a countdown, then everyone claims at once (its clock starts at startAt, and each round gets a new seed).
+    const race = room.game === 'hunt';
+    const startAt = race ? now + COUNTDOWN_MS : now;
+    const turnState = TURN_RULES[room.game].start(random, roles.map((r) => MARKS[r]), startOptions(room), startAt);
     // Dominoes picks its own first player (the highest double).
     if (turnState.turn) first = roleOfMark(turnState.turn);
     // Word Ladder has no turn until both words are picked; its coin flip decides who moves first.
-    beginMatch(room, { startAt: now, firstTurn: first, turn: room.game === 'ladder' ? null : first, turnState });
+    beginMatch(room, { startAt, firstTurn: first, turn: room.game === 'ladder' || race ? null : first, turnState });
   }
   bump(room);
 }
@@ -562,6 +566,7 @@ export function setOptions(room, role, options) {
   else if (room.game === 'ttt') room.options = ttt.cleanOptions(options);
   else if (room.game === 'golf') room.options = golf.cleanOptions(options);
   else if (room.game === 'ladder') room.options = ladder.cleanOptions(options);
+  else if (room.game === 'hunt') room.options = hunt.cleanOptions(options); // never a seed: the room makes it
   else if (room.game === 'memory') {
     // The deck's pictures are the opener's to keep when a call (an older app's) leaves them out.
     const deck = memory.cleanDeck({ deck: options?.deck ?? room.options?.deck });
@@ -600,6 +605,7 @@ function nextOf(order, role, allowed) {
 export function makeMove(room, role, move, now) {
   if (!TURN_GAMES.includes(room.game) || room.status !== 'started') throw new GameError('The game is not running.');
   // Word Ladder checks the turn itself (it also says when the words are not both in yet).
+  if (room.game === 'hunt') return huntMove(room, role, move, now);
   if (room.game !== 'ladder' && room.turn !== role) throw new GameError("It's not your turn.");
   let result;
   try {
@@ -620,6 +626,33 @@ export function makeMove(room, role, move, now) {
     room.turn = nextOf(room.inMatch || present(room), role, playing(room));
   }
   bump(room);
+}
+
+/** Word Hunt: a race, so there is no turn. `move` is { r1, c1, r2, c2 } (a claim) or { hint: true }. */
+function huntMove(room, role, move, now) {
+  if (!playing(room).includes(role)) throw new GameError("You're not in this game.");
+  // A claim that comes after the time is up ends the round (the clock is the room's, not the phone's).
+  const late = hunt.tick(room.turnState, now);
+  if (late.ended) {
+    finishHunt(room, late, now);
+    bump(room);
+    return;
+  }
+  let result;
+  try {
+    result = hunt.play(room.turnState, MARKS[role], move, now);
+  } catch (err) {
+    throw new GameError(err.message);
+  }
+  if (result.over) finishHunt(room, result, now);
+  bump(room);
+}
+
+/** The round is over: the top score wins, a tie for the top is a draw (the results are in the turns view). */
+function finishHunt(room, result, now) {
+  const winner = roleOfMark(result.winner);
+  if (winner) room.players[winner].finishedAt = now;
+  endMatch(room, winner, winner ? result.reason : 'draw');
 }
 
 /**
@@ -649,10 +682,13 @@ function turnView(room, role, status) {
   // Everyone else's mark shows as 'o', 'p', 'q', in the order of the view's `others`.
   const seats = {};
   others(room, role).forEach((r, i) => { seats[MARKS[r]] = 'opq'[i]; });
+  const hunting = room.game === 'hunt';
   return {
-    turn: status === 'playing' ? (room.turn === role ? 'me' : 'opponent') : null,
-    turnName: status === 'playing' ? room.players[room.turn]?.name || null : null,
+    turn: status === 'playing' && !hunting ? (room.turn === role ? 'me' : 'opponent') : null,
+    turnName: status === 'playing' && !hunting ? room.players[room.turn]?.name || null : null,
     ...(room.turnState ? TURN_RULES[room.game].view(room.turnState, MARKS[role], seats) : {}),
+    // Nobody sees the grid until the countdown ends.
+    ...(hunting && status === 'countdown' ? { rows: [] } : {}),
     // A phone without the 'memory-photos' token never sees a photo card: it gets the plain animal of the pair.
     ...(room.game === 'memory' && room.turnState && room.players[role]?.memoryPhotos !== true ? { faces: memory.view(room.turnState, MARKS[role], seats).faces.map(memory.animalFor) } : {}),
   };
@@ -1520,6 +1556,15 @@ function roomTimers(room, now) {
       return 'changed';
     }
   }
+  // Word Hunt's clock: the round ends when the time is up.
+  if (huntClockRuns(room)) {
+    const r = hunt.tick(room.turnState, now);
+    if (r.ended) {
+      finishHunt(room, r, now);
+      bump(room);
+      return 'changed';
+    }
+  }
   if (room.status === 'closed' || TURN_GAMES.includes(room.game)) return null;
 
   if (room.status === 'started' && room.game === 'grid' && now >= room.gridEndsAt) {
@@ -1565,7 +1610,7 @@ function roomTimers(room, now) {
 }
 
 /** Games whose view hides the round (letters, tiles, card, puzzle) until the countdown ends. */
-const REVEALED_AT_START = ['words', 'grid', 'slide', 'bingo', 'numbers'];
+const REVEALED_AT_START = ['words', 'grid', 'slide', 'bingo', 'numbers', 'hunt'];
 
 /**
  * True while a round of such a game has started but not yet been pushed at its start time.
@@ -1579,6 +1624,11 @@ function needsStartPush(room) {
 /** Word Ladder's turn timer only runs while someone is connected: with both away it would wake the room every turn for days. */
 function ladderClockRuns(room) {
   return room.status === 'started' && room.game === 'ladder' && !!room.turnState && seated(room).some((r) => room.players[r].connected);
+}
+
+/** Word Hunt's clock only runs while someone is connected, like Word Ladder's. */
+function huntClockRuns(room) {
+  return room.status === 'started' && room.game === 'hunt' && !!room.turnState && !room.turnState.over && seated(room).some((r) => room.players[r].connected);
 }
 
 /** When checkTimers should run next, or null if nothing is pending. */
@@ -1595,6 +1645,7 @@ export function nextDeadline(room) {
   }
   if (room.status === 'started' && room.game === 'draw') deadlines.push(room.turnEndsAt);
   if (ladderClockRuns(room) && room.turnState.turnEndsAt) deadlines.push(room.turnState.turnEndsAt);
+  if (huntClockRuns(room) && room.turnState.endsAt) deadlines.push(room.turnState.endsAt);
   if (room.status === 'started' && room.game === 'grid') deadlines.push(room.gridEndsAt);
   if (room.status === 'started' && room.game === 'bingo') deadlines.push(room.bingoEndsAt);
   if (room.status !== 'closed' && !TURN_GAMES.includes(room.game)) {
@@ -1691,7 +1742,7 @@ export function view(room, role, now) {
     maxPlayers: maxPlayers(room.game),
     // Whether this player sets the open game's options: whoever opened it (the host at first).
     setsOptions: role === (room.openedBy || 'host'),
-    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'ladder' ? ladder.cleanOptions(room.options) : room.game === 'memory' ? memoryOptionsView(room) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? sudokuOptionsView(room) : null,
+    options: room.game === 'dominoes' ? dominoes.cleanOptions(room.options) : room.game === 'numbers' ? numbers.cleanOptions(room.options) : room.game === 'words' ? words.cleanOptions(room.options) : room.game === 'slide' ? slideGame.cleanOptions(room.options) : room.game === 'ttt' ? ttt.cleanOptions(room.options) : room.game === 'golf' ? golf.cleanOptions(room.options) : room.game === 'ladder' ? ladder.cleanOptions(room.options) : room.game === 'hunt' ? hunt.cleanOptions(room.options) : room.game === 'memory' ? memoryOptionsView(room) : room.game === 'code' ? codeGame.cleanOptions(room.options) : room.game === 'dots' ? dots.cleanOptions(room.options) : room.game === 'draw' ? draw.cleanOptions(room.options) : room.game === 'sudoku' ? sudokuOptionsView(room) : null,
     // In Ship Battle both players' progress (share of the enemy fleet hit) is public.
     me: playerView(me, room, status === 'finished' || room.game === 'ships', now),
     opponent: opponent ? playerView(opponent, room, true, now) : null,

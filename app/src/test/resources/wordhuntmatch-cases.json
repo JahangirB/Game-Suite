@@ -793,6 +793,385 @@
      }
     }
    ]
+  },
+  {
+   "name": "a hint reuses the pool once every unfound word has been hinted",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3
+   },
+   "marks": [
+    "h",
+    "g",
+    "3",
+    "4"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "DEER",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "DOG",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "FROG",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "HARE",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "LION",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "PANDA",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "TROUT",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "ZEBRA",
+     "expect": {
+      "over": false
+     }
+    },
+    {
+     "do": "hint",
+     "mark": "h",
+     "expect": {
+      "row": 5,
+      "col": 7,
+      "score": 0,
+      "hintsLeft": 0
+     }
+    },
+    {
+     "do": "hint",
+     "mark": "g",
+     "expect": {
+      "row": 4,
+      "col": 0,
+      "score": 0,
+      "hintsLeft": 0
+     }
+    },
+    {
+     "do": "hint",
+     "mark": "3",
+     "expect": {
+      "row": 5,
+      "col": 7,
+      "score": 32,
+      "hintsLeft": 0
+     }
+    },
+    {
+     "do": "hint",
+     "mark": "4",
+     "expect": {
+      "row": 4,
+      "col": 0,
+      "score": 0,
+      "hintsLeft": 0
+     }
+    },
+    {
+     "do": "view",
+     "mark": "3",
+     "expect": {
+      "hints": [
+       {
+        "row": 5,
+        "col": 7
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "four players share ranks",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3,
+    "timer": 5
+   },
+   "marks": [
+    "h",
+    "g",
+    "3",
+    "4"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "PANDA",
+     "expect": {
+      "score": 5,
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "g",
+     "word": "TROUT",
+     "expect": {
+      "score": 5,
+      "over": false
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "3",
+     "word": "BAT",
+     "expect": {
+      "score": 3,
+      "over": false
+     }
+    },
+    {
+     "do": "tick",
+     "now": 300000,
+     "ended": true,
+     "over": true,
+     "winner": null,
+     "winners": [
+      "h",
+      "g"
+     ],
+     "reason": "time"
+    },
+    {
+     "do": "view",
+     "mark": "4",
+     "expect": {
+      "me": "4",
+      "results": [
+       {
+        "mark": "h",
+        "score": 5,
+        "found": 1,
+        "rank": 1
+       },
+       {
+        "mark": "g",
+        "score": 5,
+        "found": 1,
+        "rank": 1
+       },
+       {
+        "mark": "3",
+        "score": 3,
+        "found": 1,
+        "rank": 3
+       },
+       {
+        "mark": "4",
+        "score": 0,
+        "found": 0,
+        "rank": 4
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "with no timer a late tick never ends the round",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3
+   },
+   "marks": [
+    "h",
+    "g"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "tick",
+     "now": 1000000000000,
+     "ended": false
+    },
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "DOG",
+     "expect": {
+      "score": 3,
+      "over": false
+     },
+     "now": 1000000000000
+    },
+    {
+     "do": "view",
+     "mark": "g",
+     "expect": {
+      "phase": "playing",
+      "endsAt": 0,
+      "timer": 0,
+      "winner": null,
+      "winners": [],
+      "results": []
+     }
+    }
+   ]
+  },
+  {
+   "name": "a hint at the end time is too late",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3,
+    "timer": 3
+   },
+   "marks": [
+    "h",
+    "g"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "hint",
+     "mark": "h",
+     "error": "Too late",
+     "now": 180000
+    },
+    {
+     "do": "view",
+     "mark": "g",
+     "expect": {
+      "phase": "over",
+      "winner": null,
+      "winners": [
+       "h",
+       "g"
+      ],
+      "reason": "time",
+      "hintsLeft": {
+       "h": 1,
+       "g": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a player on their own",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3
+   },
+   "marks": [
+    "h"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "CAT",
+     "expect": {
+      "score": 3,
+      "over": false
+     }
+    },
+    {
+     "do": "hint",
+     "mark": "h",
+     "expect": {
+      "score": 1,
+      "hintsLeft": 0
+     }
+    }
+   ]
+  },
+  {
+   "name": "nothing counts before the countdown ends",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3
+   },
+   "marks": [
+    "h",
+    "g"
+   ],
+   "now": 5000,
+   "steps": [
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "CAT",
+     "error": "Wait for the countdown.",
+     "now": 4999
+    },
+    {
+     "do": "hint",
+     "mark": "h",
+     "error": "Wait for the countdown.",
+     "now": 0
+    },
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "CAT",
+     "expect": {
+      "score": 3,
+      "over": false
+     },
+     "now": 5000
+    }
+   ]
   }
  ]
 }

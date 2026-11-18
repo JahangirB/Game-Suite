@@ -26,8 +26,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Across and down (backwards by switch); every word once; no side under 10; seeded
 - [x] **Step 7. Word Hunt rules** (Opus check)
   - [x] Claims, score, hint, timer, end; near-same-time claims; same tests in Kotlin and Cloudflare
-- [ ] **Step 8. Word Hunt online and nearby** (Opus check)
-  - [ ] Full 3-player game in rooms and nearby; late join sees found words
+- [x] **Step 8. Word Hunt online and nearby** (Opus check)
+  - [x] Full 3-player game in rooms and nearby; late join sees found words
 - [ ] **Step 9. Word Hunt screens**
   - [ ] Setup, play, found word, zoom with map, result, rules, tutorial; card and result art
   - [ ] Screenshots light and dark; a drag in each direction claims a word
