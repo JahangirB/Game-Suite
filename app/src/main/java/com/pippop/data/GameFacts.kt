@@ -24,7 +24,9 @@ data class GameFacts(val durationMs: Long? = null, val mine: Int? = null, val th
                 GameKind.SUDOKU, GameKind.NUMBERS, GameKind.SLIDE ->
                     GameFacts(durationMs = if (room.winner != null && !room.together) winnerInfo?.finishMs else null)
                 // Word Ladder: nothing is measured yet (its scoreboard comes with the app step).
-                GameKind.LADDER, GameKind.HUNT -> GameFacts()
+                GameKind.LADDER -> GameFacts()
+                // Word Hunt: your points, and the most points anyone else reached.
+                GameKind.HUNT -> room.turns?.hunt?.let { h -> GameFacts(mine = h.scores[h.me], theirs = h.scores.filterKeys { it != h.me }.values.maxOrNull()) }
                 GameKind.SHIPS -> room.ships?.let { GameFacts(count = if (meWon) it.myShots.size else if (theyWon) it.theirShots.size else null) }
                 GameKind.CONNECT4 -> room.turns?.board?.let { b ->
                     GameFacts(count = if (meWon) b.count { it == 'm' } else if (theyWon) b.count { it == 'o' } else null)

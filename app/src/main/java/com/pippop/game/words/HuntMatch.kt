@@ -144,6 +144,9 @@ class HuntMatch(
         return HuntHint(mark, w.row, w.col, scores.getValue(mark), 1 - hintsUsed.getValue(mark))
     }
 
+    /** Ends the round early (a player left): the scores and results are kept. Does nothing once it is over. */
+    fun end(why: String) { if (!over) finish(why) }
+
     /** Call when the clock reaches [endsAt]. True if that ended the round. */
     fun tick(now: Long): Boolean {
         if (over || endsAt == 0L || now < endsAt) return false

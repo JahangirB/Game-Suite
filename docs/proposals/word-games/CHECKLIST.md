@@ -28,9 +28,11 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Claims, score, hint, timer, end; near-same-time claims; same tests in Kotlin and Cloudflare
 - [x] **Step 8. Word Hunt online and nearby** (Opus check)
   - [x] Full 3-player game in rooms and nearby; late join sees found words
-- [ ] **Step 9. Word Hunt screens**
-  - [ ] Setup, play, found word, zoom with map, result, rules, tutorial; card and result art
-  - [ ] Screenshots light and dark; a drag in each direction claims a word
+- [x] **Step 9. Word Hunt screens**
+  - [x] Setup, play, found word, zoom with map, result, rules, tutorial; card and result art
+  - [x] Screenshots light and dark; a drag in each direction claims a word
+- [ ] **Step 9b. Sudoku: no "Fill all"** (owner: it's a cheat)
+  - [ ] The button is gone in solo and with a partner; README updated
 - [ ] **Step 10. Word Hunt solo**
   - [ ] Against the clock with a best per size; computer finders
 - [ ] **Step 11. In the app**

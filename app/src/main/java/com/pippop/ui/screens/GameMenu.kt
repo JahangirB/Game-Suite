@@ -447,7 +447,7 @@ fun Modifier.sheetBottom() = this.navigationBarsPadding()
 fun hasOptions(room: RoomState) = when (room.game) {
     GameKind.DOMINOES, GameKind.NUMBERS, GameKind.WORDS, GameKind.SLIDE, GameKind.TTT, GameKind.SUDOKU -> true
     GameKind.GOLF -> room.golfLevel != null
-    GameKind.BLOCKS, GameKind.MEMORY, GameKind.CODE, GameKind.DOTS, GameKind.DRAW, GameKind.LADDER -> true
+    GameKind.BLOCKS, GameKind.MEMORY, GameKind.CODE, GameKind.DOTS, GameKind.DRAW, GameKind.LADDER, GameKind.HUNT -> true
     else -> false
 }
 
@@ -467,6 +467,7 @@ fun RoomOptions(room: RoomState, busy: Boolean, vm: com.pippop.ui.BattleViewMode
         GameKind.DOTS -> DotsBoardCard(room, busy, vm::setDotsBoard)
         GameKind.DRAW -> DrawModeCard(room, busy, vm::setDrawRace)
         GameKind.LADDER -> LadderOptionsCard(room, busy, vm::setLadderOptions)
+        GameKind.HUNT -> HuntOptionsCard(room, busy, vm::setHuntOptions)
         GameKind.SUDOKU -> if (room.picksByOpener) SudokuOpenerCard(room, busy, vm::setSudokuLevel, vm::setSudokuTogether, vm::setSudokuShape) else if (room.sudokuModes) SudokuModeCard(room, busy, vm::setSudokuTogether, vm::setSudokuShape)
         else -> Unit
     }
@@ -491,6 +492,7 @@ fun modeLabel(room: RoomState): String? = when (room.game) {
     GameKind.CODE -> room.codeRules.label
     GameKind.DOTS -> com.pippop.game.dots.DotsShape.label(room.dotsBoard)
     GameKind.DRAW -> if (room.drawRace) "Guess race" else "Team"
+    GameKind.HUNT -> huntModeLabel(room.huntOptions)
     GameKind.LADDER -> "${room.ladderOptions.length} letters" + (if (room.ladderOptions.timer > 0) " · ${room.ladderOptions.timer} s" else "")
     GameKind.DOMINOES -> room.options?.let { (if (it.teams) "Teams" else "Each for their own") + " · " + (if (it.draw) "Draw" else "Block") + " · to ${it.target}" }
     else -> null

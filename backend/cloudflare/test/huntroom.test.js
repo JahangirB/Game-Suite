@@ -171,3 +171,21 @@ test('a player who left cannot claim, and the others carry on', () => {
   makeMove(r, 'guest', drag(r.turnState.grid.words[0]), GO + 30);
   assert.equal(r.turnState.scores.g, r.turnState.grid.words[0].length);
 });
+
+test('when one of two leaves, the round ends as left and keeps the results and the leaver\'s score', () => {
+  const r = room(undefined, 2);
+  begin(r, () => 0.3, ['host', 'guest']);
+  const words = r.turnState.grid.words;
+  makeMove(r, 'guest', drag(words[0]), GO + 10);
+  makeMove(r, 'host', drag(words[1]), GO + 20);
+  leave(r, 'guest', GO + 30);
+  assert.equal(r.status, 'finished');
+  assert.equal(r.winner, 'host');
+  assert.equal(r.turnState.over, true);
+  assert.equal(r.turnState.reason, 'left');
+  const t = view(r, 'host', GO + 40).turns;
+  assert.equal(t.phase, 'over');
+  assert.equal(t.scores.g, words[0].length);
+  assert.deepEqual(t.results.map((x) => x.mark).sort(), ['g', 'h']);
+  assert.equal(t.results.find((x) => x.mark === 'g').found, 1);
+});

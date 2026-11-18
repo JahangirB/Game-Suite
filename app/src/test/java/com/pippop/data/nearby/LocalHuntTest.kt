@@ -148,6 +148,26 @@ class LocalHuntTest {
     }
 
     @Test
+    fun whenOneOfTwoLeavesTheRoundEndsAsLeftAndKeepsTheResults() {
+        val r = LocalRoom("HUNT", "Alice", Avatar.FOX, GameKind.HUNT)
+        r.join("Bob", Avatar.OWL, null, listOf("hunt"))
+        listOf(LocalRoom.HOST, LocalRoom.GUEST).forEach { r.setConnected(it, true, t0) }
+        r.setOptions(LocalRoom.HOST, JSONObject().put("level", "easy").put("theme", "Food").put("backwards", false).put("timer", 0))
+        listOf(LocalRoom.HOST, LocalRoom.GUEST).forEach { r.setTurnReady(it, true, t0, fixed(0.0)) }
+        val m = HuntMatch(HuntOptions(HuntLevel.EASY, "Food", false, 0, 0), listOf('h', 'g'), startAt = go)
+        r.claim(LocalRoom.GUEST, m, m.grid.words[0].word, go + 10)
+        r.claim(LocalRoom.HOST, m, m.grid.words[1].word, go + 20)
+        r.leave(LocalRoom.GUEST, go + 30)
+        assertEquals("finished", r.view(LocalRoom.HOST, go + 40).getString("status"))
+        val v = r.hunt(LocalRoom.HOST, go + 40)
+        assertEquals("over", v.phase)
+        assertEquals("left", v.reason)
+        assertEquals(m.grid.words[0].length, v.scores['g'])
+        assertEquals(setOf('h', 'g'), v.results.map { it.mark }.toSet())
+        assertEquals(1, v.results.first { it.mark == 'g' }.found)
+    }
+
+    @Test
     fun wordHuntIsInTheStoreNotOnTheShelf() {
         assertFalse(GameKind.HUNT in ProfileStore.DEFAULT_SHELF)
         assertTrue(GameKind.HUNT in ProfileStore.storeGames(ProfileStore.DEFAULT_SHELF))

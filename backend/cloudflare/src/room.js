@@ -1353,7 +1353,11 @@ function endMatch(room, winnerRole, reason) {
 function dropOut(room, role, reason, now) {
   if (room.status !== 'started' || !playing(room).includes(role)) return;
   const rest = playing(room).filter((r) => r !== role);
-  if (rest.length < 2) return endMatch(room, rest[0] || null, reason);
+  if (rest.length < 2) {
+    // Word Hunt keeps its results and the leaver's score: the round ends as 'left' before the match does.
+    if (room.game === 'hunt' && room.turnState) hunt.end(room.turnState, 'left');
+    return endMatch(room, rest[0] || null, reason);
+  }
   // A dominoes, Colour Clash or Ludo game (or team) can't play on short: the match stops there.
   if (['dominoes', 'clash', 'ludo', 'balloon', 'golf', 'blocks'].includes(room.game)) return endMatch(room, null, 'left');
   room.players[role].out = true;

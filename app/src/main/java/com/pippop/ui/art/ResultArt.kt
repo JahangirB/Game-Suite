@@ -53,7 +53,8 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.DOTS -> if (win) a.dotsWin() else a.dotsLose()
                     GameKind.MEMORY -> if (win) a.memoryWin() else a.memoryLose()
                     GameKind.WORDS -> if (win) a.wordsWin() else a.wordsLose()
-                    GameKind.LADDER, GameKind.HUNT -> if (win) a.ladderWin() else a.ladderLose()
+                    GameKind.LADDER -> if (win) a.ladderWin() else a.ladderLose()
+                    GameKind.HUNT -> if (win) a.huntWin() else a.huntLose()
                     GameKind.DRAW -> if (win) a.drawWin() else a.drawLose()
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
@@ -442,6 +443,26 @@ private class ResultScene(val d: DrawScope, val t: Float) {
     }
 
     fun ladderLose() = ladderRows(Grey, 0f, shakeX(f(.8f)))
+
+    // ---- Word Hunt ------------------------------------------------------------------------
+
+    /** A small grid with a word struck out by a bar that slides across, then a second one; [bar] is the finder's colour, [lift] bobs the grid. */
+    fun huntGrid(bar: Color, lift: Float, shake: Float) {
+        val rows = listOf("TIGER", "OAXKP", "MZOWL")
+        p.translate(shake, lift) {
+            p.rr(50, 20, 200, 130, 12, White, Ink, 3)
+            val grow = f(3f, .1f).let { (it * 2.2f).coerceIn(0f, 1f) }
+            p.stroke(bar, 18) { moveTo(76, 52); lineTo(76 + 148 * grow, 52) }
+            rows.forEachIndexed { r, row -> row.forEachIndexed { c, ch -> p.text(ch.toString(), 76 + c * 37, 52 + r * 38, 24, Ink) } }
+        }
+    }
+
+    fun huntWin() {
+        huntGrid(Green, bob(f(1.5f)), 0f)
+        spark(34, 40, 5, Gold, 2f, .9f); spark(268, 36, 6, White, 2f, 1.2f); spark(36, 130, 5, White, 2f, 1.5f); spark(266, 130, 5, Gold, 2f, 1.1f)
+    }
+
+    fun huntLose() = huntGrid(Grey, 0f, shakeX(f(.8f)))
 
     // ---- Draw & Guess ---------------------------------------------------------------------
 

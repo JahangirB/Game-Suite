@@ -68,6 +68,7 @@ import com.pippop.ui.screens.SoloDotsScreen
 import com.pippop.ui.screens.SoloMemoryScreen
 import com.pippop.ui.screens.TurnGameScreen
 import com.pippop.ui.screens.LadderGameScreen
+import com.pippop.ui.screens.HuntGameScreen
 import com.pippop.ui.screens.SoloLadderScreen
 import com.pippop.ui.screens.SoloTttScreen
 import com.pippop.ui.screens.SoloDominoesScreen
@@ -471,6 +472,7 @@ fun PipPopApp(
                         inRoomGame && room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.LADDER -> LadderGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.HUNT -> HuntGameScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)

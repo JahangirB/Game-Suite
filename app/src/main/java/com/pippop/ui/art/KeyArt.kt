@@ -78,7 +78,7 @@ private val Scenes: Map<GameKind, Pen.() -> Unit> = mapOf(
     GameKind.GOLF to Pen::golf,
     GameKind.BLOCKS to Pen::blocks,
     GameKind.LADDER to Pen::ladder,
-    GameKind.HUNT to Pen::ladder,
+    GameKind.HUNT to Pen::hunt,
 )
 
 // ---- The first ten games --------------------------------------------------------------------
@@ -189,6 +189,23 @@ private fun Pen.ladder() {
         word.forEachIndexed { i, c -> tile(62 + i * 40, y, 34, 36, if (i == changed) glow else White, c.toString(), size = 22, r = 6) }
         if (changed >= 0) rr(70 + changed * 40, y + 30, 18, 4, 2, Ink)
     }
+}
+
+/** A grid of letters with three found words: bars in three players' colours, each with its initial. */
+private fun Pen.hunt() {
+    ground(0xD6F3EE)
+    rr(40, 8, 220, 160, 10, White, Ink, LINE)
+    val rows = listOf("TIGERQ", "OAXKPL", "MZOWLD", "BEARNS")
+    rows.forEachIndexed { r, row -> row.forEachIndexed { c, ch -> text(ch.toString(), 66 + c * 34, 36 + r * 38, 22, Ink) } }
+    // TIGER across, in coral; BEAR across, in orange; TOM down, in plum.
+    stroke(rgb(0xFF6B6B), 14) { moveTo(66, 36); lineTo(202, 36) }
+    stroke(rgb(0xF29A2E), 14) { moveTo(66, 150); lineTo(168, 150) }
+    stroke(rgb(0x8E24AA), 14) { moveTo(66, 36); lineTo(66, 112) }
+    "TIGER".forEachIndexed { c, ch -> text(ch.toString(), 66 + c * 34, 36, 22, Ink) }
+    "BEAR".forEachIndexed { c, ch -> text(ch.toString(), 66 + c * 34, 150, 22, Ink) }
+    circle(52, 24, 9, rgb(0xFF6B6B)); text("Y", 52, 24, 11, Ink)
+    circle(52, 138, 9, rgb(0xF29A2E)); text("M", 52, 138, 11, Ink)
+    circle(52, 62, 9, rgb(0x8E24AA)); text("P", 52, 62, 11, White)
 }
 
 /** A house on the pad, and someone wondering what it is. */

@@ -1399,7 +1399,11 @@ class LocalRoom(
     private fun dropOut(role: String, reason: String, now: Long) {
         if (status != "started" || role !in playing()) return
         val rest = playing() - role
-        if (rest.size < 2) return endMatch(rest.firstOrNull(), reason)
+        if (rest.size < 2) {
+            // Word Hunt keeps its results and the leaver's score: the round ends as "left" before the match does.
+            (turnMatch as? com.pippop.game.words.HuntMatch)?.end("left")
+            return endMatch(rest.firstOrNull(), reason)
+        }
         // A dominoes hand (or team) can't play on short: the match stops there.
         if (game == GameKind.DOMINOES || game == GameKind.CLASH || game == GameKind.LUDO || game == GameKind.BALLOON || game == GameKind.GOLF || game == GameKind.BLOCKS) return endMatch(null, "left")
         player(role).out = true

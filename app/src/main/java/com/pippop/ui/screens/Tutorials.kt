@@ -147,8 +147,7 @@ fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.DOTS -> dots()
     GameKind.MEMORY -> memory()
     GameKind.LADDER -> ladder()
-    // Word Hunt's tutorial comes with its screens.
-    GameKind.HUNT -> null
+    GameKind.HUNT -> hunt()
     GameKind.WORDS -> words()
     GameKind.DRAW -> draw()
     GameKind.TTT -> ttt()
@@ -272,6 +271,16 @@ private fun ladder(): List<TutorialStep> {
         TutorialStep("Change one letter", "Tap a letter of the last word, pick its new letter, and play. Every step must be a real word.", board(listOf("COLD"), selected = 2)),
         TutorialStep("The ladder grows", "The changed letter glows and is underlined. Words can't repeat.", board(listOf("COLD", "CORD", "CARD"))),
         TutorialStep("Spell the target to win", "The move that spells the target wins, even if it was your partner's word. Stuck with no move? You lose.", board(listOf("COLD", "CORD", "CARD", "WARD", "WARM"))),
+    )
+}
+
+private fun hunt(): List<TutorialStep> {
+    fun board(found: List<Pair<String, Char>> = emptyList(), hint: Boolean = false) = @Composable { m: Modifier -> HuntPicture(found, hint, m) }
+    return listOf(
+        TutorialStep("One grid for everyone", "Words hide across and down in a grid of letters. The list under it says what to find.", board()),
+        TutorialStep("Drag across a word", "Put a finger on its first letter and drag to its last, from either end. Or tap the first letter, then the last.", board(listOf("TIGER" to 'h'))),
+        TutorialStep("The first to finish keeps it", "A found word gets its finder's colour and initial. It scores its length. A wrong drag costs nothing.", board(listOf("TIGER" to 'h', "OWL" to 'g'))),
+        TutorialStep("Stuck? One hint", "A ring pulses where a word starts, for your eyes only. It costs 2 points. Big grids zoom: pinch, and move with two fingers.", board(listOf("TIGER" to 'h'), hint = true)),
     )
 }
 

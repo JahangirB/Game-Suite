@@ -66,6 +66,11 @@ function finish(state, reason) {
   return { over: true, winner: state.winner, winners: [...state.winners], reason };
 }
 
+/** Ends the round early (a player left): the scores and results are kept. Does nothing once it is over. */
+export function end(state, reason) {
+  return state.over ? null : finish(state, reason);
+}
+
 const running = { over: false, winner: null, winners: [], reason: null };
 
 function check(state, mark, now) {
