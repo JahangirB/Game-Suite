@@ -142,6 +142,33 @@ object SoloSetups {
             ),
             button = { v -> v["level"].orEmpty().replaceFirstChar { it.uppercase() } },
         ),
+        GameKind.HUNT to SoloSpec(
+            listOf(
+                SoloField(
+                    "mode", "Play", listOf(SoloOption("clock", "The clock", "Against the clock"), SoloOption("computers", "Computers", "Against computers")), "clock",
+                    note = { v -> if (v["mode"] == "computers") "Race computer finders to the words." else if (v["timer"] == "0") "Find every word, as fast as you can." else "Find as many words as you can before time is up." },
+                ),
+                SoloField(
+                    "level", "Size", listOf(SoloOption("easy", "Easy", "Easy 10×10"), SoloOption("medium", "Medium", "Medium 12×12"), SoloOption("hard", "Hard", "Hard 12×16"), SoloOption("huge", "Huge", "Huge 16×20")), "easy",
+                    note = { v -> mapOf("easy" to "10 × 10, 10 words.", "medium" to "12 × 12, 14 words. Pinch to zoom.", "hard" to "12 × 16, 18 words. Pinch to zoom.", "huge" to "16 × 20, 24 words. Pinch to zoom.")[v["level"]] },
+                ),
+                SoloField("theme", "Words", listOf("Animals", "Food", "Sport", "Nature", "Home", "Mixed").map { SoloOption(it, it) }, "Animals"),
+                SoloField(
+                    "backwards", "Backwards", listOf(SoloOption("auto", "Auto", "Backwards from Medium up"), SoloOption("on", "On", "Backwards words on"), SoloOption("off", "Off", "No backwards words")), "auto",
+                    note = { v -> mapOf("auto" to "On from Medium up.", "on" to "Words may read right to left and bottom to top.", "off" to "Words read left to right and top to bottom.")[v["backwards"]] },
+                ),
+                SoloField(
+                    "timer", "Timer", listOf(SoloOption("0", "None", "No timer"), SoloOption("3", "3 min", "3 minutes"), SoloOption("5", "5 min", "5 minutes"), SoloOption("8", "8 min", "8 minutes")), "0",
+                    note = { v -> if (v["mode"] == "clock" && v["timer"] == "0") "Your best is the fastest time to find every word." else if (v["mode"] == "clock") "Your best is the most points in that time." else null },
+                ),
+                SoloField("computers", "Computers", computers(1..3), "1", shownWhen = { it["mode"] == "computers" }),
+                SoloField(
+                    "skill", "How good", SKILLS, "medium", shownWhen = { it["mode"] == "computers" },
+                    note = { v -> mapOf("easy" to "A word every 30 seconds or so, the short ones first.", "medium" to "A word every 15 to 20 seconds.", "hard" to "A word every 8 to 12 seconds.")[v["skill"]] },
+                ),
+            ),
+            button = { v -> if (v["mode"] == "computers") "${if (v["computers"] == "1") "1 computer" else "${v["computers"]} computers"}, ${v["skill"].orEmpty().replaceFirstChar { it.uppercase() }}" else "The clock · ${v["level"].orEmpty().replaceFirstChar { it.uppercase() }}" },
+        ),
         GameKind.BLOCKS to SoloSpec(
             listOf(
                 SoloField("opponents", "Computers", computers(1..3), "1"),

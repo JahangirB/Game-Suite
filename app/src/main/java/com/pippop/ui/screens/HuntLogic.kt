@@ -50,6 +50,15 @@ internal fun huntSeats(room: RoomState, view: HuntView, myColor: Color): List<Hu
     return listOf(me) + others
 }
 
+/** The seats of a game alone: you ('m') and [computers] finders ('a', 'b', 'c'), named Computer, or Computer A, B, C when there are several. */
+internal fun huntSoloSeats(view: HuntView, computers: Int, myColor: Color, avatar: Avatar?): List<HuntSeat> {
+    val me = HuntSeat(view.me, "You", "Y", myColor, true, avatar)
+    val others = view.marks.filter { it != view.me }.take(computers).mapIndexed { i, mark ->
+        HuntSeat(mark, if (computers == 1) "Computer" else "Computer ${'A' + i}", if (computers == 1) "C" else ('A' + i).toString(), SeatColors[i % SeatColors.size], false, null)
+    }
+    return listOf(me) + others
+}
+
 internal fun List<HuntSeat>.of(mark: Char?) = firstOrNull { it.mark == mark }
 
 // ---- Selecting ------------------------------------------------------------------------------------------

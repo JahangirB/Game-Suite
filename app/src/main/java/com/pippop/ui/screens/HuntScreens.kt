@@ -26,7 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,14 @@ import com.pippop.game.words.HuntView
 import com.pippop.game.words.HuntViewWord
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
+import com.pippop.ui.HuntSoloMode
+import com.pippop.ui.SoloHuntUiState
+import com.pippop.ui.SoloHuntViewModel
+import com.pippop.ui.startWith
+import com.pippop.data.ProfileStore
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import com.pippop.ui.art.Outcome
 import com.pippop.ui.Sound
 import com.pippop.ui.SoundOnChange
 import com.pippop.ui.art.color
@@ -165,35 +175,7 @@ fun HuntGameScreen(
 
     val covered = !finished && (phase != RoomStatus.PLAYING || view.rows.isEmpty())
     val playing = !finished && !covered && view.phase == "playing"
-    val viewport = remember(view.width, view.height, room.code, room.round) { HuntViewport(view.width, view.height) }
-    var anchor by remember(room.code, room.round) { mutableStateOf<HuntCell?>(null) }
-
-    // Words found since the screen last looked: announced once ("Maya found TIGER"), never for what was found before it opened.
-    var known by remember(room.code, room.round) { mutableStateOf<Set<String>?>(null) }
-    var moment by remember(room.code, room.round) { mutableStateOf<HuntMoment?>(null) }
-    LaunchedEffect(view.words) {
-        val before = known
-        if (before != null) huntNewFinds(before, view).lastOrNull()?.let { moment = it }
-        known = view.words.filter { it.foundBy != null }.map { it.word }.toSet()
-    }
-    LaunchedEffect(moment) { if (moment != null) { kotlinx.coroutines.delay(MOMENT_MS); moment = null } }
-    val found = view.words.count { it.foundBy != null }
-    SoundOnChange(found.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
-
-    // What the room refused (Not a word here, Already found by Maya, ...), said in place with a short shake of the grid.
-    var refusal by remember { mutableStateOf<String?>(null) }
-    var refusals by remember { mutableIntStateOf(0) }
-    LaunchedEffect(state.message) {
-        val m = state.message
-        if (m != null && state.messageTone == Tone.Bad) {
-            refusal = huntRefusalText(m, seats)
-            refusals++
-            actions.dismissMessage()
-        }
-    }
-    LaunchedEffect(refusals) { if (refusals > 0) { kotlinx.coroutines.delay(REFUSAL_MS); refusal = null } }
-    // A hint brings you to the first letter when the grid is zoomed.
-    LaunchedEffect(view.hints) { view.hints.lastOrNull()?.let { (r, c) -> viewport.centreOn(HuntCell(r, c)) } }
+    val feed = rememberHuntFeed(room.code to room.round, view, seats, state.message, state.messageTone == Tone.Bad, actions.dismissMessage)
 
     val players = battleChips(
         room, state, tick, p.me,
@@ -227,22 +209,65 @@ fun HuntGameScreen(
             MatchPopup(room, GameKind.HUNT, end.outcome, end.title, end.detail, onRematch = actions.rematch, onFinish = onLeave) { HuntResults(view, seats) }
         },
     ) {
-        HuntStatus(finished, covered, moment, refusal, anchor != null, view.hints.isNotEmpty(), seats)
-        if (covered) {
-            val left = ((room.startAt ?: now) - now + 999) / 1000
-            BoardArea(view.width.toFloat() / view.height) { size -> HuntCover(view, left, size) }
-        } else {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                HuntBoard(
-                    view, seats, viewport, enabled = playing, anchor = anchor, onAnchor = { anchor = it },
-                    onClaim = { a, b -> actions.claim(a.row, a.col, b.row, b.col) },
-                    refusals = refusals, finds = found, flash = moment, modifier = Modifier.fillMaxSize().shake(refusals.takeIf { it > 0 }),
-                )
-            }
-        }
-        HuntWordList(view, seats, moment?.word)
-        HuntControls(view, seats, viewport, playing, actions)
+        HuntArena(feed, view, seats, covered, ((room.startAt ?: now) - now + 999) / 1000, playing, finished, actions)
     }
+}
+
+/**
+ * What the Word Hunt screens keep between frames, for one round: the camera, the letter chosen first when tapping, the word just
+ * found (announced once, never for what was found before the screen opened) and what the room refused (shown with a shake).
+ */
+@Stable
+internal class HuntFeed(val viewport: HuntViewport) {
+    var anchor by mutableStateOf<HuntCell?>(null)
+    var known by mutableStateOf<Set<String>?>(null)
+    var moment by mutableStateOf<HuntMoment?>(null)
+    var refusal by mutableStateOf<String?>(null)
+    var refusals by mutableIntStateOf(0)
+}
+
+/** The feed of the round [key], taking [message] (shown once it is [bad]; [dismiss] clears it) as the room's answer to the last claim. */
+@Composable
+internal fun rememberHuntFeed(key: Any, view: HuntView, seats: List<HuntSeat>, message: String?, bad: Boolean, dismiss: () -> Unit): HuntFeed {
+    val feed = remember(key, view.width, view.height) { HuntFeed(HuntViewport(view.width, view.height)) }
+    LaunchedEffect(view.words) {
+        val before = feed.known
+        if (before != null) huntNewFinds(before, view).lastOrNull()?.let { feed.moment = it }
+        feed.known = view.words.filter { it.foundBy != null }.map { it.word }.toSet()
+    }
+    LaunchedEffect(feed.moment) { if (feed.moment != null) { kotlinx.coroutines.delay(MOMENT_MS); feed.moment = null } }
+    SoundOnChange(view.words.count { it.foundBy != null }.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
+    LaunchedEffect(message) {
+        if (message != null && bad) {
+            feed.refusal = huntRefusalText(message, seats)
+            feed.refusals++
+            dismiss()
+        }
+    }
+    LaunchedEffect(feed.refusals) { if (feed.refusals > 0) { kotlinx.coroutines.delay(REFUSAL_MS); feed.refusal = null } }
+    // A hint brings you to the first letter when the grid is zoomed.
+    LaunchedEffect(view.hints) { view.hints.lastOrNull()?.let { (r, c) -> feed.viewport.centreOn(HuntCell(r, c)) } }
+    return feed
+}
+
+/** What fills a Word Hunt screen under its chips: the status line, the covered grid or the grid, the word list and the controls. */
+@Composable
+internal fun ColumnScope.HuntArena(feed: HuntFeed, view: HuntView, seats: List<HuntSeat>, covered: Boolean, left: Long, playing: Boolean, finished: Boolean, actions: HuntActions) {
+    HuntStatus(finished, covered, feed.moment, feed.refusal, feed.anchor != null, view.hints.isNotEmpty(), seats)
+    if (covered) {
+        BoardArea(view.width.toFloat() / view.height) { size -> HuntCover(view, left, size) }
+    } else {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            HuntBoard(
+                view, seats, feed.viewport, enabled = playing, anchor = feed.anchor, onAnchor = { feed.anchor = it },
+                onClaim = { a, b -> actions.claim(a.row, a.col, b.row, b.col) },
+                refusals = feed.refusals, finds = view.words.count { it.foundBy != null }, flash = feed.moment,
+                modifier = Modifier.fillMaxSize().shake(feed.refusals.takeIf { it > 0 }),
+            )
+        }
+    }
+    HuntWordList(view, seats, feed.moment?.word)
+    HuntControls(view, seats, feed.viewport, playing, actions)
 }
 
 // ---- The status line, the countdown ----------------------------------------------------------------
@@ -508,3 +533,76 @@ internal fun HuntPicture(found: List<Pair<String, Char>>, hint: Boolean, modifie
     val viewport = remember { HuntViewport(8, 8) }
     HuntBoard(view, seats, viewport, enabled = false, anchor = null, onAnchor = {}, onClaim = { _, _ -> }, refusals = 0, finds = found.size, flash = null, modifier = modifier)
 }
+
+
+// ---- On your own ------------------------------------------------------------------------------------
+
+/** Word Hunt alone: against the clock, or against computer finders. */
+@Composable
+fun SoloHuntScreen(state: SoloHuntUiState, vm: SoloHuntViewModel, onHome: () -> Unit, clock: () -> Long = vm::gameTime) {
+    val p = AppTheme.palette
+    val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    rememberTicker()
+    val now = clock()
+    var showRules by remember { mutableStateOf(false) }
+    if (showRules) RulesSheet(GameKind.HUNT) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.HUNT, "New game", vm::startWith) { changing = false }
+    val avatar = ProfileStore.get(LocalContext.current).profile.collectAsState().value.avatar
+    val seats = huntSoloSeats(view, state.computers, p.me, avatar)
+    val finished = state.over
+    val left = (SoloHuntViewModel.COUNTDOWN_MS - now + 999) / 1000
+    val covered = !finished && left > 0
+    val playing = !finished && !covered
+    val feed = rememberHuntFeed(state.gameId, view, seats, state.message, true, vm::dismissMessage)
+    val actions = remember(vm) { HuntActions(vm::claim, vm::hint, vm::rematch, vm::dismissMessage) }
+    val clockText = huntClock(view, now)
+    val hurry = huntHurry(view, now)
+    val what = if (state.mode == HuntSoloMode.CLOCK) "Against the clock" else "Against the computer" + if (state.computers > 1) "s" else ""
+
+    GameFrame(
+        title = "Word Hunt",
+        subtitle = what + " · " + huntModeLabel(HuntOptions(view.level, view.theme, view.backwards, view.timer)),
+        players = seats.map { seat ->
+            ChipPlayer(seat.name, seat.avatar, seat.color, points(view.scores[seat.mark] ?: 0), mine = seat.mine)
+        },
+        glow = GameKind.HUNT.color,
+        menu = soloMenu(GameKind.HUNT, onHome, { showRules = true }, vm::rematch, { changing = true }),
+        trailing = {
+            if (clockText != null && !finished) {
+                Text(
+                    clockText, style = Digits, color = if (hurry) p.bad else p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.semantics { contentDescription = "Time left $clockText" },
+                )
+            }
+        },
+        popup = if (!finished) null else popupContent {
+            val found = view.words.count { it.foundBy != null }
+            val end = huntEnd(view, seats, null, null, null)
+            if (state.mode == HuntSoloMode.COMPUTERS) {
+                ResultPopup(
+                    GameKind.HUNT, end.outcome, end.title, end.detail,
+                    finish = PopupAction("Home", onHome), again = PopupAction("Play again", vm::rematch),
+                    extra = { HuntResults(view, seats) },
+                )
+            } else {
+                val timed = view.timer > 0
+                val all = found == view.words.size
+                ResultPopup(
+                    GameKind.HUNT, if (all) Outcome.WIN else Outcome.TIE,
+                    if (timed) points(view.scores[view.me] ?: 0) else state.finishedMs?.let { "All found in ${huntElapsed(it)}" } ?: "Round over",
+                    "$found of ${view.words.size} words found." + if (!timed && (view.hintsLeft[view.me] ?: 1) == 0) " The hint added 10 seconds." else "",
+                    finish = PopupAction("Home", onHome), again = PopupAction("Play again", vm::rematch),
+                    extra = { HuntResults(view, seats) },
+                )
+            }
+        },
+    ) {
+        HuntArena(feed, view, seats, covered, left, playing, finished, actions)
+    }
+}
+
+/** A time as m:ss for the result line. */
+internal fun huntElapsed(ms: Long): String = (ms / 1000).let { "${it / 60}:${(it % 60).toString().padStart(2, '0')}" }

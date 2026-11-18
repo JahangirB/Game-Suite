@@ -102,3 +102,13 @@ fun SoloBlocksViewModel.startWith(values: Map<String, String>) {
     setSkill(values.skill("skill"))
     start()
 }
+
+/** Word Hunt alone: against the clock, or against 1 to 3 computer finders. */
+fun SoloHuntViewModel.startWith(values: Map<String, String>) {
+    val level = com.pippop.game.words.HuntLevel.entries.firstOrNull { it.key == values["level"] } ?: com.pippop.game.words.HuntLevel.EASY
+    val backwards = when (values["backwards"]) { "on" -> true; "off" -> false; else -> level != com.pippop.game.words.HuntLevel.EASY }
+    val timer = values["timer"]?.toIntOrNull()?.takeIf { it in com.pippop.game.words.HuntOptions.TIMERS } ?: 0
+    val options = com.pippop.game.words.HuntOptions.clean(level.key, values["theme"], backwards, timer, null)
+    if (values["mode"] == "computers") start(HuntSoloMode.COMPUTERS, options, values.count("computers", 1..3, 1), com.pippop.game.words.HuntSkill.from(values["skill"]))
+    else start(HuntSoloMode.CLOCK, options)
+}

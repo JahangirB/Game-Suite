@@ -96,7 +96,13 @@ object SoloLines {
         GameKind.CONNECT4 -> if (k.level.isEmpty()) "Quickest win" else "Quickest win against ${cap(k.level)}"
         GameKind.DOTS -> if (k.level.isEmpty()) "" else DotsShape.label(k.level) + " board"
         GameKind.MEMORY -> if (k.level.isEmpty()) "" else "${k.level} cards"
-        GameKind.LADDER, GameKind.HUNT -> cap(k.level)
+        GameKind.LADDER -> cap(k.level)
+        // Word Hunt: "Easy" (quickest time), "Easy · 5 min" (most points), "Against Medium computers" (wins).
+        GameKind.HUNT -> when {
+            k.level.startsWith("vs-") -> "Against ${cap(k.level.removePrefix("vs-"))} computers"
+            "-" in k.level -> cap(k.level.substringBefore("-")) + " · ${k.level.substringAfter("-")} min"
+            else -> cap(k.level)
+        }
         GameKind.WORDS -> if (k.level == "daily") "Daily word" else WordLevel.entries.firstOrNull { it.key == k.level }
             ?.let { "${it.lengths.first()}${if (it.lengths.size > 1) "–${it.lengths.last()}" else ""} letters" } ?: cap(k.level)
         GameKind.TTT -> cap(k.level)

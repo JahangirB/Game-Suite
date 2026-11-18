@@ -70,6 +70,7 @@ import com.pippop.ui.screens.TurnGameScreen
 import com.pippop.ui.screens.LadderGameScreen
 import com.pippop.ui.screens.HuntGameScreen
 import com.pippop.ui.screens.SoloLadderScreen
+import com.pippop.ui.screens.SoloHuntScreen
 import com.pippop.ui.screens.SoloTttScreen
 import com.pippop.ui.screens.SoloDominoesScreen
 import com.pippop.ui.screens.DominoesGameScreen
@@ -162,8 +163,7 @@ private fun soloDest(game: GameKind) = when (game) {
     // Draw & Guess needs two players; its sheet offers no solo game.
     GameKind.DRAW -> Dest.HOME
     GameKind.LADDER -> Dest.LADDER
-    // Word Hunt has no solo game yet.
-    GameKind.HUNT -> Dest.HOME
+    GameKind.HUNT -> Dest.HUNT
     GameKind.SUDOKU -> Dest.SOLO
 }
 
@@ -193,6 +193,7 @@ fun PipPopApp(
     golf: SoloGolfViewModel = viewModel(),
     blocks: SoloBlocksViewModel = viewModel(),
     ladder: SoloLadderViewModel = viewModel(),
+    hunt: SoloHuntViewModel = viewModel(),
 ) {
     val p = AppTheme.palette
     val profile by app.profile.collectAsStateWithLifecycle()
@@ -218,6 +219,7 @@ fun PipPopApp(
     val golfState by golf.state.collectAsStateWithLifecycle()
     val blocksState by blocks.state.collectAsStateWithLifecycle()
     val ladderState by ladder.state.collectAsStateWithLifecycle()
+    val huntState by hunt.state.collectAsStateWithLifecycle()
     // The games alone that were started and not finished: their sheet offers to carry on.
     val unfinished = buildSet {
         if (connectFourState.level != null && connectFourState.result == null) add(GameKind.CONNECT4)
@@ -238,6 +240,7 @@ fun PipPopApp(
         if (golfState.view != null && golfState.result == null) add(GameKind.GOLF)
         if (blocksState.view != null && blocksState.result == null) add(GameKind.BLOCKS)
         if (ladderState.view?.phase.let { it != null && it != "over" }) add(GameKind.LADDER)
+        if (huntState.view != null && !huntState.over) add(GameKind.HUNT)
     }
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
@@ -309,6 +312,10 @@ fun PipPopApp(
     LaunchedEffect(room?.status) { if (room?.inMatch == true) setupOpen.value = false }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { battle.setForeground(true) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { battle.setForeground(false) }
+    // A solo Word Hunt (and its computer finders) waits while the app is in the background or its screen is not showing.
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { hunt.setForeground(true) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { hunt.setForeground(false) }
+    LaunchedEffect(dest) { hunt.setOnScreen(dest == Dest.HUNT) }
     // A game opened from its Home tile grows out of it and shrinks back into it; every other
     // way of getting to a screen, and every other way home, stays an instant switch.
     val tiles = remember { TileBounds() }
@@ -496,6 +503,7 @@ fun PipPopApp(
                         dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = goHome)
                         dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = goHome)
                         dest == Dest.LADDER -> SoloLadderScreen(ladderState, ladder, onHome = goHome)
+                        dest == Dest.HUNT -> SoloHuntScreen(huntState, hunt, onHome = goHome)
                         dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = goHome)
                         dest == Dest.PROFILE -> ProfileScreen(
                             profile, battleState.busy, app, battle, updateState,
@@ -542,7 +550,7 @@ fun PipPopApp(
                                     GameKind.GOLF -> golf.startWith(setup)
                                     GameKind.BLOCKS -> blocks.startWith(setup)
                                     GameKind.LADDER -> ladder.startWith(setup)
-                                    GameKind.HUNT -> Unit
+                                    GameKind.HUNT -> hunt.startWith(setup)
                                     GameKind.DRAW -> Unit
                                 }
                                 go(soloDest(game))
