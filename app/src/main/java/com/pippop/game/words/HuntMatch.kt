@@ -7,12 +7,12 @@ import org.json.JSONObject
 import kotlin.random.Random
 
 /**
- * Word Hunt setup: [level], [theme], [backwards], [timer] (minutes: 0 = none, 3, 5 or 8) and the grid
- * [seed] (null: the match picks one; a room never takes it from a phone). Anything else becomes the default (as cleanOptions in wordhuntmatch.js).
+ * Word Hunt setup: [level], [backwards], [timer] (minutes: 0 = none, 3, 5 or 8) and the grid
+ * [seed] (null: the match picks one; a room never takes it from a phone). Anything else becomes the default (as cleanOptions in
+ * wordhuntmatch.js); a `theme` sent by an older app is accepted and ignored (every grid draws from one mixed pool).
  */
 data class HuntOptions(
     val level: HuntLevel = HuntLevel.EASY,
-    val theme: String = "Animals",
     val backwards: Boolean = level != HuntLevel.EASY,
     val timer: Int = 0,
     val seed: Int? = null,
@@ -22,17 +22,14 @@ data class HuntOptions(
 
         /** A room's options from JSON (a phone's or the opener's): the seed is never taken from it. */
         fun from(json: JSONObject?) = if (json == null) HuntOptions() else clean(
-            json.optString("level").takeIf { it.isNotEmpty() }, json.optString("theme").takeIf { it.isNotEmpty() },
+            json.optString("level").takeIf { it.isNotEmpty() },
             if (json.has("backwards")) json.optBoolean("backwards") else null, if (json.has("timer")) json.optInt("timer") else null, null,
         )
 
         /** Backwards defaults to off on Easy and on from Medium up. */
-        fun clean(level: String?, theme: String?, backwards: Boolean?, timer: Int?, seed: Int?): HuntOptions {
+        fun clean(level: String?, backwards: Boolean?, timer: Int?, seed: Int?): HuntOptions {
             val l = HuntLevel.entries.firstOrNull { it.key == level } ?: HuntLevel.EASY
-            return HuntOptions(
-                l, if (theme != null && theme in WordHuntThemes.themes) theme else "Animals",
-                backwards ?: (l != HuntLevel.EASY), if (timer in TIMERS) timer!! else 0, seed,
-            )
+            return HuntOptions(l, backwards ?: (l != HuntLevel.EASY), if (timer in TIMERS) timer!! else 0, seed)
         }
     }
 }
@@ -54,8 +51,8 @@ data class HuntPlace(val mark: Char, val score: Int, val found: Int, val rank: I
  *
  * Choices: a score never goes below 0; a tie for the top score is a draw ([winner] null, [winners]
  * lists the tied marks). Times are milliseconds, given by the caller. Rule errors are
- * IllegalArgumentException with the reason to show: "Not a word here", "Already found by <mark>",
- * "Too late". Needs [WordHuntThemes] and [WordLadder]'s blocklist loaded.
+ * IllegalArgumentException with the reason to show: "Not a word here", "Not one of the hidden words" (a real word that is not hidden here), "Already found by <mark>",
+ * "Too late". Needs [WordHuntThemes] and [WordLadder]'s blocklist loaded. The view never holds the text or length of an unfound word.
  *
  * It is a [TurnMatch] so a nearby room can run it: a move is {r1, c1, r2, c2} or {hint: true}.
  */
@@ -88,7 +85,7 @@ class HuntMatch(
         require(marks.size in 1..4) { "Word Hunt is for 1 to 4 players." }
         val seed = options.seed ?: (random() * 0x7fffffff).toInt()
         this.options = options.copy(seed = seed)
-        grid = WordHunt.make(options.theme, options.level, options.backwards, seed)
+        grid = WordHunt.make(options.level, options.backwards, seed)
         marks.forEach { scores[it] = 0; hintsUsed[it] = 0 }
         endsAt = if (options.timer > 0) startAt + options.timer * 60000L else 0L
     }
@@ -119,12 +116,23 @@ class HuntMatch(
             val (a, b) = ends(it)
             (a == r1 to c1 && b == r2 to c2) || (a == r2 to c2 && b == r1 to c1)
         }
-        require(w != null) { "Not a word here" }
+        require(w != null) { if (spellsPoolWord(r1, c1, r2, c2)) "Not one of the hidden words" else "Not a word here" }
         claims[w.word]?.let { throw IllegalArgumentException("Already found by ${it.first}") }
         claims[w.word] = mark to now
         scores[mark] = scores.getValue(mark) + w.length
         val result = if (claims.size == grid.words.size) finish("all") else TurnResult(again = false)
         return HuntClaim(w.word, mark, scores.getValue(mark), result, winners)
+    }
+
+    /** Whether the straight line of cells from (r1, c1) to (r2, c2) spells a word of the vocabulary, read either way. */
+    private fun spellsPoolWord(r1: Int?, c1: Int?, r2: Int?, c2: Int?): Boolean {
+        if (r1 == null || c1 == null || r2 == null || c2 == null || (r1 != r2 && c1 != c2)) return false
+        if (r1 !in 0 until grid.height || r2 !in 0 until grid.height || c1 !in 0 until grid.width || c2 !in 0 until grid.width) return false
+        val n = maxOf(Math.abs(r2 - r1), Math.abs(c2 - c1)) + 1
+        val dr = Integer.signum(r2 - r1)
+        val dc = Integer.signum(c2 - c1)
+        val text = String(CharArray(n) { grid.rows[r1 + dr * it][c1 + dc * it] })
+        return text in WordHuntThemes.poolSet || text.reversed() in WordHuntThemes.poolSet
     }
 
     /**
@@ -179,27 +187,28 @@ class HuntMatch(
     }
 
     /**
-     * The round as [mark] sees it: the same JSON as view() in wordhuntmatch.js. Unfound words are
-     * listed by text and length only (no cells); found ones say who found them and where. "hints"
+     * The round as [mark] sees it: the same JSON as view() in wordhuntmatch.js. The words are hidden:
+     * it carries how many there are ("total", "foundCount") and the found ones ("found", in the order
+     * they were found: text, who, where, when), never the text or length of an unfound word. "hints"
      * holds only this player's own hint cells for words still unfound.
      */
     override fun view(mark: Char, seats: Map<Char, Char>): JSONObject {
-        val words = JSONArray()
-        for (w in grid.words) {
-            val o = JSONObject().put("word", w.word).put("length", w.length)
-            val by = claims[w.word]?.first
-            if (by == null) o.put("foundBy", JSONObject.NULL)
-            else o.put("foundBy", by.toString()).put("row", w.row).put("col", w.col).put("dir", w.dir.key)
-            words.put(o)
+        val found = JSONArray()
+        for ((word, by) in claims) {
+            val w = grid.words.first { it.word == word }
+            found.put(
+                JSONObject().put("word", word).put("length", w.length).put("foundBy", by.first.toString())
+                    .put("row", w.row).put("col", w.col).put("dir", w.dir.key).put("at", by.second),
+            )
         }
         fun counts(f: (Char) -> Int) = JSONObject().also { j -> marks.forEach { j.put(it.toString(), f(it)) } }
         return JSONObject()
             .put("me", mark.toString())
-            .put("level", options.level.key).put("theme", options.theme).put("backwards", options.backwards)
+            .put("level", options.level.key).put("backwards", options.backwards)
             .put("timer", options.timer).put("width", grid.width).put("height", grid.height)
             .put("rows", JSONArray(grid.rows))
             .put("phase", if (over) "over" else "playing")
-            .put("words", words)
+            .put("total", grid.words.size).put("foundCount", claims.size).put("found", found)
             .put("marks", JSONArray(marks.map { it.toString() }))
             .put("scores", counts { scores.getValue(it) })
             .put("hintsLeft", counts { 1 - hintsUsed.getValue(it) })
@@ -222,26 +231,28 @@ class HuntMatch(
     }
 }
 
-/** One word of the list: [foundBy] is null while it is unfound, and then it has no place ([row], [col], [dir] are null). */
-data class HuntViewWord(val word: String, val length: Int, val foundBy: Char?, val row: Int?, val col: Int?, val dir: String?)
+/** A found word: [mark] found it at [at] (ms); it starts at ([row], [col]) and reads [dir]. */
+data class HuntFound(val word: String, val mark: Char, val row: Int, val col: Int, val dir: String, val at: Long) {
+    val length get() = word.length
+}
 
 /**
  * Word Hunt as one player sees it (the server's and the nearby room's "turns" view, from
  * wordhuntmatch.js view()). Marks are real marks ('h', 'g', '3', '4'); [me] is this player's.
- * [rows] is empty during the countdown. [hints] are this player's own hint cells for unfound words.
+ * [total] is how many words are hidden, [found] the ones found so far, in order. [rows] is empty during the countdown. [hints] are this player's own hint cells for unfound words.
  * [endsAt] is in server milliseconds, 0 when there is no timer. [phase] is "playing" or "over".
  */
 data class HuntView(
     val me: Char,
     val level: HuntLevel,
-    val theme: String,
     val backwards: Boolean,
     val timer: Int,
     val width: Int,
     val height: Int,
     val rows: List<String>,
     val phase: String,
-    val words: List<HuntViewWord>,
+    val total: Int,
+    val found: List<HuntFound>,
     val marks: List<Char>,
     val scores: Map<Char, Int>,
     val hintsLeft: Map<Char, Int>,
@@ -253,24 +264,27 @@ data class HuntView(
     val results: List<HuntPlace>,
 ) {
     companion object {
-        private fun JSONObject.text(key: String) = if (isNull(key)) null else optString(key)
-        private fun JSONObject.intOrNull(key: String) = if (has(key) && !isNull(key)) optInt(key) else null
+        private fun JSONObject.text(key: String) = if (!has(key) || isNull(key)) null else optString(key)
         private fun JSONArray?.list() = this?.let { a -> (0 until a.length()).map { a.get(it) } }.orEmpty()
         private fun JSONObject?.counts() = this?.let { o -> o.keys().asSequence().associate { it.first() to o.optInt(it) } }.orEmpty()
 
         fun from(json: JSONObject) = HuntView(
             me = json.optString("me", "h").first(),
             level = HuntLevel.entries.firstOrNull { it.key == json.optString("level") } ?: HuntLevel.EASY,
-            theme = json.optString("theme"),
             backwards = json.optBoolean("backwards"),
             timer = json.optInt("timer"),
             width = json.optInt("width"),
             height = json.optInt("height"),
             rows = json.optJSONArray("rows").list().map { it.toString() },
             phase = json.optString("phase", "playing"),
-            words = json.optJSONArray("words").list().map { w ->
+            // An older server or host sends the whole list ("words", the unfound ones with no place): the found ones are the new shape's.
+            total = if (json.has("total")) json.optInt("total") else json.optJSONArray("words").list().size,
+            found = if (json.has("found")) json.optJSONArray("found").list().map { w ->
                 w as JSONObject
-                HuntViewWord(w.optString("word"), w.optInt("length"), w.text("foundBy")?.first(), w.intOrNull("row"), w.intOrNull("col"), w.text("dir"))
+                HuntFound(w.optString("word"), w.optString("foundBy").first(), w.optInt("row"), w.optInt("col"), w.optString("dir"), w.optLong("at"))
+            } else json.optJSONArray("words").list().mapNotNull { w ->
+                w as JSONObject
+                w.text("foundBy")?.first()?.let { by -> HuntFound(w.optString("word"), by, w.optInt("row"), w.optInt("col"), w.optString("dir"), 0L) }
             },
             marks = json.optJSONArray("marks").list().map { it.toString().first() },
             scores = json.optJSONObject("scores").counts(),

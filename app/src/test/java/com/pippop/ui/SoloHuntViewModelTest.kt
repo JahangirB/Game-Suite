@@ -64,10 +64,10 @@ class SoloHuntViewModelTest {
         claim(a.first, a.second, b.first, b.second)
     }
 
-    private fun found(vm: SoloHuntViewModel, by: Char? = null) = vm.state.value.view!!.words.count { it.foundBy != null && (by == null || it.foundBy == by) }
+    private fun found(vm: SoloHuntViewModel, by: Char? = null) = vm.state.value.view!!.found.count { by == null || it.mark == by }
 
     @Test fun aClockRoundWithNoTimerEndsWhenEveryWordIsFoundAndKeepsTheFastestTime() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 0)
+        val options = HuntOptions(HuntLevel.EASY, false, 0)
         val vm = vm()
         vm.start(HuntSoloMode.CLOCK, options)
         val grid = twin(options)
@@ -90,7 +90,7 @@ class SoloHuntViewModelTest {
     }
 
     @Test fun aTimedRoundEndsWhenTimeIsUpAndKeepsTheMostPointsForThatTimer() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 3)
+        val options = HuntOptions(HuntLevel.EASY, false, 3)
         val vm = vm()
         vm.start(HuntSoloMode.CLOCK, options)
         val grid = twin(options)
@@ -113,7 +113,7 @@ class SoloHuntViewModelTest {
     }
 
     @Test fun aHintAddsTenSecondsToATimeWithNoTimer() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 0)
+        val options = HuntOptions(HuntLevel.EASY, false, 0)
         val vm = vm()
         vm.start(HuntSoloMode.CLOCK, options)
         val grid = twin(options)
@@ -124,7 +124,7 @@ class SoloHuntViewModelTest {
     }
 
     @Test fun computerFindersClaimAtTheirPaceNeverDuringTheCountdown() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 0)
+        val options = HuntOptions(HuntLevel.EASY, false, 0)
         val vm = vm()
         vm.start(HuntSoloMode.COMPUTERS, options, 1, HuntSkill.MEDIUM)
         // Nothing in the countdown, nor in the first 15 seconds after it (Medium waits 15 to 20 s between finds).
@@ -139,13 +139,13 @@ class SoloHuntViewModelTest {
         assertEquals(1, found(vm, 'a'))
         at(5_000 + 40_000)
         assertEquals(2, found(vm, 'a'))
-        assertEquals(vm.state.value.view!!.words.filter { it.foundBy == 'a' }.sumOf { it.length }, vm.state.value.view!!.scores['a'])
+        assertEquals(vm.state.value.view!!.found.filter { it.mark == 'a' }.sumOf { it.length }, vm.state.value.view!!.scores['a'])
     }
 
     @Test fun eachSkillKeepsToItsPaceOverAWholeRound() {
         for ((skill, range) in mapOf(HuntSkill.EASY to 25_000L..35_000L, HuntSkill.MEDIUM to 15_000L..20_000L, HuntSkill.HARD to 8_000L..12_000L)) {
             val vm = vm(7)
-            vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, "Animals", false, 0), 1, skill)
+            vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, false, 0), 1, skill)
             val t0 = scheduler.currentTime
             val times = mutableListOf<Long>()
             var seen = 0
@@ -164,7 +164,7 @@ class SoloHuntViewModelTest {
     }
 
     @Test fun finishersStopWhenTheRoundIsOverAndEasyGoesForShortWordsFirst() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 3)
+        val options = HuntOptions(HuntLevel.EASY, false, 3)
         val vm = vm()
         vm.start(HuntSoloMode.COMPUTERS, options, 2, HuntSkill.EASY)
         at(5_000 + 3 * 60_000 + 500)
@@ -173,7 +173,7 @@ class SoloHuntViewModelTest {
         // Easy takes the shorter half of what is left each time: the first finds are among the five shortest words.
         val view = vm.state.value.view!!
         val shortest = twin(options, 5, listOf('m', 'a', 'b')).grid.words.sortedBy { it.length }.take(5).map { it.word }.toSet()
-        assertTrue("found ${view.words.filter { it.foundBy != null }.map { it.word }}", view.words.filter { it.foundBy != null }.take(2).all { it.word in shortest } || after <= 2)
+        assertTrue("found ${view.found.map { it.word }}", view.found.take(2).all { it.word in shortest } || after <= 2)
         // Long after the end nothing more is claimed and nothing is recorded twice.
         at(5_000 + 3 * 60_000 + 200_000)
         assertEquals(after, found(vm))
@@ -183,7 +183,7 @@ class SoloHuntViewModelTest {
 
     @Test fun aRematchWhileAComputerIsWaitingCancelsItsJobAndShowsTheCountdownAgain() {
         val vm = vm()
-        vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, "Animals", false, 0), 2, HuntSkill.HARD)
+        vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, false, 0), 2, HuntSkill.HARD)
         at(5_000 + 5_000)
         val old = vm.finderJobs()
         assertTrue(old.all { it.isActive })
@@ -202,7 +202,7 @@ class SoloHuntViewModelTest {
 
     @Test fun theRoundWaitsWhileTheAppIsInTheBackgroundOrNotOnScreen() {
         val vm = vm()
-        vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, "Animals", false, 5), 1, HuntSkill.HARD)
+        vm.start(HuntSoloMode.COMPUTERS, HuntOptions(HuntLevel.EASY, false, 5), 1, HuntSkill.HARD)
         at(5_000 + 3_000)
         vm.setForeground(false)
         val held = vm.gameTime()
@@ -221,7 +221,7 @@ class SoloHuntViewModelTest {
     }
 
     @Test fun winsAgainstComputersAreARunPerSkill() {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 0)
+        val options = HuntOptions(HuntLevel.EASY, false, 0)
         val vm = vm()
         vm.start(HuntSoloMode.COMPUTERS, options, 1, HuntSkill.EASY)
         val grid = twin(options, 5, listOf('m', 'a'))

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -24,6 +25,14 @@ import com.pippop.ui.screens.HuntCamera
 import com.pippop.ui.screens.HuntCell
 import com.pippop.ui.screens.HuntGeometry
 import com.pippop.ui.screens.huntSnap
+import com.pippop.ui.screens.huntChipDetail
+import com.pippop.ui.screens.huntFoundBy
+import com.pippop.ui.screens.huntProgress
+import com.pippop.ui.screens.huntSheetTitle
+import com.pippop.ui.screens.huntSeats
+import com.pippop.ui.screens.huntWordsOf
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.layout.positionInRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -42,7 +51,7 @@ class HuntScreenTest : HuntTestBase() {
     /** Lets the found-word moment pass, as it does a couple of seconds after a find. */
     private fun later() = compose.mainClock.advanceTimeBy(3000)
 
-    private fun foundBy(h: HuntHarness, word: String) = h.state.value.room!!.turns!!.hunt!!.words.first { it.word == word }.foundBy
+    private fun foundBy(h: HuntHarness, word: String) = h.state.value.room!!.turns!!.hunt!!.found.firstOrNull { it.word == word }?.mark
 
     /** Two across words and two down words, to drag in turn. */
     private fun wordsRunning(t: HuntTable, dir: HuntDir, n: Int = 2) = t.words.filter { it.dir == dir }.take(n).also { assertEquals(dir.name, n, it.size) }
@@ -68,9 +77,9 @@ class HuntScreenTest : HuntTestBase() {
         for (w in across + down) assertEquals(w.word, 'h', foundBy(h, w.word))
         val score = h.state.value.room!!.turns!!.hunt!!.scores['h']
         assertEquals((across + down).sumOf { it.length }, score)
-        // The find is announced, the list shows who has it, and nothing was refused.
+        // The find is announced, the line counts what is found, and nothing was refused.
         shown("You found ${down[1].word}")
-        shown("Words: 4 of ${t.words.size} found")
+        shown("4 of ${t.words.size} found")
     }
 
     @Test fun aWobblyDragSnapsToItsMainDirection() {
@@ -138,8 +147,8 @@ class HuntScreenTest : HuntTestBase() {
         t.claim(LocalRoom.GUEST, w.word)
         h.refresh()
         show(h)
-        // The list tags Maya's find with her initial and her name for a screen reader.
-        compose.onNodeWithContentDescription("${w.word}, found by Maya").assertIsDisplayed()
+        // Her chip counts it, and a screen reader hears her name on the word's letters.
+        compose.onNodeWithContentDescription("Maya, 1 found, ${if (w.length == 1) "1 point" else "${w.length} points"}").assertIsDisplayed()
         dragWord(t, w.word)
         shown("Already found by Maya")
     }
@@ -225,8 +234,8 @@ class HuntScreenTest : HuntTestBase() {
         val w = t.words.first { it.dir == HuntDir.RIGHT && HuntMatch.ends(it).first.second >= 2 }
         val (a, _) = HuntMatch.ends(w)
         val start = centre(compose, t, a.first, a.second)
-        // The window is wider than the grid on a tall grid: its left edge is over a cell's width from the grid's.
-        compose.onNodeWithTag("huntGrid").performTouchInput { down(start); moveTo(Offset(start.x / 2, start.y)); moveTo(Offset(1f, start.y)); up() }
+        // Well past the grid's left edge (more than a cell away from it, whatever the window's shape): the drag is cancelled.
+        compose.onNodeWithTag("huntGrid").performTouchInput { down(start); moveTo(Offset(start.x / 2, start.y)); moveTo(Offset(-300f, start.y)); up() }
         compose.waitForIdle()
         assertTrue("no claim from outside: ${h.claims}", h.claims.isEmpty())
     }
@@ -247,7 +256,85 @@ class HuntScreenTest : HuntTestBase() {
         assertTrue(!com.pippop.ui.screens.huntNear(5f, 11.2f, 10, 10))
     }
 
+    @Test fun theWordsAreHiddenAndALineCountsWhatIsFound() {
+        val t = HuntTable()
+        val h = HuntHarness(t)
+        t.claim(LocalRoom.GUEST, t.words[0].word)
+        h.refresh()
+        show(h)
+        shown("1 of ${t.words.size} found")
+        // No list: the text of a word nobody found is nowhere on the screen (its letters are only in the grid).
+        for (w in t.words.drop(1)) compose.onAllNodesWithText(w.word, substring = true).assertCountEquals(0)
+        compose.onAllNodesWithText("Words:", substring = true).assertCountEquals(0)
+        // Finding one moves the line on.
+        dragWord(t, t.words[1].word)
+        shown("2 of ${t.words.size} found")
+    }
+
+    @Test fun aChipCountsAPlayersWordsAndTappingItListsThem() {
+        val t = HuntTable()
+        val h = HuntHarness(t)
+        val (a, b, c, d) = t.words
+        t.claim(LocalRoom.HOST, a.word)
+        t.claim(LocalRoom.GUEST, b.word)
+        t.claim(LocalRoom.HOST, c.word)
+        t.claim(LocalRoom.GUEST, d.word)
+        h.refresh()
+        show(h)
+        val view = t.sam().turns!!.hunt!!
+        val seats = huntSeats(t.sam(), view, androidx.compose.ui.graphics.Color.Red)
+        // The chip says the count in words, not by its badge alone: "2 found" for Sam and for Maya, none for Priya.
+        compose.onNodeWithContentDescription("You, 2 found, ${a.length + c.length} points").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Maya, 2 found, ${b.length + d.length} points").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Priya, 0 found, 0 points").assertIsDisplayed()
+        // Tapping Maya's chip lists her words, the newest first, and the sheet agrees with the chip.
+        compose.onNodeWithContentDescription("Maya, 2 found", substring = true).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Maya's words").assertIsDisplayed()
+        compose.onNodeWithText("2 of ${t.words.size} found · ${b.length + d.length} points").assertIsDisplayed()
+        val shown = listOf(d.word, b.word)
+        for (w in shown) compose.onNodeWithContentDescription("$w, ${w.length} points").assertIsDisplayed()
+        val tops = shown.map { w -> compose.onNodeWithContentDescription("$w, ${w.length} points").fetchSemanticsNode().positionInRoot.y }
+        assertTrue("newest first: $tops", tops[0] < tops[1])
+        // The same numbers from the view's own side.
+        for (seat in seats) assertEquals(seat.name, huntFoundBy(view, seat.mark), huntWordsOf(view, seat.mark).size)
+    }
+
+    @Test fun yourOwnSheetReadsYourWords() {
+        val t = HuntTable()
+        val h = HuntHarness(t)
+        show(h)
+        compose.onNodeWithContentDescription("You, 0 found, 0 points").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Your words").assertIsDisplayed()
+        compose.onNodeWithText("No words yet. Drag across one in the grid.").assertIsDisplayed()
+    }
+
     // ---- The pure parts ------------------------------------------------------------------------------
+
+    @Test fun theChipsCountMatchesTheSheetsListAndTheTotal() {
+        val t = HuntTable()
+        val plan = listOf(LocalRoom.HOST, LocalRoom.GUEST, LocalRoom.HOST, LocalRoom.P3, LocalRoom.GUEST, LocalRoom.HOST)
+        plan.forEachIndexed { i, who -> t.claim(who, t.words[i].word) }
+        val room = t.sam()
+        val view = room.turns!!.hunt!!
+        val seats = huntSeats(room, view, androidx.compose.ui.graphics.Color.Red)
+        assertEquals(plan.size, view.found.size)
+        assertEquals(plan.size, seats.sumOf { huntFoundBy(view, it.mark) })
+        for (seat in seats) {
+            val listed = huntWordsOf(view, seat.mark)
+            assertEquals(seat.name, huntFoundBy(view, seat.mark), listed.size)
+            assertTrue(listed.all { it.mark == seat.mark })
+            // Newest first: the order of the finds, turned round.
+            assertEquals(view.found.filter { it.mark == seat.mark }.reversed(), listed)
+        }
+        assertEquals("6 of ${t.words.size} found", huntProgress(view))
+        assertEquals("Your words", huntSheetTitle(seats[0]))
+        assertEquals("Maya's words", huntSheetTitle(seats[1]))
+        assertEquals("3 found\n12 pts", huntChipDetail(3, 12, crowded = true))
+        assertEquals("3 found · 12 points", huntChipDetail(3, 12, crowded = false))
+        assertEquals("1 found · 1 point", huntChipDetail(1, 1, crowded = false))
+    }
 
     @Test fun snappingFollowsTheMainAxisFromEitherEnd() {
         val start = HuntCell(4, 4)

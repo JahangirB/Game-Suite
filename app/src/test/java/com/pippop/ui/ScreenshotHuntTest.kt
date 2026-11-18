@@ -56,7 +56,7 @@ class ScreenshotHuntTest : HuntTestBase() {
     private fun lobby(): RoomState {
         val r = LocalRoom("HUNT", "Sam", Avatar.FOX, GameKind.HUNT)
         r.join("Maya", Avatar.PANDA, null, listOf("hunt"))
-        r.setOptions(LocalRoom.HOST, JSONObject().put("level", "medium").put("theme", "Food").put("backwards", true).put("timer", 5))
+        r.setOptions(LocalRoom.HOST, JSONObject().put("level", "medium").put("backwards", true).put("timer", 5))
         return parseRoom(r.view(LocalRoom.HOST, 1_000_000L))
     }
 
@@ -92,8 +92,8 @@ class ScreenshotHuntTest : HuntTestBase() {
     // ---- Playing --------------------------------------------------------------------------------------
 
     /** Sam has two words, Maya two, Priya one; 3:42 is left on the 5 minute clock. */
-    private fun midGame(level: HuntLevel = HuntLevel.EASY, theme: String = "Animals", backwards: Boolean = false, finds: List<Pair<String, Int>>? = null): HuntHarness {
-        val t = HuntTable(level = level, theme = theme, backwards = backwards)
+    private fun midGame(level: HuntLevel = HuntLevel.EASY, backwards: Boolean = false, finds: List<Pair<String, Int>>? = null): HuntHarness {
+        val t = HuntTable(level = level, backwards = backwards)
         val w = t.words
         val who = listOf(LocalRoom.HOST, LocalRoom.GUEST, LocalRoom.P3)
         val plan = finds ?: listOf(w[0].word to 0, w[1].word to 1, w[2].word to 2, w[3].word to 0, w[5].word to 1).map { it.first to it.second }
@@ -105,7 +105,7 @@ class ScreenshotHuntTest : HuntTestBase() {
     /** A drag from the first letter of an unfound across word to part of the way along it, with the finger still down. */
     private fun dragging(h: HuntHarness) {
         val t = h.table
-        val found = t.sam().turns!!.hunt!!.words.filter { it.foundBy != null }.map { it.word }.toSet()
+        val found = t.sam().turns!!.hunt!!.found.map { it.word }.toSet()
         val w = t.words.first { it.dir == HuntDir.RIGHT && it.word !in found }
         val (a, b) = HuntMatch.ends(w)
         val start = centre(compose, t, a.first, a.second)
@@ -120,6 +120,37 @@ class ScreenshotHuntTest : HuntTestBase() {
 
     @Test fun playLight() = playPicture(false)
     @Test fun playDark() = playPicture(true)
+
+    // ---- A player's found words ------------------------------------------------------------------------------
+
+    /** The play screen with the sheet a chip opens over it: [who] is the seat (0 is you, 1 Maya, 2 Priya). The sheet's own window is not in the root, so its card is drawn here. */
+    private fun wordsSheet(name: String, dark: Boolean, who: Int) {
+        val h = midGame()
+        val vm = vm()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PipPopTheme(darkTheme = dark) {
+                androidx.compose.runtime.CompositionLocalProvider(com.pippop.ui.theme.LocalReduceMotion provides true) {
+                    Box(Modifier.fillMaxSize().background(AppTheme.palette.background)) {
+                        h.Screen(vm)
+                        val room = h.state.value.room!!
+                        val view = room.turns!!.hunt!!
+                        val seats = com.pippop.ui.screens.huntSeats(room, view, AppTheme.palette.me)
+                        Box(Modifier.fillMaxSize().background(AppTheme.palette.scrim.copy(alpha = 0.35f)), contentAlignment = Alignment.BottomCenter) {
+                            ToySheetCard { com.pippop.ui.screens.HuntWordsBody(view, seats[who]) }
+                        }
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1500)
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name-${if (dark) "dark" else "light"}.png")
+    }
+
+    @Test fun yourWordsLight() = wordsSheet("hunt-words", false, 0)
+    @Test fun yourWordsDark() = wordsSheet("hunt-words", true, 0)
+    @Test fun mayasWordsLight() = wordsSheet("hunt-words-maya", false, 1)
+    @Test fun mayasWordsDark() = wordsSheet("hunt-words-maya", true, 1)
 
     // ---- The found-word moment ---------------------------------------------------------------------------
 
@@ -137,7 +168,7 @@ class ScreenshotHuntTest : HuntTestBase() {
     // ---- A big grid, zoomed --------------------------------------------------------------------------------
 
     private fun zoomed(dark: Boolean) {
-        val h = midGame(HuntLevel.HARD, "Mixed", true, null)
+        val h = midGame(HuntLevel.HARD, true, null)
         picture("hunt-zoom", dark, h) {
             // The + button zooms to cells of 48 dp; two fingers then move the window to the right and down.
             compose.onNodeWithContentDescription("Zoom in").performClick()

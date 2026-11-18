@@ -8,6 +8,8 @@ export const LADDER_LENGTHS = [4, 5, 6];
 export const ladderWords = LADDER.split(' ');
 export const blocklist = new Set(BLOCKLIST.split(' '));
 export const huntThemes = Object.fromEntries(Object.entries(HUNT_THEMES).map(([name, list]) => [name, list.split(' ')]));
+/** The one mixed vocabulary every Word Hunt grid draws from: all categories joined, repeats dropped, in file order. */
+export const huntPool = [...new Set(Object.values(huntThemes).flat())];
 
 const words = new Set(ladderWords);
 const buckets = new Map(); // "C_LD" -> the words that fit it

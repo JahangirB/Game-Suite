@@ -9,7 +9,7 @@ const T0 = 1_700_000_000_000;
 const GO = T0 + COUNTDOWN_MS;
 const ROLES = ['host', 'guest', 'p3'];
 
-function room(options = { level: 'easy', theme: 'Animals', backwards: false, timer: 0 }, players = 3) {
+function room(options = { level: 'easy', backwards: false, timer: 0 }, players = 3) {
   const r = createRoom('HUNT1', 'Alice', T0, uuid, null, null, 'hunt');
   setConnected(r, 'host', true, T0);
   for (const [i, name] of ['Bob', 'Cara'].slice(0, players - 1).entries()) {
@@ -30,8 +30,10 @@ const turns = (r, role, now = GO + 1000) => view(r, role, now).turns;
 test('Word Hunt is a game for 2 to 4 with no turns, and the opener sets its rules', () => {
   assert.ok(GAMES.includes('hunt') && TURN_GAMES.includes('hunt'));
   assert.equal(MAX_PLAYERS.hunt, 4);
+  // an older app still sends a theme: it is accepted and ignored
   const r = room({ level: 'medium', theme: 'Food', timer: 5 });
-  assert.deepEqual(view(r, 'guest', T0).options, { level: 'medium', theme: 'Food', backwards: true, timer: 5 });
+  assert.deepEqual(view(r, 'guest', T0).options, { level: 'medium', backwards: true, timer: 5 });
+  assert.equal('theme' in r.options, false);
   assert.equal(view(r, 'host', T0).maxPlayers, 4);
   assert.throws(() => setOptions(r, 'guest', { level: 'easy' }), /Only the host/);
   begin(r);
@@ -42,7 +44,7 @@ test('Word Hunt is a game for 2 to 4 with no turns, and the opener sets its rule
 });
 
 test('a seed sent by a phone is ignored; every round gets its own', () => {
-  const r = room({ level: 'easy', theme: 'Animals', backwards: false, timer: 0, seed: 12345 });
+  const r = room({ level: 'easy', backwards: false, timer: 0, seed: 12345 });
   assert.equal(r.options.seed, undefined);
   assert.equal(JSON.stringify(view(r, 'host', T0)).includes('12345'), false);
   begin(r, () => 0.3);
@@ -98,27 +100,47 @@ test('a full 3-player game: racing claims, a hint, and the winner', () => {
   assert.throws(() => makeMove(r, 'guest', drag(words[0]), GO + 500), /not running/);
 });
 
-test('views never carry the place of a word that nobody has found', () => {
+test('no view carries the text or length of a word that nobody has found', () => {
   const r = room();
   begin(r);
   const words = r.turnState.grid.words;
-  makeMove(r, 'host', drag(words[0]), GO + 10);
-  for (const role of ROLES) {
-    const v = turns(r, role);
-    for (const w of v.words) {
-      if (w.foundBy === null) assert.deepEqual(Object.keys(w).sort(), ['foundBy', 'length', 'word']);
+  const check = (at, now) => {
+    for (const role of ROLES) {
+      const full = view(r, role, now);
+      const v = full.turns;
+      assert.equal(v.words, undefined);
+      assert.equal(v.total, words.length);
+      assert.equal(v.foundCount, v.found.length);
+      for (const f of v.found) assert.deepEqual(Object.keys(f).sort(), ['at', 'col', 'dir', 'foundBy', 'length', 'row', 'word']);
+      // everything but the grid's own letters
+      const { rows, ...turnsRest } = full.turns;
+      const text = JSON.stringify({ ...full, turns: turnsRest });
+      const foundText = new Set(v.found.map((f) => f.word));
+      for (const w of words) {
+        if (foundText.has(w.word)) continue;
+        assert.ok(!text.includes(w.word), `${at}: ${role} sees ${w.word}`);
+        assert.ok(!text.includes([...w.word].reverse().join('')), `${at}: ${role} sees ${w.word} reversed`);
+      }
+      assert.ok(!text.includes('"seed"'));
+      assert.ok(!text.includes('theme'));
     }
-    const text = JSON.stringify(view(r, role, GO + 20));
-    assert.ok(!text.includes('"seed"'));
-    assert.ok(text.includes(`"foundBy":"h"`));
-  }
+  };
+  check('countdown', T0 + 100);
+  check('start', GO + 1);
+  makeMove(r, 'host', drag(words[0]), GO + 10);
+  makeMove(r, 'guest', { hint: true }, GO + 11);
+  check('after a find and a hint', GO + 20);
+  const text = JSON.stringify(view(r, 'host', GO + 20));
+  assert.ok(text.includes('"foundBy":"h"'));
   // A late joiner or a reconnect sees the found words and the grid at once.
-  assert.equal(turns(r, 'p3').words.find((w) => w.word === words[0].word).foundBy, 'h');
+  assert.equal(turns(r, 'p3').found.find((w) => w.word === words[0].word).foundBy, 'h');
   assert.equal(turns(r, 'p3').rows.length, 10);
+  for (const w of words.slice(1, -1)) makeMove(r, 'host', drag(w), GO + 30);
+  check('nearly done', GO + 40);
 });
 
 test('the timer ends the round through checkTimers and nextDeadline', () => {
-  const r = room({ level: 'easy', theme: 'Animals', backwards: false, timer: 3 });
+  const r = room({ level: 'easy', backwards: false, timer: 3 });
   begin(r);
   const endsAt = GO + 3 * 60_000;
   assert.equal(r.turnState.endsAt, endsAt);
@@ -135,7 +157,7 @@ test('the timer ends the round through checkTimers and nextDeadline', () => {
 });
 
 test('the clock does not run while everyone is away, and a tie is a draw', () => {
-  const r = room({ level: 'easy', theme: 'Animals', backwards: false, timer: 3 });
+  const r = room({ level: 'easy', backwards: false, timer: 3 });
   begin(r);
   const endsAt = GO + 3 * 60_000;
   checkTimers(r, GO);
@@ -151,7 +173,7 @@ test('the clock does not run while everyone is away, and a tie is a draw', () =>
 });
 
 test('a claim that comes after the time is up ends the round', () => {
-  const r = room({ level: 'easy', theme: 'Animals', backwards: false, timer: 3 });
+  const r = room({ level: 'easy', backwards: false, timer: 3 });
   begin(r);
   const endsAt = GO + 3 * 60_000;
   makeMove(r, 'host', drag(r.turnState.grid.words[0]), GO + 1000);

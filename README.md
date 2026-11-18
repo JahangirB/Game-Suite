@@ -130,10 +130,10 @@ quick **reactions** (👍 👏 🔥 😂 😮 😅 🤔 😎 ❤️ ⏰). The fi
   server**) or nearby, or alone against the computer (Easy, Medium, Hard).
 
 - **Word Hunt:** a race on one shared grid of letters (10×10 up to 16×20) full of hidden
-  words from a theme (Animals, Food, Sport, Nature, Home or Mixed), reading across and down,
+  words from one big mixed vocabulary (there is no list: you spot them), reading across and down,
   and backwards from Medium up if you like. Drag a finger across a word from either end, or
   tap its first and last letters; the first to finish a word keeps it, in their colour and
-  initial, and it scores its length. Each player has one hint (it costs 2 points). Grids wider
+  initial, and it scores its length. Each player's chip counts their finds (tap it to see their words) and a line says how many are left. Each player has one hint (it costs 2 points). Grids wider
   than 10 zoom with a pinch and a two-finger move, with a small map. The round ends when every word is
   found or the timer (3, 5 or 8 minutes, or none) runs out; a tie is a draw. Two to four play
   online (**needs the updated Cloudflare server**) or nearby; alone you race the clock (your

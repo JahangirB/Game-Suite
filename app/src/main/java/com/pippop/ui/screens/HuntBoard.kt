@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.pippop.game.words.HuntDir
 import com.pippop.game.words.HuntView
-import com.pippop.game.words.HuntViewWord
+import com.pippop.game.words.HuntFound
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.Board
 import com.pippop.ui.theme.DisplayFont
@@ -98,11 +98,9 @@ internal class HuntViewport(val width: Int, val height: Int) {
 private class HuntDrag(val start: HuntCell, val finger: Offset)
 
 /** The cells of a word, first to last. */
-private fun HuntViewWord.ends(): Pair<HuntCell, HuntCell>? {
-    val r = row ?: return null
-    val c = col ?: return null
+private fun HuntFound.ends(): Pair<HuntCell, HuntCell>? {
     val d = HuntDir.entries.firstOrNull { it.key == dir } ?: return null
-    return HuntCell(r, c) to HuntCell(r + d.dr * (length - 1), c + d.dc * (length - 1))
+    return HuntCell(row, col) to HuntCell(row + d.dr * (length - 1), col + d.dc * (length - 1))
 }
 
 /** A unit is the size of a cell at 48 dp; the grid is drawn in units and scaled to the zoom. */
@@ -274,9 +272,9 @@ internal fun HuntBoard(
                     drawLine(color, centre(a), centre(b), w * unit, StrokeCap.Round)
                 }
                 // Found words: a bar in the finder's colour, edged with it.
-                for (w in view.words) {
+                for (w in view.found) {
                     val (a, b) = w.ends() ?: continue
-                    val seat = seats.of(w.foundBy)?.color ?: continue
+                    val seat = seats.of(w.mark)?.color ?: continue
                     if (flash?.word == w.word) bar(a, b, 1.18f, seat.copy(alpha = 0.5f * glow.value))
                     bar(a, b, 0.84f, lerp(Board.Bone, seat, 0.4f), outline = seat, edge = px(2f))
                 }
@@ -298,9 +296,9 @@ internal fun HuntBoard(
                     }
                 }
                 // The finder's initial on the first letter of each found word.
-                for (w in view.words) {
+                for (w in view.found) {
                     val (a, _) = w.ends() ?: continue
-                    val seat = seats.of(w.foundBy) ?: continue
+                    val seat = seats.of(w.mark) ?: continue
                     val at = Offset((a.col + 0.27f) * unit, (a.row + 0.27f) * unit)
                     drawCircle(textFill(seat.color), 0.18f * unit, at)
                     drawCircle(Board.Bone, 0.18f * unit, at, style = Stroke(px(1.2f)))
@@ -331,8 +329,8 @@ private fun HuntCellNodes(view: HuntView, seats: List<HuntSeat>, g: HuntGeometry
     val cell = g.cell(cam)
     val dp = with(density) { cell.toDp() }
     val owners = HashMap<HuntCell, HuntSeat>()
-    for (w in view.words) {
-        val seat = seats.of(w.foundBy) ?: continue
+    for (w in view.found) {
+        val seat = seats.of(w.mark) ?: continue
         val (a, b) = w.ends() ?: continue
         huntLine(a, b).forEach { owners[it] = seat }
     }

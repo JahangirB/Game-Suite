@@ -65,7 +65,7 @@ class StoreNewGamesTest : ScreenshotBase() {
         assertEquals(1, newMarks())
         compose.onNodeWithText(GameKind.HUNT.about!!).assertExists()
         compose.onNodeWithText("2–4 players", substring = true).assertExists()
-        compose.onNodeWithText("4 sizes, 6 word themes").assertExists()
+        compose.onNodeWithText("4 sizes, hundreds of hidden words").assertExists()
         compose.onNodeWithText("How to play").assertExists()
         assertTrue(GameKind.HUNT in h.seen)
         h.page = null

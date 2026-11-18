@@ -90,7 +90,7 @@ class SoloHuntViewModel(
         ticker?.cancel()
         finders.forEach { it.cancel() }
         finders = emptyList()
-        if (WordHuntThemes.themes.isEmpty() || !WordLadder.loaded) {
+        if (WordHuntThemes.pool.isEmpty() || !WordLadder.loaded) {
             _state.update { it.copy(message = "Still getting the words ready. Try again in a moment.") }
             return
         }

@@ -121,6 +121,17 @@ All checks pass; the latest CI run on the work branch is green; the preview is f
 screen looked at in light and dark; the owner gets the report and the preview link. The owner
 deploys the Cloudflare server for online play.
 
+### Step 13. Word Hunt: hidden words, one mixed vocabulary (owner's change)
+
+From the owner's try of the preview: no word list on the screen (the words are hidden; finding
+them is the game) and no theme. Every grid draws from one mixed vocabulary made of all the
+categories, and more categories are added (at least 12, 40+ words each). The setup loses its
+theme row. Each player's chip shows how many words they have found ("7"), and tapping a chip
+opens that player's found words. A line shows how many are left ("9 of 24 found"). The view
+never sends the text of an unfound word; the server and nearby accept and ignore an old app's
+theme option. *Done when* tests show no unfound word text in any view, the grid draws from the
+mixed pool, the chip count and the list match, and screenshots show the new play screen.
+
 ## 5. Not in this round
 
 - Diagonal words in Word Hunt.

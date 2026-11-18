@@ -69,9 +69,11 @@ class WordGamesTest {
     }
 
     @Test
-    fun huntThemesAreRealAndClean() {
+    fun huntCategoriesAreRealAndClean() {
         val themes = WordHuntThemes.themes
-        for (name in listOf("Animals", "Food", "Sport", "Nature", "Home", "Mixed")) assertTrue(name, name in themes)
+        assertTrue("only ${themes.size} categories", themes.size >= 12)
+        for (name in listOf("Animals", "Food", "Sport", "Nature", "Home", "Stories", "Colours", "Clothes", "Body", "Weather", "Music", "Travel")) assertTrue(name, name in themes)
+        assertEquals(themes.values.flatten().distinct(), WordHuntThemes.pool)
         for ((name, list) in themes) {
             assertTrue("$name has ${list.size}", list.size >= 40)
             assertEquals("$name repeats a word", list.size, list.toSet().size)

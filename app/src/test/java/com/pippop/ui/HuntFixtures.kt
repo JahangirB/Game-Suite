@@ -34,7 +34,7 @@ import kotlin.random.Random
  * words up in. [now] is the time the screens are shown at.
  */
 class HuntTable(
-    val level: HuntLevel = HuntLevel.EASY, val theme: String = "Animals", val backwards: Boolean = false, val timer: Int = 5,
+    val level: HuntLevel = HuntLevel.EASY, val backwards: Boolean = false, val timer: Int = 5,
     players: Int = 3, val t0: Long = 1_000_000L,
 ) {
     val room = LocalRoom("HUNT", "Sam", Avatar.FOX, GameKind.HUNT)
@@ -50,13 +50,13 @@ class HuntTable(
         if (players >= 2) room.join("Maya", Avatar.PANDA, null, listOf("hunt"))
         if (players >= 3) room.join("Priya", Avatar.OWL, null, listOf("hunt"))
         roles.forEach { room.setConnected(it, true, t0) }
-        room.setOptions(LocalRoom.HOST, JSONObject().put("level", level.key).put("theme", theme).put("backwards", backwards).put("timer", timer))
+        room.setOptions(LocalRoom.HOST, JSONObject().put("level", level.key).put("backwards", backwards).put("timer", timer))
         val zero = object : Random() { override fun nextBits(bitCount: Int) = 0 }
         roles.forEach { room.setTurnReady(it, true, t0, zero) }
     }
 
     val marks = roles.map { LocalRoom.MARKS.getValue(it) }
-    val match = HuntMatch(HuntOptions(level, theme, backwards, timer, 0), marks, startAt = go)
+    val match = HuntMatch(HuntOptions(level, backwards, timer, 0), marks, startAt = go)
 
     /** The hidden words of the grid, in the room's own order. */
     val words: List<HuntWord> get() = match.grid.words

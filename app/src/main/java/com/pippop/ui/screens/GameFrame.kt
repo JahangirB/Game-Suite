@@ -3,6 +3,7 @@ package com.pippop.ui.screens
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import com.pippop.ui.theme.Mark
+import com.pippop.ui.theme.readableOn
 import com.pippop.ui.theme.seatMark
 import com.pippop.ui.theme.Digits
 import com.pippop.ui.theme.LineHeight
@@ -25,7 +26,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -99,6 +106,13 @@ class ChipPlayer(
     val mark: Mark? = null,
     /** This is you: your own line is read as "You said" and is not announced. */
     val mine: Boolean = false,
+    /** A count shown round the avatar's top corner (the words they found in Word Hunt); say it in [detail] too. */
+    val badge: Int? = null,
+    /** Makes the chip a button; [onClickLabel] says what it does ("Show Maya's words"). */
+    val onClick: (() -> Unit)? = null,
+    val onClickLabel: String? = null,
+    /** What a screen reader says for the chip when it is a button (by default its name and detail). */
+    val description: String? = null,
 )
 
 /**
@@ -288,31 +302,51 @@ private fun PlayerChip(player: ChipPlayer, glow: Color, modifier: Modifier, comp
     }
 }
 
+/** A small round count on a chip's avatar. The number is also in the chip's text, so it is never the only way to know. */
+@Composable
+private fun CountBadge(count: Int, modifier: Modifier = Modifier) {
+    val p = AppTheme.palette
+    Box(
+        modifier.defaultMinSize(minWidth = 18.dp, minHeight = 18.dp).clip(CircleShape).background(p.ink).border(1.5.dp, p.card, CircleShape).padding(horizontal = 3.dp)
+            .clearAndSetSemantics {},
+        contentAlignment = Alignment.Center,
+    ) { Text(count.toString(), style = Digits, color = readableOn(p.ink), fontSize = TextSize.Micro, fontWeight = FontWeight.Black, maxLines = 1) }
+}
+
 @Composable
 private fun PlayerChipCard(player: ChipPlayer, glow: Color, edge: Color, compact: Boolean, modifier: Modifier) {
     val p = AppTheme.palette
+    val tap = player.onClick
     Surface(
         color = p.card,
         shape = Shapes.L,
         border = BorderStroke(if (player.active) 3.dp else 2.dp, edge),
-        modifier = modifier.fillMaxWidth().pressedEdge(edge, Radius.L),
+        modifier = modifier.fillMaxWidth().pressedEdge(edge, Radius.L).then(
+            if (tap == null) Modifier else Modifier.clip(Shapes.L).clickable(role = Role.Button, onClickLabel = player.onClickLabel, onClick = tap)
+                .semantics(mergeDescendants = true) { contentDescription = player.description ?: listOfNotNull(player.name, player.detail?.replace('\n', ' ')).joinToString(", ") },
+        ),
     ) {
         if (compact) {
             // Avatar over name and detail, so four fit across a phone.
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.TopEnd) {
                     PlayerAvatar(player.name, player.color, size = 30, avatar = player.avatar, mark = player.mark)
+                    if (player.badge != null) CountBadge(player.badge, Modifier.align(Alignment.TopStart).offset(x = (-5).dp, y = (-4).dp))
                     if (player.reaction != null) ShownReactionImage(player.reaction, 20.dp)
                 }
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (player.detail != null) {
-                    Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // A detail with a line break (two short facts) takes two lines, so four chips still fit across.
+                    Text(player.detail, style = Digits, color = if (player.active) glow else p.muted, fontWeight = FontWeight.SemiBold, fontSize = TextSize.Micro, maxLines = if ('\n' in player.detail) 2 else 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                 }
             }
             return@Surface
         }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar, mark = player.mark)
+            Box {
+                PlayerAvatar(player.name, player.color, size = 34, avatar = player.avatar, mark = player.mark)
+                if (player.badge != null) CountBadge(player.badge, Modifier.align(Alignment.TopStart).offset(x = (-5).dp, y = (-4).dp))
+            }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(player.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = TextSize.BodyL, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -338,8 +372,14 @@ fun battleChips(
     detail: (PlayerInfo, Boolean) -> String?,
     active: (PlayerInfo, Boolean) -> Boolean = { _, _ -> false },
     otherColor: (Int) -> Color = { SeatColors[it % SeatColors.size] },
+    /** A count on each avatar, and what tapping the chip does: (label, what a screen reader says, action), or null for nothing. */
+    badge: (PlayerInfo, Boolean) -> Int? = { _, _ -> null },
+    onClick: (PlayerInfo, Boolean) -> Triple<String, String, () -> Unit>? = { _, _ -> null },
 ): List<ChipPlayer> = listOf(
-    ChipPlayer("You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0), mine = true),
+    ChipPlayer(
+        "You", room.me.avatar, myColor, detail(room.me, true), visibleReaction(state.myReaction, now), active(room.me, true), seatMark(0), mine = true,
+        badge = badge(room.me, true), onClick = onClick(room.me, true)?.third, onClickLabel = onClick(room.me, true)?.first, description = onClick(room.me, true)?.second,
+    ),
 ) + room.others.mapIndexed { i, other ->
     // Presence shows in the chip's detail line, not glued onto the name where it truncates.
     val presence = when {
@@ -353,6 +393,9 @@ fun battleChips(
         visibleReaction(state.otherReactions[other.name] ?: state.opponentReaction.takeIf { room.others.size == 1 }, now),
         active(other, false),
         seatMark(i + 1),
+        badge = badge(other, false), onClick = onClick(other, false)?.third, onClickLabel = onClick(other, false)?.first,
+        // A chip that says "Left", "Paused" or "Away" in its detail says it to a screen reader too.
+        description = onClick(other, false)?.second?.let { said -> if (presence != null) "$said, ${presence.lowercase()}" else said },
     )
 }
 

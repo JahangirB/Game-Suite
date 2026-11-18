@@ -42,7 +42,7 @@ class LocalHuntTest {
         override fun nextBits(bitCount: Int) = if (x < 0.5) 0 else -1 ushr (32 - bitCount)
     }
 
-    private fun hunt(options: JSONObject = JSONObject().put("level", "easy").put("theme", "Food").put("backwards", false).put("timer", 3), random: Random = fixed(0.0)): LocalRoom {
+    private fun hunt(options: JSONObject = JSONObject().put("level", "easy").put("backwards", false).put("timer", 3), random: Random = fixed(0.0)): LocalRoom {
         val r = LocalRoom("HUNT", "Alice", Avatar.FOX, GameKind.HUNT)
         r.join("Bob", Avatar.OWL, null, listOf("hunt"))
         r.join("Cara", Avatar.FOX, null, listOf("hunt"))
@@ -53,7 +53,7 @@ class LocalHuntTest {
     }
 
     /** The same grid the room made: seed 0 with these rules (the room's random gives 0 there). */
-    private fun twin(seed: Int = 0) = HuntMatch(HuntOptions(HuntLevel.EASY, "Food", false, 3, seed), listOf('h', 'g', '3'), startAt = go)
+    private fun twin(seed: Int = 0) = HuntMatch(HuntOptions(HuntLevel.EASY, false, 3, seed), listOf('h', 'g', '3'), startAt = go)
 
     private fun LocalRoom.hunt(role: String, now: Long = go + 1000): HuntView = parseRoom(view(role, now)).turns!!.hunt!!
     private fun LocalRoom.claim(role: String, m: HuntMatch, word: String, now: Long, reverse: Boolean = false) {
@@ -105,19 +105,30 @@ class LocalHuntTest {
     }
 
     @Test
-    fun guestsNeverGetTheWhereaboutsOfAnUnfoundWordOrTheSeed() {
+    fun noViewCarriesAnUnfoundWordOrTheSeed() {
+        // The opener's phone is an older app: it still sends a theme, which is ignored.
         val r = hunt(JSONObject().put("level", "easy").put("theme", "Food").put("backwards", false).put("timer", 3).put("seed", 12345))
         val m = twin()
         r.claim(LocalRoom.HOST, m, m.grid.words[0].word, go + 10)
+        r.move(LocalRoom.GUEST, JSONObject().put("hint", true), go + 11)
         for (role in roles) {
-            val text = r.view(role, go + 20).toString()
+            val json = JSONObject(r.view(role, go + 20).toString())
+            val turns = json.getJSONObject("turns")
+            val text = json.toString()
             assertFalse(role, text.contains("\"seed\"") || text.contains("12345"))
+            // Nothing but the grid's own letters says what the hidden words are, or how long they are.
+            val rest = JSONObject(turns.toString()).also { it.remove("rows") }.toString()
+            for (w in m.grid.words.drop(1)) {
+                assertFalse("$role sees ${w.word}", rest.contains(w.word) || rest.contains(w.word.reversed()))
+            }
+            assertFalse(rest.contains("\"theme\""))
+            assertFalse(turns.has("words"))
             val v = r.hunt(role, go + 20)
-            assertEquals(m.grid.words.size, v.words.size)
-            for (w in v.words) if (w.foundBy == null) assertTrue(w.word, w.row == null && w.col == null && w.dir == null)
-            assertEquals('h', v.words.first { it.word == m.grid.words[0].word }.foundBy)
+            assertEquals(m.grid.words.size, v.total)
+            assertEquals(listOf(m.grid.words[0].word), v.found.map { it.word })
+            assertEquals('h', v.found.single().mark)
         }
-        assertEquals(HuntOptions(HuntLevel.EASY, "Food", false, 3), parseRoom(r.view(LocalRoom.GUEST, go)).huntOptions)
+        assertEquals(HuntOptions(HuntLevel.EASY, false, 3), parseRoom(r.view(LocalRoom.GUEST, go)).huntOptions)
         // The seed the phone sent was not used: the grid is the one seed 0 makes.
         assertEquals(twin().grid.rows, r.hunt(LocalRoom.GUEST, go).rows)
     }
@@ -152,9 +163,9 @@ class LocalHuntTest {
         val r = LocalRoom("HUNT", "Alice", Avatar.FOX, GameKind.HUNT)
         r.join("Bob", Avatar.OWL, null, listOf("hunt"))
         listOf(LocalRoom.HOST, LocalRoom.GUEST).forEach { r.setConnected(it, true, t0) }
-        r.setOptions(LocalRoom.HOST, JSONObject().put("level", "easy").put("theme", "Food").put("backwards", false).put("timer", 0))
+        r.setOptions(LocalRoom.HOST, JSONObject().put("level", "easy").put("backwards", false).put("timer", 0))
         listOf(LocalRoom.HOST, LocalRoom.GUEST).forEach { r.setTurnReady(it, true, t0, fixed(0.0)) }
-        val m = HuntMatch(HuntOptions(HuntLevel.EASY, "Food", false, 0, 0), listOf('h', 'g'), startAt = go)
+        val m = HuntMatch(HuntOptions(HuntLevel.EASY, false, 0, 0), listOf('h', 'g'), startAt = go)
         r.claim(LocalRoom.GUEST, m, m.grid.words[0].word, go + 10)
         r.claim(LocalRoom.HOST, m, m.grid.words[1].word, go + 20)
         r.leave(LocalRoom.GUEST, go + 30)

@@ -54,17 +54,17 @@ class WordGamesScoreboardTest {
     @Test fun aFinishedHuntSaysYourPointsAndTheBestOfTheOthers() {
         com.pippop.ui.HuntTable.installWords()
         val view = com.pippop.game.words.HuntView.from(
-            HuntMatch(HuntOptions(HuntLevel.EASY, "Animals", false, 0, 0), listOf('h', 'g', '3'), startAt = 0).also { m ->
+            HuntMatch(HuntOptions(HuntLevel.EASY, false, 0, 0), listOf('h', 'g', '3'), startAt = 0).also { m ->
                 val w = m.grid.words
                 fun claim(mark: Char, i: Int) { val (a, b) = HuntMatch.ends(w[i]); m.claim(mark, a.first, a.second, b.first, b.second, 1) }
                 claim('h', 0); claim('g', 1); claim('g', 2)
                 m.end("time")
             }.view('h', mapOf('g' to 'o', '3' to 'p')),
         )
-        val words = view.words
+        val words = view.found
         val mine = view.scores['h']!!
         val theirs = view.scores['g']!!
-        assertEquals(words.first { it.foundBy == 'h' }.length, mine)
+        assertEquals(words.first { it.mark == 'h' }.length, mine)
         assertTrue(theirs > 0)
         assertEquals(setOf('h', 'g', '3'), view.scores.keys)
     }

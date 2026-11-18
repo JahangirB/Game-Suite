@@ -8,7 +8,8 @@
 // Choices (both languages):
 //  - A score never goes below 0: a hint at 0 points is free but still used up.
 //  - A tie for the top score is a draw: winner is null, `winners` lists everyone on the top score.
-//  - Rule errors are thrown with the reason to show: "Not a word here", "Already found by <mark>"
+//  - Rule errors are thrown with the reason to show: "Not a word here", "Not one of the hidden words" (the
+//    selection spells a real word of the vocabulary that is not hidden here), "Already found by <mark>"
 //    (the screen turns the mark into a name) and "Too late".
 //
 // Players: 1 to 4 (one is a solo game). The round starts at `startAt` (after a countdown); the timer
@@ -19,7 +20,9 @@
 //          endsAt (ms, 0 = no timer), over, winner, winners, reason ('all' | 'time') }
 
 import { HUNT_LEVELS, makeHuntGrid, mulberry32 } from './wordhunt.js';
-import { huntThemes } from './ladder.js';
+import { huntPool } from './ladder.js';
+
+const POOL = new Set(huntPool);
 
 export const LEVELS = Object.keys(HUNT_LEVELS);
 export const TIMERS = [0, 3, 5, 8]; // minutes
@@ -27,13 +30,15 @@ export const HINT_COST = 2;
 export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 4;
 
-/** Anything missing or invalid becomes the default; backwards defaults to off on Easy and on from Medium. */
+/**
+ * Anything missing or invalid becomes the default; backwards defaults to off on Easy and on from Medium.
+ * A `theme` sent by an older app is accepted and ignored: every grid draws from one mixed pool.
+ */
 export function cleanOptions(o) {
   const level = LEVELS.includes(o?.level) ? o.level : 'easy';
-  const theme = huntThemes[o?.theme] ? o.theme : 'Animals';
   const backwards = typeof o?.backwards === 'boolean' ? o.backwards : level !== 'easy';
   const timer = TIMERS.includes(Number(o?.timer)) ? Number(o.timer) : 0;
-  return { level, theme, backwards, timer };
+  return { level, backwards, timer };
 }
 
 /** `random` makes the seed unless server code passes `options.seed`; `startAt` (ms) is when the round starts. */
@@ -42,7 +47,7 @@ export function start(random = Math.random, marks = ['h', 'g'], options = {}, no
   const o = cleanOptions(options);
   const seed = Number.isInteger(options?.seed) ? options.seed | 0 : Math.floor(random() * 0x7fffffff);
   return {
-    options: o, seed, startAt: now, marks: [...marks], grid: makeHuntGrid(o.theme, o.level, o.backwards, seed),
+    options: o, seed, startAt: now, marks: [...marks], grid: makeHuntGrid(o.level, o.backwards, seed),
     claims: {}, scores: Object.fromEntries(marks.map((m) => [m, 0])), hintsUsed: Object.fromEntries(marks.map((m) => [m, 0])),
     hints: [], endsAt: o.timer ? now + o.timer * 60000 : 0, over: false, winner: null, winners: [], reason: null,
   };
@@ -80,6 +85,19 @@ function check(state, mark, now) {
   if (state.over) throw new Error('Too late');
 }
 
+/** Whether the straight line of cells from (r1, c1) to (r2, c2) spells a word of the vocabulary, read either way. */
+function spellsPoolWord(state, r1, c1, r2, c2) {
+  if (![r1, c1, r2, c2].every(Number.isInteger) || (r1 !== r2 && c1 !== c2)) return false;
+  const { rows, width, height } = state.grid;
+  if ([r1, r2].some((r) => r < 0 || r >= height) || [c1, c2].some((c) => c < 0 || c >= width)) return false;
+  const n = Math.max(Math.abs(r2 - r1), Math.abs(c2 - c1)) + 1;
+  const dr = Math.sign(r2 - r1);
+  const dc = Math.sign(c2 - c1);
+  let text = '';
+  for (let k = 0; k < n; k++) text += rows[r1 + dr * k][c1 + dc * k];
+  return POOL.has(text) || POOL.has([...text].reverse().join(''));
+}
+
 /**
  * `mark` claims the word between two cells: { r1, c1, r2, c2 }, dragged from either end. Throws
  * "Not a word here", "Already found by <mark>" or "Too late". Returns { word, mark, score, over, winner, winners, reason }.
@@ -93,7 +111,7 @@ export function claim(state, mark, move, now = 0) {
       return (a === r1 && b === c1 && c === r2 && d === c2) || (a === r2 && b === c2 && c === r1 && d === c1);
     })
     : null;
-  if (!w) throw new Error('Not a word here');
+  if (!w) throw new Error(spellsPoolWord(state, r1, c1, r2, c2) ? 'Not one of the hidden words' : 'Not a word here');
   if (state.claims[w.word]) throw new Error(`Already found by ${state.claims[w.word].mark}`);
   state.claims[w.word] = { mark, at: now };
   state.scores[mark] += w.length;
@@ -141,22 +159,24 @@ export function results(state) {
 }
 
 /**
- * The round as `mark` sees it. Unfound words are listed by text and length only (no cells); found
- * ones say who found them and where. `hints` holds only this player's own hint cells for words
- * still unfound. Marks are real marks ('h', 'g', 'o', ...); `me` is the viewer's.
+ * The round as `mark` sees it. The words are hidden: the view carries only how many there are
+ * (`total`, `foundCount`) and the found ones (`found`, in the order they were found: text, who, where,
+ * when). It never holds the text or length of a word nobody has found. `hints` holds only this
+ * player's own hint cells for words still unfound. Marks are real marks ('h', 'g', 'o', ...); `me` is the viewer's.
  */
 export function view(state, mark) {
   const { width, height, rows } = state.grid;
+  const found = Object.entries(state.claims).map(([word, c]) => {
+    const w = find(state, word);
+    return { word, length: w.length, foundBy: c.mark, row: w.row, col: w.col, dir: w.dir, at: c.at };
+  });
   return {
-    me: mark, level: state.options.level, theme: state.options.theme, backwards: state.options.backwards,
+    me: mark, level: state.options.level, backwards: state.options.backwards,
     timer: state.options.timer, width, height, rows: [...rows],
     phase: state.over ? 'over' : 'playing',
-    words: state.grid.words.map((w) => {
-      const c = state.claims[w.word];
-      return c
-        ? { word: w.word, length: w.length, foundBy: c.mark, row: w.row, col: w.col, dir: w.dir }
-        : { word: w.word, length: w.length, foundBy: null };
-    }),
+    total: state.grid.words.length,
+    foundCount: found.length,
+    found,
     marks: [...state.marks],
     scores: { ...state.scores },
     hintsLeft: Object.fromEntries(state.marks.map((m) => [m, 1 - state.hintsUsed[m]])),

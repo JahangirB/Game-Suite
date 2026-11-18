@@ -41,3 +41,6 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] All checks pass locally; the last CI run is green; the preview is from it
   - [x] Every new screen looked at in light and dark
   - [x] The owner has the report, the preview link, and the note to deploy Cloudflare
+- [x] **Step 13. Word Hunt: hidden words, one mixed vocabulary** (owner's change; Opus check)
+  - [x] No word list or theme; 12+ categories mixed; found count on each chip opens the list
+  - [x] No unfound word text in any view; old apps' theme option ignored

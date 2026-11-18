@@ -4,9 +4,8 @@
    "name": "forwards and backwards drags with backwards off, wrong selections, repeats",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
-    "seed": 3
+    "seed": 20
    },
    "marks": [
     "h",
@@ -17,7 +16,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "ICY",
      "expect": {
       "score": 3,
       "over": false
@@ -26,7 +25,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "DEER",
+     "word": "HAIR",
      "expect": {
       "score": 4,
       "over": false
@@ -36,28 +35,28 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "TROUT",
+     "word": "ANGEL",
      "error": "Not a word here",
      "trim": 1
     },
     {
      "do": "claim",
      "mark": "g",
-     "word": "ZEBRA",
+     "word": "CLASS",
      "error": "Not a word here",
      "trim": -1
     },
     {
      "do": "claim",
      "mark": "g",
-     "word": "PANDA",
+     "word": "WAIST",
      "error": "Not a word here",
      "diagonal": true
     },
     {
      "do": "claim",
      "mark": "g",
-     "word": "LION",
+     "word": "HORN",
      "error": "Not a word here",
      "endDelta": [
       1,
@@ -67,7 +66,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "LION",
+     "word": "HORN",
      "error": "Not a word here",
      "raw": {
       "r1": -1,
@@ -79,7 +78,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "LION",
+     "word": "HORN",
      "error": "Not a word here",
      "raw": {
       "r1": 2,
@@ -91,26 +90,26 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "CAT",
+     "word": "ICY",
      "error": "Already found by h"
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "ICY",
      "error": "Already found by h",
      "reverse": true
     },
     {
      "do": "claim",
      "mark": "g",
-     "word": "DEER",
+     "word": "HAIR",
      "error": "Already found by g"
     },
     {
      "do": "claim",
      "mark": "x",
-     "word": "DOG",
+     "word": "JAM",
      "error": "You're not in this game."
     },
     {
@@ -129,18 +128,20 @@
       "winner": null,
       "winners": [],
       "results": [],
-      "foundBy": {
-       "BAT": null,
-       "CAT": "h",
-       "DEER": "g",
-       "DOG": null,
-       "FROG": null,
-       "HARE": null,
-       "LION": null,
-       "PANDA": null,
-       "TROUT": null,
-       "ZEBRA": null
-      }
+      "total": 10,
+      "foundCount": 2,
+      "found": [
+       {
+        "word": "ICY",
+        "foundBy": "h",
+        "at": 0
+       },
+       {
+        "word": "HAIR",
+        "foundBy": "g",
+        "at": 0
+       }
+      ]
      }
     }
    ]
@@ -149,7 +150,6 @@
    "name": "a reversed word and a backwards drag with backwards on",
    "options": {
     "level": "medium",
-    "theme": "Food",
     "backwards": true,
     "seed": 5
    },
@@ -162,7 +162,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "APPLE",
+     "word": "BEACH",
      "expect": {
       "score": 5,
       "over": false
@@ -171,7 +171,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "CHEESE",
+     "word": "ARRIVE",
      "expect": {
       "score": 6,
       "over": false
@@ -181,7 +181,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "MILK",
+     "word": "WORM",
      "expect": {
       "score": 10,
       "over": false
@@ -191,7 +191,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "PIE",
+     "word": "CAT",
      "expect": {
       "score": 8,
       "over": false
@@ -200,7 +200,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "APPLE",
+     "word": "BEACH",
      "error": "Already found by h",
      "reverse": true
     },
@@ -223,7 +223,6 @@
    "name": "a hint costs 2 points, only one is allowed, and only its player sees it",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -236,7 +235,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "DOG",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
@@ -246,8 +245,8 @@
      "do": "hint",
      "mark": "h",
      "expect": {
-      "row": 4,
-      "col": 0,
+      "row": 6,
+      "col": 1,
       "score": 1,
       "hintsLeft": 0
      }
@@ -279,8 +278,8 @@
       },
       "hints": [
        {
-        "row": 4,
-        "col": 0
+        "row": 6,
+        "col": 1
        }
       ]
      }
@@ -291,8 +290,8 @@
      "expect": {
       "hints": [
        {
-        "row": 3,
-        "col": 3
+        "row": 0,
+        "col": 2
        }
       ]
      }
@@ -300,7 +299,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "PANDA",
+     "word": "SALAD",
      "expect": {
       "score": 5,
       "over": false
@@ -319,8 +318,8 @@
      "expect": {
       "hints": [
        {
-        "row": 4,
-        "col": 0
+        "row": 6,
+        "col": 1
        }
       ]
      }
@@ -331,7 +330,6 @@
    "name": "every word found ends the round, the best score wins",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -344,52 +342,52 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "BAT",
+     "word": "CORN",
      "expect": {
-      "score": 3,
+      "score": 4,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "DOLPHIN",
      "expect": {
-      "score": 6,
+      "score": 11,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "DEER",
+     "word": "GATE",
      "expect": {
-      "score": 10,
+      "score": 15,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "DOG",
+     "word": "LIBRARY",
      "expect": {
-      "score": 13,
+      "score": 22,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "FROG",
+     "word": "PIG",
      "expect": {
-      "score": 17,
+      "score": 25,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "g",
-     "word": "HARE",
+     "word": "ROCK",
      "expect": {
       "score": 4,
       "over": false
@@ -398,7 +396,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "LION",
+     "word": "ROSY",
      "expect": {
       "score": 8,
       "over": false
@@ -407,7 +405,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "PANDA",
+     "word": "SALAD",
      "expect": {
       "score": 13,
       "over": false
@@ -416,18 +414,18 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "TROUT",
+     "word": "SOUP",
      "expect": {
-      "score": 18,
+      "score": 17,
       "over": false
      }
     },
     {
      "do": "claim",
      "mark": "h",
-     "word": "ZEBRA",
+     "word": "SQUID",
      "expect": {
-      "score": 22,
+      "score": 30,
       "over": true,
       "winner": "h",
       "winners": [
@@ -439,7 +437,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "ZEBRA",
+     "word": "SQUID",
      "error": "Too late"
     },
     {
@@ -460,13 +458,13 @@
       "results": [
        {
         "mark": "h",
-        "score": 22,
+        "score": 30,
         "found": 6,
         "rank": 1
        },
        {
         "mark": "g",
-        "score": 18,
+        "score": 17,
         "found": 4,
         "rank": 2
        }
@@ -479,9 +477,8 @@
    "name": "the timer ends the round",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
-    "seed": 3,
+    "seed": 10,
     "timer": 3
    },
    "marks": [
@@ -501,7 +498,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "DOG",
+     "word": "NUT",
      "expect": {
       "score": 3,
       "over": false
@@ -537,7 +534,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "CAT",
+     "word": "SOW",
      "error": "Too late",
      "now": 181001
     },
@@ -556,7 +553,6 @@
    "name": "a claim after the time is up is too late and ends the round",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3,
     "timer": 5
@@ -570,7 +566,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "TROUT",
+     "word": "SALAD",
      "expect": {
       "score": 5,
       "over": false
@@ -580,7 +576,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "PIG",
      "error": "Too late",
      "now": 300000
     },
@@ -603,9 +599,8 @@
    "name": "a tie is a draw",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
-    "seed": 3,
+    "seed": 10,
     "timer": 5
    },
    "marks": [
@@ -617,7 +612,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "NUT",
      "expect": {
       "score": 3,
       "over": false
@@ -627,7 +622,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "DOG",
+     "word": "SOW",
      "expect": {
       "score": 3,
       "over": false
@@ -677,9 +672,8 @@
    "name": "three players",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
-    "seed": 3,
+    "seed": 5,
     "timer": 8
    },
    "marks": [
@@ -692,7 +686,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "BAT",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
@@ -701,7 +695,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "PANDA",
+     "word": "BEACH",
      "expect": {
       "score": 5,
       "over": false
@@ -710,7 +704,7 @@
     {
      "do": "claim",
      "mark": "o",
-     "word": "TROUT",
+     "word": "CHIPS",
      "expect": {
       "score": 5,
       "over": false
@@ -719,7 +713,7 @@
     {
      "do": "claim",
      "mark": "o",
-     "word": "ZEBRA",
+     "word": "STUDY",
      "expect": {
       "score": 10,
       "over": false
@@ -736,7 +730,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "TROUT",
+     "word": "CHIPS",
      "error": "Already found by o"
     },
     {
@@ -798,7 +792,6 @@
    "name": "a hint reuses the pool once every unfound word has been hinted",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -813,7 +806,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "DEER",
+     "word": "CORN",
      "expect": {
       "over": false
      }
@@ -821,7 +814,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "DOG",
+     "word": "DOLPHIN",
      "expect": {
       "over": false
      }
@@ -829,7 +822,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "FROG",
+     "word": "GATE",
      "expect": {
       "over": false
      }
@@ -837,7 +830,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "HARE",
+     "word": "LIBRARY",
      "expect": {
       "over": false
      }
@@ -845,7 +838,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "LION",
+     "word": "PIG",
      "expect": {
       "over": false
      }
@@ -853,7 +846,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "PANDA",
+     "word": "ROCK",
      "expect": {
       "over": false
      }
@@ -861,7 +854,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "TROUT",
+     "word": "ROSY",
      "expect": {
       "over": false
      }
@@ -869,7 +862,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "ZEBRA",
+     "word": "SALAD",
      "expect": {
       "over": false
      }
@@ -878,8 +871,8 @@
      "do": "hint",
      "mark": "h",
      "expect": {
-      "row": 5,
-      "col": 7,
+      "row": 3,
+      "col": 5,
       "score": 0,
       "hintsLeft": 0
      }
@@ -888,8 +881,8 @@
      "do": "hint",
      "mark": "g",
      "expect": {
-      "row": 4,
-      "col": 0,
+      "row": 9,
+      "col": 3,
       "score": 0,
       "hintsLeft": 0
      }
@@ -898,9 +891,9 @@
      "do": "hint",
      "mark": "3",
      "expect": {
-      "row": 5,
-      "col": 7,
-      "score": 32,
+      "row": 3,
+      "col": 5,
+      "score": 36,
       "hintsLeft": 0
      }
     },
@@ -908,8 +901,8 @@
      "do": "hint",
      "mark": "4",
      "expect": {
-      "row": 4,
-      "col": 0,
+      "row": 9,
+      "col": 3,
       "score": 0,
       "hintsLeft": 0
      }
@@ -920,8 +913,8 @@
      "expect": {
       "hints": [
        {
-        "row": 5,
-        "col": 7
+        "row": 3,
+        "col": 5
        }
       ]
      }
@@ -932,7 +925,6 @@
    "name": "four players share ranks",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3,
     "timer": 5
@@ -948,7 +940,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "PANDA",
+     "word": "SALAD",
      "expect": {
       "score": 5,
       "over": false
@@ -957,7 +949,7 @@
     {
      "do": "claim",
      "mark": "g",
-     "word": "TROUT",
+     "word": "SQUID",
      "expect": {
       "score": 5,
       "over": false
@@ -966,7 +958,7 @@
     {
      "do": "claim",
      "mark": "3",
-     "word": "BAT",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
@@ -1023,7 +1015,6 @@
    "name": "with no timer a late tick never ends the round",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -1041,7 +1032,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "DOG",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
@@ -1066,7 +1057,6 @@
    "name": "a hint at the end time is too late",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3,
     "timer": 3
@@ -1106,7 +1096,6 @@
    "name": "a player on their own",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -1118,7 +1107,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
@@ -1138,7 +1127,6 @@
    "name": "nothing counts before the countdown ends",
    "options": {
     "level": "easy",
-    "theme": "Animals",
     "backwards": false,
     "seed": 3
    },
@@ -1151,7 +1139,7 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "PIG",
      "error": "Wait for the countdown.",
      "now": 4999
     },
@@ -1164,12 +1152,91 @@
     {
      "do": "claim",
      "mark": "h",
-     "word": "CAT",
+     "word": "PIG",
      "expect": {
       "score": 3,
       "over": false
      },
      "now": 5000
+    }
+   ]
+  },
+  {
+   "name": "an older app sends a theme: it is ignored and no view carries it",
+   "options": {
+    "level": "easy",
+    "theme": "Animals",
+    "backwards": false,
+    "seed": 3
+   },
+   "marks": [
+    "h",
+    "g"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "view",
+     "mark": "h",
+     "expect": {
+      "level": "easy",
+      "backwards": false,
+      "total": 10,
+      "foundCount": 0,
+      "found": []
+     }
+    }
+   ]
+  },
+  {
+   "name": "a real word that is not hidden here is refused with its own reason",
+   "options": {
+    "level": "easy",
+    "backwards": false,
+    "seed": 4
+   },
+   "marks": [
+    "h",
+    "g"
+   ],
+   "now": 0,
+   "steps": [
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "ACTOR",
+     "error": "Not one of the hidden words",
+     "raw": {
+      "r1": 2,
+      "c1": 5,
+      "r2": 4,
+      "c2": 5
+     }
+    },
+    {
+     "do": "claim",
+     "mark": "h",
+     "word": "ACTOR",
+     "error": "Not a word here",
+     "raw": {
+      "r1": 0,
+      "c1": 0,
+      "r2": 0,
+      "c2": 0
+     }
+    },
+    {
+     "do": "view",
+     "mark": "h",
+     "expect": {
+      "scores": {
+       "h": 0,
+       "g": 0
+      },
+      "total": 10,
+      "foundCount": 0,
+      "found": []
+     }
     }
    ]
   }

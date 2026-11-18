@@ -39,7 +39,7 @@ class WordHuntTest {
         assertTrue(cases.length() >= 8)
         for (i in 0 until cases.length()) {
             val c = cases.getJSONObject(i)
-            val g = WordHunt.make(c.getString("theme"), level(c.getString("level")), c.getBoolean("backwards"), c.getInt("seed"))
+            val g = WordHunt.make(level(c.getString("level")), c.getBoolean("backwards"), c.getInt("seed"))
             val at = "case ${i + 1}"
             val rows = c.getJSONArray("rows")
             assertEquals(at, List(rows.length()) { rows.getString(it) }, g.rows)
@@ -70,15 +70,13 @@ class WordHuntTest {
 
     @Test
     fun fiveHundredSeedsPerSizeAreValid() {
-        val themes = WordHuntThemes.themes
-        val names = themes.keys.toList()
+        val pool = WordHuntThemes.pool
         for (lv in HuntLevel.entries) for (backwards in listOf(false, true)) {
             var worst = 0L
             var total = 0L
             for (seed in 0 until 500) {
-                val theme = names[seed % names.size]
                 val t0 = System.nanoTime()
-                val g = WordHunt.make(theme, lv, backwards, seed)
+                val g = WordHunt.make(lv, backwards, seed)
                 val ns = System.nanoTime() - t0
                 total += ns; worst = maxOf(worst, ns)
                 val at = "${lv.key} $backwards seed $seed"
@@ -87,7 +85,7 @@ class WordHuntTest {
                 assertEquals(at, lv.words, g.words.size)
                 assertEquals(at, lv.words, g.words.map { it.word }.toSet().size)
                 for (w in g.words) {
-                    assertTrue(at, w.word in themes.getValue(theme))
+                    assertTrue(at, w.word in pool)
                     assertTrue(at, backwards || w.dir == HuntDir.RIGHT || w.dir == HuntDir.DOWN)
                     assertEquals("$at ${w.word}", listOf(w), occurrences(g, w.word, backwards))
                     for (o in g.words) if (o != w) {
@@ -96,9 +94,24 @@ class WordHuntTest {
                     }
                 }
                 for (b in WordLadder.blocklist) assertTrue("$at blocked $b", occurrences(g, b, backwards).isEmpty())
-                if (seed % 50 == 0) assertEquals(at, g, WordHunt.make(theme, lv, backwards, seed))
+                // no word of the vocabulary with 4 or more letters shows by chance (with no list, a player would find it and be refused)
+                val hidden = g.words.map { it.word }.toSet()
+                for (p in pool) if (p.length >= 4 && p !in hidden) assertTrue("$at accidental $p", occurrences(g, p, backwards).isEmpty())
+                if (seed % 50 == 0) assertEquals(at, g, WordHunt.make(lv, backwards, seed))
             }
             println("word hunt ${lv.key} ${if (backwards) "back" else "fwd "}: mean ${total / 500 / 1000} us, worst ${worst / 1000} us per grid")
         }
+    }
+
+    @Test
+    fun everyGridDrawsFromOneMixedPool() {
+        val themes = WordHuntThemes.themes
+        assertEquals(themes.values.flatten().distinct(), WordHuntThemes.pool)
+        assertTrue(WordHuntThemes.pool.size >= 500)
+        val used = HashSet<String>()
+        for (seed in 0 until 60) for (w in WordHunt.make(HuntLevel.HARD, true, seed).words) {
+            themes.forEach { (name, list) -> if (w.word in list) used.add(name) }
+        }
+        assertTrue("only ${used.size} categories used", used.size >= 12)
     }
 }

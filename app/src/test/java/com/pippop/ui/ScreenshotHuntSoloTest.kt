@@ -46,7 +46,7 @@ class ScreenshotHuntSoloTest : ScreenshotBase() {
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name-${if (dark) "dark" else "light"}.png")
     }
 
-    private val computersSetup = mapOf("mode" to "computers", "level" to "medium", "theme" to "Food", "backwards" to "auto", "timer" to "5", "computers" to "2", "skill" to "medium")
+    private val computersSetup = mapOf("mode" to "computers", "level" to "medium", "backwards" to "auto", "timer" to "5", "computers" to "2", "skill" to "medium")
 
     @Test fun setupComputersLight() = setup("hunt-solo-setup", computersSetup, false)
     @Test fun setupComputersDark() = setup("hunt-solo-setup", computersSetup, true)
@@ -55,7 +55,7 @@ class ScreenshotHuntSoloTest : ScreenshotBase() {
 
     /** Two minutes into a 5 minute round: you have found two words, Computer A two and Computer B one. */
     private fun round(dark: Boolean) {
-        val options = HuntOptions(HuntLevel.EASY, "Animals", false, 5, 0)
+        val options = HuntOptions(HuntLevel.EASY, false, 5, 0)
         val m = HuntMatch(options, listOf('m', 'a', 'b'), startAt = 5_000)
         val w = m.grid.words
         fun claim(mark: Char, i: Int) { val (s, e) = HuntMatch.ends(w[i]); m.claim(mark, s.first, s.second, e.first, e.second, 30_000) }

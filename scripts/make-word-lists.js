@@ -5,7 +5,7 @@
 //   answers.txt    the common words (Word Race secret words)
 //   grid.txt       the Letter Grid words (more 6 letter words for the ladder)
 //   blocklist.txt  words kept out of both new games (written by hand, one per line)
-//   hunt.txt       Word Hunt themes written by hand: "Name|WORD WORD ..."
+//   hunt.txt       Word Hunt categories written by hand (every grid draws from all of them mixed): "Name|WORD WORD ..."
 // Writes:
 //   ladder.txt     the common 4, 5 and 6 letter words, UPPERCASE, minus the blocklist
 //   backend/cloudflare/src/wordgamelists.js   the same data for the server (tests check they match)

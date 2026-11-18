@@ -70,9 +70,10 @@ test('paths and distances', () => {
   assert.equal(pathExists('COLD', 'ZZZZ'), false);
 });
 
-test('word hunt themes: 6 or more, 40 or more real, clean words of 3 to 8 letters', () => {
+test('word hunt categories: 12 or more, 40 or more real, clean words of 3 to 8 letters each', () => {
   const names = Object.keys(huntThemes);
-  for (const name of ['Animals', 'Food', 'Sport', 'Nature', 'Home', 'Mixed']) assert.ok(names.includes(name), name);
+  assert.ok(names.length >= 12, `only ${names.length} categories`);
+  for (const name of ['Animals', 'Food', 'Sport', 'Nature', 'Home', 'Stories', 'Colours', 'Clothes', 'Body', 'Weather', 'Music', 'Travel']) assert.ok(names.includes(name), name);
   for (const [name, list] of Object.entries(huntThemes)) {
     assert.ok(list.length >= 40, `${name} has ${list.length}`);
     assert.equal(new Set(list).size, list.length, `${name} repeats a word`);
@@ -81,6 +82,6 @@ test('word hunt themes: 6 or more, 40 or more real, clean words of 3 to 8 letter
       assert.ok(valid.has(w), `${name}: ${w} is not a real word`);
       assert.ok(!blocklist.has(w), `${name}: ${w} is blocked`);
     }
-    console.log(`theme ${name}: ${list.length}`);
+    console.log(`category ${name}: ${list.length}`);
   }
 });

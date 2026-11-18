@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,7 +54,9 @@ import com.pippop.game.words.HuntLevel
 import com.pippop.game.words.HuntOptions
 import com.pippop.game.words.HuntPlace
 import com.pippop.game.words.HuntView
-import com.pippop.game.words.HuntViewWord
+import com.pippop.game.words.HuntFound
+import com.pippop.data.PlayerInfo
+import androidx.compose.ui.platform.testTag
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
 import com.pippop.ui.HuntSoloMode
@@ -82,7 +82,8 @@ import com.pippop.ui.theme.textFill
 
 /*
  * Word Hunt's screens, against your partners (online or nearby): the setup card, the covered grid with its 3-2-1, the grid with
- * its word list, the found-word moment and the result. The rules live in game/words/HuntMatch.kt; the screens only ask and show,
+ * its "9 of 24 found" line, the found-word moment, the chips that count each player's finds (a tap lists them) and the result. The
+ * words themselves stay hidden: there is no list. The rules live in game/words/HuntMatch.kt; the screens only ask and show,
  * and show the room's own words when a claim is refused. The grid and the hand are in HuntBoard.kt.
  */
 
@@ -102,15 +103,13 @@ private const val REFUSAL_MS = 2600L
 
 // ---- Setup ----------------------------------------------------------------------------------------
 
-private val HuntThemeNames = listOf("Animals", "Food", "Sport", "Nature", "Home", "Mixed")
-
 private fun huntLevelName(l: HuntLevel) = l.key.replaceFirstChar { it.uppercase() }
 
 /** "Easy 10×10": the choice's label. */
 internal fun huntLevelLabel(l: HuntLevel) = "${huntLevelName(l)} ${l.width}×${l.height}"
 
 /**
- * Word Hunt's setup, in the lobby and in the Change sheet: the size, the words' theme, backwards words and the timer. Whoever opened
+ * Word Hunt's setup, in the lobby and in the Change sheet: the size, backwards words and the timer. Whoever opened
  * the game changes them; everyone else sees them greyed.
  */
 @Composable
@@ -125,7 +124,6 @@ fun HuntOptionsCard(room: RoomState, busy: Boolean, onPick: (HuntOptions) -> Uni
             enabled = enabled, perRow = 2,
             note = "${o.level.words} words in ${o.level.width} columns by ${o.level.height} rows." + if (o.level.width > 10) " Pinch to zoom." else "",
         )
-        OptionRow("Words", HuntThemeNames.map { it to it }, o.theme, { onPick(o.copy(theme = it)) }, enabled = enabled, perRow = 3)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = o.backwards, enabled = enabled, role = Role.Switch) { onPick(o.copy(backwards = it)) },
             verticalAlignment = Alignment.CenterVertically,
@@ -147,8 +145,8 @@ fun HuntOptionsCard(room: RoomState, busy: Boolean, onPick: (HuntOptions) -> Uni
     }
 }
 
-/** The mode line in the menu and the result ("Easy · Animals · 5 min"). */
-internal fun huntModeLabel(o: HuntOptions) = huntLevelName(o.level) + " · " + o.theme + if (o.timer > 0) " · ${o.timer} min" else ""
+/** The mode line in the menu and the result ("Easy · 5 min"). */
+internal fun huntModeLabel(o: HuntOptions) = huntLevelName(o.level) + if (o.timer > 0) " · ${o.timer} min" else ""
 
 private fun points(n: Int) = if (n == 1) "1 point" else "$n points"
 
@@ -177,19 +175,21 @@ fun HuntGameScreen(
     val playing = !finished && !covered && view.phase == "playing"
     val feed = rememberHuntFeed(room.code to room.round, view, seats, state.message, state.messageTone == Tone.Bad, actions.dismissMessage)
 
+    var opened by remember { mutableStateOf<Char?>(null) }
+    fun seatOf(player: PlayerInfo, isMe: Boolean) = if (isMe) mine else seats.getOrNull(1 + room.others.indexOf(player))
     val players = battleChips(
         room, state, tick, p.me,
-        detail = { player, isMe ->
-            val seat = if (isMe) mine else seats.getOrNull(1 + room.others.indexOf(player))
-            seat?.let { points(view.scores[it.mark] ?: 0) }
-        },
+        detail = { player, isMe -> seatOf(player, isMe)?.let { huntChipDetail(huntFoundBy(view, it.mark), view.scores[it.mark] ?: 0, seats.size > 2) } },
+        badge = { player, isMe -> seatOf(player, isMe)?.let { huntFoundBy(view, it.mark) } },
+        onClick = { player, isMe -> seatOf(player, isMe)?.let { seat -> Triple(huntChipLabel(seat), huntChipSpeech(seat, view), { opened = seat.mark }) } },
     )
+    opened?.let { mark -> seats.of(mark)?.let { HuntWordsSheet(view, it) { opened = null } } }
     val clockText = huntClock(view, now)
     val hurry = huntHurry(view, now)
 
     GameFrame(
         title = "Word Hunt",
-        subtitle = "Game ${room.round} · " + huntModeLabel(HuntOptions(view.level, view.theme, view.backwards, view.timer)) + if (state.reconnecting) " · reconnecting…" else "",
+        subtitle = "Game ${room.round} · " + huntModeLabel(HuntOptions(view.level, view.backwards, view.timer)) + if (state.reconnecting) " · reconnecting…" else "",
         players = players,
         glow = GameKind.HUNT.color,
         menu = battleMenu(room.game, onRules = { showRules = true }, onLeave = onLeave),
@@ -230,13 +230,13 @@ internal class HuntFeed(val viewport: HuntViewport) {
 @Composable
 internal fun rememberHuntFeed(key: Any, view: HuntView, seats: List<HuntSeat>, message: String?, bad: Boolean, dismiss: () -> Unit): HuntFeed {
     val feed = remember(key, view.width, view.height) { HuntFeed(HuntViewport(view.width, view.height)) }
-    LaunchedEffect(view.words) {
+    LaunchedEffect(view.found) {
         val before = feed.known
         if (before != null) huntNewFinds(before, view).lastOrNull()?.let { feed.moment = it }
-        feed.known = view.words.filter { it.foundBy != null }.map { it.word }.toSet()
+        feed.known = view.found.map { it.word }.toSet()
     }
     LaunchedEffect(feed.moment) { if (feed.moment != null) { kotlinx.coroutines.delay(MOMENT_MS); feed.moment = null } }
-    SoundOnChange(view.words.count { it.foundBy != null }.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
+    SoundOnChange(view.found.size.takeIf { it > 0 }) { play(Sound.GRID_WORD) }
     LaunchedEffect(message) {
         if (message != null && bad) {
             feed.refusal = huntRefusalText(message, seats)
@@ -250,7 +250,7 @@ internal fun rememberHuntFeed(key: Any, view: HuntView, seats: List<HuntSeat>, m
     return feed
 }
 
-/** What fills a Word Hunt screen under its chips: the status line, the covered grid or the grid, the word list and the controls. */
+/** What fills a Word Hunt screen under its chips: the status line, the covered grid or the grid, "9 of 24 found" and the controls. */
 @Composable
 internal fun ColumnScope.HuntArena(feed: HuntFeed, view: HuntView, seats: List<HuntSeat>, covered: Boolean, left: Long, playing: Boolean, finished: Boolean, actions: HuntActions) {
     HuntStatus(finished, covered, feed.moment, feed.refusal, feed.anchor != null, view.hints.isNotEmpty(), seats)
@@ -261,12 +261,12 @@ internal fun ColumnScope.HuntArena(feed: HuntFeed, view: HuntView, seats: List<H
             HuntBoard(
                 view, seats, feed.viewport, enabled = playing, anchor = feed.anchor, onAnchor = { feed.anchor = it },
                 onClaim = { a, b -> actions.claim(a.row, a.col, b.row, b.col) },
-                refusals = feed.refusals, finds = view.words.count { it.foundBy != null }, flash = feed.moment,
+                refusals = feed.refusals, finds = view.found.size, flash = feed.moment,
                 modifier = Modifier.fillMaxSize().shake(feed.refusals.takeIf { it > 0 }),
             )
         }
     }
-    HuntWordList(view, seats, feed.moment?.word)
+    HuntProgress(view)
     HuntControls(view, seats, feed.viewport, playing, actions)
 }
 
@@ -332,7 +332,7 @@ private fun HuntCover(view: HuntView, left: Long, size: Modifier) {
                 }
                 left > 3 -> {
                     Text("Get ready", color = p.text, fontSize = TextSize.DisplayM, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
-                    Text("${view.words.size} ${view.theme.lowercase()} words are hiding", color = p.muted, fontSize = TextSize.Body)
+                    Text("${view.total} words are hiding", color = p.muted, fontSize = TextSize.Body)
                 }
                 else -> Text("Go!", color = p.primaryText, fontSize = TextSize.DisplayL, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
             }
@@ -340,50 +340,70 @@ private fun HuntCover(view: HuntView, left: Long, size: Modifier) {
     }
 }
 
-// ---- The word list and the controls ---------------------------------------------------------------
+// ---- How many are found, the sheet of a player's words, and the controls ------------------------------
 
-/** The words to find: found ones struck through and tagged with the finder's initial and colour, the rest plain. */
-@OptIn(ExperimentalLayoutApi::class)
+/** "9 of 24 found" under the grid. The words themselves are hidden: this and the chips are all the round says about them. */
 @Composable
-private fun HuntWordList(view: HuntView, seats: List<HuntSeat>, flashed: String?) {
+private fun HuntProgress(view: HuntView) {
     val p = AppTheme.palette
-    val found = view.words.count { it.foundBy != null }
-    Column(
-        Modifier.fillMaxWidth().clip(Shapes.L).background(p.card.copy(alpha = 0.6f)).border(1.dp, p.hairline, Shapes.L).padding(Space.S),
-        verticalArrangement = Arrangement.spacedBy(Space.XS),
-    ) {
-        Text("Words: $found of ${view.words.size} found", color = p.muted, fontSize = TextSize.Label, fontWeight = FontWeight.Bold)
-        FlowRow(
-            Modifier.heightIn(max = 104.dp).verticalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            view.words.sortedWith(compareBy({ it.foundBy != null }, { -it.length }, { it.word })).forEach { WordChip(it, seats.of(it.foundBy), it.word == flashed) }
-        }
-    }
+    Text(
+        huntProgress(view), color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Bold, style = Digits, textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().testTag("huntProgress"),
+    )
 }
 
+/** What a screen reader says for a chip: "Maya, 7 found, 12 points". */
+internal fun huntChipSpeech(seat: HuntSeat, view: HuntView) = "${seat.name}, ${huntFoundBy(view, seat.mark)} found, ${points(view.scores[seat.mark] ?: 0)}"
+
+/** What a chip does when it is tapped, for a screen reader: "Show your words", "Show Maya's words". */
+internal fun huntChipLabel(seat: HuntSeat) = if (seat.mine) "Show your words" else "Show ${seat.name}'s words"
+
+/** The sheet a chip opens: [seat]'s found words, the newest first. */
 @Composable
-private fun WordChip(word: HuntViewWord, seat: HuntSeat?, flashed: Boolean) {
+internal fun HuntWordsSheet(view: HuntView, seat: HuntSeat, onDismiss: () -> Unit) {
+    ToySheet(onDismiss = onDismiss) { HuntWordsBody(view, seat) }
+}
+
+/** What the sheet holds (also drawn by screenshots, where the sheet's own window is not in the root). */
+@Composable
+internal fun HuntWordsBody(view: HuntView, seat: HuntSeat) {
     val p = AppTheme.palette
-    val said = if (seat == null) "${word.word}, not found yet" else "${word.word}, found by ${seat.name}"
-    Row(
-        Modifier.clip(Shapes.Full)
-            .background(if (seat == null) p.card else lerp(p.card, seat.color, if (flashed) 0.4f else 0.2f))
-            .border(if (seat == null) 1.dp else 2.dp, seat?.color ?: p.hairline, Shapes.Full)
-            .padding(start = if (seat == null) 10.dp else 4.dp, end = 10.dp, top = 3.dp, bottom = 3.dp)
-            .semantics(mergeDescendants = true) { contentDescription = said },
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    val words = huntWordsOf(view, seat.mark)
+    val fill = textFill(seat.color)
+    Column(
+        Modifier.fillMaxWidth().testTag("huntWordsSheet").padding(horizontal = Space.L).padding(bottom = Space.L),
+        verticalArrangement = Arrangement.spacedBy(Space.S),
     ) {
-        if (seat != null) {
-            val fill = textFill(seat.color)
-            Box(Modifier.size(22.dp).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
-                Text(seat.initial, color = readableOn(fill), fontSize = TextSize.Micro, fontWeight = FontWeight.Black)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+            PlayerAvatar(seat.name, seat.color, size = 36, avatar = seat.avatar)
+            Column(Modifier.weight(1f)) {
+                Text(huntSheetTitle(seat), color = p.text, fontSize = TextSize.Title, fontFamily = DisplayFont, fontWeight = FontWeight.Bold)
+                Text(
+                    "${words.size} of ${view.total} found · ${points(view.scores[seat.mark] ?: 0)}", color = p.muted, fontSize = TextSize.Label, style = Digits,
+                    modifier = Modifier.testTag("huntWordsCount"),
+                )
             }
         }
-        Text(
-            word.word, color = if (seat == null) p.text else p.muted, fontSize = TextSize.Body, fontWeight = FontWeight.Bold,
-            textDecoration = if (seat == null) null else TextDecoration.LineThrough, maxLines = 1, overflow = TextOverflow.Clip,
-        )
+        if (words.isEmpty()) {
+            Text(if (seat.mine) "No words yet. Drag across one in the grid." else "No words yet.", color = p.muted, fontSize = TextSize.Body)
+        } else {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                words.forEach { w ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Shapes.M).background(lerp(p.card, seat.color, 0.18f)).border(2.dp, seat.color, Shapes.M)
+                            .padding(horizontal = Space.S).semantics(mergeDescendants = true) { contentDescription = "${w.word}, ${w.length} points" },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S),
+                    ) {
+                        // The finder's initial in their colour, so the list is not told by colour alone.
+                        Box(Modifier.size(28.dp).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+                            Text(seat.initial, color = readableOn(fill), fontSize = TextSize.Label, fontWeight = FontWeight.Black)
+                        }
+                        Text(w.word, color = p.text, fontSize = TextSize.BodyL, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                        Text("+${w.length}", color = p.text, fontSize = TextSize.Body, fontWeight = FontWeight.Black, style = Digits)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -420,10 +440,10 @@ private fun HuntMap(view: HuntView, seats: List<HuntSeat>, viewport: HuntViewpor
         val at = Offset((size.width - w) / 2f, (size.height - h) / 2f)
         drawRoundRect(p.card, androidx.compose.ui.geometry.Offset.Zero, size, androidx.compose.ui.geometry.CornerRadius(8.dp.toPx()))
         drawRect(com.pippop.ui.theme.Board.Bone, at, androidx.compose.ui.geometry.Size(w, h))
-        for (word in view.words) {
-            val seat = seats.of(word.foundBy) ?: continue
-            val r = word.row ?: continue
-            val c = word.col ?: continue
+        for (word in view.found) {
+            val seat = seats.of(word.mark) ?: continue
+            val r = word.row
+            val c = word.col
             val d = com.pippop.game.words.HuntDir.entries.firstOrNull { it.key == word.dir } ?: continue
             val from = at + Offset((c + 0.5f) * k, (r + 0.5f) * k)
             val to = at + Offset((c + d.dc * (word.length - 1) + 0.5f) * k, (r + d.dr * (word.length - 1) + 0.5f) * k)
@@ -492,7 +512,7 @@ internal fun HuntResults(view: HuntView, seats: List<HuntSeat>) {
             }
         }
         Text("THE ROUND", color = p.muted, fontSize = TextSize.Micro, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = Space.XS))
-        Fact("Grid", "${view.width} × ${view.height}, ${view.theme}")
+        Fact("Grid", "${view.width} × ${view.height}")
         huntLongest(view, seats)?.let { Fact("Longest word", it) }
         Fact("Hints used", seats.joinToString(", ") { "${it.name} ${1 - (view.hintsLeft[it.mark] ?: 1)}" })
     }
@@ -516,14 +536,13 @@ private val PictureRows = listOf("TIGERQXK", "OAXKPLMD", "MZOWLQRE", "BEARNSTH",
 internal fun HuntPicture(found: List<Pair<String, Char>>, hint: Boolean, modifier: Modifier = Modifier) {
     val p = AppTheme.palette
     val rows = PictureRows
-    val places = mapOf("TIGER" to Triple(0, 0, "right"), "OWL" to Triple(5, 2, "right"))
-    val words = listOf("TIGER", "OWL", "BEAR").map { w ->
-        val at = places[w]
-        val who = found.firstOrNull { it.first == w }?.second
-        HuntViewWord(w, w.length, who, if (who != null) at?.first ?: 3 else null, if (who != null) at?.second ?: 0 else null, if (who != null) "right" else null)
+    val places = mapOf("TIGER" to (0 to 0), "OWL" to (5 to 2))
+    val finds = found.mapIndexed { i, (w, who) ->
+        val at = places.getValue(w)
+        HuntFound(w, who, at.first, at.second, "right", 1000L * (i + 1))
     }
     val view = HuntView(
-        'h', HuntLevel.EASY, "Animals", false, 0, 8, 8, rows, "playing", words, listOf('h', 'g'), mapOf('h' to 5, 'g' to 3), mapOf('h' to 1, 'g' to 1),
+        'h', HuntLevel.EASY, false, 0, 8, 8, rows, "playing", 3, finds, listOf('h', 'g'), mapOf('h' to 5, 'g' to 3), mapOf('h' to 1, 'g' to 1),
         if (hint) listOf(3 to 0) else emptyList(), 0, null, emptyList(), null, emptyList(),
     )
     val seats = listOf(
@@ -552,6 +571,8 @@ fun SoloHuntScreen(state: SoloHuntUiState, vm: SoloHuntViewModel, onHome: () -> 
     if (changing) SoloSetupSheet(GameKind.HUNT, "New game", vm::startWith) { changing = false }
     val avatar = ProfileStore.get(LocalContext.current).profile.collectAsState().value.avatar
     val seats = huntSoloSeats(view, state.computers, p.me, avatar)
+    var opened by remember { mutableStateOf<Char?>(null) }
+    opened?.let { mark -> seats.of(mark)?.let { HuntWordsSheet(view, it) { opened = null } } }
     val finished = state.over
     val left = (SoloHuntViewModel.COUNTDOWN_MS - now + 999) / 1000
     val covered = !finished && left > 0
@@ -564,9 +585,12 @@ fun SoloHuntScreen(state: SoloHuntUiState, vm: SoloHuntViewModel, onHome: () -> 
 
     GameFrame(
         title = "Word Hunt",
-        subtitle = what + " · " + huntModeLabel(HuntOptions(view.level, view.theme, view.backwards, view.timer)),
+        subtitle = what + " · " + huntModeLabel(HuntOptions(view.level, view.backwards, view.timer)),
         players = seats.map { seat ->
-            ChipPlayer(seat.name, seat.avatar, seat.color, points(view.scores[seat.mark] ?: 0), mine = seat.mine)
+            ChipPlayer(
+                seat.name, seat.avatar, seat.color, huntChipDetail(huntFoundBy(view, seat.mark), view.scores[seat.mark] ?: 0, seats.size > 2), mine = seat.mine,
+                badge = huntFoundBy(view, seat.mark), onClick = { opened = seat.mark }, onClickLabel = huntChipLabel(seat), description = huntChipSpeech(seat, view),
+            )
         },
         glow = GameKind.HUNT.color,
         menu = soloMenu(GameKind.HUNT, onHome, { showRules = true }, vm::rematch, { changing = true }),
@@ -579,7 +603,7 @@ fun SoloHuntScreen(state: SoloHuntUiState, vm: SoloHuntViewModel, onHome: () -> 
             }
         },
         popup = if (!finished) null else popupContent {
-            val found = view.words.count { it.foundBy != null }
+            val found = view.found.size
             val end = huntEnd(view, seats, null, null, null)
             if (state.mode == HuntSoloMode.COMPUTERS) {
                 ResultPopup(
@@ -589,11 +613,11 @@ fun SoloHuntScreen(state: SoloHuntUiState, vm: SoloHuntViewModel, onHome: () -> 
                 )
             } else {
                 val timed = view.timer > 0
-                val all = found == view.words.size
+                val all = found == view.total
                 ResultPopup(
                     GameKind.HUNT, if (all) Outcome.WIN else Outcome.TIE,
                     if (timed) points(view.scores[view.me] ?: 0) else state.finishedMs?.let { "All found in ${huntElapsed(it)}" } ?: "Round over",
-                    "$found of ${view.words.size} words found." + if (!timed && (view.hintsLeft[view.me] ?: 1) == 0) " The hint added 10 seconds." else "",
+                    "$found of ${view.total} words found." + if (!timed && (view.hintsLeft[view.me] ?: 1) == 0) " The hint added 10 seconds." else "",
                     finish = PopupAction("Home", onHome), again = PopupAction("Play again", vm::rematch),
                     extra = { HuntResults(view, seats) },
                 )

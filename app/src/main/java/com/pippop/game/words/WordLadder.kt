@@ -96,11 +96,20 @@ object WordLadder {
 }
 
 /**
- * Word Hunt themes (words/hunt.txt): a name and 40 or more UPPERCASE words of 3 to 8 letters each,
- * the same as the server's (backend/cloudflare/src/ladder.js huntThemes).
+ * Word Hunt categories (words/hunt.txt): a name and 40 or more UPPERCASE words of 3 to 8 letters each,
+ * the same as the server's (backend/cloudflare/src/ladder.js huntThemes). The categories are for curating
+ * the file; the game only uses [pool], all of them joined (repeats dropped, in file order), as the server's huntPool.
  */
 object WordHuntThemes {
     @Volatile var themes: Map<String, List<String>> = emptyMap()
+        private set
+
+    /** The one mixed vocabulary every grid draws from. */
+    @Volatile var pool: List<String> = emptyList()
+        private set
+
+    /** [pool] as a set, for asking whether a line of letters is a word of the vocabulary. */
+    @Volatile var poolSet: Set<String> = emptySet()
         private set
 
     fun load(context: Context) {
@@ -110,6 +119,9 @@ object WordHuntThemes {
 
     /** Lines look like "Animals|ANT BAT BEAR". For tests, and [load]. */
     fun install(lines: List<String>) {
-        themes = lines.associate { line -> line.substringBefore('|') to line.substringAfter('|').split(' ').filter { it.isNotEmpty() } }
+        val all = lines.associate { line -> line.substringBefore('|') to line.substringAfter('|').split(' ').filter { it.isNotEmpty() } }
+        pool = all.values.flatten().distinct()
+        poolSet = pool.toSet()
+        themes = all
     }
 }

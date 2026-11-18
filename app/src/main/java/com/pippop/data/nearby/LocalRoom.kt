@@ -1682,7 +1682,7 @@ class LocalRoom(
                     GameKind.TTT -> JSONObject().put("mode", if (tttClassic) "classic" else "ultimate")
                     GameKind.GOLF -> JSONObject().put("level", golfLevel.key)
                     GameKind.LADDER -> JSONObject().put("length", ladderOptions.length).put("timer", ladderOptions.timer)
-                    GameKind.HUNT -> JSONObject().put("level", huntOptions.level.key).put("theme", huntOptions.theme).put("backwards", huntOptions.backwards).put("timer", huntOptions.timer)
+                    GameKind.HUNT -> JSONObject().put("level", huntOptions.level.key).put("backwards", huntOptions.backwards).put("timer", huntOptions.timer)
                     GameKind.MEMORY -> JSONObject().put("cards", memoryCards).apply {
                         // The deck's pictures and the photos' ids only where everyone has the token (an old room's are just the cards).
                         if (memoryPhotosAllowed()) {

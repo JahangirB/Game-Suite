@@ -99,7 +99,7 @@ private fun pts(vararg p: Pair<String, String>) = p.map { RulePoint(it.first, it
 val GameKind.about: String?
     get() = when (this) {
         GameKind.LADDER -> "Each of you secretly picks a word. Then take turns changing one letter at a time, every step a real word, until someone spells the other's."
-        GameKind.HUNT -> "Everyone races on one grid of letters to find the hidden words, across and down. Play with up to three others, or alone against the clock or computers."
+        GameKind.HUNT -> "Everyone races on one grid of letters to find the words hiding in it, across and down. There is no list: you spot them. Play with up to three others, or alone against the clock or computers."
         else -> null
     }
 
@@ -107,7 +107,7 @@ val GameKind.about: String?
 val GameKind.levelsFact: String?
     get() = when (this) {
         GameKind.LADDER -> "3 levels: 4, 5 or 6 letters"
-        GameKind.HUNT -> "4 sizes, 6 word themes"
+        GameKind.HUNT -> "4 sizes, hundreds of hidden words"
         else -> null
     }
 
@@ -162,11 +162,12 @@ val GameKind.rules: List<RulePoint>
             "Timer" to "With a turn timer on, a turn that runs out passes to the other player.",
         )
         GameKind.HUNT -> pts(
-            "Goal" to "Find the hidden words before the others do. The round ends when all are found or time is up. Most points wins.",
-            "Finding" to "Drag a finger across a word, from either end. Or tap its first and last letters. Words run across and down, backwards too when that's on.",
-            "Scoring" to "A word scores its length. The first to finish a drag keeps it. A wrong drag costs nothing.",
-            "Hint" to "Each of you gets one hint: a ring pulses where a word starts, for your eyes only. It costs 2 points.",
-            "Big grids" to "On grids wider than 10, pinch to zoom and use two fingers to move. The small map shows where you are.",
+            "Goal" to "Find the hidden words before the others do. There is no list. Most points wins.",
+            "Finding" to "Drag across a word from either end, or tap its first and last letters. Words run across and down, backwards too when that's on.",
+            "Scoring" to "A word scores its length. The first to finish a drag keeps it.",
+            "Counts" to "Chips count each player's finds. Tap one to see their words.",
+            "Hint" to "One hint each: a ring shows where a word starts, for your eyes only. It costs 2 points.",
+            "Big grids" to "Pinch to zoom, and use two fingers to move.",
         )
         GameKind.DRAW -> pts(
             "Goal" to "Play as a team over four turns, taking turns to draw. A right guess adds the seconds left, out of 80, to your team score.",

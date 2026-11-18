@@ -152,7 +152,6 @@ object SoloSetups {
                     "level", "Size", listOf(SoloOption("easy", "Easy", "Easy 10×10"), SoloOption("medium", "Medium", "Medium 12×12"), SoloOption("hard", "Hard", "Hard 12×16"), SoloOption("huge", "Huge", "Huge 16×20")), "easy",
                     note = { v -> mapOf("easy" to "10 × 10, 10 words.", "medium" to "12 × 12, 14 words. Pinch to zoom.", "hard" to "12 × 16, 18 words. Pinch to zoom.", "huge" to "16 × 20, 24 words. Pinch to zoom.")[v["level"]] },
                 ),
-                SoloField("theme", "Words", listOf("Animals", "Food", "Sport", "Nature", "Home", "Mixed").map { SoloOption(it, it) }, "Animals"),
                 SoloField(
                     "backwards", "Backwards", listOf(SoloOption("auto", "Auto", "Backwards from Medium up"), SoloOption("on", "On", "Backwards words on"), SoloOption("off", "Off", "No backwards words")), "auto",
                     note = { v -> mapOf("auto" to "On from Medium up.", "on" to "Words may read right to left and bottom to top.", "off" to "Words read left to right and top to bottom.")[v["backwards"]] },

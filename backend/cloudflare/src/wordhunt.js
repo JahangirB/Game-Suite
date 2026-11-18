@@ -1,7 +1,8 @@
 // Word Hunt grid maker: the same seed gives the same grid here and in the app's WordHunt.kt
+// Every grid draws from one mixed pool: all the categories of hunt.txt joined, repeats dropped (ladder.js huntPool).
 // (test/wordhunt.test.js and the app's WordHuntTest share app/src/test/resources/wordhunt-cases.json).
 //
-// makeHuntGrid(theme, level, backwards, seed) -> { theme, level, width, height, backwards, seed, rows, words }
+// makeHuntGrid(level, backwards, seed) -> { level, width, height, backwards, seed, rows, words }
 //   width = columns, height = rows (portrait: Hard 12 across by 16 down, Huge 16 by 20).
 //   rows: height strings of width letters A-Z. words: [{ word, row, col, dir, length }], sorted by word;
 //   (row, col) is the first letter, 0-based from the top left; dir is 'right' | 'down' | 'left' | 'up'
@@ -10,7 +11,7 @@
 // Random numbers: mulberry32 on 32-bit integers (Math.imul and >>> 0 here; Int arithmetic in Kotlin),
 // reduced with `% n`. No floating point is used, so both languages agree bit for bit.
 
-import { blocklist, huntThemes } from './ladder.js';
+import { blocklist, huntPool } from './ladder.js';
 
 export const HUNT_LEVELS = {
   easy: { width: 10, height: 10, words: 10 },
@@ -46,11 +47,10 @@ export function mulberry32(seed) {
 
 const reversed = (w) => [...w].reverse().join('');
 
-export function makeHuntGrid(theme, level, backwards, seed) {
+export function makeHuntGrid(level, backwards, seed) {
   const size = HUNT_LEVELS[level];
-  const pool = huntThemes[theme];
+  const pool = huntPool;
   if (!size) throw new Error(`Unknown level ${level}`);
-  if (!pool) throw new Error(`Unknown theme ${theme}`);
   backwards = !!backwards;
   seed |= 0;
   const { width, height } = size;
@@ -58,7 +58,7 @@ export function makeHuntGrid(theme, level, backwards, seed) {
   const dirs = backwards ? DIRS : DIRS.slice(0, 2);
   const blocked = [...blocklist].sort();
 
-  // Choose the words: shuffled theme, skipping any that hides inside another (either way round when
+  // Choose the words: shuffled mixed pool, skipping any that hides inside another (either way round when
   // backwards), is a palindrome when backwards, or contains a blocklisted word.
   const shuffled = pool.slice();
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -72,9 +72,11 @@ export function makeHuntGrid(theme, level, backwards, seed) {
     if (backwards && w === reversed(w)) continue;
     if (blocked.some((b) => inside(b, w))) continue;
     if (chosen.some((x) => inside(x, w) || inside(w, x))) continue;
+    // A word that holds another word of the vocabulary (JUMP in JUMPER) would show it, found and refused, inside itself.
+    if (pool.some((p) => p !== w && p.length >= 4 && inside(p, w))) continue;
     chosen.push(w);
   }
-  if (chosen.length < size.words) throw new Error(`Theme ${theme} has too few words for ${level}`);
+  if (chosen.length < size.words) throw new Error(`Too few words for ${level}`);
   const order = chosen.slice().sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0));
 
   // All places `word` reads from, as [row, col, dir index].
@@ -132,13 +134,20 @@ export function makeHuntGrid(theme, level, backwards, seed) {
     };
     for (let i = 0; i < grid.length; i++) if (!locked[i]) grid[i] = letter();
 
-    // Re-roll fill letters until no chosen word shows a second time and no blocklisted word shows.
+    // Re-roll fill letters until no chosen word shows a second time and no blocklisted or other pool word shows.
+    const chosenSet = new Set(order);
     const problems = () => {
       const out = [];
       for (const { word, at } of placed) {
         for (const f of find(grid, word)) if (f[0] !== at[0] || f[1] !== at[1] || f[2] !== at[2]) out.push(cells(word, f));
       }
       for (const b of blocked) for (const f of find(grid, b)) out.push(cells(b, f));
+      // With no list on screen, a word of 4 or more letters that the fill letters spell by chance would be found and refused, so
+      // those are re-rolled too. (One wholly inside placed letters, a crossing, cannot be: the attempt fails and starts again.)
+      for (const w of pool) {
+        if (w.length < 4 || chosenSet.has(w)) continue;
+        for (const f of find(grid, w)) out.push(cells(w, f));
+      }
       return out;
     };
     let clean = false;
@@ -157,7 +166,7 @@ export function makeHuntGrid(theme, level, backwards, seed) {
     const words = placed
       .map(({ word, at }) => ({ word, row: at[0], col: at[1], dir: dirs[at[2]].name, length: word.length }))
       .sort((a, b) => (a.word < b.word ? -1 : a.word > b.word ? 1 : 0));
-    return { theme, level, width, height, backwards, seed, rows, words };
+    return { level, width, height, backwards, seed, rows, words };
   }
   throw new Error('No grid found');
 }

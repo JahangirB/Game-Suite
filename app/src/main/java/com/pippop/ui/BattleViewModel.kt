@@ -1095,14 +1095,14 @@ class BattleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Word Hunt: whoever opened the game picks the level, theme, backwards words and timer; everyone gets ready again. The seed is never sent: the room makes it. */
+    /** Word Hunt: whoever opened the game picks the level, backwards words and timer; everyone gets ready again. The seed is never sent: the room makes it. */
     fun setHuntOptions(options: com.pippop.game.words.HuntOptions) {
         val room = _state.value.room ?: return
         if (!room.setsOptions || room.huntOptions == options.copy(seed = null)) return
         sendReady(room.copy(huntOptions = options.copy(seed = null), me = room.me.copy(ready = false))) { b, id ->
             b.setOptions(
                 room.code, id,
-                JSONObject().put("level", options.level.key).put("theme", options.theme).put("backwards", options.backwards).put("timer", options.timer),
+                JSONObject().put("level", options.level.key).put("backwards", options.backwards).put("timer", options.timer),
             )
         }
     }

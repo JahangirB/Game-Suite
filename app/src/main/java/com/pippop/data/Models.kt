@@ -398,7 +398,7 @@ data class RoomState(
     val golfLevel: GolfLevel? = null,
     /** Word Ladder: the word length and turn timer the opener chose. */
     val ladderOptions: com.pippop.game.words.LadderOptions = com.pippop.game.words.LadderOptions(),
-    /** Word Hunt: the level, theme, backwards and timer the opener chose (never a seed). */
+    /** Word Hunt: the level, backwards and timer the opener chose (never a seed). */
     val huntOptions: com.pippop.game.words.HuntOptions = com.pippop.game.words.HuntOptions(),
     /** Memory Pairs: the deck size the opener picked (16 from servers that don't say). */
     val memoryCards: Int = 16,
@@ -700,7 +700,7 @@ private fun parseTurns(json: JSONObject): TurnsView {
         golf = if (json.has("golf")) GolfView.from(json) else null,
         blocks = if (json.has("blocks")) BlocksView.from(json) else null,
         ladder = if (json.has("chain") && json.has("phase")) com.pippop.game.words.LadderView.from(json) else null,
-        hunt = if (json.has("words") && json.has("hintsLeft")) com.pippop.game.words.HuntView.from(json) else null,
+        hunt = if ((json.has("foundCount") || json.has("words")) && json.has("hintsLeft")) com.pippop.game.words.HuntView.from(json) else null,
     )
 }
 

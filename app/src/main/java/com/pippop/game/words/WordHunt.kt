@@ -21,7 +21,7 @@ data class HuntWord(val word: String, val row: Int, val col: Int, val dir: HuntD
 
 /** [rows] are [height] strings of [width] letters A-Z; [words] are sorted by word. */
 data class HuntGrid(
-    val theme: String, val level: HuntLevel, val backwards: Boolean, val seed: Int,
+    val level: HuntLevel, val backwards: Boolean, val seed: Int,
     val rows: List<String>, val words: List<HuntWord>,
 ) {
     val width get() = level.width
@@ -29,9 +29,11 @@ data class HuntGrid(
 }
 
 /**
- * Word Hunt grid maker. The same (theme, level, backwards, seed) gives the same grid as the server's
+ * Word Hunt grid maker. The same (level, backwards, seed) gives the same grid as the server's
  * backend/cloudflare/src/wordhunt.js; both run src/test/resources/wordhunt-cases.json. Keep the two
  * in step: same random calls in the same order.
+ *
+ * Every grid draws from one mixed pool ([WordHuntThemes.pool]: all the categories joined, repeats dropped).
  *
  * Random numbers: mulberry32 on 32-bit Ints (Int arithmetic wraps like Math.imul), reduced with `%`.
  */
@@ -53,8 +55,9 @@ object WordHunt {
         fun below(n: Int): Int = (next() % n).toInt()
     }
 
-    fun make(theme: String, level: HuntLevel, backwards: Boolean, seed: Int): HuntGrid {
-        val pool = WordHuntThemes.themes[theme] ?: throw IllegalArgumentException("Unknown theme $theme")
+    fun make(level: HuntLevel, backwards: Boolean, seed: Int): HuntGrid {
+        val pool = WordHuntThemes.pool
+        check(pool.isNotEmpty()) { "The Word Hunt words are not loaded" }
         val (width, height) = level.width to level.height
         val rng = Mulberry32(seed)
         val dirs = if (backwards) HuntDir.entries else HuntDir.entries.take(2)
@@ -72,9 +75,11 @@ object WordHunt {
             if (backwards && w == w.reversed()) continue
             if (blocked.any { inside(it, w) }) continue
             if (chosen.any { inside(it, w) || inside(w, it) }) continue
+            // A word that holds another word of the vocabulary (JUMP in JUMPER) would show it, found and refused, inside itself.
+            if (pool.any { it != w && it.length >= 4 && inside(it, w) }) continue
             chosen.add(w)
         }
-        check(chosen.size >= level.words) { "Theme $theme has too few words for ${level.key}" }
+        check(chosen.size >= level.words) { "Too few words for ${level.key}" }
         val order = chosen.sortedWith(compareBy<String>({ -it.length }, { it }))
 
         fun find(grid: IntArray, word: String): List<HuntWord> {
@@ -124,11 +129,18 @@ object WordHunt {
             }
             for (i in grid.indices) if (!locked[i]) grid[i] = letter()
 
-            // Re-roll fill letters until no chosen word shows a second time and no blocklisted word shows.
+            // Re-roll fill letters until no chosen word shows a second time and no blocklisted or other pool word shows.
+            val chosenSet = chosen.toSet()
             fun problems(): List<List<Int>> {
                 val out = ArrayList<List<Int>>()
                 for (p in placed) for (f in find(grid, p.word)) if (f != p) out.add(f.cells(width))
                 for (b in blocked) for (f in find(grid, b)) out.add(f.cells(width))
+                // With no list on screen, a word of 4 or more letters that the fill letters spell by chance would be found and
+                // refused, so those are re-rolled too. (One wholly inside placed letters, a crossing, cannot be: the attempt fails and starts again.)
+                for (w in pool) {
+                    if (w.length < 4 || w in chosenSet) continue
+                    for (f in find(grid, w)) out.add(f.cells(width))
+                }
                 return out
             }
             var clean = false
@@ -146,7 +158,7 @@ object WordHunt {
             if (!ok || !clean) return@repeat
 
             val rows = List(height) { r -> String(CharArray(width) { c -> grid[r * width + c].toChar() }) }
-            return HuntGrid(theme, level, backwards, seed, rows, placed.sortedBy { it.word })
+            return HuntGrid(level, backwards, seed, rows, placed.sortedBy { it.word })
         }
         error("No grid found")
     }

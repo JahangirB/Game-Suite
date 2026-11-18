@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import com.pippop.data.Avatar
 import com.pippop.data.RoomState
 import com.pippop.game.words.HuntView
-import com.pippop.game.words.HuntViewWord
+import com.pippop.game.words.HuntFound
 import com.pippop.ui.art.Outcome
 import com.pippop.ui.theme.SeatColors
 import kotlin.math.abs
@@ -175,7 +175,7 @@ internal class HuntMoment(val word: String, val mark: Char)
 
 /** The words in [view] that are found and were not in [known] (the words the screen has already shown). */
 internal fun huntNewFinds(known: Set<String>, view: HuntView): List<HuntMoment> =
-    view.words.filter { it.foundBy != null && it.word !in known }.map { HuntMoment(it.word, it.foundBy!!) }
+    view.found.filter { it.word !in known }.map { HuntMoment(it.word, it.mark) }
 
 /** What the screen says for the moment: "Maya found TIGER", "You found TIGER". */
 internal fun huntMomentText(moment: HuntMoment, seats: List<HuntSeat>) = "${seats.of(moment.mark)?.name ?: "Someone"} found ${moment.word}"
@@ -198,9 +198,28 @@ internal fun huntClock(view: HuntView, serverNow: Long): String? {
 /** Whether the last ten seconds are running. */
 internal fun huntHurry(view: HuntView, serverNow: Long) = view.timer > 0 && view.endsAt > 0 && view.endsAt - serverNow in 1..10_000
 
-/** The words each player found, longest first. */
-internal fun huntFinds(view: HuntView, mark: Char): List<HuntViewWord> =
-    view.words.filter { it.foundBy == mark }.sortedWith(compareBy({ -it.length }, { it.word }))
+/** The words each player found, longest first (the result). */
+internal fun huntFinds(view: HuntView, mark: Char): List<HuntFound> =
+    view.found.filter { it.mark == mark }.sortedWith(compareBy({ -it.length }, { it.word }))
+
+/** One player's words, the newest first (the sheet a chip opens). The view lists finds in the order they were found. */
+internal fun huntWordsOf(view: HuntView, mark: Char): List<HuntFound> = view.found.filter { it.mark == mark }.asReversed()
+
+/** How many words [mark] has found: the chip's badge and its "7 found", the same number the sheet lists. */
+internal fun huntFoundBy(view: HuntView, mark: Char): Int = view.found.count { it.mark == mark }
+
+/** "9 of 24 found": the status line under the grid. */
+internal fun huntProgress(view: HuntView) = "${view.found.size} of ${view.total} found"
+
+/**
+ * The line under a name on a chip: "7 found · 12 points". With three or more players the chips are narrow, so it is two short lines
+ * ("7 found", "12 pts") instead.
+ */
+internal fun huntChipDetail(found: Int, points: Int, crowded: Boolean) =
+    if (crowded) "$found found\n$points pts" else "$found found · " + if (points == 1) "1 point" else "$points points"
+
+/** The sheet's title: "Your words", "Maya's words". */
+internal fun huntSheetTitle(seat: HuntSeat) = if (seat.mine) "Your words" else "${seat.name}'s words"
 
 /** "1st", "2nd"... for a place. */
 internal fun huntPlace(rank: Int) = when (rank) { 1 -> "1st"; 2 -> "2nd"; 3 -> "3rd"; else -> "${rank}th" }
@@ -216,8 +235,8 @@ private fun names(list: List<String>) = if (list.size <= 1) list.joinToString() 
  * and [endReason] from the room say who is left, and the scores that were reached stay in the results.
  */
 internal fun huntEnd(view: HuntView, seats: List<HuntSeat>, roomWinner: String?, endReason: String?, winnerName: String?): HuntEnd {
-    val total = view.words.size
-    val found = view.words.count { it.foundBy != null }
+    val total = view.total
+    val found = view.found.size
     val tied = view.winners.size > 1
     val me = seats.firstOrNull { it.mine }
     val iWon = if (endReason == "forfeit" || endReason == "timeout") roomWinner == "me" else me != null && me.mark in view.winners
@@ -243,4 +262,4 @@ internal fun huntEnd(view: HuntView, seats: List<HuntSeat>, roomWinner: String?,
 
 /** The longest word found, with who found it, or null when nothing was found. */
 internal fun huntLongest(view: HuntView, seats: List<HuntSeat>): String? =
-    view.words.filter { it.foundBy != null }.sortedWith(compareBy({ -it.length }, { it.word })).firstOrNull()?.let { "${it.word} (${seats.of(it.foundBy)?.name ?: "someone"})" }
+    view.found.sortedWith(compareBy({ -it.length }, { it.word })).firstOrNull()?.let { "${it.word} (${seats.of(it.mark)?.name ?: "someone"})" }

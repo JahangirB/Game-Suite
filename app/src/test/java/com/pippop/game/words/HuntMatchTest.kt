@@ -23,7 +23,7 @@ class HuntMatchTest {
     private val cases = JSONObject(File("src/test/resources/wordhuntmatch-cases.json").readText()).getJSONArray("cases")
 
     private fun options(o: JSONObject) = HuntOptions.clean(
-        o.getString("level"), o.getString("theme"), if (o.has("backwards")) o.getBoolean("backwards") else null,
+        o.getString("level"), if (o.has("backwards")) o.getBoolean("backwards") else null,
         if (o.has("timer")) o.getInt("timer") else null, if (o.has("seed")) o.getInt("seed") else null,
     )
 
@@ -49,12 +49,26 @@ class HuntMatchTest {
         else -> v
     }
 
-    private fun assertNoLeak(v: JSONObject, at: String) {
-        val words = v.getJSONArray("words")
-        for (i in 0 until words.length()) {
-            val w = words.getJSONObject(i)
-            if (w.isNull("foundBy")) assertEquals("$at: ${w.getString("word")} leaks", setOf("word", "length", "foundBy"), w.keys().asSequence().toSet())
+    /** Every key a view has: the words are hidden, so there is no list of them. */
+    private val viewKeys = setOf("me", "level", "backwards", "timer", "width", "height", "rows", "phase", "total", "foundCount", "found", "marks", "scores", "hintsLeft", "hints", "endsAt", "winner", "winners", "reason", "results")
+    private val foundKeys = setOf("at", "dir", "col", "foundBy", "length", "row", "word")
+
+    /** No view carries the text or length of a word nobody has found (the grid's own letters, `rows`, aside). */
+    private fun assertNoUnfoundText(m: HuntMatch, v: JSONObject, at: String) {
+        assertEquals("$at: the view's keys", viewKeys, v.keys().asSequence().toSet())
+        val found = v.getJSONArray("found")
+        val foundWords = (0 until found.length()).map { found.getJSONObject(it).also { f -> assertEquals("$at: found entry", foundKeys, f.keys().asSequence().toSet()) }.getString("word") }.toSet()
+        val rest = JSONObject(v.toString()).also { it.remove("rows") }.toString()
+        for (w in m.grid.words) {
+            if (w.word in foundWords) continue
+            assertTrue("$at: ${w.word} leaks", !rest.contains(w.word))
+            assertTrue("$at: ${w.word} reversed leaks", !rest.contains(w.word.reversed()))
         }
+        assertEquals("$at: total", m.grid.words.size, v.getInt("total"))
+        assertEquals("$at: foundCount", found.length(), v.getInt("foundCount"))
+        val hints = v.getJSONArray("hints")
+        for (i in 0 until hints.length()) assertEquals("$at: hint", setOf("row", "col"), hints.getJSONObject(i).keys().asSequence().toSet())
+        assertTrue("$at: no theme", !v.has("theme"))
     }
 
     @Test
@@ -76,12 +90,13 @@ class HuntMatchTest {
             when (s.getString("do")) {
                 "view" -> {
                     val v = m.view(mark)
-                    assertNoLeak(v, at)
+                    assertNoUnfoundText(m, v, at)
                     val expect = s.getJSONObject("expect")
                     for (k in expect.keys()) {
-                        if (k == "foundBy") {
-                            val got = (0 until v.getJSONArray("words").length()).associate { v.getJSONArray("words").getJSONObject(it).let { w -> w.getString("word") to norm(w.get("foundBy")) } }
-                            assertEquals("$at: foundBy", norm(expect.get(k)), got)
+                        if (k == "found") {
+                            val f = v.getJSONArray("found")
+                            val got = (0 until f.length()).map { f.getJSONObject(it).let { w -> mapOf("word" to w.get("word"), "foundBy" to w.get("foundBy"), "at" to norm(w.get("at"))) } }
+                            assertEquals("$at: found", norm(expect.get(k)), got)
                         } else assertEquals("$at: $k", norm(expect.get(k)), norm(v.get(k)))
                     }
                 }
@@ -122,19 +137,19 @@ class HuntMatchTest {
                 }
             }
         }
-        for (mk in marks) assertNoLeak(m.view(mk), "end")
+        for (mk in marks) assertNoUnfoundText(m, m.view(mk), "end")
     }
 
     @Test
     fun optionsAndPlayers() {
-        assertEquals(HuntOptions(), HuntOptions.clean(null, null, null, null, null))
-        assertTrue(HuntOptions.clean("medium", null, null, null, null).backwards)
-        assertEquals(false, HuntOptions.clean("huge", null, false, null, null).backwards)
-        assertEquals(HuntOptions(), HuntOptions.clean("x", "Nope", null, 4, null))
-        assertEquals(8, HuntOptions.clean(null, null, null, 8, null).timer)
+        assertEquals(HuntOptions(), HuntOptions.clean(null, null, null, null))
+        assertTrue(HuntOptions.clean("medium", null, null, null).backwards)
+        assertEquals(false, HuntOptions.clean("huge", false, null, null).backwards)
+        assertEquals(HuntOptions(), HuntOptions.clean("x", null, 4, null))
+        assertEquals(8, HuntOptions.clean(null, null, 8, null).timer)
         assertThrows(IllegalArgumentException::class.java) { HuntMatch(marks = emptyList()) }
         assertEquals(1, HuntMatch(marks = listOf('h')).marks.size)
-        assertEquals(HuntOptions.clean("medium", null, null, null, null), HuntOptions(level = HuntLevel.MEDIUM))
+        assertEquals(HuntOptions.clean("medium", null, null, null), HuntOptions(level = HuntLevel.MEDIUM))
         assertEquals("Wait for the countdown.", assertThrows(IllegalArgumentException::class.java) { HuntMatch(HuntOptions(seed = 3), startAt = 1000).claim('h', 0, 0, 0, 2, 999) }.message)
         assertThrows(IllegalArgumentException::class.java) { HuntMatch(marks = listOf('h', 'g', 'o', 'p', 'q')) }
         assertEquals((0.25 * 0x7fffffff).toInt(), HuntMatch(random = { 0.25 }).options.seed)
@@ -159,5 +174,81 @@ class HuntMatchTest {
         assertEquals(false, m.play('h', JSONObject().put("hint", true)).over)
         assertEquals("No hints left", assertThrows(IllegalArgumentException::class.java) { m.play('h', JSONObject().put("hint", true)) }.message)
         assertEquals("Not a word here", assertThrows(IllegalArgumentException::class.java) { m.play('g', JSONObject()) }.message)
+    }
+
+    @Test
+    fun anOlderAppsThemeIsIgnored() {
+        for (theme in listOf("Animals", "Food", "Nope")) {
+            val o = HuntOptions.from(JSONObject().put("level", "medium").put("theme", theme).put("timer", 5))
+            assertEquals(HuntOptions(HuntLevel.MEDIUM, true, 5), o)
+        }
+        val plain = HuntMatch(HuntOptions(seed = 9)).grid
+        assertEquals(plain, HuntMatch(HuntOptions.from(JSONObject().put("level", "easy")).copy(seed = 9)).grid)
+    }
+
+    @Test
+    fun noViewEverCarriesAnUnfoundWord() {
+        val m = HuntMatch(HuntOptions(HuntLevel.MEDIUM, seed = 21, timer = 5), listOf('h', 'g', '3', '4'))
+        val check = { at: String -> for (mk in m.marks + 'z') assertNoUnfoundText(m, m.view(mk), "$at ($mk)") }
+        check("start")
+        m.hint('h', 1); m.hint('g', 1)
+        check("after hints")
+        m.grid.words.dropLast(1).forEachIndexed { i, w ->
+            val (a, b) = HuntMatch.ends(w)
+            m.claim(m.marks[i % 4], a.first, a.second, b.first, b.second, 10L + i)
+            check("after ${i + 1} claims")
+        }
+        m.tick(300000)
+        check("over")
+    }
+
+    @Test
+    fun theViewCountsAndListsFoundWordsInOrder() {
+        val m = HuntMatch(HuntOptions(seed = 3))
+        assertEquals(0, m.view('h').getJSONArray("found").length())
+        assertEquals(10, m.view('h').getInt("total"))
+        val (x, y) = m.grid.words
+        val (xa, xb) = HuntMatch.ends(x)
+        val (ya, yb) = HuntMatch.ends(y)
+        m.claim('g', ya.first, ya.second, yb.first, yb.second, 50)
+        m.claim('h', xa.first, xa.second, xb.first, xb.second, 20)
+        val v = HuntView.from(m.view('h'))
+        assertEquals(2, JSONObject(m.view('h').toString()).getInt("foundCount"))
+        assertEquals(listOf(HuntFound(y.word, 'g', y.row, y.col, y.dir.key, 50), HuntFound(x.word, 'h', x.row, x.col, x.dir.key, 20)), v.found)
+        assertEquals(10, v.total)
+    }
+
+    @Test
+    fun aViewFromAnOlderServerStillShowsTheGame() {
+        val old = JSONObject(HuntMatch(HuntOptions(seed = 3)).view('h').toString()).also { it.remove("total"); it.remove("found"); it.remove("foundCount") }
+        old.put("theme", "Animals")
+        old.put(
+            "words",
+            JSONArray()
+                .put(JSONObject().put("word", "CAT").put("length", 3).put("foundBy", "g").put("row", 2).put("col", 1).put("dir", "right"))
+                .put(JSONObject().put("word", "DEER").put("length", 4).put("foundBy", JSONObject.NULL)),
+        )
+        val v = HuntView.from(old)
+        assertEquals(2, v.total)
+        assertEquals(listOf(HuntFound("CAT", 'g', 2, 1, "right", 0)), v.found)
+    }
+
+    @Test
+    fun aRealWordThatIsNotHiddenHasItsOwnRefusal() {
+        // Find a grid where the fill letters happen to spell a 3 letter word of the vocabulary (4 or more never do).
+        for (seed in 0 until 200) {
+            val m = HuntMatch(HuntOptions(seed = seed))
+            val hidden = m.grid.words.map { it.word }.toSet()
+            for (r in 0 until m.grid.height) for (c in 0..m.grid.width - 3) {
+                val t = m.grid.rows[r].substring(c, c + 3)
+                if (t in WordHuntThemes.poolSet && t !in hidden) {
+                    assertEquals("Not one of the hidden words", assertThrows(IllegalArgumentException::class.java) { m.claim('h', r, c, r, c + 2) }.message)
+                    assertEquals("Not one of the hidden words", assertThrows(IllegalArgumentException::class.java) { m.claim('h', r, c + 2, r, c) }.message)
+                    assertEquals("Not a word here", assertThrows(IllegalArgumentException::class.java) { m.claim('h', 0, 0, 1, 1) }.message)
+                    return
+                }
+            }
+        }
+        throw AssertionError("no grid in 200 seeds has a spelled-by-chance word")
     }
 }

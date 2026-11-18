@@ -121,4 +121,13 @@ class SoloSetupTest {
         assertEquals("Practice · 6 letters", SoloSetups.spec(GameKind.WORDS)!!.buttonText(SoloSetups.resolve(GameKind.WORDS, mapOf("mode" to "practice", "length" to "hard"))))
         assertNotNull(SoloSetups.spec(GameKind.SUDOKU)!!.line(SoloSetups.resolve(GameKind.SUDOKU, null)))
     }
+
+    @Test fun aWordHuntSetupSavedWithAThemeStillWorksAndKeepsTheRest() {
+        val saved = SoloSetups.decode("mode=computers;level=hard;theme=Food;timer=5;skill=hard")
+        val now = SoloSetups.resolve(GameKind.HUNT, saved)
+        assertEquals("hard", now["level"])
+        assertEquals("5", now["timer"])
+        assertEquals("computers", now["mode"])
+        assertEquals(false, now.containsKey("theme"))
+    }
 }

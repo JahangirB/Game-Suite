@@ -277,9 +277,9 @@ private fun ladder(): List<TutorialStep> {
 private fun hunt(): List<TutorialStep> {
     fun board(found: List<Pair<String, Char>> = emptyList(), hint: Boolean = false) = @Composable { m: Modifier -> HuntPicture(found, hint, m) }
     return listOf(
-        TutorialStep("One grid for everyone", "Words hide across and down in a grid of letters. The list under it says what to find.", board()),
+        TutorialStep("One grid for everyone", "Words hide across and down in a grid of letters. There is no list: you spot them, and a line says how many are left.", board()),
         TutorialStep("Drag across a word", "Put a finger on its first letter and drag to its last, from either end. Or tap the first letter, then the last.", board(listOf("TIGER" to 'h'))),
-        TutorialStep("The first to finish keeps it", "A found word gets its finder's colour and initial. It scores its length. A wrong drag costs nothing.", board(listOf("TIGER" to 'h', "OWL" to 'g'))),
+        TutorialStep("The first to finish keeps it", "A found word gets its finder's colour and initial, and counts on their chip: tap a chip to see their words. It scores its length. A wrong drag costs nothing.", board(listOf("TIGER" to 'h', "OWL" to 'g'))),
         TutorialStep("Stuck? One hint", "A ring pulses where a word starts, for your eyes only. It costs 2 points. Big grids zoom: pinch, and move with two fingers.", board(listOf("TIGER" to 'h'), hint = true)),
     )
 }
