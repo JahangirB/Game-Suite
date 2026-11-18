@@ -58,18 +58,16 @@ class LadderMatch(
         private set
 
     val revealed get() = chain.isNotEmpty()
+
+    /** The word whose spelling wins, once the words are revealed. */
+    val target: String? get() = targetOwner?.let { picks[it] }
     val words: List<String> get() = chain.toList()
 
     private fun other(mark: Char) = marks.first { it != mark }
     private fun turnEnd(now: Long) = if (timer > 0) now + timer * 1000L else 0L
 
     /** The real, unused words one letter away from the last word in the chain. */
-    fun legalMoves(): List<String> {
-        val last = chain.last()
-        return last.indices.flatMap { i ->
-            ('A'..'Z').map { last.substring(0, i) + it + last.substring(i + 1) }
-        }.filter { it != last && it !in chain && WordLadder.isRealWord(it) }
-    }
+    fun legalMoves(): List<String> = WordLadder.legalMoves(chain)
 
     private fun endIfStuck(): TurnResult? {
         if (legalMoves().isNotEmpty()) return null

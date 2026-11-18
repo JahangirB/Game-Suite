@@ -70,6 +70,29 @@ object WordLadder {
     }
 
     fun pathExists(from: String, to: String) = distance(from, to) >= 0
+
+    /** The fewest one-letter changes from [from] to every ladder word it reaches (itself at 0). */
+    fun distancesFrom(from: String): Map<String, Int> {
+        if (from !in words) return emptyMap()
+        val seen = hashMapOf(from to 0)
+        val queue = ArrayDeque(listOf(from))
+        while (queue.isNotEmpty()) {
+            val w = queue.removeFirst()
+            for (n in neighbours(w)) if (n !in seen) {
+                seen[n] = seen.getValue(w) + 1
+                queue.addLast(n)
+            }
+        }
+        return seen
+    }
+
+    /** The real, unused words one letter away from the last word of [chain]: the moves a player may make. */
+    fun legalMoves(chain: List<String>): List<String> {
+        val last = chain.lastOrNull() ?: return emptyList()
+        return last.indices.flatMap { i ->
+            ('A'..'Z').map { last.substring(0, i) + it + last.substring(i + 1) }
+        }.filter { it != last && it !in chain && isRealWord(it) }
+    }
 }
 
 /**

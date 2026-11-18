@@ -68,6 +68,7 @@ import com.pippop.ui.screens.SoloDotsScreen
 import com.pippop.ui.screens.SoloMemoryScreen
 import com.pippop.ui.screens.TurnGameScreen
 import com.pippop.ui.screens.LadderGameScreen
+import com.pippop.ui.screens.SoloLadderScreen
 import com.pippop.ui.screens.SoloTttScreen
 import com.pippop.ui.screens.SoloDominoesScreen
 import com.pippop.ui.screens.DominoesGameScreen
@@ -135,7 +136,7 @@ import com.pippop.ui.screens.TileBounds
 import com.pippop.ui.screens.TileTransition
 import kotlinx.coroutines.launch
 
-private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS }
+private enum class Dest { HOME, PROFILE, SCORES, STORE, SOLO, SHIPS, CONNECT4, DOTS, MEMORY, WORDS, TTT, DOMINOES, NUMBERS, HOCKEY, CLASH, LUDO, GRID, BALLOON, CODE, SLIDE, BINGO, GOLF, BLOCKS, LADDER }
 
 /** The screen of a game's solo play (Draw & Guess has none). */
 private fun soloDest(game: GameKind) = when (game) {
@@ -157,8 +158,9 @@ private fun soloDest(game: GameKind) = when (game) {
     GameKind.BINGO -> Dest.BINGO
     GameKind.GOLF -> Dest.GOLF
     GameKind.BLOCKS -> Dest.BLOCKS
-    // Draw & Guess needs two players; its sheet offers no solo game. Word Ladder's solo game comes with its own step.
-    GameKind.DRAW, GameKind.LADDER -> Dest.HOME
+    // Draw & Guess needs two players; its sheet offers no solo game.
+    GameKind.DRAW -> Dest.HOME
+    GameKind.LADDER -> Dest.LADDER
     GameKind.SUDOKU -> Dest.SOLO
 }
 
@@ -187,6 +189,7 @@ fun PipPopApp(
     bingo: SoloBingoViewModel = viewModel(),
     golf: SoloGolfViewModel = viewModel(),
     blocks: SoloBlocksViewModel = viewModel(),
+    ladder: SoloLadderViewModel = viewModel(),
 ) {
     val p = AppTheme.palette
     val profile by app.profile.collectAsStateWithLifecycle()
@@ -211,6 +214,7 @@ fun PipPopApp(
     val bingoState by bingo.state.collectAsStateWithLifecycle()
     val golfState by golf.state.collectAsStateWithLifecycle()
     val blocksState by blocks.state.collectAsStateWithLifecycle()
+    val ladderState by ladder.state.collectAsStateWithLifecycle()
     // The games alone that were started and not finished: their sheet offers to carry on.
     val unfinished = buildSet {
         if (connectFourState.level != null && connectFourState.result == null) add(GameKind.CONNECT4)
@@ -230,6 +234,7 @@ fun PipPopApp(
         if (bingoState.computers > 0 && bingoState.winner == null) add(GameKind.BINGO)
         if (golfState.view != null && golfState.result == null) add(GameKind.GOLF)
         if (blocksState.view != null && blocksState.result == null) add(GameKind.BLOCKS)
+        if (ladderState.view?.phase.let { it != null && it != "over" }) add(GameKind.LADDER)
     }
     val snackbar = remember { SnackbarHostState() }
     var dest by rememberSaveable { mutableStateOf(Dest.HOME) }
@@ -486,6 +491,7 @@ fun PipPopApp(
                         dest == Dest.BINGO -> SoloBingoScreen(bingoState, bingo, onHome = goHome)
                         dest == Dest.GOLF -> SoloGolfScreen(golfState, golf, onHome = goHome)
                         dest == Dest.BLOCKS -> SoloBlocksScreen(blocksState, blocks, onHome = goHome)
+                        dest == Dest.LADDER -> SoloLadderScreen(ladderState, ladder, onHome = goHome)
                         dest == Dest.SOLO -> SoloScreen(soloState, solo, onHome = goHome)
                         dest == Dest.PROFILE -> ProfileScreen(
                             profile, battleState.busy, app, battle, updateState,
@@ -513,7 +519,7 @@ fun PipPopApp(
                                 // The game starts with the setup the sheet stated: no screen asks again.
                                 when (game) {
                                     GameKind.SUDOKU -> solo.startWith(setup)
-                                    GameKind.SHIPS, GameKind.LADDER -> Unit
+                                    GameKind.SHIPS -> Unit
                                     GameKind.CONNECT4 -> connectFour.startWith(setup)
                                     GameKind.DOTS -> dots.startWith(setup)
                                     GameKind.MEMORY -> memory.startWith(setup)
@@ -531,6 +537,7 @@ fun PipPopApp(
                                     GameKind.BINGO -> bingo.startWith(setup)
                                     GameKind.GOLF -> golf.startWith(setup)
                                     GameKind.BLOCKS -> blocks.startWith(setup)
+                                    GameKind.LADDER -> ladder.startWith(setup)
                                     GameKind.DRAW -> Unit
                                 }
                                 go(soloDest(game))

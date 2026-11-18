@@ -94,6 +94,9 @@ fun SoloGolfViewModel.startWith(values: Map<String, String>) {
     start()
 }
 
+fun SoloLadderViewModel.startWith(values: Map<String, String>) =
+    start(com.pippop.game.words.LadderLevel.from(values["level"]), values.count("length", 4..6, 5))
+
 fun SoloBlocksViewModel.startWith(values: Map<String, String>) {
     setOpponents(values.count("opponents", 1..3, 1))
     setSkill(values.skill("skill"))

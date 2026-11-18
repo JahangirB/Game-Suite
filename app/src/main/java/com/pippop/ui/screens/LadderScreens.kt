@@ -28,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,14 +52,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.pippop.data.Avatar
 import com.pippop.data.GameKind
 import com.pippop.data.RoomState
 import com.pippop.data.RoomStatus
 import com.pippop.game.words.LadderOptions
 import com.pippop.game.words.LadderView
 import com.pippop.game.words.WordLadder
+import com.pippop.game.words.WordList
 import com.pippop.ui.BattleUiState
 import com.pippop.ui.BattleViewModel
+import com.pippop.ui.SoloLadderUiState
+import com.pippop.ui.SoloLadderViewModel
+import com.pippop.ui.startWith
+import com.pippop.data.ProfileStore
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.pippop.ui.art.color
 import com.pippop.ui.theme.AppTheme
 import com.pippop.ui.theme.Board
@@ -88,6 +98,7 @@ fun ladderActions(vm: BattleViewModel) = LadderActions(vm::ladderPick, vm::ladde
 
 /** How long the coin flip stays before the first turn is shown by itself. */
 private const val FLIP_HOLD_MS = 3500L
+private const val FLIP_SHORT_MS = 1200L
 
 // ---- The rules the screens lean on (the same words as LadderMatch) --------------------------------
 
@@ -111,7 +122,7 @@ internal fun ladderMoveProblem(chain: List<String>, word: String): String? {
     val last = chain.lastOrNull() ?: return null
     val w = word.uppercase()
     if (w.length != last.length || w.indices.count { w[it] != last[it] } != 1) return "Change one letter"
-    if (WordLadder.loaded && !WordLadder.isRealWord(w)) return "Not a word"
+    if (WordLadder.loaded && WordList.loaded && !WordLadder.isRealWord(w)) return "Not a word"
     if (w in chain) return "Already used"
     return null
 }
@@ -125,7 +136,7 @@ internal fun ladderProblemHelp(reason: String, word: String): String? = when (re
 }
 
 /** One word of the ladder: who made it, and which letter changed from the word before (null for the start). */
-internal data class Rung(val word: String, val changed: Int?, val label: String)
+internal data class Rung(val word: String, val changed: Int?, val label: String, val from: String? = null)
 
 /**
  * The ladder as rungs, start first. A step is named after who made it when there is no turn timer (turns then
@@ -139,7 +150,7 @@ internal fun ladderRungs(chain: List<String>, targetIsMine: Boolean?, timer: Int
             timer == 0 && targetIsMine != null -> if ((i % 2 == 1) == targetIsMine) "You" else opponent
             else -> "Step $i"
         }
-        Rung(word, changed, label)
+        Rung(word, changed, label, chain.getOrNull(i - 1))
     }
 
 /** The result card's line for why the game ended. */
@@ -171,6 +182,7 @@ fun LadderOptionsCard(room: RoomState, busy: Boolean, onPick: (LadderOptions) ->
             "Timer", LadderOptions.TIMERS.map { it to if (it == 0) "Off" else "$it s" }, o.timer, { onPick(o.copy(timer = it)) }, enabled = enabled,
             note = if (o.timer == 0) "No clock: take as long as you like." else "${o.timer} seconds a turn. When it runs out, the turn passes.",
         )
+        Text("Want the computer instead? Tap Play solo on the game's page.", color = AppTheme.palette.muted, fontSize = TextSize.Label)
     }
 }
 
@@ -213,7 +225,7 @@ internal fun LadderWord(word: String, tile: Dp, changed: Int? = null, fill: Colo
 @Composable
 private fun LadderRung(rung: Rung, current: Boolean, tile: Dp = 38.dp) {
     val p = AppTheme.palette
-    val said = rung.label + ": " + rung.word + (rung.changed?.let { ", letter ${it + 1} changed to ${rung.word[it]}" } ?: "")
+    val said = rung.label + ": " + if (rung.from != null && rung.changed != null) "${rung.from} to ${rung.word}, changed ${rung.from[rung.changed]} to ${rung.word[rung.changed]}" else rung.word
     Row(
         Modifier.fillMaxWidth().then(if (current) Modifier.clip(Shapes.M).background(p.accent) else Modifier)
             .padding(horizontal = Space.S, vertical = 3.dp).semantics(mergeDescendants = true) { contentDescription = said },
@@ -269,28 +281,11 @@ fun LadderGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
     var showRules by remember { mutableStateOf(false) }
     if (showRules) RulesSheet(GameKind.LADDER) { showRules = false }
 
-    // The coin flip shows once after the reveal; a game joined later in its play goes straight to the ladder.
-    var flipSeen by rememberSaveable(room.code, room.round) { mutableStateOf(view.phase != "picking" && view.chain.size > 1) }
-    val flipping = !flipSeen && !finished && view.phase == "playing" && view.chain.size == 1
-    LaunchedEffect(flipping) {
-        if (flipping) {
-            delay(FLIP_HOLD_MS)
-            flipSeen = true
-        }
-    }
-    val picking = view.phase == "picking" && !finished
-
+    val phase = rememberLadderPhase(room.code to room.round, view, finished)
     val players = battleChips(
         room, state, now, p.me,
-        detail = { _, isMe ->
-            when {
-                picking -> if (if (isMe) view.myPick != null else view.opponentPicked) "Picked" else "Picking"
-                view.startOwner == null -> null
-                (view.startOwner == "me") == isMe -> "Start word"
-                else -> "Target word"
-            }
-        },
-        active = { _, isMe -> !finished && view.phase == "playing" && !flipping && view.turn == if (isMe) "me" else "opponent" },
+        detail = { _, isMe -> ladderChipDetail(view, phase, isMe) },
+        active = { _, isMe -> ladderActive(view, phase, finished, isMe) },
     )
 
     GameFrame(
@@ -303,26 +298,72 @@ fun LadderGameScreen(state: BattleUiState, vm: BattleViewModel, onLeave: () -> U
         onReact = if (opponent != null) ({ reacting = !reacting }) else null,
         trayVisible = reacting,
         tray = { ReactionBar(onReact = { vm.react(it); reacting = false }, onLine = vm.lineSender { reacting = false }, onPack = vm.packSender { reacting = false }) },
-        scrollable = picking || flipping,
+        scrollable = phase.picking || phase.flipping,
         popup = if (!finished) null else popupContent {
             MatchPopup(
                 room, GameKind.LADDER, outcomeOf(room.winner), resultTitle(room.winner, room.winnerName ?: name),
                 ladderResultDetail(room.winner, room.endReason, name, view.target),
                 onRematch = actions.rematch, onFinish = onLeave,
-            ) {
-                val rungs = ladderRungs(view.chain, view.targetOwner?.let { it == "me" }, view.timer, name)
-                Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
-                    LadderList(rungs)
-                    Text("The glowing, underlined letter is the one that changed.", color = p.muted, fontSize = TextSize.Label, modifier = Modifier.padding(top = Space.S, start = Space.S))
-                }
-            }
+            ) { LadderResultLadder(view, name) }
         },
     ) {
-        when {
-            picking -> LadderPick(room, view, name, state, actions)
-            flipping -> LadderFlip(room, view, name) { flipSeen = true }
-            else -> LadderPlay(view, state, finished, name, now, actions)
+        LadderPhases(phase, room.code to room.round, view, name, room.me.avatar, opponent?.avatar, state, finished, now, actions)
+    }
+}
+
+/** Where a ladder game is: picking the secret words, the coin flip (shown once), or the ladder. [endFlip] is the coin flip's way out. */
+internal class LadderPhase(val picking: Boolean, val flipping: Boolean, val endFlip: () -> Unit)
+
+/**
+ * The coin flip shows once after the reveal; a game joined later in its play goes straight to the ladder. [onFlipEnd] is told when it ends
+ * (a game against the computer starts the computer's first move then). With a turn clock the first mover's time is running, so the flip is shorter.
+ */
+@Composable
+internal fun rememberLadderPhase(key: Any, view: LadderView, finished: Boolean, onFlipEnd: () -> Unit = {}): LadderPhase {
+    var flipSeen by rememberSaveable(key.toString()) { mutableStateOf(view.phase != "picking" && view.chain.size > 1) }
+    val flipping = !flipSeen && !finished && view.phase == "playing" && view.chain.size == 1
+    val ended = rememberUpdatedState(onFlipEnd)
+    val end = { if (!flipSeen) { flipSeen = true; ended.value() } }
+    LaunchedEffect(flipping) {
+        if (flipping) {
+            delay(if (view.timer > 0) FLIP_SHORT_MS else FLIP_HOLD_MS)
+            end()
         }
+    }
+    return LadderPhase(view.phase == "picking" && !finished, flipping, end)
+}
+
+/** The line under a player's name: Picked or Picking, then whose word is the start and whose the target. */
+internal fun ladderChipDetail(view: LadderView, phase: LadderPhase, isMe: Boolean): String? = when {
+    phase.picking -> if (if (isMe) view.myPick != null else view.opponentPicked) "Picked" else "Picking"
+    view.startOwner == null -> null
+    (view.startOwner == "me") == isMe -> "Start word"
+    else -> "Target word"
+}
+
+internal fun ladderActive(view: LadderView, phase: LadderPhase, finished: Boolean, isMe: Boolean) =
+    !finished && view.phase == "playing" && !phase.flipping && view.turn == if (isMe) "me" else "opponent"
+
+/** What fills the screen for each phase. */
+@Composable
+internal fun ColumnScope.LadderPhases(
+    phase: LadderPhase, key: Any, view: LadderView, name: String, meAvatar: Avatar?, otherAvatar: Avatar?,
+    state: BattleUiState, finished: Boolean, now: Long, actions: LadderActions,
+) {
+    when {
+        phase.picking -> LadderPick(key, view, name, state, actions)
+        phase.flipping -> LadderFlip(meAvatar, otherAvatar, view, name, phase.endFlip)
+        else -> LadderPlay(view, state, finished, name, now, actions)
+    }
+}
+
+/** The whole ladder for a result card, in a box of its own height so the buttons stay in reach. */
+@Composable
+internal fun LadderResultLadder(view: LadderView, name: String) {
+    val p = AppTheme.palette
+    Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+        LadderList(ladderRungs(view.chain, view.targetOwner?.let { it == "me" }, view.timer, name))
+        Text("The glowing, underlined letter is the one that changed.", color = p.muted, fontSize = TextSize.Label, modifier = Modifier.padding(top = Space.S, start = Space.S))
     }
 }
 
@@ -341,9 +382,9 @@ private fun RefusalCatcher(state: BattleUiState, waiting: Boolean, actions: Ladd
 // ---- The secret word ------------------------------------------------------------------------------
 
 @Composable
-private fun ColumnScope.LadderPick(room: RoomState, view: LadderView, name: String, state: BattleUiState, actions: LadderActions) {
+internal fun ColumnScope.LadderPick(key: Any, view: LadderView, name: String, state: BattleUiState, actions: LadderActions) {
     val p = AppTheme.palette
-    var typed by rememberSaveable(room.code, room.round) { mutableStateOf(view.myPick.orEmpty()) }
+    var typed by rememberSaveable(key.toString()) { mutableStateOf(view.myPick.orEmpty()) }
     var refused by remember { mutableStateOf<String?>(null) }
     var waiting by remember { mutableStateOf(false) }
     LaunchedEffect(state.firing) { if (!state.firing) waiting = false }
@@ -406,7 +447,7 @@ private fun ColumnScope.LadderPick(room: RoomState, view: LadderView, name: Stri
 // ---- The coin flip --------------------------------------------------------------------------------
 
 @Composable
-private fun ColumnScope.LadderFlip(room: RoomState, view: LadderView, name: String, onStart: () -> Unit) {
+private fun ColumnScope.LadderFlip(meAvatar: Avatar?, otherAvatar: Avatar?, view: LadderView, name: String, onStart: () -> Unit) {
     val p = AppTheme.palette
     val start = view.start.orEmpty()
     val target = view.target.orEmpty()
@@ -426,8 +467,7 @@ private fun ColumnScope.LadderFlip(room: RoomState, view: LadderView, name: Stri
             back = { Coin { Text("?", color = p.text, fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = TextSize.DisplayL) } },
             front = {
                 Coin {
-                    val who = if (startMine) room.me else room.opponent
-                    PlayerAvatar(if (startMine) "You" else name, if (startMine) p.me else com.pippop.ui.theme.OpponentColor, size = 56, avatar = who?.avatar)
+                    PlayerAvatar(if (startMine) "You" else name, if (startMine) p.me else com.pippop.ui.theme.OpponentColor, size = 56, avatar = if (startMine) meAvatar else otherAvatar)
                 }
             },
         )
@@ -473,7 +513,7 @@ private fun Coin(content: @Composable () -> Unit) {
 // ---- The ladder -----------------------------------------------------------------------------------
 
 @Composable
-private fun ColumnScope.LadderPlay(view: LadderView, state: BattleUiState, finished: Boolean, name: String, now: Long, actions: LadderActions) {
+internal fun ColumnScope.LadderPlay(view: LadderView, state: BattleUiState, finished: Boolean, name: String, now: Long, actions: LadderActions) {
     val p = AppTheme.palette
     val chain = view.chain
     val current = chain.lastOrNull().orEmpty()
@@ -493,7 +533,13 @@ private fun ColumnScope.LadderPlay(view: LadderView, state: BattleUiState, finis
     val listState = rememberLazyListState()
     val still = LocalReduceMotion.current
     LaunchedEffect(rungs.size) {
-        if (rungs.isNotEmpty()) if (still) listState.scrollToItem(rungs.lastIndex) else listState.animateScrollToItem(rungs.lastIndex)
+        if (rungs.isEmpty()) return@LaunchedEffect
+        var first = true
+        // The list shrinks when the keyboard comes up on your turn, so the newest rung is brought back into view each time its height changes.
+        snapshotFlow { listState.layoutInfo.viewportSize.height }.collect {
+            if (first && !still) listState.animateScrollToItem(rungs.lastIndex) else listState.scrollToItem(rungs.lastIndex)
+            first = false
+        }
     }
     LazyColumn(
         state = listState,
@@ -596,5 +642,50 @@ internal fun LadderPicture(chain: List<String>, target: String?, modifier: Modif
             }
             if (target != null) LadderWord(target, tile, fill = textFill(GameKind.LADDER.color))
         }
+    }
+}
+
+// ---- Against the computer ---------------------------------------------------------------------------
+
+/** Word Ladder on your own: you pick a secret word, the computer picks one, and the same ladder follows. */
+@Composable
+fun SoloLadderScreen(state: SoloLadderUiState, vm: SoloLadderViewModel, onHome: () -> Unit) {
+    val p = AppTheme.palette
+    val view = state.view
+    // Started from the game's sheet; with nothing under way (the app was restored here) there is nothing to show.
+    if (view == null) { BackToHome(onHome); return }
+    val finished = view.phase == "over"
+    val now = rememberTicker()
+    var showRules by remember { mutableStateOf(false) }
+    if (showRules) RulesSheet(GameKind.LADDER) { showRules = false }
+    var changing by remember { mutableStateOf(false) }
+    if (changing) SoloSetupSheet(GameKind.LADDER, "New game", vm::startWith) { changing = false }
+    val avatar = ProfileStore.get(LocalContext.current).profile.collectAsState().value.avatar
+    val phase = rememberLadderPhase("solo" to state.gameId, view, finished, onFlipEnd = vm::flipDone)
+    val actions = remember(vm) { LadderActions(vm::pick, vm::move, vm::rematch, vm::dismissProblem) }
+    // The same parts as a game with a partner: a refusal comes back as a message, shown in place.
+    val feed = BattleUiState(message = state.problem, messageTone = Tone.Bad)
+    val level = state.level.key.replaceFirstChar { it.uppercase() }
+
+    GameFrame(
+        title = "Word Ladder",
+        subtitle = "Against the computer · $level",
+        players = listOf(
+            ChipPlayer("You", avatar, p.me, ladderChipDetail(view, phase, true), active = ladderActive(view, phase, finished, true), mine = true),
+            ChipPlayer("Computer", null, TheirDisc, ladderChipDetail(view, phase, false), active = ladderActive(view, phase, finished, false)),
+        ),
+        glow = GameKind.LADDER.color,
+        menu = soloMenu(GameKind.LADDER, onHome, { showRules = true }, vm::rematch, { changing = true }),
+        myTurn = view.turn == "me" && !finished,
+        scrollable = phase.picking || phase.flipping,
+        popup = if (!finished) null else popupContent {
+            SoloPopup(
+                GameKind.LADDER, if (view.winner == "me") "me" else "computer",
+                ladderResultDetail(view.winner, view.reason, "The computer", view.target),
+                onAgain = vm::rematch, onHome = onHome,
+            ) { LadderResultLadder(view, "Computer") }
+        },
+    ) {
+        LadderPhases(phase, "solo" to state.gameId, view, "Computer", avatar, null, feed, finished, now, actions)
     }
 }

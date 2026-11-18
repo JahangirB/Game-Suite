@@ -86,6 +86,9 @@ object WordList {
         this.answers = answers.groupBy { it.length }
     }
 
+    /** Whether the lists are in (a screen checks a word itself only when they are). */
+    val loaded get() = allowed.isNotEmpty()
+
     fun isWord(word: String) = word in allowed
 
     /** A secret word for [level]: one of its lengths, then a word of that length. */

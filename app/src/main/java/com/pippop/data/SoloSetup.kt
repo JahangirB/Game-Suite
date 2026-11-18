@@ -132,6 +132,16 @@ object SoloSetups {
             ),
             button = { v -> v["level"].orEmpty().replaceFirstChar { it.uppercase() } },
         ),
+        GameKind.LADDER to SoloSpec(
+            listOf(
+                SoloField(
+                    "level", "Computer", EASY_MEDIUM_HARD, "medium",
+                    note = { v -> mapOf("easy" to "Plays any word it can.", "medium" to "Won't step next to the target.", "hard" to "Plays the shortest safe path.")[v["level"]] },
+                ),
+                SoloField("length", "Words", listOf(SoloOption("4", "4", "4 letters"), SoloOption("5", "5", "5 letters"), SoloOption("6", "6", "6 letters")), "5"),
+            ),
+            button = { v -> v["level"].orEmpty().replaceFirstChar { it.uppercase() } },
+        ),
         GameKind.BLOCKS to SoloSpec(
             listOf(
                 SoloField("opponents", "Computers", computers(1..3), "1"),

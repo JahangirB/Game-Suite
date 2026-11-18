@@ -20,8 +20,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 4. Word Ladder screens**
   - [x] Setup, pick, flip, ladder, wrong move, result, rules, tutorial; card and result art
   - [x] Screenshots light and dark; a test plays through the screen
-- [ ] **Step 5. Word Ladder solo**
-  - [ ] Easy, Medium, Hard computer, each tested
+- [x] **Step 5. Word Ladder solo**
+  - [x] Easy, Medium, Hard computer, each tested
 - [ ] **Step 6. Word Hunt grid maker**
   - [ ] Across and down (backwards by switch); every word once; no side under 10; seeded
 - [ ] **Step 7. Word Hunt rules** (Opus check)
