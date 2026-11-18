@@ -141,6 +141,7 @@ val GameKind.rules: List<RulePoint>
             "Words" to "Each of you secretly picks a word. A coin flip decides whose is the start; the other is the target.",
             "Moves" to "The owner of the target goes first. No word can be used twice.",
             "Winning" to "Whoever's move spells the target wins. If you have no move, you lose.",
+            "Timer" to "With a turn timer on, a turn that runs out passes to the other player.",
         )
         GameKind.DRAW -> pts(
             "Goal" to "Play as a team over four turns, taking turns to draw. A right guess adds the seconds left, out of 80, to your team score.",
@@ -360,10 +361,16 @@ fun DrawScope.drawGameIcon(kind: GameKind, tint: Color) = scale(size.minDimensio
             p.ring(9, 9, 6, tint, 1.6); p.circle(9, 9, 2.6, tint)
             p.rr(12, 12, 9, 9, 1.5, null, tint, 1.6); p.circle(16.5, 16.5, 2.2, tint)
         }
-        GameKind.WORDS, GameKind.LADDER -> {
+        GameKind.WORDS -> {
             // Two rows of letter tiles: the top guess part right, the bottom one solved.
             for (i in 0 until 3) p.rr(2.5 + i * 7, 4, 5.5, 6.5, 1.5, if (i == 1) tint else null, tint, 1.6)
             for (i in 0 until 3) p.rr(2.5 + i * 7, 13, 5.5, 6.5, 1.5, tint)
+        }
+        GameKind.LADDER -> {
+            // A ladder: two rails and three rungs, one rung's tile filled where a letter changed.
+            p.stroke(tint, 1.8) { moveTo(7, 3); lineTo(7, 21); moveTo(17, 3); lineTo(17, 21) }
+            p.stroke(tint, 1.8) { moveTo(7, 7); lineTo(17, 7); moveTo(7, 12); lineTo(17, 12); moveTo(7, 17); lineTo(17, 17) }
+            p.rr(9.5, 9.5, 5, 5, 1.2, tint)
         }
     }
 }

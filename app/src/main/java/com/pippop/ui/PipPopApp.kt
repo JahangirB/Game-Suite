@@ -67,6 +67,7 @@ import com.pippop.ui.screens.SoloConnectFourScreen
 import com.pippop.ui.screens.SoloDotsScreen
 import com.pippop.ui.screens.SoloMemoryScreen
 import com.pippop.ui.screens.TurnGameScreen
+import com.pippop.ui.screens.LadderGameScreen
 import com.pippop.ui.screens.SoloTttScreen
 import com.pippop.ui.screens.SoloDominoesScreen
 import com.pippop.ui.screens.DominoesGameScreen
@@ -156,7 +157,7 @@ private fun soloDest(game: GameKind) = when (game) {
     GameKind.BINGO -> Dest.BINGO
     GameKind.GOLF -> Dest.GOLF
     GameKind.BLOCKS -> Dest.BLOCKS
-    // Draw & Guess needs two players; its sheet offers no solo game.
+    // Draw & Guess needs two players; its sheet offers no solo game. Word Ladder's solo game comes with its own step.
     GameKind.DRAW, GameKind.LADDER -> Dest.HOME
     GameKind.SUDOKU -> Dest.SOLO
 }
@@ -462,6 +463,7 @@ fun PipPopApp(
                         inRoomGame && room != null && room.game == GameKind.HOCKEY -> HockeyScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.NUMBERS -> NumberCrossScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.DOMINOES -> DominoesGameScreen(battleState, battle, onLeave = requestLeave)
+                        inRoomGame && room != null && room.game == GameKind.LADDER -> LadderGameScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game.turnBased -> TurnGameScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.WORDS -> WordRaceScreen(battleState, battle, onLeave = requestLeave)
                         inRoomGame && room != null && room.game == GameKind.DRAW -> DrawGuessScreen(battleState, battle, onLeave = requestLeave)

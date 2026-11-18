@@ -146,7 +146,7 @@ fun tutorialFor(kind: GameKind): List<TutorialStep>? = when (kind) {
     GameKind.CONNECT4 -> connectFour()
     GameKind.DOTS -> dots()
     GameKind.MEMORY -> memory()
-    GameKind.LADDER -> null
+    GameKind.LADDER -> ladder()
     GameKind.WORDS -> words()
     GameKind.DRAW -> draw()
     GameKind.TTT -> ttt()
@@ -260,6 +260,16 @@ private fun words(): List<TutorialStep> {
         TutorialStep("Read the colours", "Green: right letter, right place. Yellow: in the word, somewhere else. Grey: not in it.", grid(one)),
         TutorialStep("Narrow it down", "Each guess must be a real word. Use what the colours told you.", grid(two)),
         TutorialStep("First to solve wins", "All green. Fewer guesses beats more, and faster beats slower.", grid(solved)),
+    )
+}
+
+private fun ladder(): List<TutorialStep> {
+    fun board(chain: List<String>, selected: Int? = null) = @Composable { m: Modifier -> LadderPicture(chain, "WARM", m, selected) }
+    return listOf(
+        TutorialStep("Two secret words", "Each of you picks a real word. A coin flip makes one the start and the other the target.", board(listOf("COLD"))),
+        TutorialStep("Change one letter", "Tap a letter of the last word, pick its new letter, and play. Every step must be a real word.", board(listOf("COLD"), selected = 2)),
+        TutorialStep("The ladder grows", "The changed letter glows and is underlined. Words can't repeat.", board(listOf("COLD", "CORD", "CARD"))),
+        TutorialStep("Spell the target to win", "The move that spells the target wins, even if it was your partner's word. Stuck with no move? You lose.", board(listOf("COLD", "CORD", "CARD", "WARD", "WARM"))),
     )
 }
 

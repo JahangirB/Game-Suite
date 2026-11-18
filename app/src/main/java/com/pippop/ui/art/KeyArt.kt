@@ -77,8 +77,7 @@ private val Scenes: Map<GameKind, Pen.() -> Unit> = mapOf(
     GameKind.BINGO to Pen::bingo,
     GameKind.GOLF to Pen::golf,
     GameKind.BLOCKS to Pen::blocks,
-    // Word Ladder's own picture comes with its screens (a later step); until then it borrows Word Race's.
-    GameKind.LADDER to Pen::words,
+    GameKind.LADDER to Pen::ladder,
 )
 
 // ---- The first ten games --------------------------------------------------------------------
@@ -175,6 +174,20 @@ private fun Pen.words() {
     val green = rgb(0x20A47B)
     val fills = listOf(green, White, green, rgb(0xFFC93C), White)
     "CRANE".forEachIndexed { i, c -> tile(28 + i * 46, if (i == 2) 54 else 62, 40, 44, fills[i], c.toString(), size = 28) }
+}
+
+/** A ladder of words: one letter changes at each rung, and the changed tile glows. */
+private fun Pen.ladder() {
+    ground(0xDDE6FD)
+    val rail = rgb(0x8FA8F0)
+    rr(34, 4, 12, 170, 5, rail, Ink, LINE); rr(234, 4, 12, 170, 5, rail, Ink, LINE)
+    val glow = rgb(0xFFD23F)
+    listOf("COLD" to -1, "CORD" to 2, "WORD" to 0).forEachIndexed { row, (word, changed) ->
+        val y = 20 + row * 46
+        rect(46, y + 18, 188, 8, rgb(0xB5C6F7)); stroke(Ink, 2) { moveTo(46, y + 18); lineTo(234, y + 18); moveTo(46, y + 26); lineTo(234, y + 26) }
+        word.forEachIndexed { i, c -> tile(62 + i * 40, y, 34, 36, if (i == changed) glow else White, c.toString(), size = 22, r = 6) }
+        if (changed >= 0) rr(70 + changed * 40, y + 30, 18, 4, 2, Ink)
+    }
 }
 
 /** A house on the pad, and someone wondering what it is. */

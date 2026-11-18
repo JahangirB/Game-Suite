@@ -52,7 +52,8 @@ fun ResultAnimation(game: GameKind, outcome: Outcome, modifier: Modifier = Modif
                     GameKind.CONNECT4 -> if (win) a.c4Win() else a.c4Lose()
                     GameKind.DOTS -> if (win) a.dotsWin() else a.dotsLose()
                     GameKind.MEMORY -> if (win) a.memoryWin() else a.memoryLose()
-                    GameKind.WORDS, GameKind.LADDER -> if (win) a.wordsWin() else a.wordsLose()
+                    GameKind.WORDS -> if (win) a.wordsWin() else a.wordsLose()
+                    GameKind.LADDER -> if (win) a.ladderWin() else a.ladderLose()
                     GameKind.DRAW -> if (win) a.drawWin() else a.drawLose()
                     GameKind.TTT -> if (win) a.tttWin() else a.tttLose()
                     GameKind.DOMINOES -> if (win) a.dominoesWin() else a.dominoesLose()
@@ -413,6 +414,34 @@ private class ResultScene(val d: DrawScope, val t: Float) {
     }
 
     fun wordsLose() = tiles("UH-OH", Grey, true)
+
+    // ---- Word Ladder ----------------------------------------------------------------------
+
+    /** Three rungs climbing from the bottom, one after another; the top one is the target ([topFill]), lifted by [lift] and shaken by [shake]. */
+    fun ladderRows(topFill: Color, lift: Float, shake: Float) {
+        // Top to bottom: the word that made the target, the step before it, and the start. The changed letter is gold.
+        listOf("WORD" to 0, "CORD" to 2, "COLD" to -1).forEachIndexed { r, (word, changed) ->
+            val y = 22 + r * 46
+            val s = pop(f(3f, (2 - r) * .1f))
+            scaled(150, y + 17, s, s) {
+                p.translate(if (r == 0) shake else 0f, if (r == 0) lift else 0f) {
+                    word.forEachIndexed { i, c ->
+                        val x = 62 + i * 44
+                        p.rr(x, y, 40, 34, 6, if (r == 0) topFill else if (i == changed) Gold else White, Ink, 3)
+                        p.text(c.toString(), x + 20, y + 17, 24, if (r == 0) White else Ink)
+                        if (i == changed && r > 0) p.rr(x + 10, y + 27, 20, 4, 2, Ink)
+                    }
+                }
+            }
+        }
+    }
+
+    fun ladderWin() {
+        ladderRows(Green, bob(f(1.5f)), 0f)
+        spark(40, 40, 5, Gold, 2f, .9f); spark(262, 36, 6, White, 2f, 1.2f); spark(36, 128, 5, White, 2f, 1.5f); spark(264, 130, 5, Gold, 2f, 1.1f)
+    }
+
+    fun ladderLose() = ladderRows(Grey, 0f, shakeX(f(.8f)))
 
     // ---- Draw & Guess ---------------------------------------------------------------------
 

@@ -23,7 +23,7 @@ data class GameFacts(val durationMs: Long? = null, val mine: Int? = null, val th
                 // A race against the clock: the winner's own time.
                 GameKind.SUDOKU, GameKind.NUMBERS, GameKind.SLIDE ->
                     GameFacts(durationMs = if (room.winner != null && !room.together) winnerInfo?.finishMs else null)
-                // Word Ladder: nothing to measure yet (its screens come in a later step).
+                // Word Ladder: nothing is measured yet (its scoreboard comes with the app step).
                 GameKind.LADDER -> GameFacts()
                 GameKind.SHIPS -> room.ships?.let { GameFacts(count = if (meWon) it.myShots.size else if (theyWon) it.theirShots.size else null) }
                 GameKind.CONNECT4 -> room.turns?.board?.let { b ->

@@ -239,7 +239,7 @@ private fun ColourRows(guesses: List<WordGuess>, tries: Int, length: Int, small:
 
 /** An on-screen keyboard; each key takes the best colour it has earned so far. */
 @Composable
-private fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onDelete: () -> Unit, onEnter: () -> Unit) {
+internal fun WordKeyboard(guesses: List<WordGuess>, onLetter: (Char) -> Unit, onDelete: () -> Unit, onEnter: () -> Unit) {
     val p = AppTheme.palette
     val sfx = rememberSfx()
     val marks = letterMarksOn()
