@@ -24,8 +24,8 @@ Tick a line in the same commit as the work. A line that is not done carries a no
   - [x] Easy, Medium, Hard computer, each tested
 - [x] **Step 6. Word Hunt grid maker**
   - [x] Across and down (backwards by switch); every word once; no side under 10; seeded
-- [ ] **Step 7. Word Hunt rules** (Opus check)
-  - [ ] Claims, score, hint, timer, end; near-same-time claims; same tests in Kotlin and Cloudflare
+- [x] **Step 7. Word Hunt rules** (Opus check)
+  - [x] Claims, score, hint, timer, end; near-same-time claims; same tests in Kotlin and Cloudflare
 - [ ] **Step 8. Word Hunt online and nearby** (Opus check)
   - [ ] Full 3-player game in rooms and nearby; late join sees found words
 - [ ] **Step 9. Word Hunt screens**
