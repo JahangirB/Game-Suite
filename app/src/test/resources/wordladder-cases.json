@@ -1,0 +1,111 @@
+{
+  "note": "Shared by backend/cloudflare/test/wordladder.test.js and LadderMatchTest.kt. random is the coin: below 0.5 the first mark (h) owns the START word. Steps: pick, play, tick, view. error = the exact reason; expect = a subset of the view.",
+  "cases": [
+    {
+      "name": "picks are checked, and secret until both are in",
+      "options": { "length": 4, "timer": 0 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "COLDER", "error": "Pick a 4-letter word." },
+        { "do": "pick", "mark": "h", "word": "ZZZZ", "error": "Not a word we can use. Pick another." },
+        { "do": "pick", "mark": "h", "word": "DAMN", "error": "Not a word we can use. Pick another." },
+        { "do": "pick", "mark": "h", "word": "cold", "revealed": false },
+        { "do": "view", "mark": "h", "expect": { "phase": "picking", "myPick": "COLD", "opponentPicked": false, "target": null, "start": null, "chain": [], "turn": null } },
+        { "do": "view", "mark": "g", "expect": { "phase": "picking", "myPick": null, "opponentPicked": true, "target": null, "start": null, "chain": [], "turn": null } },
+        { "do": "play", "mark": "g", "word": "BOLD", "error": "Waiting for both words." },
+        { "do": "pick", "mark": "g", "word": "COLD", "error": "Pick a different word." },
+        { "do": "pick", "mark": "g", "word": "ABLE", "error": "No way from ABLE to the other word yet. Pick another." },
+        { "do": "view", "mark": "g", "expect": { "phase": "picking", "myPick": null } },
+        { "do": "pick", "mark": "g", "word": "TOLL", "revealed": true },
+        { "do": "view", "mark": "h", "expect": { "phase": "playing", "myPick": "COLD", "start": "COLD", "target": "TOLL", "startOwner": "me", "targetOwner": "opponent", "turn": "opponent", "chain": ["COLD"] } }
+      ]
+    },
+    {
+      "name": "the owner of the target wins by reaching it first",
+      "options": { "length": 4, "timer": 0 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "COLD" },
+        { "do": "pick", "mark": "g", "word": "GOLD", "revealed": true },
+        { "do": "play", "mark": "h", "word": "BOLD", "error": "Not your turn." },
+        { "do": "play", "mark": "g", "word": "GOLD", "over": true, "winner": "g", "reason": "target" },
+        { "do": "play", "mark": "h", "word": "BOLD", "error": "The game is over." },
+        { "do": "view", "mark": "g", "expect": { "phase": "over", "winner": "me", "reason": "target", "chain": ["COLD", "GOLD"], "turn": null } },
+        { "do": "view", "mark": "h", "expect": { "phase": "over", "winner": "opponent" } }
+      ]
+    },
+    {
+      "name": "the owner of the start word wins when their move spells the target",
+      "options": { "length": 4, "timer": 0 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "g", "word": "TOLL" },
+        { "do": "pick", "mark": "h", "word": "COLD", "revealed": true },
+        { "do": "play", "mark": "g", "word": "COLDS", "error": "Change one letter" },
+        { "do": "play", "mark": "g", "word": "COLD", "error": "Change one letter" },
+        { "do": "play", "mark": "g", "word": "CODE", "error": "Change one letter" },
+        { "do": "play", "mark": "g", "word": "CXLD", "error": "Not a word" },
+        { "do": "play", "mark": "g", "word": "COLD", "error": "Change one letter" },
+        { "do": "play", "mark": "g", "word": "CORD", "again": false, "over": false },
+        { "do": "play", "mark": "h", "word": "COLD", "error": "Already used" },
+        { "do": "play", "mark": "h", "word": "CORD", "error": "Change one letter" },
+        { "do": "play", "mark": "h", "word": "CORN", "over": false },
+        { "do": "view", "mark": "g", "expect": { "phase": "playing", "turn": "me", "chain": ["COLD", "CORD", "CORN"] } },
+        { "do": "play", "mark": "g", "word": "CORD", "error": "Already used" },
+        { "do": "play", "mark": "g", "word": "CORE", "over": false },
+        { "do": "play", "mark": "h", "word": "CORN", "error": "Already used" },
+        { "do": "play", "mark": "h", "word": "TORE", "over": false },
+        { "do": "play", "mark": "g", "word": "TOLE", "over": false },
+        { "do": "play", "mark": "h", "word": "TOLL", "over": true, "winner": "h", "reason": "target" },
+        { "do": "view", "mark": "h", "expect": { "phase": "over", "winner": "me", "startOwner": "me", "targetOwner": "opponent" } }
+      ]
+    },
+    {
+      "name": "a coin above one half makes the second player's word the start",
+      "options": { "length": 4, "timer": 0 }, "random": 0.9,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "COLD" },
+        { "do": "pick", "mark": "g", "word": "GOLD", "revealed": true },
+        { "do": "view", "mark": "h", "expect": { "start": "GOLD", "target": "COLD", "startOwner": "opponent", "targetOwner": "me", "turn": "me" } },
+        { "do": "play", "mark": "h", "word": "BOLD", "over": false },
+        { "do": "play", "mark": "g", "word": "GOLD", "error": "Already used" },
+        { "do": "play", "mark": "g", "word": "COLD", "over": true, "winner": "g", "reason": "target" }
+      ]
+    },
+    {
+      "name": "no move left loses, checked at the start of the turn",
+      "options": { "length": 4, "timer": 0 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "MOON" },
+        { "do": "pick", "mark": "g", "word": "MOOD", "revealed": true },
+        { "do": "play", "mark": "g", "word": "MUON", "over": true, "winner": "g", "reason": "stuck" },
+        { "do": "view", "mark": "h", "expect": { "phase": "over", "winner": "opponent", "reason": "stuck", "chain": ["MOON", "MUON"] } }
+      ]
+    },
+    {
+      "name": "a turn timer passes the turn when it runs out",
+      "options": { "length": 4, "timer": 30 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "COLD" },
+        { "do": "pick", "mark": "g", "word": "TOLL", "revealed": true, "now": 1000 },
+        { "do": "view", "mark": "g", "expect": { "turn": "me", "timer": 30, "turnEndsAt": 31000 } },
+        { "do": "tick", "now": 30999, "passed": false, "turn": "g" },
+        { "do": "tick", "now": 31000, "passed": true, "turn": "h" },
+        { "do": "view", "mark": "h", "expect": { "turn": "me", "turnEndsAt": 61000, "chain": ["COLD"] } },
+        { "do": "play", "mark": "g", "word": "CORD", "error": "Not your turn." },
+        { "do": "play", "mark": "h", "word": "CORD", "now": 40000, "over": false },
+        { "do": "view", "mark": "g", "expect": { "turn": "me", "turnEndsAt": 70000 } },
+        { "do": "tick", "now": 70000, "passed": true, "turn": "h" }
+      ]
+    },
+    {
+      "name": "a six letter game",
+      "options": { "length": 6, "timer": 0 }, "random": 0.1,
+      "steps": [
+        { "do": "pick", "mark": "h", "word": "COLD", "error": "Pick a 6-letter word." },
+        { "do": "pick", "mark": "h", "word": "CASTLE" },
+        { "do": "pick", "mark": "g", "word": "CATTLE", "revealed": true },
+        { "do": "view", "mark": "g", "expect": { "length": 6, "start": "CASTLE", "target": "CATTLE", "turn": "me" } },
+        { "do": "play", "mark": "g", "word": "CASTLES", "error": "Change one letter" },
+        { "do": "play", "mark": "g", "word": "CATTLE", "over": true, "winner": "g", "reason": "target" }
+      ]
+    }
+  ]
+}

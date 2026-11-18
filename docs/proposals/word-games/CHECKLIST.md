@@ -12,9 +12,9 @@ Tick a line in the same commit as the work. A line that is not done carries a no
 - [x] **Step 1. Word lists**
   - [x] Ladder words (4/5/6) with neighbours; Word Hunt themes; real, right length, blocklist clean
     (4: 770 words, 5: 2038, 6: 5509; 6 themes of 40+; theme words are 3 to 8 letters, the longest the word list has)
-- [ ] **Step 2. Word Ladder rules** (Opus check)
-  - [ ] Picks, random start, path check, one-letter moves, no repeats, win, no move, timer
-  - [ ] Same test cases pass in Kotlin and Cloudflare
+- [x] **Step 2. Word Ladder rules** (Opus check)
+  - [x] Picks, random start, path check, one-letter moves, no repeats, win, no move, timer
+  - [x] Same test cases pass in Kotlin and Cloudflare
 - [ ] **Step 3. Word Ladder online and nearby** (Opus check)
   - [ ] Full game in rooms and nearby; picks secret until the flip; rematch and leave
 - [ ] **Step 4. Word Ladder screens**

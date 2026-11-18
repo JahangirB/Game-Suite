@@ -1,6 +1,7 @@
 package com.pippop.game.words
 
 import android.content.Context
+import com.pippop.game.grid.GridWords
 
 /**
  * The Word Ladder dictionary (words/ladder.txt): common 4, 5 and 6 letter words, UPPERCASE, the
@@ -12,6 +13,8 @@ object WordLadder {
     val LENGTHS = listOf(4, 5, 6)
 
     @Volatile private var words: Set<String> = emptySet()
+    @Volatile var blocklist: Set<String> = emptySet()
+        private set
     @Volatile private var buckets: Map<String, List<String>> = emptyMap()
 
     val loaded get() = words.isNotEmpty()
@@ -19,11 +22,13 @@ object WordLadder {
 
     fun load(context: Context) {
         if (loaded) return
-        install(context.assets.open("words/ladder.txt").bufferedReader().readLines().filter { it.isNotBlank() })
+        fun read(name: String) = context.assets.open("words/$name.txt").bufferedReader().readLines().filter { it.isNotBlank() }
+        install(read("ladder"), read("blocklist"))
     }
 
     /** For tests, and [load]. */
-    fun install(list: List<String>) {
+    fun install(list: List<String>, blocked: List<String> = emptyList()) {
+        blocklist = blocked.toSet()
         val map = HashMap<String, MutableList<String>>()
         for (w in list) for (i in w.indices) map.getOrPut(w.substring(0, i) + "_" + w.substring(i + 1)) { mutableListOf() }.add(w)
         buckets = map
@@ -31,6 +36,16 @@ object WordLadder {
     }
 
     fun isWord(word: String) = word in words
+
+    /**
+     * A real word a move may use: any word of 4 to 6 letters in the Word Race or Letter Grid
+     * lists (loaded elsewhere: [WordList], [com.pippop.game.grid.GridWords]), not blocklisted.
+     */
+    fun isRealWord(word: String): Boolean {
+        if (word.length !in 4..6 || word in blocklist) return false
+        val lower = word.lowercase()
+        return WordList.isWord(lower) || GridWords.isWord(lower)
+    }
 
     /** Ladder words that differ from [word] in exactly one letter (none for a word not in the list). */
     fun neighbours(word: String): List<String> = word.indices.flatMap { i ->
