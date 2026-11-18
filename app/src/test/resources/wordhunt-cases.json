@@ -1,0 +1,1124 @@
+{
+ "cases": [
+  {
+   "theme": "Animals",
+   "level": "easy",
+   "backwards": false,
+   "seed": 1,
+   "rows": [
+    "EPCROWOTNT",
+    "NQJAAAORCY",
+    "TIGERSLORF",
+    "GOATANDUAH",
+    "NISNQIBTBY",
+    "PLRSGMAKSI",
+    "DNRHOOUSWM",
+    "ORJAOUZPAH",
+    "GCIRSSHDNH",
+    "SYIKEENATF"
+   ],
+   "words": [
+    {
+     "word": "CRAB",
+     "row": 1,
+     "col": 8,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "CROW",
+     "row": 0,
+     "col": 2,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "DOG",
+     "row": 6,
+     "col": 0,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "GOAT",
+     "row": 3,
+     "col": 0,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "GOOSE",
+     "row": 5,
+     "col": 4,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "MOUSE",
+     "row": 5,
+     "col": 5,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SHARK",
+     "row": 5,
+     "col": 3,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SWAN",
+     "row": 5,
+     "col": 8,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "TIGER",
+     "row": 2,
+     "col": 0,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "TROUT",
+     "row": 0,
+     "col": 7,
+     "dir": "down",
+     "length": 5
+    }
+   ]
+  },
+  {
+   "theme": "Food",
+   "level": "easy",
+   "backwards": true,
+   "seed": 0,
+   "rows": [
+    "ESTRUGOYTH",
+    "UDLITOASTS",
+    "OETDTEITNI",
+    "BACONRHOOF",
+    "EPSHCOAMMA",
+    "GIFXOHWAES",
+    "TNRIBYPTLS",
+    "IPIZZADOSZ",
+    "EAHAMTTINL",
+    "EEPEAREGRR"
+   ],
+   "words": [
+    {
+     "word": "BACON",
+     "row": 3,
+     "col": 0,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "FIG",
+     "row": 5,
+     "col": 2,
+     "dir": "left",
+     "length": 3
+    },
+    {
+     "word": "FISH",
+     "row": 3,
+     "col": 9,
+     "dir": "up",
+     "length": 4
+    },
+    {
+     "word": "HAM",
+     "row": 8,
+     "col": 2,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "LEMON",
+     "row": 6,
+     "col": 8,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "PEAR",
+     "row": 9,
+     "col": 2,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "PIZZA",
+     "row": 7,
+     "col": 1,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "TOAST",
+     "row": 1,
+     "col": 4,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "TOMATO",
+     "row": 2,
+     "col": 7,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "YOGURT",
+     "row": 0,
+     "col": 7,
+     "dir": "left",
+     "length": 6
+    }
+   ]
+  },
+  {
+   "theme": "Sport",
+   "level": "medium",
+   "backwards": false,
+   "seed": -1,
+   "rows": [
+    "BIKEWLCDKAHE",
+    "BBYBLHELGYMH",
+    "AUNETHOCATCH",
+    "TARHUNRUNDRE",
+    "CAUONRGOLFCT",
+    "RDGCSLVIOBQS",
+    "ILBKHBOXINGC",
+    "CEYEWIAOHRIO",
+    "KJEYIWSSTOER",
+    "EQKOAUTJUMPE",
+    "TSANSDIVETWP",
+    "SIAAHSGYSOKE"
+   ],
+   "words": [
+    {
+     "word": "BAT",
+     "row": 1,
+     "col": 0,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "BIKE",
+     "row": 0,
+     "col": 0,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "BOXING",
+     "row": 6,
+     "col": 5,
+     "dir": "right",
+     "length": 6
+    },
+    {
+     "word": "CATCH",
+     "row": 2,
+     "col": 7,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "CRICKET",
+     "row": 4,
+     "col": 0,
+     "dir": "down",
+     "length": 7
+    },
+    {
+     "word": "DIVE",
+     "row": 10,
+     "col": 5,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "GOLF",
+     "row": 4,
+     "col": 6,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "GYM",
+     "row": 1,
+     "col": 8,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "HOCKEY",
+     "row": 3,
+     "col": 3,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "JUMP",
+     "row": 9,
+     "col": 7,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "NET",
+     "row": 2,
+     "col": 2,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "RUGBY",
+     "row": 3,
+     "col": 2,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "RUN",
+     "row": 3,
+     "col": 6,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "SCORE",
+     "row": 5,
+     "col": 11,
+     "dir": "down",
+     "length": 5
+    }
+   ]
+  },
+  {
+   "theme": "Nature",
+   "level": "medium",
+   "backwards": true,
+   "seed": 123456789,
+   "rows": [
+    "FMUDEROMEGDL",
+    "FRISKOSOCUEA",
+    "INSXSBZOCALI",
+    "LRLHOBINCIMG",
+    "CCAELBBEPWKO",
+    "YINGNDLNRAOL",
+    "RADCEOAYEVOL",
+    "EFERNRRNWERE",
+    "AHZROKOAORBN",
+    "RTHILLCELREU",
+    "WINDROECFVNA",
+    "HXHJGODOAENN"
+   ],
+   "words": [
+    {
+     "word": "BROOK",
+     "row": 8,
+     "col": 10,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "CLIFF",
+     "row": 4,
+     "col": 0,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "CORAL",
+     "row": 9,
+     "col": 6,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "FERN",
+     "row": 7,
+     "col": 1,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "FLOWER",
+     "row": 10,
+     "col": 8,
+     "dir": "up",
+     "length": 6
+    },
+    {
+     "word": "HILL",
+     "row": 9,
+     "col": 2,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "ISLAND",
+     "row": 1,
+     "col": 2,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "LOG",
+     "row": 5,
+     "col": 11,
+     "dir": "up",
+     "length": 3
+    },
+    {
+     "word": "MOON",
+     "row": 0,
+     "col": 7,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "MUD",
+     "row": 0,
+     "col": 1,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "OCEAN",
+     "row": 11,
+     "col": 7,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "PEBBLE",
+     "row": 4,
+     "col": 8,
+     "dir": "left",
+     "length": 6
+    },
+    {
+     "word": "WAVE",
+     "row": 4,
+     "col": 9,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "WIND",
+     "row": 10,
+     "col": 0,
+     "dir": "right",
+     "length": 4
+    }
+   ]
+  },
+  {
+   "theme": "Home",
+   "level": "hard",
+   "backwards": true,
+   "seed": -2023,
+   "rows": [
+    "EWHLKETTLEAN",
+    "OROROODNDWHK",
+    "GSREWARDASOC",
+    "UMSDAAOPSGKO",
+    "RRIAHCDUAYEL",
+    "ENECNEICLHAC",
+    "BENCHSCAASCE",
+    "NONOEBATHASR",
+    "EPCEAFKEGWRW",
+    "LLIBTOWELINO",
+    "SAENIATRUCED",
+    "HTRAHELBATNN",
+    "NELNKDNIUAQI",
+    "HFLEHSUETHTW",
+    "FAFSLLAWLAMP",
+    "UWSASOMOORPU"
+   ],
+   "words": [
+    {
+     "word": "BATH",
+     "row": 7,
+     "col": 5,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "BENCH",
+     "row": 6,
+     "col": 0,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "CHAIR",
+     "row": 4,
+     "col": 5,
+     "dir": "left",
+     "length": 5
+    },
+    {
+     "word": "CLOCK",
+     "row": 5,
+     "col": 11,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "CUP",
+     "row": 5,
+     "col": 7,
+     "dir": "up",
+     "length": 3
+    },
+    {
+     "word": "CURTAIN",
+     "row": 10,
+     "col": 9,
+     "dir": "left",
+     "length": 7
+    },
+    {
+     "word": "DOOR",
+     "row": 1,
+     "col": 6,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "DRAWER",
+     "row": 2,
+     "col": 7,
+     "dir": "left",
+     "length": 6
+    },
+    {
+     "word": "KETTLE",
+     "row": 0,
+     "col": 4,
+     "dir": "right",
+     "length": 6
+    },
+    {
+     "word": "LAMP",
+     "row": 14,
+     "col": 8,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "PLATE",
+     "row": 8,
+     "col": 1,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "ROOM",
+     "row": 15,
+     "col": 9,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "RUG",
+     "row": 4,
+     "col": 0,
+     "dir": "up",
+     "length": 3
+    },
+    {
+     "word": "SHELF",
+     "row": 13,
+     "col": 5,
+     "dir": "left",
+     "length": 5
+    },
+    {
+     "word": "TABLE",
+     "row": 11,
+     "col": 9,
+     "dir": "left",
+     "length": 5
+    },
+    {
+     "word": "TOWEL",
+     "row": 9,
+     "col": 4,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "WALL",
+     "row": 14,
+     "col": 7,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "WINDOW",
+     "row": 13,
+     "col": 11,
+     "dir": "up",
+     "length": 6
+    }
+   ]
+  },
+  {
+   "theme": "Mixed",
+   "level": "hard",
+   "backwards": false,
+   "seed": 42,
+   "rows": [
+    "PDRRAGRRHSMH",
+    "ICWTOLXOIWGT",
+    "RNETQOIXONOE",
+    "ANHCTVTFLAGE",
+    "TSMHOEEIAAGF",
+    "EMNAWMPOFEHM",
+    "SIFTEEDSWYOH",
+    "FLBMRARBAOSS",
+    "CERAANEMTTTA",
+    "ARIGSIARCUEO",
+    "SNDIHNMBHSQS",
+    "TIGCDVMAOPAW",
+    "LHETKIAKHROO",
+    "EALDEAPEGIRR",
+    "BELLYEWROAXD",
+    "PROARIPAINTY"
+   ],
+   "words": [
+    {
+     "word": "BAKER",
+     "row": 10,
+     "col": 7,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "BELL",
+     "row": 14,
+     "col": 0,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "BRIDGE",
+     "row": 7,
+     "col": 2,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "CASTLE",
+     "row": 8,
+     "col": 0,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "DREAM",
+     "row": 6,
+     "col": 6,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "FLAG",
+     "row": 3,
+     "col": 7,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "GHOST",
+     "row": 4,
+     "col": 10,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "GLOVE",
+     "row": 0,
+     "col": 5,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "HAT",
+     "row": 4,
+     "col": 3,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "KEY",
+     "row": 12,
+     "col": 4,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "MAGIC",
+     "row": 7,
+     "col": 3,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "MAP",
+     "row": 11,
+     "col": 6,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "PAINT",
+     "row": 15,
+     "col": 6,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "PIRATE",
+     "row": 0,
+     "col": 0,
+     "dir": "down",
+     "length": 6
+    },
+    {
+     "word": "SMILE",
+     "row": 4,
+     "col": 1,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SWORD",
+     "row": 10,
+     "col": 11,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "TOWER",
+     "row": 3,
+     "col": 4,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "WATCH",
+     "row": 6,
+     "col": 8,
+     "dir": "down",
+     "length": 5
+    }
+   ]
+  },
+  {
+   "theme": "Animals",
+   "level": "huge",
+   "backwards": true,
+   "seed": 7,
+   "rows": [
+    "THKOOWLHTIEEXTOC",
+    "SUCQPZDIOLWRSEUW",
+    "DEUEOEYAEVTZMEAC",
+    "ORDEODRIBNRPEEHS",
+    "OOFLHNKRBAILXOCY",
+    "PQNOPLSTAEOTTAOA",
+    "AGVEAOWPARROGABT",
+    "EOIEBEAALQFLACNS",
+    "FOCRORNNYODELAHW",
+    "LSTBREHDHEEBLAMB",
+    "EEOTRNEASAIMIDEE",
+    "RAAEEXSIHGCEJCSR",
+    "IRDSSAROATREOONS",
+    "OTTERWOEREASLWAH",
+    "DYIEHOHIELIODTKO",
+    "GTAHTREEACIOENEK",
+    "OSNTTCEICUKMTATI",
+    "RAOROWTORREEDTOO",
+    "FSRESAZCATUORTOA",
+    "EMIEOAOLBUNYARYD"
+   ],
+   "words": [
+    {
+     "word": "ANT",
+     "row": 16,
+     "col": 13,
+     "dir": "up",
+     "length": 3
+    },
+    {
+     "word": "BEE",
+     "row": 9,
+     "col": 11,
+     "dir": "left",
+     "length": 3
+    },
+    {
+     "word": "BIRD",
+     "row": 3,
+     "col": 8,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "CALF",
+     "row": 7,
+     "col": 13,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "COW",
+     "row": 11,
+     "col": 13,
+     "dir": "down",
+     "length": 3
+    },
+    {
+     "word": "CRAB",
+     "row": 16,
+     "col": 8,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "CROW",
+     "row": 16,
+     "col": 5,
+     "dir": "up",
+     "length": 4
+    },
+    {
+     "word": "DEER",
+     "row": 17,
+     "col": 12,
+     "dir": "left",
+     "length": 4
+    },
+    {
+     "word": "DUCK",
+     "row": 3,
+     "col": 2,
+     "dir": "up",
+     "length": 4
+    },
+    {
+     "word": "FROG",
+     "row": 18,
+     "col": 0,
+     "dir": "up",
+     "length": 4
+    },
+    {
+     "word": "GOOSE",
+     "row": 6,
+     "col": 1,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "HARE",
+     "row": 11,
+     "col": 8,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "HORSE",
+     "row": 14,
+     "col": 6,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "LAMB",
+     "row": 9,
+     "col": 12,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "MOOSE",
+     "row": 16,
+     "col": 11,
+     "dir": "up",
+     "length": 5
+    },
+    {
+     "word": "OTTER",
+     "row": 13,
+     "col": 0,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "OWL",
+     "row": 0,
+     "col": 4,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "PANDA",
+     "row": 6,
+     "col": 7,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SHEEP",
+     "row": 3,
+     "col": 15,
+     "dir": "left",
+     "length": 5
+    },
+    {
+     "word": "SNAKE",
+     "row": 11,
+     "col": 14,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SWAN",
+     "row": 5,
+     "col": 6,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "TOAD",
+     "row": 9,
+     "col": 2,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "TROUT",
+     "row": 18,
+     "col": 13,
+     "dir": "left",
+     "length": 5
+    },
+    {
+     "word": "WHALE",
+     "row": 8,
+     "col": 15,
+     "dir": "left",
+     "length": 5
+    }
+   ]
+  },
+  {
+   "theme": "Food",
+   "level": "huge",
+   "backwards": false,
+   "seed": 2147483647,
+   "rows": [
+    "TOTJTBEANSIWHSRI",
+    "ITUOHAMLEMONEOEE",
+    "ESMLMILKWIXPCUII",
+    "TXEIIWAFFLEHSPNG",
+    "PILVLNEEEDFIGAIQ",
+    "EMOELNEINUAEEPUN",
+    "PGNDHLTTGRNIHPHR",
+    "RPISTPPIOCLHCLLM",
+    "MYAYONIONUQWOEIR",
+    "ANERABZOLRUTREMT",
+    "XSFISHZYRREANOET",
+    "ONOPIEAJEYMANGOE",
+    "PTAOTAAUXHMXCOTS",
+    "THSALADICYAOEHSI",
+    "WMATTDECRUIHOSRN",
+    "UISNDDLEEXLTOAST",
+    "VSEWRYPMAHHHOEEA",
+    "EIOBHHJUMDSIENST",
+    "SYOGURTDGSCHIPSA",
+    "TEETHJOPHEGJRFNM"
+   ],
+   "words": [
+    {
+     "word": "APPLE",
+     "row": 4,
+     "col": 13,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "BEANS",
+     "row": 0,
+     "col": 5,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "CHIPS",
+     "row": 18,
+     "col": 10,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "CORN",
+     "row": 7,
+     "col": 12,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "CREAM",
+     "row": 13,
+     "col": 8,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "CURRY",
+     "row": 7,
+     "col": 9,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "FIG",
+     "row": 4,
+     "col": 10,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "FISH",
+     "row": 10,
+     "col": 2,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "HAM",
+     "row": 1,
+     "col": 4,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "JUICE",
+     "row": 11,
+     "col": 7,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "LEMON",
+     "row": 1,
+     "col": 7,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "LIME",
+     "row": 7,
+     "col": 14,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "MANGO",
+     "row": 11,
+     "col": 10,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "MELON",
+     "row": 2,
+     "col": 2,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "MILK",
+     "row": 2,
+     "col": 4,
+     "dir": "right",
+     "length": 4
+    },
+    {
+     "word": "OLIVE",
+     "row": 1,
+     "col": 3,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "ONION",
+     "row": 8,
+     "col": 4,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "PIE",
+     "row": 11,
+     "col": 3,
+     "dir": "right",
+     "length": 3
+    },
+    {
+     "word": "PIZZA",
+     "row": 7,
+     "col": 6,
+     "dir": "down",
+     "length": 5
+    },
+    {
+     "word": "SALAD",
+     "row": 13,
+     "col": 2,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "SOUP",
+     "row": 0,
+     "col": 13,
+     "dir": "down",
+     "length": 4
+    },
+    {
+     "word": "TOAST",
+     "row": 15,
+     "col": 11,
+     "dir": "right",
+     "length": 5
+    },
+    {
+     "word": "WAFFLE",
+     "row": 3,
+     "col": 5,
+     "dir": "right",
+     "length": 6
+    },
+    {
+     "word": "YOGURT",
+     "row": 18,
+     "col": 1,
+     "dir": "right",
+     "length": 6
+    }
+   ]
+  }
+ ]
+}
